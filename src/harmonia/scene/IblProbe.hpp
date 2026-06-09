@@ -29,7 +29,7 @@ class IblProbe {
     ~IblProbe();
 
     /// Load an equirectangular EXR panorama, convert to linear Rec.2020, and upload to GPU.
-    /// Requires HYPERION_HAS_OPENEXR; returns VK_ERROR_FEATURE_NOT_PRESENT otherwise.
+    /// Requires HARMONIA_HAS_OPENEXR; returns VK_ERROR_FEATURE_NOT_PRESENT otherwise.
     [[nodiscard]] static std::expected<IblProbe, VkResult>
     loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const std::filesystem::path& path);
 

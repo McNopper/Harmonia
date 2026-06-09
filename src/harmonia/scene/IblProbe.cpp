@@ -6,7 +6,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
 
-#ifdef HYPERION_HAS_OPENEXR
+#ifdef HARMONIA_HAS_OPENEXR
 #include <Imath/ImathBox.h>
 #include <OpenEXR/ImfRgbaFile.h>
 #endif
@@ -56,7 +56,7 @@ void IblProbe::reset() noexcept {
 
 std::expected<IblProbe, VkResult>
 IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const std::filesystem::path& path) {
-#ifndef HYPERION_HAS_OPENEXR
+#ifndef HARMONIA_HAS_OPENEXR
     (void)ctx;
     (void)pool;
     (void)path;

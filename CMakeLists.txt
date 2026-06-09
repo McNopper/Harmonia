@@ -6,9 +6,13 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(CTest)
 include(FetchContent)
-include(Platform)
-include(VulkanSDK)
-include(CompileShaders)
+# Include the shared CMake modules by absolute path so that, when Harmonia is
+# pulled in via FetchContent by a consumer (Hyperion/Theia) that has its own
+# identically-named modules earlier on CMAKE_MODULE_PATH, we still load ours
+# (harmonia_configure_target lives only in Harmonia's Platform.cmake).
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Platform.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VulkanSDK.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompileShaders.cmake")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 23)
@@ -64,9 +68,11 @@ set(HARMONIA_LIBRARY_SOURCES
 )
 
 # Volk — compiled from the Vulkan SDK source.
-add_library(volk STATIC "${VULKANSDK_VOLK_SOURCE}")
-target_include_directories(volk SYSTEM PUBLIC "${VULKANSDK_INCLUDE_DIR}")
-set_target_properties(volk PROPERTIES LINKER_LANGUAGE C)
+if(NOT TARGET volk)
+    add_library(volk STATIC "${VULKANSDK_VOLK_SOURCE}")
+    target_include_directories(volk SYSTEM PUBLIC "${VULKANSDK_INCLUDE_DIR}")
+    set_target_properties(volk PROPERTIES LINKER_LANGUAGE C)
+endif()
 
 add_library(harmonia_project_options INTERFACE)
 harmonia_configure_target(harmonia_project_options)
