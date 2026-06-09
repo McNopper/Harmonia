@@ -22,12 +22,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_definitions(VK_NO_PROTOTYPES)
 
 # ── Aether (file-format library) ─────────────────────────────────────────────
-# Consumed via FetchContent. Pushes are not available yet, so the source dir is
-# the sibling working copy by default; override FETCHCONTENT_SOURCE_DIR_AETHER or
-# the GIT_* args to pull from GitHub once Aether is published.
+# Consumed via FetchContent, pinned to a published release tag.  For local
+# development against a working copy, override FETCHCONTENT_SOURCE_DIR_AETHER
+# (e.g. -DFETCHCONTENT_SOURCE_DIR_AETHER=../Aether).
 FetchContent_Declare(
     aether
-    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Aether"
+    GIT_REPOSITORY https://github.com/McNopper/Aether.git
+    GIT_TAG v0.1.0
 )
 FetchContent_MakeAvailable(aether)
 
