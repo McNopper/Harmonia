@@ -16,16 +16,22 @@ file format.
 
 ## Scope
 
-- **Vulkan core** — device/context, buffers, images, command pools, queues, logging, timers
-- **GPU scene** — uploads [Aether](https://github.com/McNopper/Aether) CPU structs into GPU
-  buffers, acceleration structures, bindless textures and `GpuMaterial`
+- **Vulkan core** — device/context (incl. optional ray-tracing and `VK_EXT_mesh_shader`
+  when supported), buffers, images, command pools, queues, logging, timers
+- **Shared GPU types** — `GpuVertex`, `GpuMaterial`, `GpuLight`, `GpuEmissiveTriangle`,
+  `CameraData`, `PushConstants` and the `Tonemapper` / `LightType` enums
+- **GPU upload primitives** — buffers, bindless textures, images (with mip support),
+  procedural geometry, IBL probe precompute
 - **Color management** — linear Rec.2020 working space, color-space conversions
 - **Tonemapping** — AgX, ACES, Reinhard, Hable
 - **Presentation** — swapchain, surface, SDR / HDR10 / scRGB output color spaces
 - **Shared render utilities** — camera, descriptors, pipeline, acceleration structure
 
-It does **not** contain a renderer: Hyperion provides the offline path tracer, Theia the
-real-time forward renderer.
+It does **not** contain a renderer or a renderer's GPU scene. Hyperion provides the
+offline path tracer, Theia the real-time forward renderer, and **each renderer owns its
+own `Scene` and `GpuInstance` layout** — Hyperion's is built around index buffers and a
+ray-tracing pipeline, Theia's around meshlets and mesh shaders. Only types and code that
+are shared **1:1** live here; anything that diverges per renderer stays in the renderer.
 
 ---
 
