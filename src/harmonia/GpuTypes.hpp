@@ -58,15 +58,8 @@ struct GpuMaterial {
     glm::uvec4 textureIndices2; ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
 };
 
-struct GpuInstance {
-    uint32_t meshIndex;
-    uint32_t materialIndex;
-    uint32_t vertexOffset;
-    uint32_t indexOffset;
-    uint32_t geometryKind;
-    float sphereRadius;
-    uint32_t _pad[2];
-};
+// GpuInstance is renderer-specific (path-tracer index layout vs rasterizer meshlet
+// layout) and is defined by each renderer alongside its own Scene.
 
 /// Per-triangle emissive descriptor for NEE direct area sampling (std430, 64 bytes = 4×float4).
 /// Edge vectors and emission components share float4 w-channels to avoid padding.
@@ -134,7 +127,6 @@ static_assert(std::is_trivially_copyable_v<GpuVertex>);
 /// Sentinel texture index: slot holds no texture.
 static constexpr uint32_t kNoTexture = ~0u;
 static_assert(std::is_trivially_copyable_v<GpuMaterial>);
-static_assert(std::is_trivially_copyable_v<GpuInstance>);
 static_assert(std::is_trivially_copyable_v<GpuLight>);
 static_assert(std::is_trivially_copyable_v<GpuEmissiveTriangle>);
 static_assert(std::is_trivially_copyable_v<CameraData>);
@@ -142,7 +134,6 @@ static_assert(std::is_trivially_copyable_v<PushConstants>);
 
 static_assert(sizeof(GpuVertex) == 48);
 static_assert(sizeof(GpuMaterial) == 288);
-static_assert(sizeof(GpuInstance) == 32);
 static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 64);
 static_assert(sizeof(CameraData) == 176);

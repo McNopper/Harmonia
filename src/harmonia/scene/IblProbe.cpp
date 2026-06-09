@@ -1,5 +1,8 @@
 #include "harmonia/scene/IblProbe.hpp"
 
+#include <glm/glm.hpp>
+
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -18,7 +21,9 @@ IblProbe::IblProbe(IblProbe&& other) noexcept
       m_marginalCdf(std::move(other.m_marginalCdf)),
       m_conditionalCdf(std::move(other.m_conditionalCdf)),
       m_cdfWidth(std::exchange(other.m_cdfWidth, 0u)),
-      m_cdfHeight(std::exchange(other.m_cdfHeight, 0u)) {
+      m_cdfHeight(std::exchange(other.m_cdfHeight, 0u)),
+      m_sunDirection(other.m_sunDirection),
+      m_sunStrength(std::exchange(other.m_sunStrength, 0.0f)) {
     other.m_ctx = nullptr;
 }
 
@@ -32,6 +37,8 @@ IblProbe& IblProbe::operator=(IblProbe&& other) noexcept {
         m_conditionalCdf = std::move(other.m_conditionalCdf);
         m_cdfWidth = std::exchange(other.m_cdfWidth, 0u);
         m_cdfHeight = std::exchange(other.m_cdfHeight, 0u);
+        m_sunDirection = other.m_sunDirection;
+        m_sunStrength = std::exchange(other.m_sunStrength, 0.0f);
         other.m_ctx = nullptr;
     }
     return *this;
@@ -207,6 +214,12 @@ IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const s
 
     // Luminance grid: weighted by sin(θ) to account for equirectangular → solid-angle mapping
     std::vector<float> lumGrid(static_cast<size_t>(kCdfW * kCdfH));
+    // Track the brightest (raw, unweighted) cell to extract a dominant "sun" direction
+    // for ray-traced directional shadows, plus the mean to gauge how concentrated it is.
+    float sunBestAvg = -1.0f;
+    int sunBestU = 0, sunBestV = 0;
+    double sunAvgSum = 0.0;
+    int sunAvgCount = 0;
     for (int v = 0; v < kCdfH; ++v) {
         const float sinTheta = std::sin(kPiCpu * (static_cast<float>(v) + 0.5f) / static_cast<float>(kCdfH));
         for (int u = 0; u < kCdfW; ++u) {
@@ -231,10 +244,45 @@ IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const s
                     ++count;
                 }
             }
-            lumGrid[static_cast<size_t>(v * kCdfW + u)] =
-                (count > 0 ? sumLum / static_cast<float>(count) : 0.0f) * sinTheta;
+            const float avgLum = (count > 0 ? sumLum / static_cast<float>(count) : 0.0f);
+            sunAvgSum += avgLum;
+            ++sunAvgCount;
+            if (avgLum > sunBestAvg) {
+                sunBestAvg = avgLum;
+                sunBestU = u;
+                sunBestV = v;
+            }
+            lumGrid[static_cast<size_t>(v * kCdfW + u)] = avgLum * sinTheta;
         }
     }
+
+    // Convert the brightest grid cell into a world-space direction toward the sun.
+    // Inverts the lat-long convention used by the shaders (env.slang):
+    //   u = atan2(z,x)/(2π) + 0.5,  v = acos(y)/π  (v=0 at top, y=+1)
+    glm::vec3 domSunDir{0.0f, 1.0f, 0.0f};
+    float domSunStrength = 0.0f;
+    {
+        const float uNorm = (static_cast<float>(sunBestU) + 0.5f) / static_cast<float>(kCdfW);
+        const float vNorm = (static_cast<float>(sunBestV) + 0.5f) / static_cast<float>(kCdfH);
+        const float phi = (uNorm - 0.5f) * 2.0f * kPiCpu;
+        const float theta = vNorm * kPiCpu;
+        const float sinT = std::sin(theta);
+        domSunDir = glm::normalize(glm::vec3(sinT * std::cos(phi), std::cos(theta), sinT * std::sin(phi)));
+        // Concentration: ratio of the brightest cell to the mean. Uniform/overcast skies
+        // give a ratio near 1 (no harsh shadows); a clear sun gives a very large ratio.
+        const float meanAvg =
+            (sunAvgCount > 0) ? static_cast<float>(sunAvgSum / static_cast<double>(sunAvgCount)) : 0.0f;
+        const float ratio = (meanAvg > 1e-8f) ? (sunBestAvg / meanAvg) : 0.0f;
+        domSunStrength = std::clamp((ratio - 4.0f) / 16.0f, 0.0f, 1.0f);
+        Logger::info("IblProbe: dominant light dir ({:.2f}, {:.2f}, {:.2f}), strength {:.2f} (peak/mean {:.1f})",
+                     domSunDir.x,
+                     domSunDir.y,
+                     domSunDir.z,
+                     domSunStrength,
+                     ratio);
+    }
+    probe.m_sunDirection = domSunDir;
+    probe.m_sunStrength = domSunStrength;
 
     // Per-row conditional CDFs: conditionalCdf[v*(W+1)..(v+1)*(W+1)] for each row v
     std::vector<float> conditionalCdf(static_cast<size_t>(kCdfH * (kCdfW + 1)));

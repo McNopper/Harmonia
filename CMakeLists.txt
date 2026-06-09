@@ -53,7 +53,6 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/scene/Light.cpp
     src/harmonia/scene/Mesh.cpp
     src/harmonia/scene/ProceduralGeometry.cpp
-    src/harmonia/scene/Scene.cpp
     src/harmonia/scene/Texture.cpp
     src/harmonia/utils/ColorSpace.cpp
     src/harmonia/presentation/Surface.cpp
@@ -84,7 +83,12 @@ target_link_libraries(harmonia_vulkan_sdk INTERFACE ${VULKANSDK_LIBRARIES})
 find_package(OpenEXR QUIET)
 find_package(Stb REQUIRED)
 
+# Resolve Harmonia's shaders relative to Harmonia's own source tree so the
+# tonemap shaders compile correctly when Harmonia is consumed via FetchContent
+# (CMAKE_SOURCE_DIR would otherwise point at the consumer project).
+set(COMPILE_SLANG_SHADER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 compile_slang_shaders(harmonia_shaders "${HARMONIA_SHADER_OUTPUT_DIR}" ${HARMONIA_ENTRY_SHADERS})
+unset(COMPILE_SLANG_SHADER_ROOT)
 
 add_library(harmonia_lib STATIC ${HARMONIA_LIBRARY_SOURCES})
 add_library(harmonia::harmonia ALIAS harmonia_lib)

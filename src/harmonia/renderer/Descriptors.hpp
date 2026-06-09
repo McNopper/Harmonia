@@ -3,11 +3,11 @@
 #include <volk/volk.h>
 
 #include <expected>
+#include <span>
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/GpuTypes.hpp"
-
-class Scene;
+#include "harmonia/scene/Texture.hpp"
 
 class Descriptors {
   public:
@@ -22,7 +22,19 @@ class Descriptors {
 
     [[nodiscard]] static std::expected<Descriptors, VkResult> create(const DeviceContext& ctx);
 
-    VkResult updateSceneSet(const DeviceContext& ctx, const Scene& scene);
+    /// Populate the path-tracer scene descriptor set (set 1) from raw GPU buffers and
+    /// scene textures. Scene-type-agnostic so each renderer can build its own Scene and
+    /// still reuse Harmonia's shared descriptor layout. Buffer bindings: 0=instances,
+    /// 1=materials, 2=vertices, 3=indices, 5=lights, 7=emissive triangles; binding 4 =
+    /// bindless texture array.
+    VkResult updateSceneSet(const DeviceContext& ctx,
+                            VkBuffer instanceBuffer,
+                            VkBuffer materialBuffer,
+                            VkBuffer vertexBuffer,
+                            VkBuffer indexBuffer,
+                            VkBuffer lightBuffer,
+                            VkBuffer emissiveTriangleBuffer,
+                            std::span<const Texture> textures);
     VkResult updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler);
     VkResult updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf);
 

@@ -2,10 +2,12 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace ProceduralGeometry {
@@ -66,6 +68,57 @@ MeshData makeBox(glm::vec3 halfExtent, glm::mat4 transform) {
                                 baseVertex + 2U,
                                 baseVertex + 3U,
                             });
+    }
+
+    return mesh;
+}
+
+MeshData makeSphere(glm::vec3 center, float radius, uint32_t rings, uint32_t slices) {
+    MeshData mesh;
+    mesh.vertices.reserve((rings + 1) * (slices + 1));
+    mesh.indices.reserve(rings * slices * 6);
+
+    const float pi = glm::pi<float>();
+
+    for (uint32_t r = 0; r <= rings; ++r) {
+        const float v = static_cast<float>(r) / static_cast<float>(rings);
+        const float theta = v * pi; // 0 = north pole, PI = south pole
+        const float sinT = std::sin(theta);
+        const float cosT = std::cos(theta);
+
+        for (uint32_t s = 0; s <= slices; ++s) {
+            const float u = static_cast<float>(s) / static_cast<float>(slices);
+            const float phi = u * 2.0f * pi;
+            const float sinP = std::sin(phi);
+            const float cosP = std::cos(phi);
+
+            // Y-up normal: theta=0 → (0,1,0), theta=PI → (0,-1,0)
+            const glm::vec3 normal{sinT * cosP, cosT, sinT * sinP};
+            // Tangent = dN/dphi normalised (east direction along longitude)
+            glm::vec3 tangent{-sinP, 0.0f, cosP};
+            if (sinT < 1e-4f)
+                tangent = {1.0f, 0.0f, 0.0f}; // pole fallback
+
+            mesh.vertices.push_back(GpuVertex{
+                .position = center + radius * normal,
+                .tangentX = tangent.x,
+                .normal = normal,
+                .tangentY = tangent.y,
+                .uv = {u, v},
+                .tangentZ = tangent.z,
+                .bitangentSign = 1.0f,
+            });
+        }
+    }
+
+    for (uint32_t r = 0; r < rings; ++r) {
+        for (uint32_t s = 0; s < slices; ++s) {
+            const uint32_t a = r * (slices + 1) + s;
+            const uint32_t b = a + 1;
+            const uint32_t c = (r + 1) * (slices + 1) + s;
+            const uint32_t d = c + 1;
+            mesh.indices.insert(mesh.indices.end(), {a, b, c, b, d, c});
+        }
     }
 
     return mesh;

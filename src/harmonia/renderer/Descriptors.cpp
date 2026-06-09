@@ -5,7 +5,6 @@
 #include <array>
 #include <utility>
 
-#include "harmonia/scene/Scene.hpp"
 
 Descriptors::~Descriptors() noexcept {
     reset();
@@ -168,14 +167,21 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     return descriptors;
 }
 
-VkResult Descriptors::updateSceneSet(const DeviceContext& ctx, const Scene& scene) {
+VkResult Descriptors::updateSceneSet(const DeviceContext& ctx,
+                                     VkBuffer instanceBuffer,
+                                     VkBuffer materialBuffer,
+                                     VkBuffer vertexBuffer,
+                                     VkBuffer indexBuffer,
+                                     VkBuffer lightBuffer,
+                                     VkBuffer emissiveTriangleBuffer,
+                                     std::span<const Texture> textures) {
     const std::array bufferInfos{
-        VkDescriptorBufferInfo{scene.instanceBuffer().handle(), 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{scene.materialBuffer().handle(), 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{scene.vertexBuffer().handle(), 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{scene.indexBuffer().handle(), 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{scene.lightBuffer().handle(), 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{scene.emissiveTriangleBuffer().handle(), 0, VK_WHOLE_SIZE},
+        VkDescriptorBufferInfo{instanceBuffer, 0, VK_WHOLE_SIZE},
+        VkDescriptorBufferInfo{materialBuffer, 0, VK_WHOLE_SIZE},
+        VkDescriptorBufferInfo{vertexBuffer, 0, VK_WHOLE_SIZE},
+        VkDescriptorBufferInfo{indexBuffer, 0, VK_WHOLE_SIZE},
+        VkDescriptorBufferInfo{lightBuffer, 0, VK_WHOLE_SIZE},
+        VkDescriptorBufferInfo{emissiveTriangleBuffer, 0, VK_WHOLE_SIZE},
     };
     const std::array writes{
         VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -242,10 +248,10 @@ VkResult Descriptors::updateSceneSet(const DeviceContext& ctx, const Scene& scen
     vkUpdateDescriptorSets(ctx.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 
     // Bind each scene texture to binding 4 (bindless combined image sampler array).
-    for (uint32_t i = 0; i < static_cast<uint32_t>(scene.textures().size()); ++i) {
+    for (uint32_t i = 0; i < static_cast<uint32_t>(textures.size()); ++i) {
         const VkDescriptorImageInfo imageInfo{
-            .sampler = scene.textures()[i].sampler(),
-            .imageView = scene.textures()[i].image().view(),
+            .sampler = textures[i].sampler(),
+            .imageView = textures[i].image().view(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
         const VkWriteDescriptorSet write{

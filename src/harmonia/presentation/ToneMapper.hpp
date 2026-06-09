@@ -34,6 +34,18 @@ class ToneMapper {
                 VkExtent2D extent,
                 OutputColorSpace colorSpace) const noexcept;
 
+    /// Overload that also selects the SDR/Display-P3 tone-mapping operator
+    /// (matches tonemap.slang: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable). Used by
+    /// renderers that perform tone mapping in the present pass (e.g. Theia's
+    /// forward renderer); offline renderers that tone-map earlier use the
+    /// 5-argument overload above and leave PushConstants::tonemapper untouched.
+    void record(VkCommandBuffer cmd,
+                VkImageView hdrView,
+                VkImageView swapchainView,
+                VkExtent2D extent,
+                OutputColorSpace colorSpace,
+                uint32_t tonemapper) const noexcept;
+
   private:
     void destroy() noexcept;
 

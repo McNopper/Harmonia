@@ -9,7 +9,11 @@ function(compile_slang_shaders target output_dir)
         message(FATAL_ERROR "compile_slang_shaders(target output_dir shader1 shader2 ...) requires at least one shader.")
     endif()
 
-    set(_shader_root "${CMAKE_SOURCE_DIR}/shaders")
+    if(DEFINED COMPILE_SLANG_SHADER_ROOT)
+        set(_shader_root "${COMPILE_SLANG_SHADER_ROOT}")
+    else()
+        set(_shader_root "${CMAKE_SOURCE_DIR}/shaders")
+    endif()
     set(_support_shaders
         "${_shader_root}/common.slang"
         "${_shader_root}/math.slang"

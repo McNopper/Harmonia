@@ -7,8 +7,10 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
                                              VkFormat format,
                                              VkImageUsageFlags usage,
                                              VkImageAspectFlags aspect,
-                                             std::string_view debugName) {
-    if (!ctx.isValid() || ctx.allocator == VK_NULL_HANDLE || extent.width == 0U || extent.height == 0U) {
+                                             std::string_view debugName,
+                                             uint32_t mipLevels) {
+    if (!ctx.isValid() || ctx.allocator == VK_NULL_HANDLE || extent.width == 0U || extent.height == 0U ||
+        mipLevels == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
@@ -19,7 +21,7 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
         .extent = VkExtent3D{extent.width, extent.height, 1U},
-        .mipLevels = 1U,
+        .mipLevels = mipLevels,
         .arrayLayers = 1U,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
@@ -66,7 +68,7 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
             VkImageSubresourceRange{
                 .aspectMask = aspect,
                 .baseMipLevel = 0U,
-                .levelCount = 1U,
+                .levelCount = mipLevels,
                 .baseArrayLayer = 0U,
                 .layerCount = 1U,
             },
@@ -83,6 +85,7 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
     image.m_extent = extent;
     image.m_format = format;
     image.m_aspect = aspect;
+    image.m_mipLevels = mipLevels;
 
     if (!debugName.empty()) {
         const std::string baseName(debugName);
@@ -102,7 +105,8 @@ Image::Image(Image&& other) noexcept
       m_device(other.m_device),
       m_extent(other.m_extent),
       m_format(other.m_format),
-      m_aspect(other.m_aspect) {
+      m_aspect(other.m_aspect),
+      m_mipLevels(other.m_mipLevels) {
     other.m_image = VK_NULL_HANDLE;
     other.m_view = VK_NULL_HANDLE;
     other.m_allocation = VK_NULL_HANDLE;
@@ -111,6 +115,7 @@ Image::Image(Image&& other) noexcept
     other.m_extent = {};
     other.m_format = VK_FORMAT_UNDEFINED;
     other.m_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    other.m_mipLevels = 1U;
 }
 
 Image& Image::operator=(Image&& other) noexcept {
@@ -124,6 +129,7 @@ Image& Image::operator=(Image&& other) noexcept {
         m_extent = other.m_extent;
         m_format = other.m_format;
         m_aspect = other.m_aspect;
+        m_mipLevels = other.m_mipLevels;
 
         other.m_image = VK_NULL_HANDLE;
         other.m_view = VK_NULL_HANDLE;
@@ -133,6 +139,7 @@ Image& Image::operator=(Image&& other) noexcept {
         other.m_extent = {};
         other.m_format = VK_FORMAT_UNDEFINED;
         other.m_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+        other.m_mipLevels = 1U;
     }
     return *this;
 }
@@ -147,11 +154,14 @@ void Image::transition(VkCommandBuffer cmd,
                        VkPipelineStageFlags2 srcStage,
                        VkAccessFlags2 srcAccess,
                        VkPipelineStageFlags2 dstStage,
-                       VkAccessFlags2 dstAccess) const noexcept {
+                       VkAccessFlags2 dstAccess,
+                       uint32_t baseMipLevel,
+                       uint32_t levelCount) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_image == VK_NULL_HANDLE) {
         return;
     }
 
+    const uint32_t resolvedLevelCount = (levelCount == 0U) ? (m_mipLevels - baseMipLevel) : levelCount;
     const VkImageMemoryBarrier2 barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
         .pNext = nullptr,
@@ -167,8 +177,8 @@ void Image::transition(VkCommandBuffer cmd,
         .subresourceRange =
             VkImageSubresourceRange{
                 .aspectMask = m_aspect,
-                .baseMipLevel = 0U,
-                .levelCount = 1U,
+                .baseMipLevel = baseMipLevel,
+                .levelCount = resolvedLevelCount,
                 .baseArrayLayer = 0U,
                 .layerCount = 1U,
             },
@@ -204,4 +214,5 @@ void Image::destroy() noexcept {
     m_extent = {};
     m_format = VK_FORMAT_UNDEFINED;
     m_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    m_mipLevels = 1U;
 }

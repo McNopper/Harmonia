@@ -340,6 +340,29 @@ void ToneMapper::record(VkCommandBuffer cmd,
     vkCmdEndRendering(cmd);
 }
 
+void ToneMapper::record(VkCommandBuffer cmd,
+                        VkImageView hdrView,
+                        VkImageView swapchainView,
+                        VkExtent2D extent,
+                        OutputColorSpace colorSpace,
+                        uint32_t tonemapper) const noexcept {
+    if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
+        swapchainView == VK_NULL_HANDLE) {
+        return;
+    }
+
+    // Select the SDR/P3 tone-mapping operator; persists through the draw issued
+    // by the 5-argument overload below (which only touches outputColorSpace).
+    vkCmdPushConstants(cmd,
+                       m_pipelineLayout,
+                       VK_SHADER_STAGE_FRAGMENT_BIT,
+                       offsetof(PushConstants, tonemapper),
+                       sizeof(uint32_t),
+                       &tonemapper);
+
+    record(cmd, hdrView, swapchainView, extent, colorSpace);
+}
+
 void ToneMapper::destroy() noexcept {
     if (m_device != VK_NULL_HANDLE && m_pipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(m_device, m_pipeline, nullptr);

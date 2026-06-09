@@ -95,6 +95,9 @@ namespace {
 [[nodiscard]] VkResult createDevice(const PhysicalDeviceInfo& info, DeviceContext& ctx) {
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeaturesSupported{};
     rtFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    VkPhysicalDeviceMeshShaderFeaturesEXT meshFeaturesSupported{};
+    meshFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+    rtFeaturesSupported.pNext = &meshFeaturesSupported;
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeaturesSupported{};
     asFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     asFeaturesSupported.pNext = &rtFeaturesSupported;
@@ -174,6 +177,16 @@ namespace {
     features2.features.samplerAnisotropy = supportedFeatures.features.samplerAnisotropy;
     features2.features.shaderInt64 = supportedFeatures.features.shaderInt64;
 
+    // Mesh/task shaders are optional: required by Theia's rasterizer, unused by Hyperion's
+    // path tracer. Enable them only when the device advertises support so the shared device
+    // creation works on GPUs without VK_EXT_mesh_shader.
+    const bool meshShaderSupported = meshFeaturesSupported.meshShader == VK_TRUE;
+    VkPhysicalDeviceMeshShaderFeaturesEXT meshFeatures{};
+    meshFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+    meshFeatures.pNext = &features2;
+    meshFeatures.meshShader = VK_TRUE;
+    meshFeatures.taskShader = meshFeaturesSupported.taskShader;
+
     constexpr float queuePriority = 1.0f;
     const VkDeviceQueueCreateInfo queueInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -183,16 +196,19 @@ namespace {
         .queueCount = 1,
         .pQueuePriorities = &queuePriority,
     };
-    constexpr std::array deviceExtensions{
+    std::vector<const char*> deviceExtensions{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
         VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
         VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
         VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
     };
+    if (meshShaderSupported) {
+        deviceExtensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+    }
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = &features2,
+        .pNext = meshShaderSupported ? static_cast<const void*>(&meshFeatures) : static_cast<const void*>(&features2),
         .flags = 0,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queueInfo,
