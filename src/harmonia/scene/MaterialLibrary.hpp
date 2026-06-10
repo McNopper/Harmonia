@@ -8,9 +8,9 @@
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/Texture.hpp"
 
-/// Loads an OpenPBR `.mtlx` material library into GPU-ready Harmonia materials.
+/// Loads an OpenPBR `.materials.toml` material library into GPU-ready Harmonia materials.
 ///
-/// Parsing of the `.mtlx` text format is owned by Aether (`aether::MaterialLibrary`,
+/// Parsing of the `.materials.toml` TOML format is owned by Aether (`aether::MaterialLibrary`,
 /// producing renderer-agnostic `aether::MaterialDesc`). This class is the GPU-side
 /// half shared by every renderer: it drives the Aether parser, packs each parsed
 /// `MaterialDesc` into a `GpuMaterial` (converting linear Rec.709 colors to the
@@ -18,8 +18,8 @@
 /// per-material texture references, and lets the caller patch bindless texture
 /// indices once the textures have been uploaded.
 ///
-/// The `.mtlx` format, OpenPBR keyword set, UsdPreviewSurface aliases and texture
-/// color-space handling are all documented on `aether::MaterialLibrary`.
+/// The `.materials.toml` format, OpenPBR keyword set and texture color-space
+/// handling are all documented on `aether::MaterialLibrary`.
 class MaterialLibrary {
   public:
     /// Reference to one texture map: file path + source color space.
@@ -42,7 +42,7 @@ class MaterialLibrary {
         MaterialTextureRef coat_tangent;
     };
 
-    /// Load material definitions from a .mtlx file.
+    /// Load material definitions from a .materials.toml file.
     /// Returns false only if the file cannot be opened.
     bool load(const std::filesystem::path& path);
 

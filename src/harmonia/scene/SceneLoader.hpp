@@ -9,82 +9,26 @@
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
 
-/// Loads a scene definition file (.scene).
+/// Loads a scene definition file (.scene.toml).
 ///
-/// FORMAT OVERVIEW
-/// ───────────────
-/// Line-based text format inspired by — but distinct from — Wavefront OBJ/MTL.
-/// Lines starting with '#' are comments.  All asset paths are resolved
-/// relative to the assets directory passed to load().
+/// Parsing is owned by Aether (`aether::SceneParser`); see Aether's
+/// SceneParser.hpp for the full TOML format reference (material_libraries,
+/// [render] / [camera] / [tonemap] sections with optional `reference` presets,
+/// and ordered [[geometry]] blocks).  SceneLoader resolves the parsed
+/// `aether::SceneDesc` against the assets directory: it loads the referenced
+/// material libraries and OBJ files, instantiates procedural geometry, and
+/// uploads everything through the renderer's ISceneBuilder.
 ///
-/// ── Global keywords ──────────────────────────────────────────────────────────
-///
-///   mtllib        <path>        Load a .mtlx OpenPBR material library.
-///   spp           <n>           Samples per pixel.
-///   max_depth     <n>           Maximum ray bounce depth.
-///   env_map       <path>        Equirectangular HDR panorama (.exr) for IBL.
-///                               The EXR stores unitless scene-linear values in
-///                               Rec.709 primaries; they are converted to linear
-///                               Rec.2020 on load.  Use env_unit_nits to assign
-///                               physical units.
-///   env_unit_nits <v>           Physical unit of one EXR sample in cd/m²
-///                               (default 1.0).  Set to the luminance in nits
-///                               that corresponds to a pixel value of 1.0 in the
-///                               EXR (e.g. 10000 for a typical outdoor HDRI).
-///                               Combined with the camera EV100, this gives a
-///                               correctly-exposed physically-based render.
-///   ev100         <v>           Physical camera EV100 override (aperture=f/1,
-///                               iso=100, shutter=2^ev100 s⁻¹).  Typical outdoor
-///                               values: 13–15.  Lower values → brighter image.
-///   tonemapper    <name>        Tone mapper for SDR and Display P3 output
-///                               (ignored for HDR10 / HLG / scRGB which use their
-///                               own transfer functions).  Valid values:
-///                                 aces     — ACES RRT+ODT filmic (default)
-///                                 agx      — AgX by Troy Sobotka; wide dynamic
-///                                            range, natural highlight rolloff,
-///                                            handles direct sun in IBL scenes
-///                                 reinhard — luminance-preserving Reinhard
-///                                 hable    — Hable / Uncharted-2 filmic
-///
-/// ── Block keywords  (each starts a new block) ────────────────────────────────
-///
-///   camera                     Camera block.  Must appear before geometry.
-///   instance <path>            Instantiate a Wavefront OBJ as a scene object
-///                              (geometry only — OBJ materials are not imported).
-///   sphere <r>                 Sphere — radius only; position
-///                              via the translate modifier.
-///   box    <hx> <hy> <hz>      Procedural box — half-extents only;
-///                              position/orientation via modifiers.
-///
-/// ── Block modifiers  (apply to the block that precedes them) ─────────────────
-///
-///   Shared by all blocks:
-///     translate <x> <y> <z>      World-space position / translation.
-///     rotate  <qx> <qy> <qz> <qw>  Orientation as a unit quaternion
-///                                   (glTF convention: x y z w).
-///     rotate_y <deg>             Convenience: rotation around the Y axis.
-///
-///   Geometry only:
-///     usemtl  <name>             Override material (resolved from mtllibs).
-///     scale   <sx> <sy> <sz>     Per-axis scale (one value = uniform).
-///
-///   Camera only:
-///     look_at <x> <y> <z>        Look-at target (alternative to rotate;
-///                                last-one-wins if both are given).
-///     up      <x> <y> <z>        Up vector used with look_at (default 0 1 0).
-///     vfov    <deg>              Vertical field of view in degrees.
-///
-/// Transform composition follows the glTF convention:  T × R × S.
-///
-/// NOTES
-/// ─────
-///   - Block modifiers are collected until the next block keyword or EOF.
-///   - 'sphere': translate sets the centre; rotate is ignored (symmetric);
-///     scale.x is used as a uniform radius multiplier.  Whether the sphere is
-///     analytic or tessellated depends on the renderer's Scene::addSphere.
-///   - 'box' and 'instance': full TRS is applied.
-///   - Camera rotate and look_at are mutually exclusive; last one wins.
-///   - Unrecognised keywords are silently ignored, matching OBJ/MTL behaviour.
+/// Renderer-facing semantics:
+///   - samples_per_pixel / max_depth        → SceneConfig::spp / maxDepth
+///   - environment_map / environment_unit_nits → IBL panorama (EXR, converted to
+///                                            the working color space on load)
+///   - camera translate / look_at / up / vertical_field_of_view / ev100
+///                                          → SceneConfig camera overrides
+///   - tonemapper ("aces" | "agx" | "reinhard" | "hable")
+///                                          → SceneConfig::tonemapper enum value
+///   - geometry: instance (OBJ), box, sphere with TRS (glTF T × R × S);
+///     whether spheres are analytic or tessellated is the renderer's choice.
 class SceneLoader {
   public:
     struct SceneConfig {
