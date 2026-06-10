@@ -18,6 +18,7 @@ struct PushConstants {
     uint  envImportanceWidth;
     uint  envImportanceHeight;
     uint  tonemapper;            ///< Tonemapper enum: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable
+    uint  workingColorSpace;     ///< 0 = linear Rec.2020 (default), 1 = linear Rec.709
 };
 [[vk::push_constant]] PushConstants pushConst;
 
@@ -32,6 +33,16 @@ float3 rec2020ToRec709(float3 c) {
         dot(c, float3( 1.6605f, -0.5876f, -0.0728f)),
         dot(c, float3(-0.1246f,  1.1329f, -0.0083f)),
         dot(c, float3(-0.0182f, -0.1006f,  1.1187f))
+    );
+}
+
+/// Rec.709 → Rec.2020 (D65)
+/// Inverse of the above; used to up-convert a Rec.709 working space.
+float3 rec709ToRec2020(float3 c) {
+    return float3(
+        dot(c, float3( 0.6274040f,  0.3292820f,  0.0433140f)),
+        dot(c, float3( 0.0690970f,  0.9195400f,  0.0113630f)),
+        dot(c, float3( 0.0163916f,  0.0880132f,  0.8955950f))
     );
 }
 
@@ -285,6 +296,14 @@ float4 tonemapFrag(float4 svPos : SV_Position) : SV_Target0
 {
     int2 coord = int2(svPos.xy);
     float3 hdr = max(hdrTarget[coord].xyz, 0.0f.xxx);
+
+    // The ToneMapper is the glue between the scene-referred working space and
+    // the display-referred output space. The paths below assume linear
+    // Rec.2020 input; a Rec.709 working space is up-converted here first
+    // (exact — Rec.709 is a subset of Rec.2020).
+    if (pushConst.workingColorSpace == 1u) {
+        hdr = rec709ToRec2020(hdr);
+    }
     float3 out3;
 
     // pushConst.outputColorSpace values (must match OutputColorSpace enum in GpuTypes.hpp):

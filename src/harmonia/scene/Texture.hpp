@@ -12,31 +12,30 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
 
 /// Source color space of a texture asset.
-/// Names follow the OCIO / OpenEXR IIF color space registry.
-/// On load, all color data is converted to linear Rec.2020 (the render color space).
-/// Data maps (normal, ORM, roughness) use Raw — no color conversion is applied.
+/// Tokens are ASWF ColorInterop interop IDs (scene-referred set); only the
+/// Rec.709/Rec.2020 related spaces are supported.
+/// On load, all color data is converted to the scene's (linear) working color
+/// space. Data maps (normal, ORM, roughness) use Data — no conversion applies.
 enum class TextureColorSpace : uint8_t {
-    Raw = 0,     ///< "raw"          — uninterpreted data; no conversion (normal, ORM, roughness)
-    SrgbTexture, ///< "srgb_texture" — sRGB OETF + Rec.709 primaries   → linear Rec.2020
-    LinSrgb,     ///< "lin_srgb"     — linear Rec.709 primaries         → linear Rec.2020
-    LinRec2020,  ///< "lin_rec2020"  — already in render color space; no conversion
-    AcesCg,      ///< "acescg"       — ACEScg / lin_ap1                 → linear Rec.2020
+    Data = 0,        ///< "data"              — uninterpreted; no conversion
+    SrgbRec709Scene, ///< "srgb_rec709_scene" — sRGB OETF, Rec.709 primaries
+    LinRec709Scene,  ///< "lin_rec709_scene"  — linear, Rec.709 primaries
+    LinRec2020Scene, ///< "lin_rec2020_scene" — linear, Rec.2020 primaries
 };
 
-/// Parse an OCIO/OpenEXR color space name string.
-/// Returns Raw for unrecognised strings (safe fallback for data maps).
+/// Parse a ColorInterop interop ID.
+/// Returns Data for unrecognised strings (safe fallback for data maps).
 [[nodiscard]] inline TextureColorSpace parseTextureColorSpace(std::string_view name) noexcept {
-    if (name == "srgb_texture")
-        return TextureColorSpace::SrgbTexture;
-    if (name == "lin_srgb")
-        return TextureColorSpace::LinSrgb;
-    if (name == "lin_rec2020")
-        return TextureColorSpace::LinRec2020;
-    if (name == "acescg" || name == "lin_ap1")
-        return TextureColorSpace::AcesCg;
-    return TextureColorSpace::Raw;
+    if (name == "srgb_rec709_scene")
+        return TextureColorSpace::SrgbRec709Scene;
+    if (name == "lin_rec709_scene")
+        return TextureColorSpace::LinRec709Scene;
+    if (name == "lin_rec2020_scene")
+        return TextureColorSpace::LinRec2020Scene;
+    return TextureColorSpace::Data;
 }
 
 class Texture {
@@ -58,14 +57,16 @@ class Texture {
                                                                  uint32_t height,
                                                                  std::string_view name = "");
 
-    /// Load a texture from a file and convert it to linear Rec.2020 at load time.
-    /// colorSpace describes how the source data is encoded; the correct decode +
-    /// primaries conversion is applied on the CPU before GPU upload.
+    /// Load a texture from a file and convert it to the scene's (linear)
+    /// working color space at load time. colorSpace describes how the source
+    /// data is encoded; the correct decode + primaries conversion is applied
+    /// on the CPU before GPU upload.
     [[nodiscard]] static std::expected<Texture, VkResult>
     loadFromFile(const DeviceContext& ctx,
                  const CommandPool& cmdPool,
                  const std::filesystem::path& path,
-                 TextureColorSpace colorSpace = TextureColorSpace::SrgbTexture,
+                 TextureColorSpace colorSpace = TextureColorSpace::SrgbRec709Scene,
+                 ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020,
                  std::string_view name = "");
 
     [[nodiscard]] const Image& image() const noexcept { return m_image; }

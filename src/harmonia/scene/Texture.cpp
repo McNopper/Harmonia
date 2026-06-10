@@ -174,6 +174,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                                                        const CommandPool& cmdPool,
                                                        const std::filesystem::path& path,
                                                        TextureColorSpace colorSpace,
+                                                       ColorSpace::WorkingColorSpace workingSpace,
                                                        std::string_view name) {
     const std::string pathStr = path.string();
     int w = 0, h = 0, srcChannels = 0;
@@ -188,13 +189,20 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     const auto pixelCount = static_cast<size_t>(w) * static_cast<size_t>(h);
     std::vector<uint8_t> converted(pixelCount * 4);
 
-    const bool needsConversion = (colorSpace != TextureColorSpace::Raw && colorSpace != TextureColorSpace::LinRec2020);
+    // A texture needs CPU conversion when it is color data whose encoding or
+    // primaries differ from the (linear) working color space.
+    const bool sameSpace = (colorSpace == TextureColorSpace::LinRec2020Scene &&
+                            workingSpace == ColorSpace::WorkingColorSpace::LinRec2020) ||
+                           (colorSpace == TextureColorSpace::LinRec709Scene &&
+                            workingSpace == ColorSpace::WorkingColorSpace::LinRec709);
+    const bool needsConversion = (colorSpace != TextureColorSpace::Data && !sameSpace);
 
     if (!needsConversion) {
-        // Raw data (normal/ORM/roughness) or already Rec.2020 — copy verbatim.
+        // Data maps (normal/ORM/roughness) or already in working space — copy verbatim.
         std::memcpy(converted.data(), raw, pixelCount * 4);
     } else {
-        // Convert each pixel to linear Rec.2020.
+        const bool toRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
+        // Convert each pixel: decode transfer function, then primaries → working space.
         for (size_t i = 0; i < pixelCount; ++i) {
             const float r = raw[i * 4 + 0] / 255.0f;
             const float g = raw[i * 4 + 1] / 255.0f;
@@ -203,16 +211,18 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
 
             glm::vec3 linear{r, g, b};
             switch (colorSpace) {
-            case TextureColorSpace::SrgbTexture:
-                // sRGB OETF decode + Rec.709 → Rec.2020 primaries.
-                linear = ColorSpace::srgbAssetToRec2020(linear);
+            case TextureColorSpace::SrgbRec709Scene:
+                linear = ColorSpace::srgbToLinearRec709(linear); // decode sRGB OETF
+                if (toRec2020)
+                    linear = ColorSpace::rec709ToRec2020(linear);
                 break;
-            case TextureColorSpace::LinSrgb:
-                // Already linear Rec.709 — only primaries conversion needed.
-                linear = ColorSpace::rec709ToRec2020(linear);
+            case TextureColorSpace::LinRec709Scene:
+                if (toRec2020)
+                    linear = ColorSpace::rec709ToRec2020(linear);
                 break;
-            case TextureColorSpace::AcesCg:
-                linear = ColorSpace::acesCgToRec2020(linear);
+            case TextureColorSpace::LinRec2020Scene:
+                if (!toRec2020)
+                    linear = ColorSpace::rec2020ToRec709(linear);
                 break;
             default:
                 break;

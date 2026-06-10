@@ -6,6 +6,7 @@
 #include <filesystem>
 
 #include "harmonia/presentation/OutputColorSpace.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/DeviceContext.hpp"
 
 class ToneMapper {
@@ -28,23 +29,27 @@ class ToneMapper {
     /// Record the tone-mapping draw into cmd.
     /// The swapchain image must already be in VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL.
     /// colorSpace must match the swapchain's active OutputColorSpace.
-    void record(VkCommandBuffer cmd,
-                VkImageView hdrView,
-                VkImageView swapchainView,
-                VkExtent2D extent,
-                OutputColorSpace colorSpace) const noexcept;
-
-    /// Overload that also selects the SDR/Display-P3 tone-mapping operator
-    /// (matches tonemap.slang: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable). Used by
-    /// renderers that perform tone mapping in the present pass (e.g. Theia's
-    /// forward renderer); offline renderers that tone-map earlier use the
-    /// 5-argument overload above and leave PushConstants::tonemapper untouched.
+    /// workingSpace is the scene-referred space of hdrView's contents — the
+    /// tone mapper is the glue converting it to the display-referred output.
     void record(VkCommandBuffer cmd,
                 VkImageView hdrView,
                 VkImageView swapchainView,
                 VkExtent2D extent,
                 OutputColorSpace colorSpace,
-                uint32_t tonemapper) const noexcept;
+                ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
+
+    /// Overload that also selects the SDR/Display-P3 tone-mapping operator
+    /// (matches tonemap.slang: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable). Used by
+    /// renderers that perform tone mapping in the present pass (e.g. Theia's
+    /// forward renderer); offline renderers that tone-map earlier use the
+    /// overload above and leave PushConstants::tonemapper untouched.
+    void record(VkCommandBuffer cmd,
+                VkImageView hdrView,
+                VkImageView swapchainView,
+                VkExtent2D extent,
+                OutputColorSpace colorSpace,
+                uint32_t tonemapper,
+                ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
 
   private:
     void destroy() noexcept;

@@ -11,6 +11,8 @@
 
 #ifdef HARMONIA_HAS_OPENEXR
 #include <Imath/ImathBox.h>
+#include <OpenEXR/ImfChromaticities.h>
+#include <OpenEXR/ImfChromaticitiesAttribute.h>
 #include <OpenEXR/ImfRgbaFile.h>
 #endif
 
@@ -61,12 +63,15 @@ void IblProbe::reset() noexcept {
     m_ctx = nullptr;
 }
 
-std::expected<IblProbe, VkResult>
-IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const std::filesystem::path& path) {
+std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx,
+                                                        const CommandPool& pool,
+                                                        const std::filesystem::path& path,
+                                                        ColorSpace::WorkingColorSpace workingSpace) {
 #ifndef HARMONIA_HAS_OPENEXR
     (void)ctx;
     (void)pool;
     (void)path;
+    (void)workingSpace;
     Logger::error("IblProbe: OpenEXR support is not compiled in; cannot load '{}'", path.string());
     return std::unexpected(VK_ERROR_FEATURE_NOT_PRESENT);
 #else
@@ -85,11 +90,28 @@ IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const s
         file.setFrameBuffer(halfs.data() - dw.min.x - dw.min.y * width, 1, width);
         file.readPixels(dw.min.y, dw.max.y);
 
-        // ── Convert half RGBA → float RGBA, with lin_srgb → lin_rec2020 ──────
-        // Rec.709 → Rec.2020 primary transform (D65 white point, IEC 61966 / BT.2087)
-        const float m00 = 0.6274040f, m01 = 0.3292820f, m02 = 0.0433140f;
-        const float m10 = 0.0690970f, m11 = 0.9195400f, m12 = 0.0113630f;
-        const float m20 = 0.0163916f, m21 = 0.0880132f, m22 = 0.8955950f;
+        // ── Determine source primaries from the EXR `chromaticities` header ──
+        // Absent attribute = Rec.709 primaries (OpenEXR spec default).
+        bool srcRec2020 = false;
+        if (const auto* chroma = file.header().findTypedAttribute<ChromaticitiesAttribute>("chromaticities")) {
+            const Chromaticities& c = chroma->value();
+            // Rec.2020 red primary x ≈ 0.708 vs Rec.709 x = 0.640 — a coarse
+            // threshold cleanly separates the two supported gamuts.
+            srcRec2020 = (c.red.x > 0.68f);
+        }
+        const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
+
+        // ── Pick the primaries conversion (source → working space) ───────────
+        // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
+        struct Mat3 {
+            float m00, m01, m02, m10, m11, m12, m20, m21, m22;
+        };
+        constexpr Mat3 k709To2020{0.6274040f, 0.3292820f, 0.0433140f, 0.0690970f, 0.9195400f,
+                                  0.0113630f, 0.0163916f, 0.0880132f, 0.8955950f};
+        constexpr Mat3 k2020To709{1.6604911f, -0.5876411f, -0.0728499f, -0.1245505f, 1.1328999f,
+                                  -0.0083494f, -0.0181508f, -0.1005789f, 1.1187297f};
+        constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+        const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
 
         // Half-float max (65504): clamp before matrix multiply to stay finite.
         // EXR panoramas routinely store the sun disc as half-float inf (exponent=31,
@@ -106,9 +128,9 @@ IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const s
             const float r = safeHalf(static_cast<float>(halfs[i].r));
             const float g = safeHalf(static_cast<float>(halfs[i].g));
             const float b = safeHalf(static_cast<float>(halfs[i].b));
-            rgba32f[i * 4 + 0] = m00 * r + m01 * g + m02 * b;
-            rgba32f[i * 4 + 1] = m10 * r + m11 * g + m12 * b;
-            rgba32f[i * 4 + 2] = m20 * r + m21 * g + m22 * b;
+            rgba32f[i * 4 + 0] = m.m00 * r + m.m01 * g + m.m02 * b;
+            rgba32f[i * 4 + 1] = m.m10 * r + m.m11 * g + m.m12 * b;
+            rgba32f[i * 4 + 2] = m.m20 * r + m.m21 * g + m.m22 * b;
             rgba32f[i * 4 + 3] = safeHalf(static_cast<float>(halfs[i].a));
         }
     } catch (const std::exception& e) {

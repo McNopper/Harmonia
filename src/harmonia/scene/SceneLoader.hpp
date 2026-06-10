@@ -8,6 +8,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
 
 /// Loads a scene definition file (.scene.toml).
 ///
@@ -27,6 +28,8 @@
 ///                                          → SceneConfig camera overrides
 ///   - tonemapper ("aces" | "agx" | "reinhard" | "hable")
 ///                                          → SceneConfig::tonemapper enum value
+///   - working_color_space ("lin_rec2020_scene" | "lin_rec709_scene")
+///                                          → SceneConfig::workingColorSpace
 ///   - geometry: instance (OBJ), box, sphere with TRS (glTF T × R × S);
 ///     whether spheres are analytic or tessellated is the renderer's choice.
 class SceneLoader {
@@ -42,6 +45,9 @@ class SceneLoader {
         std::optional<float> envUnitNits;                ///< cd/m² per unit EXR value (physical unit multiplier)
         std::optional<std::filesystem::path> envMapFile; ///< equirect EXR IBL path (relative to assetsDir)
         std::optional<uint32_t> tonemapper;              ///< Tonemapper enum value; std::nullopt → eACES default
+        /// Scene-referred working color space all assets were converted into
+        /// ([render] working_color_space; default linear Rec.2020).
+        ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
     };
 
     /// Populate @p scene from @p sceneFile.

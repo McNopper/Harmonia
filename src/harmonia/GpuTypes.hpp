@@ -115,6 +115,7 @@ struct PushConstants {
     uint32_t envImportanceWidth;    ///< CDF grid width for env importance sampling (0 = disabled)
     uint32_t envImportanceHeight;   ///< CDF grid height for env importance sampling
     uint32_t tonemapper;            ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
+    uint32_t workingColorSpace;     ///< ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.
@@ -137,4 +138,4 @@ static_assert(sizeof(GpuMaterial) == 288);
 static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 64);
 static_assert(sizeof(CameraData) == 176);
-static_assert(sizeof(PushConstants) == 48);
+static_assert(sizeof(PushConstants) == 52);

@@ -35,6 +35,7 @@ namespace {
                               const CommandPool& pool,
                               MaterialLibrary& lib,
                               const std::filesystem::path& assetsDir,
+                              ColorSpace::WorkingColorSpace workingSpace,
                               std::unordered_map<std::string, uint32_t>& texCache) {
 
     // Pre-load textures for all materials referenced in this block.
@@ -70,7 +71,7 @@ namespace {
                 continue;
             }
 
-            auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, ref->colorSpace, matName);
+            auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, ref->colorSpace, workingSpace, matName);
             if (!result) {
                 Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
                 continue;
@@ -151,9 +152,19 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     MaterialLibrary lib;
     std::unordered_map<std::string, uint32_t> texCache; // relPath → texture index
 
+    // ── Working color space ───────────────────────────────────────────────────
+    // Must be resolved before any asset loads — every conversion targets it.
+    if (desc->workingColorSpace) {
+        if (const auto ws = ColorSpace::parseWorkingColorSpace(*desc->workingColorSpace))
+            cfg.workingColorSpace = *ws;
+        else
+            Logger::warn("SceneLoader: unknown working_color_space '{}' — using lin_rec2020_scene",
+                         *desc->workingColorSpace);
+    }
+
     // ── Material libraries ────────────────────────────────────────────────────
     for (const std::string& mtllib : desc->mtllibs) {
-        if (!lib.load(assetsDir / mtllib))
+        if (!lib.load(assetsDir / mtllib, cfg.workingColorSpace))
             Logger::warn("SceneLoader: cannot open material library '{}'", mtllib);
     }
 
@@ -195,7 +206,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
 
     // ── Geometry ──────────────────────────────────────────────────────────────
     for (const aether::GeometryBlock& blk : desc->geometry) {
-        if (!uploadBlock(blk, scene, ctx, pool, lib, assetsDir, texCache))
+        if (!uploadBlock(blk, scene, ctx, pool, lib, assetsDir, cfg.workingColorSpace, texCache))
             return std::nullopt;
     }
 

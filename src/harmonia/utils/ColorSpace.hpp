@@ -1,7 +1,7 @@
 #pragma once
 
-// Hyperion ColorSpace utility — Rec.2020 is the single working color space.
-// All internal calculations operate in linear Rec.2020.
+// Hyperion ColorSpace utility — the working color space is linear Rec.2020 by
+// default; scenes may select linear Rec.709 instead (WorkingColorSpace below).
 // Conversions to/from other spaces are provided only for I/O boundaries.
 //
 // Reference primaries (ITU-R BT.2020):
@@ -11,7 +11,37 @@
 
 #include <glm/glm.hpp>
 
+#include <cstdint>
+#include <optional>
+#include <string_view>
+
 namespace ColorSpace {
+
+// ── Working color space ──────────────────────────────────────────────────────
+// The scene-referred space all rendering happens in — always linear; only the
+// primaries differ. Selected per scene ([render] working_color_space, token =
+// ColorInterop interop ID). Assets are converted into it at load time; the
+// ToneMapper converts from it to the display-referred output space.
+// Values mirror tonemap.slang's workingColorSpace push constant.
+enum class WorkingColorSpace : uint32_t {
+    LinRec2020 = 0, ///< "lin_rec2020_scene" — default
+    LinRec709 = 1,  ///< "lin_rec709_scene"
+};
+
+/// Parse a ColorInterop interop ID into a working color space.
+/// Returns nullopt for unsupported tokens.
+[[nodiscard]] inline std::optional<WorkingColorSpace> parseWorkingColorSpace(std::string_view token) noexcept {
+    if (token == "lin_rec2020_scene")
+        return WorkingColorSpace::LinRec2020;
+    if (token == "lin_rec709_scene")
+        return WorkingColorSpace::LinRec709;
+    return std::nullopt;
+}
+
+/// ColorInterop interop ID of a working color space (for logs / metadata).
+[[nodiscard]] inline const char* interopId(WorkingColorSpace ws) noexcept {
+    return ws == WorkingColorSpace::LinRec709 ? "lin_rec709_scene" : "lin_rec2020_scene";
+}
 
 // ── Luminance (Rec.2020 relative, scene-linear) ─────────────────────────────
 // Returns relative luminance Y in Rec.2020; input must be linear Rec.2020.

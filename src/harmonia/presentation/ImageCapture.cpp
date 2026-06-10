@@ -13,6 +13,8 @@
 
 #ifdef HARMONIA_HAS_OPENEXR
 #include <OpenEXR/ImfChannelList.h>
+#include <OpenEXR/ImfChromaticities.h>
+#include <OpenEXR/ImfChromaticitiesAttribute.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfHeader.h>
 #include <OpenEXR/ImfOutputFile.h>
@@ -86,7 +88,8 @@ namespace {
 bool savePng(const DeviceContext& ctx,
              const CommandPool& pool,
              const Image& hdrImage,
-             const std::filesystem::path& path) {
+             const std::filesystem::path& path,
+             ColorSpace::WorkingColorSpace workingSpace) {
     if (!ctx.isValid() || !hdrImage.isValid()) {
         return false;
     }
@@ -101,15 +104,20 @@ bool savePng(const DeviceContext& ctx,
         return false;
     }
 
-    // Tone-map (ACES SDR: Rec.2020 linear -> Rec.709 linear -> sRGB 8-bit) and pack
-    // into a contiguous R8G8B8 byte buffer.
+    // Tone-map (ACES SDR: working space linear -> Rec.709 linear -> sRGB 8-bit) and
+    // pack into a contiguous R8G8B8 byte buffer. The ACES path expects linear
+    // Rec.2020 input; a Rec.709 working space is up-converted first (exact).
+    const bool upConvert = (workingSpace == ColorSpace::WorkingColorSpace::LinRec709);
     const auto* src = static_cast<const float*>(readback->mappedData());
     std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 3U);
 
     for (uint32_t y = 0; y < height; ++y) {
         for (uint32_t x = 0; x < width; ++x) {
             const size_t srcIdx = (static_cast<size_t>(y) * width + x) * 4U;
-            const glm::vec3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
+            glm::vec3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
+            if (upConvert) {
+                hdr = ColorSpace::rec709ToRec2020(hdr);
+            }
             const glm::vec3 sdrLinear = ToneMapping::acesFittedSDR(hdr);
             const glm::vec3 sdrGamma = ColorSpace::linearRec709ToSrgb(sdrLinear);
             const glm::vec3 clamped = glm::clamp(sdrGamma, 0.f, 1.f);
@@ -133,7 +141,8 @@ bool savePng(const DeviceContext& ctx,
 bool saveExr([[maybe_unused]] const DeviceContext& ctx,
              [[maybe_unused]] const CommandPool& pool,
              [[maybe_unused]] const Image& hdrImage,
-             const std::filesystem::path& path) {
+             const std::filesystem::path& path,
+             [[maybe_unused]] ColorSpace::WorkingColorSpace workingSpace) {
 #ifndef HARMONIA_HAS_OPENEXR
     Logger::warn("OpenEXR support is not enabled; cannot save {}", path.string());
     return false;
@@ -157,6 +166,17 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
     header.channels().insert("R", Channel(FLOAT));
     header.channels().insert("G", Channel(FLOAT));
     header.channels().insert("B", Channel(FLOAT));
+
+    // Tag the primaries of the working space (linear by definition) so readers
+    // do not fall back to the Rec.709 default for Rec.2020 content.
+    {
+        using V2f = IMATH_NAMESPACE::V2f;
+        const Chromaticities chroma =
+            (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020)
+                ? Chromaticities(V2f(0.708f, 0.292f), V2f(0.170f, 0.797f), V2f(0.131f, 0.046f), V2f(0.3127f, 0.3290f))
+                : Chromaticities(V2f(0.640f, 0.330f), V2f(0.300f, 0.600f), V2f(0.150f, 0.060f), V2f(0.3127f, 0.3290f));
+        header.insert("chromaticities", ChromaticitiesAttribute(chroma));
+    }
 
     FrameBuffer frameBuffer;
     char* const base = static_cast<char*>(readback->mappedData());

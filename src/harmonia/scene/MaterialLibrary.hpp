@@ -13,10 +13,10 @@
 /// Parsing of the `.materials.toml` TOML format is owned by Aether (`aether::MaterialLibrary`,
 /// producing renderer-agnostic `aether::MaterialDesc`). This class is the GPU-side
 /// half shared by every renderer: it drives the Aether parser, packs each parsed
-/// `MaterialDesc` into a `GpuMaterial` (converting linear Rec.709 colors to the
-/// linear Rec.2020 working space when the file declares Rec.709 input), records the
-/// per-material texture references, and lets the caller patch bindless texture
-/// indices once the textures have been uploaded.
+/// `MaterialDesc` into a `GpuMaterial` (converting color values from the
+/// material's declared linear input color space to the scene's working color
+/// space), records the per-material texture references, and lets the caller
+/// patch bindless texture indices once the textures have been uploaded.
 ///
 /// The `.materials.toml` format, OpenPBR keyword set and texture color-space
 /// handling are all documented on `aether::MaterialLibrary`.
@@ -25,7 +25,7 @@ class MaterialLibrary {
     /// Reference to one texture map: file path + source color space.
     struct MaterialTextureRef {
         std::string path;
-        TextureColorSpace colorSpace = TextureColorSpace::SrgbTexture;
+        TextureColorSpace colorSpace = TextureColorSpace::SrgbRec709Scene;
         [[nodiscard]] bool empty() const noexcept { return path.empty(); }
     };
 
@@ -42,9 +42,10 @@ class MaterialLibrary {
         MaterialTextureRef coat_tangent;
     };
 
-    /// Load material definitions from a .materials.toml file.
-    /// Returns false only if the file cannot be opened.
-    bool load(const std::filesystem::path& path);
+    /// Load material definitions from a .materials.toml file, converting color
+    /// values into @p workingSpace. Returns false only if the file cannot be opened.
+    bool load(const std::filesystem::path& path,
+              ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020);
 
     /// Look up a material by name.  Returns std::nullopt if not found.
     [[nodiscard]] std::optional<Material> get(const std::string& name) const;

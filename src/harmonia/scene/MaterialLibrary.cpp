@@ -16,28 +16,34 @@ namespace {
 /// Map Aether's texture color-space enum to Harmonia's (identical value order).
 [[nodiscard]] TextureColorSpace toHarmonia(aether::TextureColorSpace cs) noexcept {
     switch (cs) {
-    case aether::TextureColorSpace::SrgbTexture:
-        return TextureColorSpace::SrgbTexture;
-    case aether::TextureColorSpace::LinSrgb:
-        return TextureColorSpace::LinSrgb;
-    case aether::TextureColorSpace::LinRec2020:
-        return TextureColorSpace::LinRec2020;
-    case aether::TextureColorSpace::AcesCg:
-        return TextureColorSpace::AcesCg;
-    case aether::TextureColorSpace::Raw:
+    case aether::TextureColorSpace::SrgbRec709Scene:
+        return TextureColorSpace::SrgbRec709Scene;
+    case aether::TextureColorSpace::LinRec709Scene:
+        return TextureColorSpace::LinRec709Scene;
+    case aether::TextureColorSpace::LinRec2020Scene:
+        return TextureColorSpace::LinRec2020Scene;
+    case aether::TextureColorSpace::Data:
         break;
     }
-    return TextureColorSpace::Raw;
+    return TextureColorSpace::Data;
 }
 
 // ── Build a GpuMaterial from a parsed OpenPBR MaterialDesc ─────────────────
-// Colors declared as linear Rec.709 are converted to the linear Rec.2020 working
-// space; non-color data (subsurface_radius, transmission_scatter) is never
-// color-converted.  All lobes are set directly; no threshold-based type select.
+// Color values are converted from the material's declared (linear) input color
+// space to the scene's working color space; non-color data (subsurface_radius,
+// transmission_scatter) is never color-converted.  All lobes are set directly;
+// no threshold-based type select.
 // flags: 0 = general layered, 2 = glass/dielectric, 3 = mirror (not set here).
-[[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p) {
-    const bool convert = (p.inputColorSpace == aether::MaterialColorSpace::LinRec709);
-    const auto cc = [convert](glm::vec3 c) { return convert ? ColorSpace::rec709ToRec2020(c) : c; };
+[[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p, ColorSpace::WorkingColorSpace workingSpace) {
+    const bool srcRec709 = (p.inputColorSpace == aether::MaterialColorSpace::LinRec709);
+    const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
+    const auto cc = [srcRec709, dstRec2020](glm::vec3 c) {
+        if (srcRec709 && dstRec2020)
+            return ColorSpace::rec709ToRec2020(c);
+        if (!srcRec709 && !dstRec2020)
+            return ColorSpace::rec2020ToRec709(c);
+        return c; // declared space == working space
+    };
 
     GpuMaterial g{};
 
@@ -101,7 +107,7 @@ namespace {
 
 // ── MaterialLibrary ───────────────────────────────────────────────────────
 
-bool MaterialLibrary::load(const std::filesystem::path& path) {
+bool MaterialLibrary::load(const std::filesystem::path& path, ColorSpace::WorkingColorSpace workingSpace) {
     aether::MaterialLibrary parsed;
     if (!parsed.load(path)) {
         Logger::error("MaterialLibrary: cannot open '{}'", path.string());
@@ -109,7 +115,7 @@ bool MaterialLibrary::load(const std::filesystem::path& path) {
     }
 
     for (const auto& [name, desc] : parsed.materials()) {
-        m_materials.insert_or_assign(name, buildMaterial(desc));
+        m_materials.insert_or_assign(name, buildMaterial(desc, workingSpace));
 
         MaterialTextureRefs refs;
         refs.base_color = toRef(desc.map_base_color);

@@ -11,12 +11,14 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
 
 /// Image-based lighting probe loaded from an equirectangular HDR panorama (EXR).
 ///
-/// The panorama is stored on the GPU as a 2D RGBA32F texture in linear Rec.2020.
-/// Input EXR files are assumed to be in linear sRGB (Rec.709 primaries, D65)
-/// and are converted to linear Rec.2020 at load time.
+/// The panorama is stored on the GPU as a 2D RGBA32F texture in the scene's
+/// (linear) working color space. The source primaries are read from the EXR
+/// `chromaticities` header attribute (Rec.709 or Rec.2020); when absent,
+/// linear Rec.709 is assumed (the OpenEXR default).
 ///
 /// A 2D separable CDF (256×128) is also built from the panorama luminance for
 /// environment map importance sampling (env NEE + MIS).
@@ -30,10 +32,15 @@ class IblProbe {
     IblProbe& operator=(IblProbe&& other) noexcept;
     ~IblProbe();
 
-    /// Load an equirectangular EXR panorama, convert to linear Rec.2020, and upload to GPU.
+    /// Load an equirectangular EXR panorama, convert to the working color
+    /// space, and upload to GPU. Source primaries come from the EXR
+    /// `chromaticities` attribute (fallback: linear Rec.709).
     /// Requires HARMONIA_HAS_OPENEXR; returns VK_ERROR_FEATURE_NOT_PRESENT otherwise.
     [[nodiscard]] static std::expected<IblProbe, VkResult>
-    loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const std::filesystem::path& path);
+    loadFromEXR(const DeviceContext& ctx,
+                const CommandPool& pool,
+                const std::filesystem::path& path,
+                ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020);
 
     [[nodiscard]] VkImageView imageView() const noexcept { return m_image.view(); }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }

@@ -261,7 +261,8 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkImageView hdrView,
                         VkImageView swapchainView,
                         VkExtent2D extent,
-                        OutputColorSpace colorSpace) const noexcept {
+                        OutputColorSpace colorSpace,
+                        ColorSpace::WorkingColorSpace workingSpace) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;
@@ -294,6 +295,16 @@ void ToneMapper::record(VkCommandBuffer cmd,
                        offsetof(PushConstants, outputColorSpace),
                        sizeof(uint32_t),
                        &cs);
+
+    // Working color space of the HDR input — the shader up-converts a Rec.709
+    // working space to Rec.2020 before its output transforms.
+    const uint32_t ws = static_cast<uint32_t>(workingSpace);
+    vkCmdPushConstants(cmd,
+                       m_pipelineLayout,
+                       VK_SHADER_STAGE_FRAGMENT_BIT,
+                       offsetof(PushConstants, workingColorSpace),
+                       sizeof(uint32_t),
+                       &ws);
 
     const VkRenderingAttachmentInfo colorAttachment{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -345,14 +356,15 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkImageView swapchainView,
                         VkExtent2D extent,
                         OutputColorSpace colorSpace,
-                        uint32_t tonemapper) const noexcept {
+                        uint32_t tonemapper,
+                        ColorSpace::WorkingColorSpace workingSpace) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;
     }
 
     // Select the SDR/P3 tone-mapping operator; persists through the draw issued
-    // by the 5-argument overload below (which only touches outputColorSpace).
+    // by the overload below (which only touches outputColorSpace/workingColorSpace).
     vkCmdPushConstants(cmd,
                        m_pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -360,7 +372,7 @@ void ToneMapper::record(VkCommandBuffer cmd,
                        sizeof(uint32_t),
                        &tonemapper);
 
-    record(cmd, hdrView, swapchainView, extent, colorSpace);
+    record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace);
 }
 
 void ToneMapper::destroy() noexcept {
