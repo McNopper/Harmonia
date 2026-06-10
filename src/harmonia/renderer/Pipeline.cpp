@@ -5,57 +5,12 @@
 #include <array>
 #include <cstdint>
 #include <expected>
-#include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
-
-namespace {
-[[nodiscard]] std::expected<std::vector<uint32_t>, VkResult> readSpirv(const std::filesystem::path& path) {
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if (!file) {
-        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
-    }
-
-    const auto size = file.tellg();
-    if (size <= 0 || (static_cast<size_t>(size) % sizeof(uint32_t)) != 0U) {
-        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
-    }
-
-    std::vector<uint32_t> code(static_cast<size_t>(size) / sizeof(uint32_t));
-    file.seekg(0, std::ios::beg);
-    file.read(reinterpret_cast<char*>(code.data()), size);
-    if (!file) {
-        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
-    }
-
-    return code;
-}
-
-[[nodiscard]] std::expected<VkShaderModule, VkResult> createShaderModule(const DeviceContext& ctx,
-                                                                         const std::filesystem::path& path) {
-    auto code = readSpirv(path);
-    if (!code) {
-        return std::unexpected(code.error());
-    }
-
-    const VkShaderModuleCreateInfo createInfo{
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .codeSize = code->size() * sizeof(uint32_t),
-        .pCode = code->data(),
-    };
-
-    VkShaderModule module = VK_NULL_HANDLE;
-    if (const VkResult result = vkCreateShaderModule(ctx.device, &createInfo, nullptr, &module); result != VK_SUCCESS) {
-        return std::unexpected(result);
-    }
-    return module;
-}
-} // namespace
 
 Pipeline::~Pipeline() noexcept {
     reset();
@@ -91,7 +46,7 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
     };
 
     for (size_t i = 0; i < shaderPaths.size(); ++i) {
-        auto module = createShaderModule(ctx, shaderPaths[i]);
+        auto module = harmonia::createShaderModule(ctx.device, shaderPaths[i]);
         if (!module) {
             for (VkShaderModule created : modules) {
                 if (created != VK_NULL_HANDLE) {

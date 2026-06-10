@@ -44,6 +44,7 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/core/Image.cpp
     src/harmonia/core/Logger.cpp
     src/harmonia/core/Queue.cpp
+    src/harmonia/core/ShaderModule.cpp
     src/harmonia/core/Timer.cpp
     src/harmonia/renderer/AccelerationStructure.cpp
     src/harmonia/renderer/Camera.cpp

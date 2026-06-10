@@ -1,53 +1,13 @@
 #include "harmonia/presentation/ToneMapper.hpp"
 
 #include <array>
-#include <fstream>
 #include <utility>
 #include <vector>
 
 #include "harmonia/GpuTypes.hpp"
+#include "harmonia/core/ShaderModule.hpp"
 
-namespace {
-[[nodiscard]] std::expected<std::vector<uint32_t>, VkResult> readSpirv(const std::filesystem::path& path) {
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if (!file) {
-        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
-    }
-
-    const auto size = file.tellg();
-    if (size <= 0 || (static_cast<size_t>(size) % sizeof(uint32_t)) != 0U) {
-        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
-    }
-
-    std::vector<uint32_t> code(static_cast<size_t>(size) / sizeof(uint32_t));
-    file.seekg(0, std::ios::beg);
-    file.read(reinterpret_cast<char*>(code.data()), size);
-    if (!file) {
-        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
-    }
-    return code;
-}
-
-[[nodiscard]] std::expected<VkShaderModule, VkResult> createShaderModule(VkDevice device,
-                                                                         const std::filesystem::path& path) {
-    auto spirv = readSpirv(path);
-    if (!spirv) {
-        return std::unexpected(spirv.error());
-    }
-    const VkShaderModuleCreateInfo info{
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .codeSize = spirv->size() * sizeof(uint32_t),
-        .pCode = spirv->data(),
-    };
-    VkShaderModule module = VK_NULL_HANDLE;
-    if (const VkResult r = vkCreateShaderModule(device, &info, nullptr, &module); r != VK_SUCCESS) {
-        return std::unexpected(r);
-    }
-    return module;
-}
-} // namespace
+using harmonia::createShaderModule;
 
 std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
                                                        VkPipelineLayout pipelineLayout,

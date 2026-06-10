@@ -1,5 +1,13 @@
 include_guard(GLOBAL)
 
+# Shared Slang→SPIR-V build rule used identically by Harmonia, Hyperion and
+# Theia: every entry shader is compiled at build time into <output_dir> (the
+# project's *_SHADER_DIR compile definition), and the renderers load the .spv
+# files from that absolute path — never from a working-directory-relative one.
+#
+# Set COMPILE_SLANG_SHADER_ROOT before calling to compile shaders from a
+# different source tree (used when a project is consumed via FetchContent);
+# it defaults to <project>/shaders.
 function(compile_slang_shaders target output_dir)
     if(NOT SLANGC_EXECUTABLE)
         message(FATAL_ERROR "SLANGC_EXECUTABLE is not set. Include VulkanSDK.cmake before CompileShaders.cmake.")
@@ -14,12 +22,16 @@ function(compile_slang_shaders target output_dir)
     else()
         set(_shader_root "${CMAKE_SOURCE_DIR}/shaders")
     endif()
-    set(_support_shaders
-        "${_shader_root}/common.slang"
-        "${_shader_root}/math.slang"
-        "${_shader_root}/bsdf.slang"
-        "${_shader_root}/env.slang"
-    )
+
+    # Non-entry support modules recompile every entry shader when they change.
+    # Projects only ship a subset of these, so keep the ones that exist.
+    set(_support_shaders)
+    foreach(_support common.slang math.slang bsdf.slang env.slang)
+        if(EXISTS "${_shader_root}/${_support}")
+            list(APPEND _support_shaders "${_shader_root}/${_support}")
+        endif()
+    endforeach()
+
     set(_outputs)
 
     foreach(_shader IN LISTS ARGN)
@@ -29,7 +41,10 @@ function(compile_slang_shaders target output_dir)
             set(_input_shader "${_shader_root}/${_shader}")
         endif()
 
-        get_filename_component(_shader_name_we "${_input_shader}" NAME_WE)
+        # Strip only the trailing ".slang" so multi-dot stage names survive
+        # (forward_render.task.slang → forward_render.task.spv).
+        get_filename_component(_shader_name "${_input_shader}" NAME)
+        string(REGEX REPLACE "\\.slang$" "" _shader_name_we "${_shader_name}")
         set(_output_shader "${output_dir}/${_shader_name_we}.spv")
 
         add_custom_command(
@@ -53,7 +68,7 @@ function(compile_slang_shaders target output_dir)
             DEPENDS
                 "${_input_shader}"
                 ${_support_shaders}
-            COMMENT "Compiling Slang shader ${_shader_name_we}.slang"
+            COMMENT "Compiling Slang shader ${_shader_name}"
             VERBATIM
             COMMAND_EXPAND_LISTS
         )
