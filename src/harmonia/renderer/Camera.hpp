@@ -3,6 +3,8 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
+#include <utility>
+
 #include "harmonia/GpuTypes.hpp"
 
 class Camera {
@@ -38,6 +40,11 @@ class Camera {
 
     explicit Camera() noexcept;
     explicit Camera(Params params) noexcept;
+
+    /// Compute scene-scale-aware near and far planes from the camera-to-target
+    /// distance. Used by both Hyperion and Theia to avoid clipping sub-unit or
+    /// very large scenes.
+    [[nodiscard]] static std::pair<float, float> nearFarFromDistance(float camDist) noexcept;
 
     void setAspect(float aspect) noexcept;
     void setPosition(glm::vec3 pos) noexcept;

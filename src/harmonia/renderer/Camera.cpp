@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 float Camera::PhysicalCamera::ev100() const noexcept {
     // EV100 = log2(N² × t_inv × 100 / ISO)
@@ -18,6 +19,10 @@ float Camera::PhysicalCamera::exposure() const noexcept {
 }
 
 Camera::Camera() noexcept : Camera(Params{}) {}
+
+std::pair<float, float> Camera::nearFarFromDistance(float camDist) noexcept {
+    return {std::max(0.001f, camDist * 0.01f), std::max(10.0f, camDist * 1000.0f)};
+}
 
 Camera::Camera(Params params) noexcept : m_params(params) {
     if (m_params.focusDist <= 0.0f) {
