@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <stb_image.h>
+#include <OpenImageIO/imageio.h>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
@@ -177,16 +177,25 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                                                        ColorSpace::WorkingColorSpace workingSpace,
                                                        std::string_view name) {
     const std::string pathStr = path.string();
-    int w = 0, h = 0, srcChannels = 0;
 
     // Always load as 4-channel RGBA, 8 bits per channel.
-    stbi_uc* raw = stbi_load(pathStr.c_str(), &w, &h, &srcChannels, 4);
-    if (!raw) {
-        Logger::error("Texture::loadFromFile: stbi_load failed for '{}': {}", pathStr, stbi_failure_reason());
+    auto inp = OIIO::ImageInput::open(pathStr);
+    if (!inp) {
+        Logger::error("Texture::loadFromFile: OIIO failed to open '{}': {}", pathStr, OIIO::geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
-
+    const OIIO::ImageSpec& spec = inp->spec();
+    const int w = spec.width;
+    const int h = spec.height;
     const auto pixelCount = static_cast<size_t>(w) * static_cast<size_t>(h);
+
+    std::vector<uint8_t> raw(pixelCount * 4);
+    if (!inp->read_image(0, 0, 0, 4, OIIO::TypeDesc::UINT8, raw.data())) {
+        Logger::error("Texture::loadFromFile: OIIO read_image failed for '{}': {}", pathStr, inp->geterror());
+        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+    }
+    inp->close();
+
     std::vector<uint8_t> converted(pixelCount * 4);
 
     // A texture needs CPU conversion when it is color data whose encoding or
@@ -199,7 +208,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
 
     if (!needsConversion) {
         // Data maps (normal/ORM/roughness) or already in working space — copy verbatim.
-        std::memcpy(converted.data(), raw, pixelCount * 4);
+        std::memcpy(converted.data(), raw.data(), pixelCount * 4);
     } else {
         const bool toRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
         // Convert each pixel: decode transfer function, then primaries → working space.
@@ -234,8 +243,6 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
             converted[i * 4 + 3] = a;
         }
     }
-
-    stbi_image_free(raw);
 
     const auto bytes = std::as_bytes(std::span<const uint8_t>(converted));
     return create(ctx,

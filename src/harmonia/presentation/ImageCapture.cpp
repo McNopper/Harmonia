@@ -3,22 +3,13 @@
 #include <glm/glm.hpp>
 
 #include <cmath>
-#include <stb_image_write.h>
+#include <OpenImageIO/imageio.h>
 #include <vector>
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/ToneMapping.hpp"
-
-#ifdef HARMONIA_HAS_OPENEXR
-#include <OpenEXR/ImfChannelList.h>
-#include <OpenEXR/ImfChromaticities.h>
-#include <OpenEXR/ImfChromaticitiesAttribute.h>
-#include <OpenEXR/ImfFrameBuffer.h>
-#include <OpenEXR/ImfHeader.h>
-#include <OpenEXR/ImfOutputFile.h>
-#endif
 
 namespace ImageCapture {
 namespace {
@@ -129,11 +120,14 @@ bool savePng(const DeviceContext& ctx,
     }
 
     const int stride = static_cast<int>(width) * 3;
-    if (!stbi_write_png(
-            path.string().c_str(), static_cast<int>(width), static_cast<int>(height), 3, pixels.data(), stride)) {
-        Logger::error("ImageCapture::savePng: stbi_write_png failed for {}", path.string());
+    OIIO::ImageSpec spec(static_cast<int>(width), static_cast<int>(height), 3, OIIO::TypeDesc::UINT8);
+    auto out = OIIO::ImageOutput::create(path.string());
+    if (!out || !out->open(path.string(), spec)) {
+        Logger::error("ImageCapture::savePng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
         return false;
     }
+    out->write_image(OIIO::TypeDesc::UINT8, pixels.data(), OIIO::AutoStride, static_cast<OIIO::stride_t>(stride));
+    out->close();
     Logger::info("Saved tone-mapped PNG to {}", path.string());
     return true;
 }
@@ -143,10 +137,6 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
              [[maybe_unused]] const Image& hdrImage,
              const std::filesystem::path& path,
              [[maybe_unused]] ColorSpace::WorkingColorSpace workingSpace) {
-#ifndef HARMONIA_HAS_OPENEXR
-    Logger::warn("OpenEXR support is not enabled; cannot save {}", path.string());
-    return false;
-#else
     if (!ctx.isValid() || !hdrImage.isValid()) {
         return false;
     }
@@ -159,39 +149,30 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
         return false;
     }
 
-    using namespace OPENEXR_IMF_NAMESPACE;
-    const int width = static_cast<int>(hdrImage.extent().width);
-    const int height = static_cast<int>(hdrImage.extent().height);
-    Header header(width, height);
-    header.channels().insert("R", Channel(FLOAT));
-    header.channels().insert("G", Channel(FLOAT));
-    header.channels().insert("B", Channel(FLOAT));
+    const int w = static_cast<int>(hdrImage.extent().width);
+    const int h = static_cast<int>(hdrImage.extent().height);
 
-    // Tag the primaries of the working space (linear by definition) so readers
-    // do not fall back to the Rec.709 default for Rec.2020 content.
-    {
-        using V2f = IMATH_NAMESPACE::V2f;
-        const Chromaticities chroma =
-            (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020)
-                ? Chromaticities(V2f(0.708f, 0.292f), V2f(0.170f, 0.797f), V2f(0.131f, 0.046f), V2f(0.3127f, 0.3290f))
-                : Chromaticities(V2f(0.640f, 0.330f), V2f(0.300f, 0.600f), V2f(0.150f, 0.060f), V2f(0.3127f, 0.3290f));
-        header.insert("chromaticities", ChromaticitiesAttribute(chroma));
+    // Rec.2020 or Rec.709 primaries + D65 white point, as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
+    const float chromaRec2020[8] = {0.708f, 0.292f, 0.170f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.3290f};
+    const float chromaRec709[8]  = {0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f, 0.3127f, 0.3290f};
+    const float* chroma = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020) ? chromaRec2020 : chromaRec709;
+
+    OIIO::ImageSpec spec(w, h, 3, OIIO::TypeDesc::FLOAT);
+    spec.attribute("chromaticities", OIIO::TypeDesc(OIIO::TypeDesc::FLOAT, 8), chroma);
+
+    auto out = OIIO::ImageOutput::create(path.string());
+    if (!out || !out->open(path.string(), spec)) {
+        Logger::error("ImageCapture::saveExr: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        return false;
     }
 
-    FrameBuffer frameBuffer;
-    char* const base = static_cast<char*>(readback->mappedData());
-    const size_t pixelStride = sizeof(float) * 4U;
-    const size_t rowStride = pixelStride * static_cast<size_t>(width);
-    frameBuffer.insert("R", Slice(FLOAT, base + 0U * sizeof(float), pixelStride, rowStride));
-    frameBuffer.insert("G", Slice(FLOAT, base + 1U * sizeof(float), pixelStride, rowStride));
-    frameBuffer.insert("B", Slice(FLOAT, base + 2U * sizeof(float), pixelStride, rowStride));
-
-    OutputFile file(path.string().c_str(), header);
-    file.setFrameBuffer(frameBuffer);
-    file.writePixels(height);
+    // Source buffer is RGBA32F; write only RGB (3 channels) with correct x-stride.
+    const auto* src = static_cast<const float*>(readback->mappedData());
+    const OIIO::stride_t xstride = static_cast<OIIO::stride_t>(4 * sizeof(float));
+    out->write_image(OIIO::TypeDesc::FLOAT, src, xstride);
+    out->close();
     Logger::info("Saved HDR EXR to {}", path.string());
     return true;
-#endif
 }
 
 } // namespace ImageCapture

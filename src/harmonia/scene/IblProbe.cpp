@@ -9,12 +9,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
 
-#ifdef HARMONIA_HAS_OPENEXR
-#include <Imath/ImathBox.h>
-#include <OpenEXR/ImfChromaticities.h>
-#include <OpenEXR/ImfChromaticitiesAttribute.h>
-#include <OpenEXR/ImfRgbaFile.h>
-#endif
+#include <OpenImageIO/imageio.h>
 
 IblProbe::IblProbe(IblProbe&& other) noexcept
     : m_image(std::move(other.m_image)),
@@ -64,78 +59,68 @@ void IblProbe::reset() noexcept {
 }
 
 std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx,
-                                                        const CommandPool& pool,
-                                                        const std::filesystem::path& path,
-                                                        ColorSpace::WorkingColorSpace workingSpace) {
-#ifndef HARMONIA_HAS_OPENEXR
-    (void)ctx;
-    (void)pool;
-    (void)path;
-    (void)workingSpace;
-    Logger::error("IblProbe: OpenEXR support is not compiled in; cannot load '{}'", path.string());
-    return std::unexpected(VK_ERROR_FEATURE_NOT_PRESENT);
-#else
-    // ── Load EXR pixels ──────────────────────────────────────────────────────
-    int width = 0, height = 0;
-    std::vector<float> rgba32f;
-
-    try {
-        using namespace OPENEXR_IMF_NAMESPACE;
-        RgbaInputFile file(path.string().c_str());
-        const IMATH_NAMESPACE::Box2i dw = file.dataWindow();
-        width = dw.max.x - dw.min.x + 1;
-        height = dw.max.y - dw.min.y + 1;
-
-        std::vector<Rgba> halfs(static_cast<size_t>(width * height));
-        file.setFrameBuffer(halfs.data() - dw.min.x - dw.min.y * width, 1, width);
-        file.readPixels(dw.min.y, dw.max.y);
-
-        // ── Determine source primaries from the EXR `chromaticities` header ──
-        // Absent attribute = Rec.709 primaries (OpenEXR spec default).
-        bool srcRec2020 = false;
-        if (const auto* chroma = file.header().findTypedAttribute<ChromaticitiesAttribute>("chromaticities")) {
-            const Chromaticities& c = chroma->value();
-            // Rec.2020 red primary x ≈ 0.708 vs Rec.709 x = 0.640 — a coarse
-            // threshold cleanly separates the two supported gamuts.
-            srcRec2020 = (c.red.x > 0.68f);
-        }
-        const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
-
-        // ── Pick the primaries conversion (source → working space) ───────────
-        // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
-        struct Mat3 {
-            float m00, m01, m02, m10, m11, m12, m20, m21, m22;
-        };
-        constexpr Mat3 k709To2020{0.6274040f, 0.3292820f, 0.0433140f, 0.0690970f, 0.9195400f,
-                                  0.0113630f, 0.0163916f, 0.0880132f, 0.8955950f};
-        constexpr Mat3 k2020To709{1.6604911f, -0.5876411f, -0.0728499f, -0.1245505f, 1.1328999f,
-                                  -0.0083494f, -0.0181508f, -0.1005789f, 1.1187297f};
-        constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
-        const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
-
-        // Half-float max (65504): clamp before matrix multiply to stay finite.
-        // EXR panoramas routinely store the sun disc as half-float inf (exponent=31,
-        // mantissa=0) when the captured radiance exceeds the half-float range.
-        // Clamping to kHalfMax keeps the sun visible and correctly weighted in the CDF
-        // rather than zeroing it out, which would remove it from importance sampling.
-        auto safeHalf = [](float v) -> float {
-            constexpr float kHalfMax = 65504.0f;
-            return std::isfinite(v) ? std::min(v, kHalfMax) : kHalfMax;
-        };
-
-        rgba32f.resize(static_cast<size_t>(width * height) * 4u);
-        for (int i = 0; i < width * height; ++i) {
-            const float r = safeHalf(static_cast<float>(halfs[i].r));
-            const float g = safeHalf(static_cast<float>(halfs[i].g));
-            const float b = safeHalf(static_cast<float>(halfs[i].b));
-            rgba32f[i * 4 + 0] = m.m00 * r + m.m01 * g + m.m02 * b;
-            rgba32f[i * 4 + 1] = m.m10 * r + m.m11 * g + m.m12 * b;
-            rgba32f[i * 4 + 2] = m.m20 * r + m.m21 * g + m.m22 * b;
-            rgba32f[i * 4 + 3] = safeHalf(static_cast<float>(halfs[i].a));
-        }
-    } catch (const std::exception& e) {
-        Logger::error("IblProbe: failed to read '{}': {}", path.string(), e.what());
+                                                       const CommandPool& pool,
+                                                       const std::filesystem::path& path,
+                                                       ColorSpace::WorkingColorSpace workingSpace) {
+    // ── Load EXR pixels via OIIO ─────────────────────────────────────────────
+    auto inp = OIIO::ImageInput::open(path.string());
+    if (!inp) {
+        Logger::error("IblProbe: failed to open '{}': {}", path.string(), OIIO::geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+    }
+
+    const OIIO::ImageSpec& spec = inp->spec();
+    const int width  = spec.width;
+    const int height = spec.height;
+
+    // ── Determine source primaries from the EXR `chromaticities` attribute ───
+    // Absent attribute = Rec.709 primaries (OpenEXR spec default).
+    // OIIO stores EXR chromaticities as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
+    bool srcRec2020 = false;
+    const OIIO::ParamValue* chromaParam = spec.find_attribute("chromaticities");
+    if (chromaParam && chromaParam->type() == OIIO::TypeDesc(OIIO::TypeDesc::FLOAT, 8)) {
+        const auto* c = static_cast<const float*>(chromaParam->data());
+        // Rec.2020 red primary x ≈ 0.708 vs Rec.709 x = 0.640 — coarse threshold.
+        srcRec2020 = (c[0] > 0.68f);
+    }
+    const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
+
+    // ── Read as RGBA32F (OIIO auto-converts HALF → FLOAT) ────────────────────
+    std::vector<float> raw(static_cast<size_t>(width * height) * 4u);
+    if (!inp->read_image(0, 0, 0, 4, OIIO::TypeDesc::FLOAT, raw.data())) {
+        Logger::error("IblProbe: read_image failed for '{}': {}", path.string(), inp->geterror());
+        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+    }
+    inp->close();
+
+    // ── Pick the primaries conversion (source → working space) ───────────────
+    // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
+    struct Mat3 {
+        float m00, m01, m02, m10, m11, m12, m20, m21, m22;
+    };
+    constexpr Mat3 k709To2020{0.6274040f, 0.3292820f, 0.0433140f, 0.0690970f, 0.9195400f,
+                               0.0113630f, 0.0163916f, 0.0880132f, 0.8955950f};
+    constexpr Mat3 k2020To709{1.6604911f, -0.5876411f, -0.0728499f, -0.1245505f, 1.1328999f,
+                               -0.0083494f, -0.0181508f, -0.1005789f, 1.1187297f};
+    constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
+
+    // Clamp non-finite values (e.g. half-float inf from overexposed sun disc) to
+    // half-float max (65504) so the CDF importance sampler keeps the sun visible.
+    auto safeVal = [](float v) -> float {
+        constexpr float kHalfMax = 65504.0f;
+        return std::isfinite(v) ? std::min(v, kHalfMax) : kHalfMax;
+    };
+
+    std::vector<float> rgba32f(static_cast<size_t>(width * height) * 4u);
+    for (int i = 0; i < width * height; ++i) {
+        const float r = safeVal(raw[i * 4 + 0]);
+        const float g = safeVal(raw[i * 4 + 1]);
+        const float b = safeVal(raw[i * 4 + 2]);
+        rgba32f[i * 4 + 0] = m.m00 * r + m.m01 * g + m.m02 * b;
+        rgba32f[i * 4 + 1] = m.m10 * r + m.m11 * g + m.m12 * b;
+        rgba32f[i * 4 + 2] = m.m20 * r + m.m21 * g + m.m22 * b;
+        rgba32f[i * 4 + 3] = safeVal(raw[i * 4 + 3]);
     }
 
     // ── Upload to GPU ────────────────────────────────────────────────────────
@@ -375,5 +360,4 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
 
     Logger::info("IblProbe: loaded '{}' ({}×{})", path.filename().string(), width, height);
     return probe;
-#endif
 }

@@ -70,7 +70,6 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/app/App.cpp
     src/harmonia/app/GreenScreenRenderer.cpp
     src/harmonia/vma_impl.cpp
-    src/harmonia/stb_image_impl.cpp
 )
 
 # Volk — compiled from the Vulkan SDK source.
@@ -87,8 +86,7 @@ add_library(harmonia_vulkan_sdk INTERFACE)
 target_include_directories(harmonia_vulkan_sdk SYSTEM INTERFACE "${VULKANSDK_INCLUDE_DIR}")
 target_link_libraries(harmonia_vulkan_sdk INTERFACE ${VULKANSDK_LIBRARIES})
 
-find_package(OpenEXR QUIET)
-find_package(Stb REQUIRED)
+find_package(OpenImageIO REQUIRED)
 
 # Resolve Harmonia's shaders relative to Harmonia's own source tree so the
 # tonemap shaders compile correctly when Harmonia is consumed via FetchContent
@@ -110,29 +108,12 @@ target_include_directories(harmonia_lib
 )
 
 target_link_libraries(harmonia_lib
-    PUBLIC harmonia_project_options harmonia_vulkan_sdk volk aether::aether
-)
-
-target_include_directories(harmonia_lib
-    SYSTEM PUBLIC "${Stb_INCLUDE_DIR}"
+    PUBLIC harmonia_project_options harmonia_vulkan_sdk volk aether::aether OpenImageIO::OpenImageIO
 )
 
 target_compile_definitions(harmonia_lib
     PUBLIC HARMONIA_SHADER_DIR=\"${HARMONIA_SHADER_OUTPUT_DIR}\"
 )
-
-if(OpenEXR_FOUND)
-    if(TARGET OpenEXR::OpenEXR)
-        set_property(TARGET OpenEXR::OpenEXR PROPERTY SYSTEM ON)
-        target_link_libraries(harmonia_lib PUBLIC OpenEXR::OpenEXR)
-    elseif(OPENEXR_LIBRARIES)
-        target_link_libraries(harmonia_lib PUBLIC ${OPENEXR_LIBRARIES})
-        if(OPENEXR_INCLUDE_DIRS)
-            target_include_directories(harmonia_lib SYSTEM PUBLIC ${OPENEXR_INCLUDE_DIRS})
-        endif()
-    endif()
-    target_compile_definitions(harmonia_lib PUBLIC HARMONIA_HAS_OPENEXR=1)
-endif()
 
 # Tests only build when Harmonia is the top-level project.
 if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)

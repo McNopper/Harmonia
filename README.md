@@ -33,6 +33,14 @@ file format.
 - **Shader toolchain** — the `compile_slang_shaders` CMake rule (Slang → SPIR-V at build
   time, used identically by Harmonia, Hyperion and Theia) and the shared SPIR-V loader
   (`harmonia::createShaderModule`)
+- **Shared Slang modules** — `bsdf_shared.slang` (OpenPBR BSDF utilities: Fujii diffuse,
+  GGX, Fresnel, sheen, lobe weight helpers), `env_sample.slang` (pure-parameter CDF
+  env-map importance sampling), `math.slang` (sampling, RNG, GGX helpers), `env.slang`
+  (env-map wrappers); renderers import these via `-I ${HARMONIA_SHADER_SOURCE_DIR}` and
+  add renderer-specific code on top — no shader duplication between Hyperion and Theia
+- **Image I/O** — PNG/JPEG load ([OpenImageIO](https://openimageio.readthedocs.io/)),
+  EXR load/save with chromaticities (OpenImageIO, OpenEXR transitively); textures and
+  IBL probes are colour-space-converted on load
 
 It does **not** contain a renderer or a renderer's GPU scene. Hyperion provides the
 offline path tracer, Theia the real-time forward renderer; both demos are thin
@@ -68,3 +76,17 @@ cd build && ctest --output-on-failure
 
 Hyperion and Theia pull Harmonia (and, transitively, Aether) via CMake `FetchContent`
 and link the `harmonia::harmonia` target.
+
+---
+
+## Dependencies
+
+| Library | Purpose |
+|---------|---------|
+| [Aether](https://github.com/McNopper/Aether) | Scene & material file formats (`.scene.toml` / `.materials.toml` / OBJ) — GPU-agnostic CPU data |
+| [Vulkan SDK](https://vulkan.lunarg.com/) | Vulkan 1.4 API, Slang compiler (`slangc`), SDL3, volk |
+| [VMA](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) | GPU memory allocation |
+| [GLM](https://github.com/g-truc/glm) | Mathematics |
+| [OpenImageIO](https://openimageio.readthedocs.io/) | Image I/O — PNG/JPEG/EXR load and save; EXR chromaticities for working color-space metadata |
+| [Slang](https://shader-slang.com/) | Shader language (Slang → SPIR-V); shared modules compiled via `compile_slang_shaders` |
+| [Google Test](https://github.com/google/googletest) | Testing |
