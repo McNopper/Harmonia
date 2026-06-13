@@ -23,13 +23,26 @@ function(compile_slang_shaders target output_dir)
         set(_shader_root "${CMAKE_SOURCE_DIR}/shaders")
     endif()
 
+    # Build the list of extra -I flags from COMPILE_SLANG_EXTRA_INCLUDE_DIRS.
+    # Consumers (Hyperion, Theia) set this to HARMONIA_SHADER_SOURCE_DIR so that
+    # shared Slang modules (math, bsdf, env, env_sample, …) resolve to Harmonia's
+    # source tree rather than requiring per-renderer copies.
+    set(_extra_include_flags)
+    if(DEFINED COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
+        foreach(_extra_dir IN LISTS COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
+            list(APPEND _extra_include_flags "-I" "${_extra_dir}")
+        endforeach()
+    endif()
+
     # Non-entry support modules recompile every entry shader when they change.
-    # Projects only ship a subset of these, so keep the ones that exist.
+    # Scan both the local shader root and any extra include dirs.
     set(_support_shaders)
-    foreach(_support common.slang math.slang bsdf.slang env.slang)
-        if(EXISTS "${_shader_root}/${_support}")
-            list(APPEND _support_shaders "${_shader_root}/${_support}")
-        endif()
+    foreach(_dir "${_shader_root}" ${COMPILE_SLANG_EXTRA_INCLUDE_DIRS})
+        foreach(_support common.slang math.slang bsdf_shared.slang env.slang env_sample.slang)
+            if(EXISTS "${_dir}/${_support}")
+                list(APPEND _support_shaders "${_dir}/${_support}")
+            endif()
+        endforeach()
     endforeach()
 
     set(_outputs)
@@ -55,6 +68,7 @@ function(compile_slang_shaders target output_dir)
                 -profile spirv_1_6
                 -g0 -O2
                 -I "${_shader_root}"
+                ${_extra_include_flags}
                 -o "${_output_shader}"
                 # 31000: [[vk::combinedImageSampler]] is HLSL/DXC syntax; Slang 2026.x does not
                 #        recognise it as a named attribute but still emits correct combined-image-

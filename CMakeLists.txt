@@ -93,7 +93,11 @@ find_package(Stb REQUIRED)
 # Resolve Harmonia's shaders relative to Harmonia's own source tree so the
 # tonemap shaders compile correctly when Harmonia is consumed via FetchContent
 # (CMAKE_SOURCE_DIR would otherwise point at the consumer project).
-set(COMPILE_SLANG_SHADER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+# Also expose the source dir so consumers (Hyperion, Theia) can add it to
+# COMPILE_SLANG_EXTRA_INCLUDE_DIRS and import shared Slang modules directly.
+set(HARMONIA_SHADER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+    CACHE INTERNAL "Harmonia Slang shader source directory for consumer include paths")
+set(COMPILE_SLANG_SHADER_ROOT "${HARMONIA_SHADER_SOURCE_DIR}")
 compile_slang_shaders(harmonia_shaders "${HARMONIA_SHADER_OUTPUT_DIR}" ${HARMONIA_ENTRY_SHADERS})
 unset(COMPILE_SLANG_SHADER_ROOT)
 
