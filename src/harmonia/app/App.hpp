@@ -46,7 +46,7 @@ class App {
         std::string title = "Harmonia";
         uint32_t width = 1920;
         uint32_t height = 1080;
-        bool validation = false;
+        bool validation = true;
         /// Allow interactive window resizing. Renderers whose passes cannot
         /// recreate their targets yet should keep this off.
         bool resizable = true;

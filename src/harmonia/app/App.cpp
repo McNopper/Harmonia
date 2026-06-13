@@ -235,7 +235,6 @@ bool App::createHdrImage() {
 bool App::createToneMapper() {
     const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
     auto toneMapper = ToneMapper::create(m_context.deviceContext(),
-                                         m_descriptors.pipelineLayout(),
                                          m_swapchain.format(),
                                          shaderDir / "tonemap_vert.spv",
                                          shaderDir / "tonemap.spv");
@@ -627,6 +626,19 @@ void App::handleResize(uint32_t w, uint32_t h) {
     }
 
     vkDeviceWaitIdle(m_context.deviceContext().device);
+
+    // Reset all frame command buffers to INITIAL state before destroying any
+    // resources they may reference (descriptor sets, images). This prevents
+    // the validation layer from flagging destroyed-while-still-referenced errors.
+    for (FrameResources& frame : m_frames) {
+        vkResetCommandBuffer(frame.renderCmd, 0);
+        vkResetCommandBuffer(frame.displayCmd, 0);
+        frame.completionValue = 0U;
+    }
+    // NOTE: m_nextTimelineValue is NOT reset — timeline semaphores require
+    // monotonically increasing signal values. Frame completionValues are reset
+    // to 0 so they are treated as "not in flight" after a resize.
+
     const VkExtent2D newExtent{
         .width = w,
         .height = h,

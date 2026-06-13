@@ -62,8 +62,14 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
                                                        const CommandPool& pool,
                                                        const std::filesystem::path& path,
                                                        ColorSpace::WorkingColorSpace workingSpace) {
-    // ── Load EXR pixels via OIIO ─────────────────────────────────────────────
-    auto inp = OIIO::ImageInput::open(path.string());
+    // Disable OIIO automatic color management — Harmonia handles all color
+    // conversions explicitly. Without this, OIIO may apply an OCIO transform
+    // if a color config is active (e.g. chromaticity adaptation on EXR),
+    // double-converting pixels that we then convert ourselves.
+    OIIO::ImageSpec openConfig;
+    openConfig.attribute("raw_color", 1);
+
+    auto inp = OIIO::ImageInput::open(path.string(), &openConfig);
     if (!inp) {
         Logger::error("IblProbe: failed to open '{}': {}", path.string(), OIIO::geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -73,7 +79,18 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     const int width  = spec.width;
     const int height = spec.height;
 
-    // ── Determine source primaries from the EXR `chromaticities` attribute ───
+    // ── Diagnostic: log channel layout so misloads are immediately visible ────
+    {
+        std::string chanDesc;
+        for (int c = 0; c < spec.nchannels; ++c) {
+            const OIIO::TypeDesc ct = spec.channelformat(c);
+            chanDesc += spec.channelnames[static_cast<size_t>(c)];
+            chanDesc += (ct == OIIO::TypeDesc::HALF) ? "(half)" : (ct == OIIO::TypeDesc::FLOAT) ? "(float)" : "(other)";
+            if (c + 1 < spec.nchannels) chanDesc += ", ";
+        }
+        Logger::info("IblProbe: '{}' {}x{}  nchannels={} [{}]",
+                     path.filename().string(), width, height, spec.nchannels, chanDesc);
+    }
     // Absent attribute = Rec.709 primaries (OpenEXR spec default).
     // OIIO stores EXR chromaticities as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
     bool srcRec2020 = false;
@@ -85,13 +102,32 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     }
     const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
 
-    // ── Read as RGBA32F (OIIO auto-converts HALF → FLOAT) ────────────────────
-    std::vector<float> raw(static_cast<size_t>(width * height) * 4u);
-    if (!inp->read_image(0, 0, 0, 4, OIIO::TypeDesc::FLOAT, raw.data())) {
+    // ── Read all channels then reorder into RGBA ──────────────────────────────
+    // OIIO preserves the EXR file's channel storage order, which for most
+    // panoramas is alphabetical (A, B, G, R).  We must look up each channel by
+    // name so that raw[] is always laid out as R,G,B,A regardless of file order.
+    const int nchans = spec.nchannels;
+    std::vector<float> allChans(static_cast<size_t>(width) * static_cast<size_t>(height) *
+                                static_cast<size_t>(nchans));
+    if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::FLOAT, allChans.data())) {
         Logger::error("IblProbe: read_image failed for '{}': {}", path.string(), inp->geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     inp->close();
+
+    // Resolve named channel indices; fall back to positional if unnamed.
+    const int iR = spec.channelindex("R") >= 0 ? spec.channelindex("R") : 0;
+    const int iG = spec.channelindex("G") >= 0 ? spec.channelindex("G") : 1;
+    const int iB = spec.channelindex("B") >= 0 ? spec.channelindex("B") : 2;
+    const int iA = spec.channelindex("A");
+
+    std::vector<float> raw(static_cast<size_t>(width * height) * 4u);
+    for (int i = 0; i < width * height; ++i) {
+        raw[i * 4 + 0] = allChans[static_cast<size_t>(i * nchans + iR)];
+        raw[i * 4 + 1] = allChans[static_cast<size_t>(i * nchans + iG)];
+        raw[i * 4 + 2] = allChans[static_cast<size_t>(i * nchans + iB)];
+        raw[i * 4 + 3] = (iA >= 0) ? allChans[static_cast<size_t>(i * nchans + iA)] : 1.0f;
+    }
 
     // ── Pick the primaries conversion (source → working space) ───────────────
     // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
@@ -167,12 +203,14 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     };
     vkCmdCopyBufferToImage(*cmd, staging->handle(), image->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
+    // Transition to SHADER_READ_ONLY_OPTIMAL covering all shader stages that may
+    // sample the env panorama: fragment (Theia sky pass) and ray tracing (Hyperion).
     image->transition(*cmd,
                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                       VK_PIPELINE_STAGE_2_COPY_BIT,
                       VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                      VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
                       VK_ACCESS_2_SHADER_READ_BIT);
 
     if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {

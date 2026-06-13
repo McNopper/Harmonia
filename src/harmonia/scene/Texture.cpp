@@ -178,8 +178,14 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                                                        std::string_view name) {
     const std::string pathStr = path.string();
 
-    // Always load as 4-channel RGBA, 8 bits per channel.
-    auto inp = OIIO::ImageInput::open(pathStr);
+    // Disable OIIO automatic color management — Harmonia handles all color
+    // conversions explicitly. Without this, OIIO may apply an OCIO transform
+    // if a color config is active (e.g. sRGB linearisation on PNG, or
+    // chromaticity adaptation on EXR), corrupting our own primaries conversion.
+    OIIO::ImageSpec openConfig;
+    openConfig.attribute("raw_color", 1);
+
+    auto inp = OIIO::ImageInput::open(pathStr, &openConfig);
     if (!inp) {
         Logger::error("Texture::loadFromFile: OIIO failed to open '{}': {}", pathStr, OIIO::geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -189,8 +195,15 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     const int h = spec.height;
     const auto pixelCount = static_cast<size_t>(w) * static_cast<size_t>(h);
 
-    std::vector<uint8_t> raw(pixelCount * 4);
-    if (!inp->read_image(0, 0, 0, 4, OIIO::TypeDesc::UINT8, raw.data())) {
+    // Pre-fill with 0xFF so any missing channels default to opaque/white.
+    // OIIO fills channels beyond spec.nchannels with 0, which would make
+    // RGB-only images fully transparent (alpha=0) on the GPU.
+    std::vector<uint8_t> raw(pixelCount * 4, 0xFF);
+    const int nchans = std::min(spec.nchannels, 4);
+    // xstride=4: always advance 4 bytes per pixel in our RGBA buffer so the
+    // pre-filled alpha byte is not overwritten for 3-channel source images.
+    if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::UINT8, raw.data(),
+                         static_cast<OIIO::stride_t>(4))) {
         Logger::error("Texture::loadFromFile: OIIO read_image failed for '{}': {}", pathStr, inp->geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }

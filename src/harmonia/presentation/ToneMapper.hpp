@@ -13,8 +13,8 @@ class ToneMapper {
   public:
     /// Create a graphics-pipeline tone mapper using dynamic rendering.
     /// swapchainFormat must match the current swapchain image format.
+    /// The ToneMapper owns its own pipeline layout; no external layout is needed.
     [[nodiscard]] static std::expected<ToneMapper, VkResult> create(const DeviceContext& ctx,
-                                                                    VkPipelineLayout pipelineLayout,
                                                                     VkFormat swapchainFormat,
                                                                     const std::filesystem::path& vertSpvPath,
                                                                     const std::filesystem::path& fragSpvPath);
@@ -57,5 +57,6 @@ class ToneMapper {
     VkDevice m_device{};
     VkPipeline m_pipeline{};
     VkPipelineLayout m_pipelineLayout{};
+    VkDescriptorSetLayout m_setLayout{};  ///< Push descriptor set layout (must outlive all CBs using it).
     VkFormat m_attachmentFormat{VK_FORMAT_UNDEFINED};
 };
