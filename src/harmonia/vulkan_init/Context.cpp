@@ -93,14 +93,17 @@ namespace {
 }
 
 [[nodiscard]] VkResult createDevice(const PhysicalDeviceInfo& info, DeviceContext& ctx) {
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeaturesSupported{};
+    rayQueryFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeaturesSupported{};
     rtFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    rtFeaturesSupported.pNext = &rayQueryFeaturesSupported;
     VkPhysicalDeviceMeshShaderFeaturesEXT meshFeaturesSupported{};
     meshFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
-    rtFeaturesSupported.pNext = &meshFeaturesSupported;
+    meshFeaturesSupported.pNext = &rtFeaturesSupported;
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeaturesSupported{};
     asFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    asFeaturesSupported.pNext = &rtFeaturesSupported;
+    asFeaturesSupported.pNext = &meshFeaturesSupported;
     VkPhysicalDeviceVulkan14Features features14Supported{};
     features14Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
     features14Supported.pNext = &asFeaturesSupported;
@@ -123,21 +126,31 @@ namespace {
         features12Supported.descriptorBindingPartiallyBound != VK_TRUE ||
         features12Supported.descriptorBindingStorageBufferUpdateAfterBind != VK_TRUE ||
         features12Supported.descriptorBindingSampledImageUpdateAfterBind != VK_TRUE ||
+        features12Supported.descriptorBindingStorageImageUpdateAfterBind != VK_TRUE ||
         features12Supported.timelineSemaphore != VK_TRUE || features13Supported.dynamicRendering != VK_TRUE ||
         features13Supported.synchronization2 != VK_TRUE || features13Supported.maintenance4 != VK_TRUE ||
         features14Supported.pushDescriptor != VK_TRUE || asFeaturesSupported.accelerationStructure != VK_TRUE ||
-        rtFeaturesSupported.rayTracingPipeline != VK_TRUE) {
+        asFeaturesSupported.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||
+        rtFeaturesSupported.rayTracingPipeline != VK_TRUE || rayQueryFeaturesSupported.rayQuery != VK_TRUE ||
+        supportedFeatures.features.fragmentStoresAndAtomics != VK_TRUE ||
+        supportedFeatures.features.independentBlend != VK_TRUE) {
         return VK_ERROR_FEATURE_NOT_PRESENT;
     }
 
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{};
+    rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+    rayQueryFeatures.rayQuery = VK_TRUE;
+
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeatures{};
     rtFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    rtFeatures.pNext = &rayQueryFeatures;
     rtFeatures.rayTracingPipeline = VK_TRUE;
 
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures{};
     asFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     asFeatures.pNext = &rtFeatures;
     asFeatures.accelerationStructure = VK_TRUE;
+    asFeatures.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE;
 
     VkPhysicalDeviceVulkan14Features features14{};
     features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
@@ -159,6 +172,7 @@ namespace {
         features12Supported.shaderSampledImageArrayNonUniformIndexing;
     features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
     features12.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+    features12.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
     features12.descriptorBindingPartiallyBound = VK_TRUE;
     features12.runtimeDescriptorArray = VK_TRUE;
     features12.bufferDeviceAddress = VK_TRUE;
@@ -176,6 +190,8 @@ namespace {
     features2.features.multiDrawIndirect = supportedFeatures.features.multiDrawIndirect;
     features2.features.samplerAnisotropy = supportedFeatures.features.samplerAnisotropy;
     features2.features.shaderInt64 = supportedFeatures.features.shaderInt64;
+    features2.features.fragmentStoresAndAtomics = VK_TRUE;
+    features2.features.independentBlend = VK_TRUE;
 
     // Mesh/task shaders are optional: required by Theia's rasterizer, unused by Hyperion's
     // path tracer. Enable them only when the device advertises support so the shared device
@@ -199,9 +215,9 @@ namespace {
     std::vector<const char*> deviceExtensions{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+        VK_KHR_RAY_QUERY_EXTENSION_NAME,
         VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
         VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-        VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
     };
     if (meshShaderSupported) {
         deviceExtensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
