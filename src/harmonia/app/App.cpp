@@ -108,6 +108,12 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         }
         return true;
     }
+    if (arg == "--ssgi-strength") {
+        if (const char* v = next("--ssgi-strength")) {
+            config.ssgiStrength = std::stof(v);
+        }
+        return true;
+    }
     if (!arg.starts_with("-")) {
         config.sceneFile = std::filesystem::path(arg);
         return true;

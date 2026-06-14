@@ -61,6 +61,8 @@ class App {
         /// Kept at 0.0 for parity fixtures; non-zero values are for interactive
         /// quality tuning only.
         float indirectAmbient = 0.0f;
+        /// Optional screen-space GI complement, also presentation-only.
+        float ssgiStrength = 0.0f;
     };
 
     App() = default;
@@ -76,8 +78,8 @@ class App {
 
     /// Parses an argument the host understands (--scene/-s, --output/-o,
     /// --width, --height, --validation, --no-validation, --no-postfx,
-    /// --indirect-ambient, or a bare scene name). Returns true if consumed;
-    /// @p i may be advanced.
+    /// --indirect-ambient, --ssgi-strength, or a bare scene name). Returns
+    /// true if consumed; @p i may be advanced.
     [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
 
   protected:
