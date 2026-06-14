@@ -94,7 +94,7 @@ namespace {
     g.opacityFlagsPad = glm::vec4(
         std::clamp(p.opacity, 0.0f, 1.0f), flags, p.subsurface_scatter_anisotropy, p.thin_walled ? 1.0f : 0.0f);
 
-    return Material::fromGpu(g);
+    return Material::fromGpu(g, p.emission_as_light_source);
 }
 
 [[nodiscard]] MaterialLibrary::MaterialTextureRef toRef(const aether::TextureRef& r) {

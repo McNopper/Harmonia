@@ -64,9 +64,10 @@ class Material {
     }
 
     /// Construct a Material wrapping an already-populated GpuMaterial.
-    [[nodiscard]] static Material fromGpu(GpuMaterial g) {
+    [[nodiscard]] static Material fromGpu(GpuMaterial g, bool emissiveAsLightSource = true) {
         Material m;
         m.m_gpu = g;
+        m.m_emissiveAsLightSource = emissiveAsLightSource;
         return m;
     }
 
@@ -131,7 +132,10 @@ class Material {
     }
 
     [[nodiscard]] const GpuMaterial& gpu() const noexcept { return m_gpu; }
+    [[nodiscard]] bool emissiveAsLightSource() const noexcept { return m_emissiveAsLightSource; }
+    void setEmissiveAsLightSource(bool enabled) noexcept { m_emissiveAsLightSource = enabled; }
 
   private:
     GpuMaterial m_gpu{};
+    bool m_emissiveAsLightSource = true;
 };
