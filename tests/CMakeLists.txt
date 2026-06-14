@@ -46,6 +46,7 @@ gtest_discover_tests(harmonia_component_tests)
 add_executable(harmonia_integration_tests
     integration/main.cpp
     integration/test_context.cpp
+    integration/test_scene_loader.cpp
 )
 
 target_link_libraries(harmonia_integration_tests
@@ -54,6 +55,10 @@ target_link_libraries(harmonia_integration_tests
 
 target_include_directories(harmonia_integration_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+target_compile_definitions(harmonia_integration_tests
+    PRIVATE AETHER_ASSETS_DIR="${aether_SOURCE_DIR}/assets"
 )
 
 gtest_discover_tests(harmonia_integration_tests)
