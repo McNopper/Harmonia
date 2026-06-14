@@ -53,6 +53,10 @@ class IRenderer {
         return VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     }
 
+    /// Access mask(s) of the renderer's final write into the target — paired
+    /// with outputStageMask() by the host's pre-tonemap barrier.
+    [[nodiscard]] virtual VkAccessFlags2 outputAccessMask() const noexcept { return VK_ACCESS_2_SHADER_WRITE_BIT; }
+
     /// Called when the render target is resized.
     virtual void onResize(VkExtent2D extent) noexcept = 0;
 

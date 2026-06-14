@@ -439,7 +439,7 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      renderer().outputStageMask(),
-                     VK_ACCESS_2_SHADER_WRITE_BIT,
+                     renderer().outputAccessMask(),
                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
         imageBarrier(m_swapchain.image(imageIndex),

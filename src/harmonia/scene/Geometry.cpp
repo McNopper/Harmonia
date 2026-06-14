@@ -16,55 +16,6 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
 namespace {
-[[nodiscard]] constexpr VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment) noexcept {
-    return alignment == 0 ? value : ((value + alignment - 1) / alignment) * alignment;
-}
-
-[[nodiscard]] std::expected<Buffer, VkResult> uploadBytes(const DeviceContext& ctx,
-                                                          const CommandPool& pool,
-                                                          std::span<const std::byte> bytes,
-                                                          VkBufferUsageFlags usage,
-                                                          std::string_view name) {
-    const VkDeviceSize size = std::max<VkDeviceSize>(bytes.size(), 16);
-
-    auto deviceBuffer =
-        Buffer::create(ctx, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, name);
-    if (!deviceBuffer) {
-        return std::unexpected(deviceBuffer.error());
-    }
-
-    auto staging = Buffer::create(ctx,
-                                  size,
-                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                  std::string(name).append(".staging"));
-    if (!staging) {
-        return std::unexpected(staging.error());
-    }
-
-    if (!bytes.empty()) {
-        staging->uploadData(bytes.data(), bytes.size(), 0);
-    }
-
-    auto cmd = pool.beginOneShot();
-    if (!cmd) {
-        return std::unexpected(cmd.error());
-    }
-
-    const VkBufferCopy copy{
-        .srcOffset = 0,
-        .dstOffset = 0,
-        .size = size,
-    };
-    vkCmdCopyBuffer(*cmd, staging->handle(), deviceBuffer->handle(), 1, &copy);
-
-    if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
-        return std::unexpected(result);
-    }
-
-    return std::move(*deviceBuffer);
-}
-
 [[nodiscard]] VkResult buildSingleBlas(const DeviceContext& ctx,
                                        const CommandPool& fallbackPool,
                                        std::string_view debugName,
@@ -131,7 +82,7 @@ namespace {
 
     buildInfo.dstAccelerationStructure = blas->handle();
     buildInfo.scratchData.deviceAddress =
-        alignUp(scratch->deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
+        bufferAlignUp(scratch->deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
 
     const VkAccelerationStructureBuildRangeInfoKHR* rangeInfoPtr = &rangeInfo;
     auto cmd = commandPool.beginOneShot();
@@ -272,12 +223,12 @@ std::expected<std::unique_ptr<Sphere>, VkResult> Sphere::create(const DeviceCont
         .maxZ = aabb.max.z,
     };
 
-    auto aabbBuffer = uploadBytes(ctx,
-                                  pool,
-                                  std::as_bytes(std::span<const VkAabbPositionsKHR>(&vkAabb, 1)),
-                                  VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-                                      VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-                                  debugName.empty() ? "sphere.aabb" : std::string(debugName).append(".aabb"));
+    auto aabbBuffer = Buffer::upload(ctx,
+                                     pool,
+                                     std::as_bytes(std::span<const VkAabbPositionsKHR>(&vkAabb, 1)),
+                                     VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                                         VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+                                     debugName.empty() ? "sphere.aabb" : std::string(debugName).append(".aabb"));
     if (!aabbBuffer) {
         return std::unexpected(aabbBuffer.error());
     }

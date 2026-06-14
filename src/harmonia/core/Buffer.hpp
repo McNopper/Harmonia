@@ -1,9 +1,17 @@
 #pragma once
 
+#include <cstddef>
 #include <expected>
+#include <span>
 #include <string_view>
 
 #include "harmonia/DeviceContext.hpp"
+
+class CommandPool;
+
+[[nodiscard]] constexpr VkDeviceSize bufferAlignUp(VkDeviceSize value, VkDeviceSize alignment) noexcept {
+    return alignment == 0 ? value : ((value + alignment - 1) / alignment) * alignment;
+}
 
 class Buffer {
   public:
@@ -12,6 +20,15 @@ class Buffer {
                                                                 VkBufferUsageFlags usage,
                                                                 VmaMemoryUsage memUsage,
                                                                 std::string_view debugName = "");
+
+    // Stage-upload helper: allocates a host staging buffer, copies bytes into it,
+    // then records a device-side copy to a DEVICE_LOCAL buffer and waits for it.
+    // Enforces a 16-byte minimum size for safe empty-span sentinel uploads.
+    [[nodiscard]] static std::expected<Buffer, VkResult> upload(const DeviceContext& ctx,
+                                                                const CommandPool& pool,
+                                                                std::span<const std::byte> bytes,
+                                                                VkBufferUsageFlags usage,
+                                                                std::string_view name = "");
 
     Buffer() = default;
     Buffer(const Buffer&) = delete;

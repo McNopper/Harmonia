@@ -1,8 +1,11 @@
 #include "harmonia/core/Buffer.hpp"
 
+#include <algorithm>
 #include <cstring>
+#include <span>
 #include <string>
 
+#include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Logger.hpp"
 
 namespace {
@@ -103,6 +106,50 @@ std::expected<Buffer, VkResult> Buffer::create(const DeviceContext& ctx,
     return buffer;
 }
 
+std::expected<Buffer, VkResult> Buffer::upload(const DeviceContext& ctx,
+                                               const CommandPool& pool,
+                                               std::span<const std::byte> bytes,
+                                               VkBufferUsageFlags usage,
+                                               std::string_view name) {
+    const VkDeviceSize size = std::max<VkDeviceSize>(bytes.size(), 16);
+
+    auto deviceBuffer =
+        Buffer::create(ctx, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, name);
+    if (!deviceBuffer) {
+        return std::unexpected(deviceBuffer.error());
+    }
+
+    auto staging = Buffer::create(ctx,
+                                  size,
+                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                  std::string(name).append(".staging"));
+    if (!staging) {
+        return std::unexpected(staging.error());
+    }
+
+    if (!bytes.empty()) {
+        staging->uploadData(bytes.data(), bytes.size(), 0);
+    }
+
+    auto cmd = pool.beginOneShot();
+    if (!cmd) {
+        return std::unexpected(cmd.error());
+    }
+
+    const VkBufferCopy copy{
+        .srcOffset = 0,
+        .dstOffset = 0,
+        .size = size,
+    };
+    vkCmdCopyBuffer(*cmd, staging->handle(), deviceBuffer->handle(), 1, &copy);
+
+    if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
+        return std::unexpected(result);
+    }
+
+    return std::move(*deviceBuffer);
+}
 Buffer::Buffer(Buffer&& other) noexcept
     : m_buffer(other.m_buffer),
       m_allocation(other.m_allocation),
