@@ -55,7 +55,7 @@ App::~App() {
     shutdown();
 }
 
-bool App::applyCommonArg(Config& config, int& i, int argc, char* argv[]) {
+bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     const std::string_view arg = argv[i];
     const auto next = [&](const char* what) -> const char* {
         if (i + 1 >= argc) {

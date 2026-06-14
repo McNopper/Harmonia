@@ -28,12 +28,12 @@ enum class LightType : uint32_t {
 
 struct GpuVertex {
     glm::vec3 position;
-    float tangentX; ///< Tangent vector X component (world space)
+    float tangentX = 0.0f; ///< Tangent vector X component (world space)
     glm::vec3 normal;
-    float tangentY; ///< Tangent vector Y component (world space)
+    float tangentY = 0.0f; ///< Tangent vector Y component (world space)
     glm::vec2 uv;
-    float tangentZ;      ///< Tangent vector Z component (world space)
-    float bitangentSign; ///< ±1 handedness of the bitangent (B = sign × (N × T))
+    float tangentZ      = 0.0f; ///< Tangent vector Z component (world space)
+    float bitangentSign = 0.0f; ///< ±1 handedness of the bitangent (B = sign × (N × T))
 };
 
 struct GpuMaterial {
@@ -82,43 +82,43 @@ struct GpuEmissiveTriangle {
 ///   Directional  : irradiance        [W/m²]      = illuminance [lux]     / 683
 struct GpuLight {
     glm::vec3 position;
-    float type; ///< reinterpret_cast<uint32_t> → LightType
+    float type = 0.0f; ///< reinterpret_cast<uint32_t> → LightType
     glm::vec3 direction;
-    float range; ///< attenuation cutoff; 0 = infinite
+    float range = 0.0f; ///< attenuation cutoff; 0 = infinite
     glm::vec3 color;
-    float intensity;  ///< radiometric (see above)
-    float halfWidth;  ///< rect half-width  / spot unused
-    float halfHeight; ///< rect half-height / spot unused
-    float cosInner;   ///< spot inner cone cos(angle)
-    float cosOuter;   ///< spot outer cone cos(angle)
+    float intensity  = 0.0f; ///< radiometric (see above)
+    float halfWidth  = 0.0f; ///< rect half-width  / spot unused
+    float halfHeight = 0.0f; ///< rect half-height / spot unused
+    float cosInner   = 0.0f; ///< spot inner cone cos(angle)
+    float cosOuter   = 0.0f; ///< spot outer cone cos(angle)
 };
 
 struct CameraData {
     glm::mat4 invView;
     glm::mat4 invProj;
     glm::vec4 position;
-    float lensRadius;
-    float focusDistance;
-    uint32_t frameIndex;
-    uint32_t maxDepth;
-    float exposure; ///< pre-computed from EV100: 1 / (1.2 * 2^EV100)
-    float _padCam[3];
+    float    lensRadius    = 0.0f;
+    float    focusDistance = 0.0f;
+    uint32_t frameIndex    = 0;
+    uint32_t maxDepth      = 0;
+    float    exposure      = 0.0f; ///< pre-computed from EV100: 1 / (1.2 * 2^EV100)
+    float    _padCam[3]    = {};
 };
 
 struct PushConstants {
-    uint32_t frameIndex;
-    uint32_t maxDepth;
-    uint32_t rngSeed;
-    float envLuminanceScale;
-    uint32_t lightCount;            ///< number of active GpuLights in the light buffer
-    uint32_t outputColorSpace;      ///< OutputColorSpace enum value (used by tonemap pass)
-    uint32_t samplesPerPixel;       ///< samples per pixel this dispatch
-    uint32_t hasEnvMap;             ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
-    uint32_t emissiveTriangleCount; ///< number of emissive triangles for NEE area sampling (0 = disabled)
-    uint32_t envImportanceWidth;    ///< CDF grid width for env importance sampling (0 = disabled)
-    uint32_t envImportanceHeight;   ///< CDF grid height for env importance sampling
-    uint32_t tonemapper;            ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
-    uint32_t workingColorSpace;     ///< ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
+    uint32_t frameIndex              = 0;
+    uint32_t maxDepth                = 0;
+    uint32_t rngSeed                 = 0;
+    float    envLuminanceScale       = 0.0f;
+    uint32_t lightCount              = 0; ///< number of active GpuLights in the light buffer
+    uint32_t outputColorSpace        = 0; ///< OutputColorSpace enum value (used by tonemap pass)
+    uint32_t samplesPerPixel         = 0; ///< samples per pixel this dispatch
+    uint32_t hasEnvMap               = 0; ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
+    uint32_t emissiveTriangleCount   = 0; ///< number of emissive triangles for NEE area sampling (0 = disabled)
+    uint32_t envImportanceWidth      = 0; ///< CDF grid width for env importance sampling (0 = disabled)
+    uint32_t envImportanceHeight     = 0; ///< CDF grid height for env importance sampling
+    uint32_t tonemapper              = 0; ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
+    uint32_t workingColorSpace       = 0; ///< ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.

@@ -90,8 +90,7 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     const VkSurfaceFormatKHR* chosenFormat = nullptr;
     if (preferHDR) {
         // Priority: HDR10 PQ → HLG → scRGB → Display P3 → SDR linear
-        if (!chosenFormat)
-            chosenFormat = findSurfaceFormat(VK_FORMAT_A2B10G10R10_UNORM_PACK32, VK_COLOR_SPACE_HDR10_ST2084_EXT);
+        chosenFormat = findSurfaceFormat(VK_FORMAT_A2B10G10R10_UNORM_PACK32, VK_COLOR_SPACE_HDR10_ST2084_EXT);
         if (!chosenFormat)
             chosenFormat = findSurfaceFormat(VK_FORMAT_A2B10G10R10_UNORM_PACK32, VK_COLOR_SPACE_HDR10_HLG_EXT);
         if (!chosenFormat)

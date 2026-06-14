@@ -69,7 +69,7 @@ class App {
     /// Parses an argument the host understands (--scene/-s, --output/-o,
     /// --width, --height, --validation, --no-validation, or a bare scene
     /// name). Returns true if consumed; @p i may be advanced.
-    [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* argv[]);
+    [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
 
   protected:
     // ── Hooks (renderer injection) ──────────────────────────────────────────

@@ -54,9 +54,9 @@ class SceneLoader {
     /// Asset paths are resolved relative to @p assetsDir.
     /// Returns a SceneConfig with camera / render overrides on success,
     /// or std::nullopt if the file cannot be opened.
-    [[nodiscard]] std::optional<SceneConfig> load(const std::filesystem::path& sceneFile,
-                                                  const std::filesystem::path& assetsDir,
-                                                  ISceneBuilder& scene,
-                                                  const DeviceContext& ctx,
-                                                  const CommandPool& pool);
+    [[nodiscard]] static std::optional<SceneConfig> load(const std::filesystem::path& sceneFile,
+                                                         const std::filesystem::path& assetsDir,
+                                                         ISceneBuilder& scene,
+                                                         const DeviceContext& ctx,
+                                                         const CommandPool& pool);
 };

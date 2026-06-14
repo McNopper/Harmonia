@@ -39,7 +39,7 @@ class Camera {
     };
 
     explicit Camera() noexcept;
-    explicit Camera(Params params) noexcept;
+    explicit Camera(const Params& params) noexcept;
 
     /// Compute scene-scale-aware near and far planes from the camera-to-target
     /// distance. Used by both Hyperion and Theia to avoid clipping sub-unit or

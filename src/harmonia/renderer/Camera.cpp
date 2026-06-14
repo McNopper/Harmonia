@@ -24,7 +24,7 @@ std::pair<float, float> Camera::nearFarFromDistance(float camDist) noexcept {
     return {std::max(0.001f, camDist * 0.01f), std::max(10.0f, camDist * 1000.0f)};
 }
 
-Camera::Camera(Params params) noexcept : m_params(params) {
+Camera::Camera(const Params& params) noexcept : m_params(params) {
     if (m_params.focusDist <= 0.0f) {
         m_params.focusDist = glm::length(m_params.target - m_params.position);
     }
