@@ -53,6 +53,10 @@ class App {
         std::filesystem::path assetsDir;  ///< canonical Aether asset collection
         std::filesystem::path sceneFile;  ///< bare names are resolved against assetsDir (+ ".scene.toml")
         std::filesystem::path outputFile; ///< non-empty: offscreen render (EXR + PNG), then exit
+        /// Screen-space post-effects (SSR/SSAO/bloom). Disabled (--no-postfx) for
+        /// parity comparison renders, which require all post-effects off per the
+        /// locked comparison contract. Renderers without post-fx ignore this.
+        bool postProcess = true;
     };
 
     App() = default;
@@ -67,8 +71,8 @@ class App {
     int run(Config config);
 
     /// Parses an argument the host understands (--scene/-s, --output/-o,
-    /// --width, --height, --validation, --no-validation, or a bare scene
-    /// name). Returns true if consumed; @p i may be advanced.
+    /// --width, --height, --validation, --no-validation, --no-postfx, or a
+    /// bare scene name). Returns true if consumed; @p i may be advanced.
     [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
 
   protected:

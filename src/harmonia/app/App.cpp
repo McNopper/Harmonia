@@ -97,6 +97,10 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         config.validation = false;
         return true;
     }
+    if (arg == "--no-postfx") {
+        config.postProcess = false;
+        return true;
+    }
     if (!arg.starts_with("-")) {
         config.sceneFile = std::filesystem::path(arg);
         return true;
