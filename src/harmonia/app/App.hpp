@@ -57,6 +57,10 @@ class App {
         /// parity comparison renders, which require all post-effects off per the
         /// locked comparison contract. Renderers without post-fx ignore this.
         bool postProcess = true;
+        /// Presentation-only indirect ambient boost (scene-referred linear units).
+        /// Kept at 0.0 for parity fixtures; non-zero values are for interactive
+        /// quality tuning only.
+        float indirectAmbient = 0.0f;
     };
 
     App() = default;
@@ -71,8 +75,9 @@ class App {
     int run(Config config);
 
     /// Parses an argument the host understands (--scene/-s, --output/-o,
-    /// --width, --height, --validation, --no-validation, --no-postfx, or a
-    /// bare scene name). Returns true if consumed; @p i may be advanced.
+    /// --width, --height, --validation, --no-validation, --no-postfx,
+    /// --indirect-ambient, or a bare scene name). Returns true if consumed;
+    /// @p i may be advanced.
     [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
 
   protected:

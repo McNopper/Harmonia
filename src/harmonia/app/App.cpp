@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -99,6 +100,12 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     }
     if (arg == "--no-postfx") {
         config.postProcess = false;
+        return true;
+    }
+    if (arg == "--indirect-ambient") {
+        if (const char* v = next("--indirect-ambient")) {
+            config.indirectAmbient = std::stof(v);
+        }
         return true;
     }
     if (!arg.starts_with("-")) {
