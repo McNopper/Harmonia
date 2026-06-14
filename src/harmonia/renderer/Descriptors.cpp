@@ -5,7 +5,6 @@
 #include <array>
 #include <utility>
 
-
 Descriptors::~Descriptors() noexcept {
     reset();
 }
@@ -299,13 +298,25 @@ VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer mar
     const VkDescriptorBufferInfo conditionalInfo{.buffer = conditionalCdf, .offset = 0, .range = VK_WHOLE_SIZE};
     const std::array writes{
         VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr, m_set1, 8, 0, 1,
+                             nullptr,
+                             m_set1,
+                             8,
+                             0,
+                             1,
                              VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr, &marginalInfo, nullptr},
+                             nullptr,
+                             &marginalInfo,
+                             nullptr},
         VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr, m_set1, 9, 0, 1,
+                             nullptr,
+                             m_set1,
+                             9,
+                             0,
+                             1,
                              VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr, &conditionalInfo, nullptr},
+                             nullptr,
+                             &conditionalInfo,
+                             nullptr},
     };
     vkUpdateDescriptorSets(ctx.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
     return VK_SUCCESS;

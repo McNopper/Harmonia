@@ -11,10 +11,10 @@
 /// Applied only for SDR and Display P3 output; HDR paths (HDR10/HLG/scRGB) use their
 /// own transfer functions and ignore this field.
 enum class Tonemapper : uint32_t {
-    eACES     = 0, ///< ACES RRT+ODT (Stephen Hill fit)   — filmic, high contrast
-    eAgX      = 1, ///< AgX (Troy Sobotka, 2022)          — wide DR, natural highlight rolloff
+    eACES = 0,     ///< ACES RRT+ODT (Stephen Hill fit)   — filmic, high contrast
+    eAgX = 1,      ///< AgX (Troy Sobotka, 2022)          — wide DR, natural highlight rolloff
     eReinhard = 2, ///< Luminance-preserving Reinhard      — simple, smooth, no colour shift
-    eHable    = 3, ///< Hable / Uncharted-2 filmic         — moderate contrast, reference
+    eHable = 3,    ///< Hable / Uncharted-2 filmic         — moderate contrast, reference
 };
 
 /// Scene light types (matches GpuLight::type field and shader constants).
@@ -42,8 +42,10 @@ struct GpuMaterial {
     glm::vec4 specularColorWeight;
     glm::vec4 specularRoughAnisoIor;
     glm::vec4 transmissionColorWeight;
-    glm::vec4 transmissionParams; ///< x = transmission_depth, y = (spec_roughness dup), z = dispersion_scale, w = dispersion_abbe_number
-    glm::vec4 transmissionScatter; ///< xyz = transmission_scatter (single-scatter albedo), w = transmission_scatter_anisotropy (g)
+    glm::vec4 transmissionParams;  ///< x = transmission_depth, y = (spec_roughness dup), z = dispersion_scale, w =
+                                   ///< dispersion_abbe_number
+    glm::vec4 transmissionScatter; ///< xyz = transmission_scatter (single-scatter albedo), w =
+                                   ///< transmission_scatter_anisotropy (g)
     glm::vec4 subsurfaceColorWeight;
     glm::vec4 subsurfaceRadiusScale;
     glm::uvec4 textureIndices; ///< bindless texture indices: [base_color, normal, orm, emission]; ~0u = none
@@ -54,7 +56,8 @@ struct GpuMaterial {
     glm::vec4 fuzzRoughPad;
     glm::vec4
         emissionColorLum; ///< xyz = emission_color (linear Rec.2020), w = emission_luminance in cd/m² (OpenPBR spec)
-    glm::vec4 opacityFlagsPad; ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w = geometry_thin_walled
+    glm::vec4 opacityFlagsPad;  ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w =
+                                ///< geometry_thin_walled
     glm::uvec4 textureIndices2; ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
 };
 
@@ -107,10 +110,10 @@ struct PushConstants {
     uint32_t maxDepth;
     uint32_t rngSeed;
     float envLuminanceScale;
-    uint32_t lightCount;         ///< number of active GpuLights in the light buffer
-    uint32_t outputColorSpace;   ///< OutputColorSpace enum value (used by tonemap pass)
-    uint32_t samplesPerPixel;    ///< samples per pixel this dispatch
-    uint32_t hasEnvMap;          ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
+    uint32_t lightCount;            ///< number of active GpuLights in the light buffer
+    uint32_t outputColorSpace;      ///< OutputColorSpace enum value (used by tonemap pass)
+    uint32_t samplesPerPixel;       ///< samples per pixel this dispatch
+    uint32_t hasEnvMap;             ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
     uint32_t emissiveTriangleCount; ///< number of emissive triangles for NEE area sampling (0 = disabled)
     uint32_t envImportanceWidth;    ///< CDF grid width for env importance sampling (0 = disabled)
     uint32_t envImportanceHeight;   ///< CDF grid height for env importance sampling

@@ -6,11 +6,11 @@
 //   - GPU-side work (vkCmdFillBuffer) actually runs: data written to a
 //     host-visible buffer is verified after the fence wait.
 
+#include <volk/volk.h>
+
 #include <cstdint>
 #include <cstring>
-
 #include <gtest/gtest.h>
-#include <volk/volk.h>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
@@ -23,12 +23,12 @@ TEST_F(VulkanFixture, CommandPool_HandleNonNull) {
 // Record a vkCmdFillBuffer command in a one-shot command buffer, submit it,
 // wait for completion, then read back the result and verify every DWORD.
 TEST_F(VulkanFixture, CommandPool_OneShotFillBufferAndVerify) {
-    constexpr uint32_t    kPattern = 0xDEADBEEFu;
-    constexpr VkDeviceSize kSize   = 256;
+    constexpr uint32_t kPattern = 0xDEADBEEFu;
+    constexpr VkDeviceSize kSize = 256;
 
     // Host-visible target: vkCmdFillBuffer writes to it; we read via mappedData().
-    auto buf = Buffer::create(deviceCtx(), kSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                              VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.cmdpool.fill");
+    auto buf = Buffer::create(
+        deviceCtx(), kSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.cmdpool.fill");
     ASSERT_TRUE(buf.has_value()) << "VkResult=" << static_cast<int>(buf.error());
     ASSERT_NE(buf->mappedData(), nullptr);
 

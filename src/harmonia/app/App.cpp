@@ -135,12 +135,12 @@ bool App::bootstrap() {
     }
 
     const bool offscreen = !m_config.outputFile.empty();
-    m_window = SDL_CreateWindow(m_config.title.c_str(),
-                                static_cast<int>(m_config.width),
-                                static_cast<int>(m_config.height),
-                                SDL_WINDOW_VULKAN | SDL_WINDOW_HIGH_PIXEL_DENSITY |
-                                    (m_config.resizable ? SDL_WINDOW_RESIZABLE : 0U) |
-                                    (offscreen ? SDL_WINDOW_HIDDEN : 0U));
+    m_window =
+        SDL_CreateWindow(m_config.title.c_str(),
+                         static_cast<int>(m_config.width),
+                         static_cast<int>(m_config.height),
+                         SDL_WINDOW_VULKAN | SDL_WINDOW_HIGH_PIXEL_DENSITY |
+                             (m_config.resizable ? SDL_WINDOW_RESIZABLE : 0U) | (offscreen ? SDL_WINDOW_HIDDEN : 0U));
     if (m_window == nullptr) {
         Logger::error("SDL_CreateWindow failed: {}", SDL_GetError());
         return false;
@@ -234,10 +234,8 @@ bool App::createHdrImage() {
 
 bool App::createToneMapper() {
     const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
-    auto toneMapper = ToneMapper::create(m_context.deviceContext(),
-                                         m_swapchain.format(),
-                                         shaderDir / "tonemap_vert.spv",
-                                         shaderDir / "tonemap.spv");
+    auto toneMapper = ToneMapper::create(
+        m_context.deviceContext(), m_swapchain.format(), shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
     if (!toneMapper) {
         Logger::error("Tone mapper creation failed: VkResult {}", static_cast<int>(toneMapper.error()));
         return false;
@@ -250,8 +248,8 @@ std::filesystem::path App::resolveScenePath(const std::filesystem::path& sceneFi
     // Absolute/existing path is used as-is; otherwise the bare name (with an
     // optional ".scene.toml" extension) is looked up in the assets directory —
     // the canonical Aether asset collection.
-    std::filesystem::path resolved = sceneFile.empty() ? std::filesystem::path("cornell_classic.scene.toml")
-                                                       : sceneFile;
+    std::filesystem::path resolved =
+        sceneFile.empty() ? std::filesystem::path("cornell_classic.scene.toml") : sceneFile;
     std::error_code ec;
     if (!std::filesystem::exists(resolved, ec)) {
         std::filesystem::path candidate = m_config.assetsDir / resolved.filename();
@@ -273,8 +271,8 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
     // Aether scene data flows into the renderer through one interface only:
     // the renderer's ISceneBuilder — identical for Harmonia, Hyperion, Theia.
     SceneLoader loader;
-    const auto sceneConfig = loader.load(resolved, m_config.assetsDir, sceneBuilder(), m_context.deviceContext(),
-                                         m_commandPool);
+    const auto sceneConfig =
+        loader.load(resolved, m_config.assetsDir, sceneBuilder(), m_context.deviceContext(), m_commandPool);
     if (!sceneConfig) {
         Logger::error("Scene load failed: {}", resolved.string());
         return false;
@@ -301,14 +299,16 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
                 Logger::info("IBL probe loaded: '{}'", envPath.filename().string());
             }
             if (m_iblProbe->cdfWidth() > 0) {
-                if (const VkResult result = m_descriptors.updateEnvImportance(m_context.deviceContext(),
-                                                                              m_iblProbe->marginalCdfBuffer().handle(),
-                                                                              m_iblProbe->conditionalCdfBuffer().handle());
+                if (const VkResult result =
+                        m_descriptors.updateEnvImportance(m_context.deviceContext(),
+                                                          m_iblProbe->marginalCdfBuffer().handle(),
+                                                          m_iblProbe->conditionalCdfBuffer().handle());
                     result != VK_SUCCESS) {
                     Logger::warn("IBL importance descriptor update failed: VkResult {}", static_cast<int>(result));
                 } else {
                     Logger::info("IBL importance CDF descriptors updated ({}×{})",
-                                 m_iblProbe->cdfWidth(), m_iblProbe->cdfHeight());
+                                 m_iblProbe->cdfWidth(),
+                                 m_iblProbe->cdfHeight());
                 }
             }
         }
@@ -600,17 +600,18 @@ int App::renderOffscreen() {
     bool ok = true;
     if (m_config.outputFile.extension() == ".png") {
         // Tone-mapped display-referred capture only.
-        ok = ImageCapture::savePng(m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile,
-                                   m_workingColorSpace);
+        ok = ImageCapture::savePng(
+            m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile, m_workingColorSpace);
     } else {
         // Scene-referred linear EXR (chromaticities-tagged, untonemapped) plus
         // a tone-mapped sRGB PNG sibling for GitHub / README display.
-        ok = ImageCapture::saveExr(m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile,
-                                   m_workingColorSpace);
+        ok = ImageCapture::saveExr(
+            m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile, m_workingColorSpace);
         auto pngPath = m_config.outputFile;
         pngPath.replace_extension(".png");
-        ok = ImageCapture::savePng(m_context.deviceContext(), m_commandPool, m_hdrImage, pngPath,
-                                   m_workingColorSpace) && ok;
+        ok =
+            ImageCapture::savePng(m_context.deviceContext(), m_commandPool, m_hdrImage, pngPath, m_workingColorSpace) &&
+            ok;
     }
     return ok ? 0 : 1;
 }

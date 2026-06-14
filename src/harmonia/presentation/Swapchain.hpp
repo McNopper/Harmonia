@@ -5,8 +5,8 @@
 #include <expected>
 #include <vector>
 
-#include "harmonia/presentation/OutputColorSpace.hpp"
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/presentation/OutputColorSpace.hpp"
 
 class Swapchain {
   public:

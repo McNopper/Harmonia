@@ -30,13 +30,13 @@ namespace {
 // ── Geometry-block uploader ───────────────────────────────────────────────────
 
 [[nodiscard]] bool uploadBlock(const aether::GeometryBlock& blk,
-                              ISceneBuilder& scene,
-                              const DeviceContext& ctx,
-                              const CommandPool& pool,
-                              MaterialLibrary& lib,
-                              const std::filesystem::path& assetsDir,
-                              ColorSpace::WorkingColorSpace workingSpace,
-                              std::unordered_map<std::string, uint32_t>& texCache) {
+                               ISceneBuilder& scene,
+                               const DeviceContext& ctx,
+                               const CommandPool& pool,
+                               MaterialLibrary& lib,
+                               const std::filesystem::path& assetsDir,
+                               ColorSpace::WorkingColorSpace workingSpace,
+                               std::unordered_map<std::string, uint32_t>& texCache) {
 
     // Pre-load textures for all materials referenced in this block.
     // Must run before ObjImporter/addMaterial so that patched texture indices

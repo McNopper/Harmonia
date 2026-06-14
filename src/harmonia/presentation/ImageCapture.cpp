@@ -2,8 +2,8 @@
 
 #include <glm/glm.hpp>
 
-#include <cmath>
 #include <OpenImageIO/imageio.h>
+#include <cmath>
 #include <vector>
 
 #include "harmonia/core/Buffer.hpp"
@@ -16,9 +16,8 @@ namespace {
 
 // Copies the RGBA32F HDR image (in VK_IMAGE_LAYOUT_GENERAL) into a host-visible
 // read-back buffer and restores the image to VK_IMAGE_LAYOUT_GENERAL.
-[[nodiscard]] std::expected<Buffer, VkResult> readBackHdr(const DeviceContext& ctx,
-                                                          const CommandPool& pool,
-                                                          const Image& hdrImage) {
+[[nodiscard]] std::expected<Buffer, VkResult>
+readBackHdr(const DeviceContext& ctx, const CommandPool& pool, const Image& hdrImage) {
     const uint32_t width = hdrImage.extent().width;
     const uint32_t height = hdrImage.extent().height;
     const VkDeviceSize byteSize =
@@ -154,7 +153,7 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
 
     // Rec.2020 or Rec.709 primaries + D65 white point, as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
     const float chromaRec2020[8] = {0.708f, 0.292f, 0.170f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.3290f};
-    const float chromaRec709[8]  = {0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f, 0.3127f, 0.3290f};
+    const float chromaRec709[8] = {0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f, 0.3127f, 0.3290f};
     const float* chroma = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020) ? chromaRec2020 : chromaRec709;
 
     OIIO::ImageSpec spec(w, h, 3, OIIO::TypeDesc::FLOAT);

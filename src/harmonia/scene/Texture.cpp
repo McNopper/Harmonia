@@ -2,10 +2,10 @@
 
 #include <volk/volk.h>
 
+#include <OpenImageIO/imageio.h>
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <OpenImageIO/imageio.h>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
@@ -202,8 +202,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     const int nchans = std::min(spec.nchannels, 4);
     // xstride=4: always advance 4 bytes per pixel in our RGBA buffer so the
     // pre-filled alpha byte is not overwritten for 3-channel source images.
-    if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::UINT8, raw.data(),
-                         static_cast<OIIO::stride_t>(4))) {
+    if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::UINT8, raw.data(), static_cast<OIIO::stride_t>(4))) {
         Logger::error("Texture::loadFromFile: OIIO read_image failed for '{}': {}", pathStr, inp->geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -213,10 +212,10 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
 
     // A texture needs CPU conversion when it is color data whose encoding or
     // primaries differ from the (linear) working color space.
-    const bool sameSpace = (colorSpace == TextureColorSpace::LinRec2020Scene &&
-                            workingSpace == ColorSpace::WorkingColorSpace::LinRec2020) ||
-                           (colorSpace == TextureColorSpace::LinRec709Scene &&
-                            workingSpace == ColorSpace::WorkingColorSpace::LinRec709);
+    const bool sameSpace =
+        (colorSpace == TextureColorSpace::LinRec2020Scene &&
+         workingSpace == ColorSpace::WorkingColorSpace::LinRec2020) ||
+        (colorSpace == TextureColorSpace::LinRec709Scene && workingSpace == ColorSpace::WorkingColorSpace::LinRec709);
     const bool needsConversion = (colorSpace != TextureColorSpace::Data && !sameSpace);
 
     if (!needsConversion) {

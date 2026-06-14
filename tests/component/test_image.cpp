@@ -5,11 +5,12 @@
 //   - Layout transitions record correctly (UNDEFINED → TRANSFER_DST → TRANSFER_SRC).
 //   - Image data written via vkCmdClearColorImage survives a GPU→CPU copy.
 
-#include <cstdint>
-
-#include <gtest/gtest.h>
-#include <glm/glm.hpp>
 #include <volk/volk.h>
+
+#include <glm/glm.hpp>
+
+#include <cstdint>
+#include <gtest/gtest.h>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
@@ -18,9 +19,12 @@
 TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
     constexpr VkExtent2D kExtent{16U, 16U};
 
-    auto img = Image::create(deviceCtx(), kExtent, VK_FORMAT_R32G32B32A32_SFLOAT,
+    auto img = Image::create(deviceCtx(),
+                             kExtent,
+                             VK_FORMAT_R32G32B32A32_SFLOAT,
                              VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT, "test.image.create");
+                             VK_IMAGE_ASPECT_COLOR_BIT,
+                             "test.image.create");
     ASSERT_TRUE(img.has_value()) << "VkResult=" << static_cast<int>(img.error());
     EXPECT_NE(img->handle(), VK_NULL_HANDLE);
     EXPECT_NE(img->view(), VK_NULL_HANDLE);
@@ -35,19 +39,25 @@ TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
 // transition to TRANSFER_SRC, copy to a host buffer, and verify all pixels.
 TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     constexpr VkExtent2D kExtent{8U, 8U};
-    constexpr uint32_t   kPixelCount = kExtent.width * kExtent.height;
+    constexpr uint32_t kPixelCount = kExtent.width * kExtent.height;
     constexpr VkDeviceSize kReadbackBytes = kPixelCount * sizeof(glm::vec4);
 
     // Expected clear value
     constexpr VkClearColorValue kClear{.float32 = {0.5F, 0.25F, 0.125F, 1.0F}};
 
-    auto img = Image::create(deviceCtx(), kExtent, VK_FORMAT_R32G32B32A32_SFLOAT,
+    auto img = Image::create(deviceCtx(),
+                             kExtent,
+                             VK_FORMAT_R32G32B32A32_SFLOAT,
                              VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT, "test.image.clear");
+                             VK_IMAGE_ASPECT_COLOR_BIT,
+                             "test.image.clear");
     ASSERT_TRUE(img.has_value()) << static_cast<int>(img.error());
 
-    auto readback = Buffer::create(deviceCtx(), kReadbackBytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.image.readback");
+    auto readback = Buffer::create(deviceCtx(),
+                                   kReadbackBytes,
+                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                   "test.image.readback");
     ASSERT_TRUE(readback.has_value()) << static_cast<int>(readback.error());
     ASSERT_NE(readback->mappedData(), nullptr);
 
@@ -56,34 +66,40 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
 
     // UNDEFINED → TRANSFER_DST for the clear
     img->transition(*cmd,
-                    VK_IMAGE_LAYOUT_UNDEFINED,      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0,
-                    VK_PIPELINE_STAGE_2_COPY_BIT,   VK_ACCESS_2_TRANSFER_WRITE_BIT);
+                    VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                    0,
+                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_ACCESS_2_TRANSFER_WRITE_BIT);
 
     const VkImageSubresourceRange fullRange{
-        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel   = 0, .levelCount = 1,
-        .baseArrayLayer = 0, .layerCount = 1,
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
     };
-    vkCmdClearColorImage(*cmd, img->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         &kClear, 1, &fullRange);
+    vkCmdClearColorImage(*cmd, img->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &kClear, 1, &fullRange);
 
     // TRANSFER_DST → TRANSFER_SRC for copy-out
     img->transition(*cmd,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                    VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_READ_BIT);
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_ACCESS_2_TRANSFER_READ_BIT);
 
     const VkBufferImageCopy region{
-        .bufferOffset      = 0,
-        .bufferRowLength   = 0,
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
         .bufferImageHeight = 0,
-        .imageSubresource  = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-        .imageOffset       = {0, 0, 0},
-        .imageExtent       = {kExtent.width, kExtent.height, 1},
+        .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+        .imageOffset = {0, 0, 0},
+        .imageExtent = {kExtent.width, kExtent.height, 1},
     };
-    vkCmdCopyImageToBuffer(*cmd, img->handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           readback->handle(), 1, &region);
+    vkCmdCopyImageToBuffer(*cmd, img->handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback->handle(), 1, &region);
 
     ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
 

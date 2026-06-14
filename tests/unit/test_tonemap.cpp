@@ -9,8 +9,8 @@
 #include "harmonia/utils/ToneMapping.hpp"
 
 namespace {
-constexpr float kEps    = 1.0e-4F;  // tolerance for tone curve outputs
-constexpr float kEpsHi  = 1.0e-3F;  // looser tolerance for composed matrix paths
+constexpr float kEps = 1.0e-4F;   // tolerance for tone curve outputs
+constexpr float kEpsHi = 1.0e-3F; // looser tolerance for composed matrix paths
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -21,17 +21,19 @@ constexpr float kEpsHi  = 1.0e-3F;  // looser tolerance for composed matrix path
 TEST(PqOetf, ReferenceNitValues) {
     // pqOetfFromNits(n) == pqOetf(n / 10000)
     // Reference table (ITU-R BT.2100):
-    struct Case { float nits; float expected; };
+    struct Case {
+        float nits;
+        float expected;
+    };
     const std::array<Case, 5> cases{{
-        {    1.0f, 0.149946f},
-        {  100.0f, 0.508078f},
-        {  203.0f, 0.580689f},  // HDR10 paper white (ITU-R BT.2408)
-        { 1000.0f, 0.751827f},
+        {1.0f, 0.149946f},
+        {100.0f, 0.508078f},
+        {203.0f, 0.580689f}, // HDR10 paper white (ITU-R BT.2408)
+        {1000.0f, 0.751827f},
         {10000.0f, 1.000000f},
     }};
     for (const auto& c : cases) {
-        EXPECT_NEAR(ColorSpace::pqOetfFromNits(c.nits), c.expected, kEps)
-            << "nits = " << c.nits;
+        EXPECT_NEAR(ColorSpace::pqOetfFromNits(c.nits), c.expected, kEps) << "nits = " << c.nits;
     }
 }
 
@@ -106,7 +108,7 @@ TEST(AcesToneMap, OutputIsBoundedAfterFit) {
     for (float v : inputs) {
         const glm::vec3 out = ToneMapping::acesFittedSDR(glm::vec3(v));
         EXPECT_GE(out.r, 0.f) << "v = " << v;
-        EXPECT_LE(out.r, 1.1f) << "v = " << v;  // allow small AP1→Rec.709 gamut overshoot
+        EXPECT_LE(out.r, 1.1f) << "v = " << v; // allow small AP1→Rec.709 gamut overshoot
     }
 }
 
@@ -132,11 +134,11 @@ TEST(AcesToneMap, DarkShadowsPreservedRelative) {
 TEST(AcesToneMap, SDRFittedOutputInGamutRange) {
     // acesFittedSDR should produce values in [0, 1] after gamut clamp for typical inputs.
     const std::array<glm::vec3, 5> hdr2020{{
-        {0.f,  0.f,  0.f},
+        {0.f, 0.f, 0.f},
         {0.18f, 0.18f, 0.18f},
-        {1.f,  1.f,  1.f},
-        {4.f,  2.f,  0.5f},  // warm highlight
-        {0.f,  0.f,  8.f},   // blue spike
+        {1.f, 1.f, 1.f},
+        {4.f, 2.f, 0.5f}, // warm highlight
+        {0.f, 0.f, 8.f},  // blue spike
     }};
     for (const auto& c : hdr2020) {
         const glm::vec3 out = ToneMapping::acesFittedSDR(c);

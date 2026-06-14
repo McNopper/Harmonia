@@ -68,8 +68,8 @@ class IblProbe {
     VkSampler m_sampler{VK_NULL_HANDLE};
     const DeviceContext* m_ctx{};
 
-    Buffer m_marginalCdf{};     ///< (H+1) floats: normalised marginal CDF over rows
-    Buffer m_conditionalCdf{};  ///< H*(W+1) floats: normalised conditional CDF per row
+    Buffer m_marginalCdf{};    ///< (H+1) floats: normalised marginal CDF over rows
+    Buffer m_conditionalCdf{}; ///< H*(W+1) floats: normalised conditional CDF per row
     uint32_t m_cdfWidth{0};
     uint32_t m_cdfHeight{0};
 

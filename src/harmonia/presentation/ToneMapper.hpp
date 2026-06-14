@@ -5,9 +5,9 @@
 #include <expected>
 #include <filesystem>
 
+#include "harmonia/DeviceContext.hpp"
 #include "harmonia/presentation/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
-#include "harmonia/DeviceContext.hpp"
 
 class ToneMapper {
   public:
@@ -57,6 +57,6 @@ class ToneMapper {
     VkDevice m_device{};
     VkPipeline m_pipeline{};
     VkPipelineLayout m_pipelineLayout{};
-    VkDescriptorSetLayout m_setLayout{};  ///< Push descriptor set layout (must outlive all CBs using it).
+    VkDescriptorSetLayout m_setLayout{}; ///< Push descriptor set layout (must outlive all CBs using it).
     VkFormat m_attachmentFormat{VK_FORMAT_UNDEFINED};
 };

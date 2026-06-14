@@ -91,10 +91,8 @@ namespace {
 
     // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
     const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
-    g.opacityFlagsPad = glm::vec4(std::clamp(p.opacity, 0.0f, 1.0f),
-                                  flags,
-                                  p.subsurface_scatter_anisotropy,
-                                  p.thin_walled ? 1.0f : 0.0f);
+    g.opacityFlagsPad = glm::vec4(
+        std::clamp(p.opacity, 0.0f, 1.0f), flags, p.subsurface_scatter_anisotropy, p.thin_walled ? 1.0f : 0.0f);
 
     return Material::fromGpu(g);
 }

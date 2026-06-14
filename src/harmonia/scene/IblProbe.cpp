@@ -2,14 +2,13 @@
 
 #include <glm/glm.hpp>
 
+#include <OpenImageIO/imageio.h>
 #include <algorithm>
 #include <cmath>
 #include <utility>
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
-
-#include <OpenImageIO/imageio.h>
 
 IblProbe::IblProbe(IblProbe&& other) noexcept
     : m_image(std::move(other.m_image)),
@@ -59,9 +58,9 @@ void IblProbe::reset() noexcept {
 }
 
 std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx,
-                                                       const CommandPool& pool,
-                                                       const std::filesystem::path& path,
-                                                       ColorSpace::WorkingColorSpace workingSpace) {
+                                                        const CommandPool& pool,
+                                                        const std::filesystem::path& path,
+                                                        ColorSpace::WorkingColorSpace workingSpace) {
     // Disable OIIO automatic color management — Harmonia handles all color
     // conversions explicitly. Without this, OIIO may apply an OCIO transform
     // if a color config is active (e.g. chromaticity adaptation on EXR),
@@ -76,7 +75,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     }
 
     const OIIO::ImageSpec& spec = inp->spec();
-    const int width  = spec.width;
+    const int width = spec.width;
     const int height = spec.height;
 
     // ── Diagnostic: log channel layout so misloads are immediately visible ────
@@ -86,10 +85,15 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
             const OIIO::TypeDesc ct = spec.channelformat(c);
             chanDesc += spec.channelnames[static_cast<size_t>(c)];
             chanDesc += (ct == OIIO::TypeDesc::HALF) ? "(half)" : (ct == OIIO::TypeDesc::FLOAT) ? "(float)" : "(other)";
-            if (c + 1 < spec.nchannels) chanDesc += ", ";
+            if (c + 1 < spec.nchannels)
+                chanDesc += ", ";
         }
         Logger::info("IblProbe: '{}' {}x{}  nchannels={} [{}]",
-                     path.filename().string(), width, height, spec.nchannels, chanDesc);
+                     path.filename().string(),
+                     width,
+                     height,
+                     spec.nchannels,
+                     chanDesc);
     }
     // Absent attribute = Rec.709 primaries (OpenEXR spec default).
     // OIIO stores EXR chromaticities as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
@@ -107,8 +111,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     // panoramas is alphabetical (A, B, G, R).  We must look up each channel by
     // name so that raw[] is always laid out as R,G,B,A regardless of file order.
     const int nchans = spec.nchannels;
-    std::vector<float> allChans(static_cast<size_t>(width) * static_cast<size_t>(height) *
-                                static_cast<size_t>(nchans));
+    std::vector<float> allChans(static_cast<size_t>(width) * static_cast<size_t>(height) * static_cast<size_t>(nchans));
     if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::FLOAT, allChans.data())) {
         Logger::error("IblProbe: read_image failed for '{}': {}", path.string(), inp->geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -134,10 +137,17 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     struct Mat3 {
         float m00, m01, m02, m10, m11, m12, m20, m21, m22;
     };
-    constexpr Mat3 k709To2020{0.6274040f, 0.3292820f, 0.0433140f, 0.0690970f, 0.9195400f,
-                               0.0113630f, 0.0163916f, 0.0880132f, 0.8955950f};
-    constexpr Mat3 k2020To709{1.6604911f, -0.5876411f, -0.0728499f, -0.1245505f, 1.1328999f,
-                               -0.0083494f, -0.0181508f, -0.1005789f, 1.1187297f};
+    constexpr Mat3 k709To2020{
+        0.6274040f, 0.3292820f, 0.0433140f, 0.0690970f, 0.9195400f, 0.0113630f, 0.0163916f, 0.0880132f, 0.8955950f};
+    constexpr Mat3 k2020To709{1.6604911f,
+                              -0.5876411f,
+                              -0.0728499f,
+                              -0.1245505f,
+                              1.1328999f,
+                              -0.0083494f,
+                              -0.0181508f,
+                              -0.1005789f,
+                              1.1187297f};
     constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
 
@@ -370,8 +380,8 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
 
         // Upload marginal CDF buffer
         const VkDeviceSize margSize = static_cast<VkDeviceSize>(kCdfH + 1) * sizeof(float);
-        auto mBuf = Buffer::create(ctx, margSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.marginalCdf");
+        auto mBuf = Buffer::create(
+            ctx, margSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.marginalCdf");
         if (mBuf) {
             mBuf->uploadData(marginalCdf.data(), margSize);
             probe.m_marginalCdf = std::move(*mBuf);
@@ -379,8 +389,11 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
 
         // Upload conditional CDF buffer
         const VkDeviceSize condSize = static_cast<VkDeviceSize>(kCdfH * (kCdfW + 1)) * sizeof(float);
-        auto cBuf = Buffer::create(ctx, condSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.conditionalCdf");
+        auto cBuf = Buffer::create(ctx,
+                                   condSize,
+                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                   "ibl.conditionalCdf");
         if (cBuf) {
             cBuf->uploadData(conditionalCdf.data(), condSize);
             probe.m_conditionalCdf = std::move(*cBuf);
@@ -389,8 +402,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         if (probe.m_marginalCdf.isValid() && probe.m_conditionalCdf.isValid()) {
             probe.m_cdfWidth = static_cast<uint32_t>(kCdfW);
             probe.m_cdfHeight = static_cast<uint32_t>(kCdfH);
-            Logger::info("IblProbe: built {}×{} importance CDF (total weight {:.2f})",
-                         kCdfW, kCdfH, totalWeight);
+            Logger::info("IblProbe: built {}×{} importance CDF (total weight {:.2f})", kCdfW, kCdfH, totalWeight);
         }
     } else {
         Logger::warn("IblProbe: env map is completely dark — importance sampling disabled");

@@ -1,4 +1,5 @@
 #include <volk/volk.h>
+
 #include <SDL3/SDL.h>
 
 #include <gtest/gtest.h>

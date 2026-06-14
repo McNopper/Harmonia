@@ -7,9 +7,9 @@
 #include <expected>
 #include <string>
 
+#include "harmonia/DeviceContext.hpp"
 #include "harmonia/vulkan_init/DebugUtils.hpp"
 #include "harmonia/vulkan_init/PhysicalDevice.hpp"
-#include "harmonia/DeviceContext.hpp"
 
 class Context {
   public:

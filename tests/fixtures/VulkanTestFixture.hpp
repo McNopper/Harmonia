@@ -11,15 +11,14 @@
 // One Context is created per test binary; tests share it for speed.
 // TearDown() calls vkDeviceWaitIdle so each test starts with a quiescent GPU.
 
-#include <memory>
-
 #include <volk/volk.h>
 
 #include <gtest/gtest.h>
+#include <memory>
 
+#include "harmonia/core/CommandPool.hpp"
 #include "harmonia/vulkan_init/Context.hpp"
 #include "harmonia/vulkan_init/PhysicalDevice.hpp"
-#include "harmonia/core/CommandPool.hpp"
 
 struct VulkanTestContext {
     SDL_Window* window{};
@@ -28,9 +27,7 @@ struct VulkanTestContext {
 
     [[nodiscard]] bool isValid() const noexcept { return context && commandPool; }
     [[nodiscard]] const DeviceContext& deviceCtx() const noexcept { return context->deviceContext(); }
-    [[nodiscard]] const PhysicalDeviceInfo& physInfo() const noexcept {
-        return context->physicalDeviceInfo();
-    }
+    [[nodiscard]] const PhysicalDeviceInfo& physInfo() const noexcept { return context->physicalDeviceInfo(); }
 };
 
 // Set in main() before RUN_ALL_TESTS(); nullptr means Vulkan unavailable.
@@ -52,9 +49,7 @@ class VulkanFixture : public ::testing::Test {
         }
     }
 
-    [[nodiscard]] const DeviceContext& deviceCtx() const noexcept {
-        return g_vulkanTestCtx->deviceCtx();
-    }
+    [[nodiscard]] const DeviceContext& deviceCtx() const noexcept { return g_vulkanTestCtx->deviceCtx(); }
     [[nodiscard]] CommandPool& commandPool() const noexcept { return *g_vulkanTestCtx->commandPool; }
 };
 
@@ -69,7 +64,5 @@ class RtFixture : public VulkanFixture {
         }
     }
 
-    [[nodiscard]] const PhysicalDeviceInfo& physInfo() const noexcept {
-        return g_vulkanTestCtx->physInfo();
-    }
+    [[nodiscard]] const PhysicalDeviceInfo& physInfo() const noexcept { return g_vulkanTestCtx->physInfo(); }
 };
