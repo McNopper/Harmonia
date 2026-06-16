@@ -50,6 +50,12 @@ x64/
 *.swo
 *~
 
+# Python (tools/, e.g. compare_renders.py)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
 # Test artifacts
 tests/output/
 
