@@ -67,5 +67,7 @@ Image I/O currently uses stb + OpenEXR (OpenImageIO migration deferred).
 ## Conventions
 
 - Commit, but do **not** push unless asked.
+- **GPU-driven, latest standard Vulkan, cross-vendor only** (core + `KHR`/`EXT`). No
+  vendor-specific extensions (`VK_NV_*`/`VK_AMD_*`/`VK_INTEL_*`) — must run on any vendor.
 - Working color space is scene-referred (e.g. `lin_rec2020_scene` / `lin_rec709_scene`).
 - SDL3, slangc and volk come from the Vulkan SDK (not vcpkg); vcpkg provides openexr, stb, glm.
