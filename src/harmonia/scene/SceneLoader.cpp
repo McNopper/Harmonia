@@ -174,6 +174,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     cfg.envUnitNits = desc->envUnitNits;
     if (desc->envMapFile)
         cfg.envMapFile = std::filesystem::path(*desc->envMapFile);
+    cfg.postTonemapRenderer = desc->postTonemapRenderer;
 
     if (desc->tonemapper) {
         const std::string& name = *desc->tonemapper;

@@ -28,6 +28,7 @@
 ///                                          → SceneConfig camera overrides
 ///   - tonemapper ("aces" | "agx" | "reinhard" | "hable")
 ///                                          → SceneConfig::tonemapper enum value
+///   - post_tonemap.renderer ("green_screen") → SceneConfig::postTonemapRenderer
 ///   - working_color_space ("lin_rec2020_scene" | "lin_rec709_scene")
 ///                                          → SceneConfig::workingColorSpace
 ///   - geometry: instance (OBJ), box, sphere with TRS (glTF T × R × S);
@@ -45,6 +46,7 @@ class SceneLoader {
         std::optional<float> envUnitNits;                ///< cd/m² per unit EXR value (physical unit multiplier)
         std::optional<std::filesystem::path> envMapFile; ///< equirect EXR IBL path (relative to assetsDir)
         std::optional<uint32_t> tonemapper;              ///< Tonemapper enum value; std::nullopt → eACES default
+        std::optional<std::string> postTonemapRenderer;  ///< display-referred renderer token
         /// Scene-referred working color space all assets were converted into
         /// ([render] working_color_space; default linear Rec.2020).
         ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;

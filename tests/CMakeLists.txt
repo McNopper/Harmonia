@@ -5,6 +5,7 @@ include(GoogleTest)
 # ---------------------------------------------------------------------------
 add_executable(harmonia_unit_tests
     unit/test_colorspace.cpp
+    unit/test_app_args.cpp
     unit/test_tonemap.cpp
     unit/test_math.cpp
     unit/test_procedural_geometry.cpp

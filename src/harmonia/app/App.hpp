@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "harmonia/app/IRenderer.hpp"
+#include "harmonia/app/GreenScreenRenderer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/presentation/Swapchain.hpp"
@@ -63,6 +64,8 @@ class App {
         float indirectAmbient = 0.0f;
         /// Optional screen-space GI complement, also presentation-only.
         float ssgiStrength = 0.0f;
+        /// Optional post-tonemap display-referred overlay renderer.
+        bool displayOverlay = false;
     };
 
     App() = default;
@@ -78,8 +81,8 @@ class App {
 
     /// Parses an argument the host understands (--scene/-s, --output/-o,
     /// --width, --height, --validation, --no-validation, --no-postfx,
-    /// --indirect-ambient, --ssgi-strength, or a bare scene name). Returns
-    /// true if consumed; @p i may be advanced.
+    /// --indirect-ambient, --ssgi-strength, --display-overlay, or a bare
+    /// scene name). Returns true if consumed; @p i may be advanced.
     [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
 
   protected:
@@ -183,6 +186,7 @@ class App {
     Descriptors m_descriptors{};
     ToneMapper m_toneMapper{};
     Image m_hdrImage{};
+    GreenScreenRenderer m_displayRenderer{};
     std::optional<IblProbe> m_iblProbe;
 
     ColorSpace::WorkingColorSpace m_workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
@@ -197,6 +201,7 @@ class App {
     uint32_t m_currentFrame = 0;
     uint32_t m_frameIndex = 0;
     std::vector<VkImageLayout> m_swapchainLayouts;
+    bool m_displayOverlayLogged = false;
     bool m_running = false;
 };
 

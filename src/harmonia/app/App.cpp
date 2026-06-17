@@ -114,6 +114,10 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         }
         return true;
     }
+    if (arg == "--display-overlay") {
+        config.displayOverlay = true;
+        return true;
+    }
     if (!arg.starts_with("-")) {
         config.sceneFile = std::filesystem::path(arg);
         return true;
@@ -297,6 +301,13 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
 
     m_workingColorSpace = sceneConfig->workingColorSpace;
     m_tonemapper = sceneConfig->tonemapper.value_or(0U);
+    if (sceneConfig->postTonemapRenderer) {
+        if (*sceneConfig->postTonemapRenderer == "green_screen") {
+            m_config.displayOverlay = true;
+        } else {
+            Logger::warn("Unsupported post-tonemap renderer '{}' — ignoring", *sceneConfig->postTonemapRenderer);
+        }
+    }
     Logger::info("Working color space: {}", ColorSpace::interopId(m_workingColorSpace));
 
     // IBL environment map (shared descriptor wiring lives here; renderers
@@ -475,12 +486,39 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
                         m_tonemapper,
                         m_workingColorSpace);
 
+    if (m_config.displayOverlay) {
+        if (!m_displayOverlayLogged) {
+            Logger::info("Display overlay renderer enabled");
+            m_displayOverlayLogged = true;
+        }
+        const std::array displayPreBarriers{
+            imageBarrier(m_swapchain.image(imageIndex),
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                        VK_IMAGE_LAYOUT_GENERAL,
+                        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                        VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                        VK_ACCESS_2_TRANSFER_WRITE_BIT),
+        };
+        pipelineBarrier(frame.displayCmd, displayPreBarriers);
+
+        const RenderTarget displayTarget{
+            .image = m_swapchain.image(imageIndex),
+            .view = m_swapchain.imageView(imageIndex),
+            .extent = m_swapchain.extent(),
+            .colorSpace = m_swapchain.outputColorSpace(),
+            .workingColorSpace = m_workingColorSpace,
+        };
+        m_displayRenderer.record(frame.displayCmd, displayTarget);
+    }
+
     const std::array presentBarrier{
         imageBarrier(m_swapchain.image(imageIndex),
-                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                     m_config.displayOverlay ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                     m_config.displayOverlay ? VK_PIPELINE_STAGE_2_TRANSFER_BIT
+                                            : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                     m_config.displayOverlay ? VK_ACCESS_2_TRANSFER_WRITE_BIT : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_NONE,
                      0),
     };
@@ -688,6 +726,10 @@ void App::handleResize(uint32_t w, uint32_t h) {
     // Recreate tone mapper in case the swapchain format changed (HDR10 ↔ SDR).
     if (!createToneMapper()) {
         return;
+    }
+
+    if (m_config.displayOverlay) {
+        m_displayRenderer.onResize(m_swapchain.extent());
     }
 
     renderer().onResize(m_swapchain.extent());
