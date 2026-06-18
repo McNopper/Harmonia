@@ -264,7 +264,9 @@ void computeLobeWeights(
     float baseWeight = saturate(mat.baseColorWeight.w);
     float metalness = flags == 1u ? 1.0 : saturate(mat.baseMetalnessDiffRough.x);
     float transmission = glassMode ? 1.0 : saturate(mat.transmissionColorWeight.w);
-    transmission = saturate(max(transmission, 1.0 - opacity));
+    // Transmission weight is now independent of opacity per OpenPBR: geometry_opacity gates
+    // a pass-through delta BTDF (stochastic in the integrator), while transmission_weight
+    // controls the specular refractive lobe independently.
     coatWeight = saturate(mat.coatColorWeight.w);
     fuzzWeight = saturate(mat.fuzzColorWeight.w);
     subsurfaceWeight = saturate(mat.subsurfaceColorWeight.w) * (1.0 - transmission);
