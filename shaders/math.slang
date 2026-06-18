@@ -99,6 +99,20 @@ float GGX_G2(float3 l, float3 v, float alphaX, float alphaY)
     return 1.0 / (1.0 + GGX_Lambda(l, alphaX, alphaY) + GGX_Lambda(v, alphaX, alphaY));
 }
 
+// VNDF PDF: probability density for the half-vector h given view direction v
+// Used for importance sampling. Reference: Walter et al. 2007, Heitz 2018.
+float GGX_VNDF_PDF(float3 h, float3 v, float alphaX, float alphaY)
+{
+    float D = GGX_D(h, alphaX, alphaY);
+    float G1_v = GGX_G1(v, alphaX, alphaY);
+    float dotVH = max(0.0, dot(v, h));
+    if (dotVH <= 0.0) return 0.0;
+    
+    // p(h | v) = G1(v) * max(0, v · h) * D(h) / v.z
+    // Simplified from the visibility-weighted formula
+    return G1_v * dotVH * D / max(abs(v.z), 1.0e-5);
+}
+
 float3 fresnelSchlick(float3 F0, float cosTheta)
 {
     float x = pow(1.0 - saturate(cosTheta), 5.0);

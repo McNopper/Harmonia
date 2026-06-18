@@ -232,6 +232,57 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
     return (D * G / max(4.0 * NoL * NoV, 1.0e-5)) * F;
 }
 
+// ─── A2: GGX VNDF specular dielectric microfacet BTDF (OpenPBR-correct) ───
+// Replaces the Lambertian-ish evalTransmissionApprox.
+// The eta² non-symmetric radiance factor lives in the PDF Jacobian, NOT here.
+float3 evalTransmissionMicrofacet(float3 color, float depth, float eta, float alphaX, float alphaY, float3 wo, float3 wi)
+{
+    // Reject same-side rays and backfacing surfaces
+    if (wo.z * wi.z >= 0.0) {
+        return 0.0.xxx;
+    }
+
+    // Compute half-vector in refraction geometry (Snell's law)
+    float eta_ratio = wo.z > 0.0 ? (1.0 / eta) : eta;
+    float3 h = normalize(-wo * eta_ratio + wi);
+    if (h.z < 0.0) h = -h;
+
+    // Fresnel gate (1 - F) at the interface
+    float F = fresnelDielectric(abs(wo.z), eta);
+
+    // GGX VNDF microfacet BTDF: D(h) * G₂ / (4 * |cos_theta_i| * |cos_theta_t|)
+    float D = GGX_D(h, alphaX, alphaY);
+    float G = GGX_G2(wi, wo, alphaX, alphaY);
+    float denom = 4.0 * abs(wo.z) * abs(wi.z);
+    float3 f_specular = (D * G / max(denom, 1.0e-5)) * (1.0 - F);
+
+    // Beer–Lambert absorption via transmission_depth + transmission_color
+    float3 absorption = exp(-max(depth, 0.001) * (1.0.xxx - saturate3(color)));
+    return absorption * color * f_specular;
+}
+
+// Jacobian PDF for the refracted ray, including eta² in the denominator
+// (converts half-vector PDF to ray PDF via refraction Jacobian)
+// Reference: Walter et al. 2007 eq. 23-24; PBR Book 4e Chapter 8.2.
+float transmissionPdf(float eta, float alphaX, float alphaY, float3 wo, float3 wi, float3 h)
+{
+    if (wo.z * wi.z >= 0.0) {
+        return 0.0;
+    }
+
+    // VNDF half-vector PDF
+    float pdf_h = GGX_VNDF_PDF(h, wo, alphaX, alphaY);
+
+    // Refraction Jacobian: pdf_ray = pdf_h / |J|
+    // where |J| = eta² * (eta * |cos_theta_t| + |cos_theta_i|)²
+    float cos_theta_i = abs(wo.z);
+    float cos_theta_t = abs(wi.z);
+    float jacobian = eta * eta * (eta * cos_theta_t + cos_theta_i) * (eta * cos_theta_t + cos_theta_i);
+
+    return pdf_h / max(jacobian, 1.0e-5);
+}
+
+// ─── Legacy function for backward compat (only used if transmission is not sampled) ───
 float3 evalTransmissionApprox(float3 color, float depth, float eta, float3 wo, float3 wi)
 {
     if (wo.z * wi.z >= 0.0) {
