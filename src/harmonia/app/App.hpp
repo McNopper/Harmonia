@@ -64,6 +64,8 @@ class App {
         float indirectAmbient = 0.0f;
         /// Optional screen-space GI complement, also presentation-only.
         float ssgiStrength = 0.0f;
+        /// IBL diffuse irradiance atlas width; height is width / 2 (2:1 lat-long).
+        uint32_t iblDiffuseResolution = 256;
         /// Optional post-tonemap display-referred overlay renderer.
         bool displayOverlay = false;
     };

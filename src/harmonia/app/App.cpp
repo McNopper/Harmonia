@@ -114,6 +114,12 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         }
         return true;
     }
+    if (arg == "--ibl-diffuse-resolution") {
+        if (const char* v = next("--ibl-diffuse-resolution")) {
+            config.iblDiffuseResolution = static_cast<uint32_t>(std::max(std::atoi(v), 1));
+        }
+        return true;
+    }
     if (arg == "--display-overlay") {
         config.displayOverlay = true;
         return true;
