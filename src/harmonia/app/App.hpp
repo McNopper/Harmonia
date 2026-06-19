@@ -83,8 +83,9 @@ class App {
 
     /// Parses an argument the host understands (--scene/-s, --output/-o,
     /// --width, --height, --validation, --no-validation, --no-postfx,
-    /// --indirect-ambient, --ssgi-strength, --display-overlay, or a bare
-    /// scene name). Returns true if consumed; @p i may be advanced.
+    /// --indirect-ambient, --ssgi-strength, --ibl-diffuse-resolution,
+    /// --display-overlay, or a bare scene name). Returns true if consumed;
+    /// @p i may be advanced.
     [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
 
   protected:
