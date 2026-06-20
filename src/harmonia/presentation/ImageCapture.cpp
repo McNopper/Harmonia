@@ -14,8 +14,11 @@
 namespace ImageCapture {
 namespace {
 
-// Copies the RGBA32F HDR image (in VK_IMAGE_LAYOUT_GENERAL) into a host-visible
-// read-back buffer and restores the image to VK_IMAGE_LAYOUT_GENERAL.
+// Copies the RGBA32F scene-output image (in VK_IMAGE_LAYOUT_GENERAL) into a
+// host-visible read-back buffer and restores the image to VK_IMAGE_LAYOUT_GENERAL.
+// The source may have been written by shader, color-attachment, or transfer
+// stages depending on whether the host reads the raw HDR target or the copied
+// scene-output buffer.
 [[nodiscard]] std::expected<Buffer, VkResult>
 readBackHdr(const DeviceContext& ctx, const CommandPool& pool, const Image& hdrImage) {
     const uint32_t width = hdrImage.extent().width;
@@ -38,7 +41,8 @@ readBackHdr(const DeviceContext& ctx, const CommandPool& pool, const Image& hdrI
                         VK_IMAGE_LAYOUT_GENERAL,
                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                        VK_ACCESS_2_SHADER_WRITE_BIT,
+                        VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+                            VK_ACCESS_2_TRANSFER_WRITE_BIT,
                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                         VK_ACCESS_2_TRANSFER_READ_BIT);
 
