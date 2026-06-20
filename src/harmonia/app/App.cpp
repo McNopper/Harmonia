@@ -8,6 +8,7 @@
 
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/pipeline/PassContext.hpp"
 #include "harmonia/presentation/ImageCapture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
@@ -273,11 +274,9 @@ bool App::createDenoisedImage() {
     if (!denoisedImage) {
         Logger::error("Denoised image creation failed: VkResult {}", static_cast<int>(denoisedImage.error()));
         m_denoisedImage = {};
-        m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         return false;
     }
     m_denoisedImage = std::move(*denoisedImage);
-    m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     return true;
 }
 
@@ -430,69 +429,18 @@ uint64_t App::renderSceneReferred() {
     renderer().record(frame.renderCmd, target);
 
     if (m_denoisedImage.isValid()) {
-        const std::array sceneOutputBarriers{
-            imageBarrier(m_hdrImage.handle(),
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                         renderer().outputStageMask(),
-                         renderer().outputAccessMask(),
-                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                         VK_ACCESS_2_TRANSFER_READ_BIT),
-            imageBarrier(m_denoisedImage.handle(),
-                         m_denoisedLayout,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         VK_PIPELINE_STAGE_2_NONE,
-                         0,
-                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+        const PassContext passContext{
+            .cmd = frame.renderCmd,
+            .frameIndex = m_frameIndex,
+            .extent = m_hdrImage.extent(),
+            .hdrBuffer = &m_hdrImage,
+            .gNormal = nullptr,
+            .gDepth = nullptr,
+            .denoised = &m_denoisedImage,
+            .swapchainView = VK_NULL_HANDLE,
+            .colorSpace = m_swapchain.outputColorSpace(),
         };
-        pipelineBarrier(frame.renderCmd, sceneOutputBarriers);
-
-        const VkImageCopy copyRegion{
-            .srcSubresource =
-                VkImageSubresourceLayers{
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .mipLevel = 0,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                },
-            .srcOffset = VkOffset3D{0, 0, 0},
-            .dstSubresource =
-                VkImageSubresourceLayers{
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .mipLevel = 0,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                },
-            .dstOffset = VkOffset3D{0, 0, 0},
-            .extent = VkExtent3D{m_hdrImage.extent().width, m_hdrImage.extent().height, 1U},
-        };
-        vkCmdCopyImage(frame.renderCmd,
-                       m_hdrImage.handle(),
-                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                       m_denoisedImage.handle(),
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                       1,
-                       &copyRegion);
-
-        const std::array restoreBarriers{
-            imageBarrier(m_hdrImage.handle(),
-                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                         VK_ACCESS_2_TRANSFER_READ_BIT,
-                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                         VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT),
-            imageBarrier(m_denoisedImage.handle(),
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                         VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT),
-        };
-        pipelineBarrier(frame.renderCmd, restoreBarriers);
-        m_denoisedLayout = VK_IMAGE_LAYOUT_GENERAL;
+        m_sceneOutputCopyPass.record(passContext);
     }
 
     if (vkEndCommandBuffer(frame.renderCmd) != VK_SUCCESS) {
@@ -831,6 +779,7 @@ void App::handleResize(uint32_t w, uint32_t h) {
     if (!createDenoisedImage()) {
         return;
     }
+    m_sceneOutputCopyPass.onResize(m_swapchain.extent());
 
     // Recreate tone mapper in case the swapchain format changed (HDR10 ↔ SDR).
     if (!createToneMapper()) {
@@ -869,7 +818,6 @@ void App::shutdown() noexcept {
     m_iblProbe.reset();
     m_hdrImage = {};
     m_denoisedImage = {};
-    m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_toneMapper = {};
     m_descriptors = {};
     m_swapchain = {};

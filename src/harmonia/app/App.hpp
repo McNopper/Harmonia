@@ -18,6 +18,7 @@
 #include "harmonia/presentation/Swapchain.hpp"
 #include "harmonia/presentation/ToneMapper.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
+#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/IblProbe.hpp"
 #include "harmonia/scene/SceneLoader.hpp"
@@ -194,7 +195,7 @@ class App {
     ToneMapper m_toneMapper{};
     Image m_hdrImage{};
     Image m_denoisedImage{};
-    VkImageLayout m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    SceneOutputCopyPass m_sceneOutputCopyPass{};
     GreenScreenRenderer m_displayRenderer{};
     std::optional<IblProbe> m_iblProbe;
 

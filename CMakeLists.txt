@@ -61,6 +61,7 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/scene/Texture.cpp
     src/harmonia/utils/ColorSpace.cpp
     src/harmonia/presentation/ImageCapture.cpp
+    src/harmonia/pipeline/SceneOutputCopyPass.cpp
     src/harmonia/presentation/Surface.cpp
     src/harmonia/presentation/Swapchain.cpp
     src/harmonia/presentation/ToneMapper.cpp
