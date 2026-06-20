@@ -72,6 +72,19 @@ cmake --build build
 cd build && ctest --output-on-failure
 ```
 
+## Shared denoiser stage
+
+The scene pipeline includes a shared denoiser stage before tone mapping (when
+`stages.denoiser` is enabled). It filters accumulated HDR with guide buffers
+(`gNormal`/`gDepth`) and can optionally blend history in fixed-view mode.
+
+Runtime tuning flags:
+
+- `--denoiser-strength <0..1>` spatial filter strength (default `0.45`)
+- `--denoiser-iterations <1..8>` spatial passes (default `2`)
+- `--denoiser-history-blend <0..1>` temporal blend amount (default `0.15`)
+- `--denoiser-no-history` / `--denoiser-history` disable/enable temporal blend
+
 ## Consuming Harmonia
 
 Hyperion and Theia pull Harmonia (and, transitively, Aether) via CMake `FetchContent`

@@ -9,6 +9,20 @@
 
 static const float kEnvSamplePi    = 3.14159265359;
 static const float kEnvSampleInvPi = 0.31830988618;
+static const float kEnvSampleEps   = 1.0e-6;
+
+float sanitizePdf(float pdf)
+{
+    return (isfinite(pdf) && pdf > 0.0) ? pdf : 0.0;
+}
+
+float balanceHeuristic(float pA, float pB)
+{
+    pA = max(sanitizePdf(pA), 0.0);
+    pB = max(sanitizePdf(pB), 0.0);
+    const float denom = pA + pB;
+    return (denom > kEnvSampleEps) ? (pA / denom) : 0.0;
+}
 
 /// Binary search: largest i ∈ [0, n-1] such that cdf[base+i+1] <= r.
 /// CDF has (n+1) entries at [base .. base+n] with cdf[base]=0, cdf[base+n]=1.
@@ -31,6 +45,11 @@ float3 sampleEnvImportanceDir(
     StructuredBuffer<float> conditionalCdf,
     uint W, uint H, float2 xi, out float pdfOmega)
 {
+    if (W == 0u || H == 0u) {
+        pdfOmega = 0.0;
+        return float3(0.0, 1.0, 0.0);
+    }
+
     // Sample row via marginal CDF, column via conditional CDF for that row.
     uint row = sampleCdf1D(marginalCdf, 0u, H, xi.x);
     uint col = sampleCdf1D(conditionalCdf, row * (W + 1u), W, xi.y);
@@ -53,7 +72,7 @@ float3 sampleEnvImportanceDir(
     float pCol     = colHi - colLo;
     float theta    = kEnvSamplePi * vFrac;
     float sinTheta = max(sin(theta), 1.0e-5);
-    pdfOmega = (pRow * pCol * float(W) * float(H)) / (2.0 * kEnvSamplePi * kEnvSamplePi * sinTheta);
+    pdfOmega = sanitizePdf((pRow * pCol * float(W) * float(H)) / (2.0 * kEnvSamplePi * kEnvSamplePi * sinTheta));
 
     // Reconstruct direction (matches sampleEnvMap lat-long convention).
     float phi = 2.0 * kEnvSamplePi * (uFrac - 0.5);
@@ -71,6 +90,10 @@ float evalEnvImportancePdfDir(
     StructuredBuffer<float> conditionalCdf,
     uint W, uint H, float3 dir)
 {
+    if (W == 0u || H == 0u) {
+        return 0.0;
+    }
+
     float3 d = normalize(dir);
     float u = atan2(d.z, d.x) * (0.5 * kEnvSampleInvPi) + 0.5;
     float v = acos(clamp(d.y, -1.0, 1.0)) * kEnvSampleInvPi;
@@ -84,5 +107,5 @@ float evalEnvImportancePdfDir(
 
     float theta    = kEnvSamplePi * (float(row) + 0.5) / float(H);
     float sinTheta = max(sin(theta), 1.0e-5);
-    return (pRow * pCol * float(W) * float(H)) / (2.0 * kEnvSamplePi * kEnvSamplePi * sinTheta);
+    return sanitizePdf((pRow * pCol * float(W) * float(H)) / (2.0 * kEnvSamplePi * kEnvSamplePi * sinTheta));
 }

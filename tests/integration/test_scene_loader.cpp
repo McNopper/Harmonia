@@ -108,4 +108,42 @@ TEST(SceneLoader, UnknownTonemapperAndWorkingSpaceFallbackToDefaults) {
     std::filesystem::remove_all(dir);
 }
 
+TEST(SceneLoader, ParsesStageTogglesFromRenderPresetAndInlineOverride) {
+    const std::filesystem::path dir = std::filesystem::temp_directory_path() / "harmonia_scene_loader_stage_toggles";
+    std::filesystem::create_directories(dir / "presets");
+
+    const std::filesystem::path presetPath = dir / "presets" / "render_stage_preset.toml";
+    {
+        std::ofstream preset(presetPath);
+        preset << "enable_accumulation_stage = false\n";
+        preset << "enable_denoiser_stage = false\n";
+        preset << "enable_tonemapper_stage = true\n";
+    }
+
+    const std::filesystem::path scenePath = dir / "stage_toggles.scene.toml";
+    {
+        std::ofstream out(scenePath);
+        out << "[render]\n";
+        out << "reference = \"presets/render_stage_preset.toml\"\n";
+        out << "enable_denoiser_stage = true\n";
+        out << "stages.tonemapper = false\n";
+    }
+
+    RecordingSceneBuilder scene;
+    const DeviceContext dummyCtx{};
+    const CommandPool dummyPool{};
+
+    const auto cfg = SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+
+    ASSERT_TRUE(cfg.has_value());
+    ASSERT_TRUE(cfg->accumulationStageEnabled.has_value());
+    EXPECT_FALSE(*cfg->accumulationStageEnabled);
+    ASSERT_TRUE(cfg->denoiserStageEnabled.has_value());
+    EXPECT_TRUE(*cfg->denoiserStageEnabled);
+    ASSERT_TRUE(cfg->tonemapperStageEnabled.has_value());
+    EXPECT_FALSE(*cfg->tonemapperStageEnabled);
+
+    std::filesystem::remove_all(dir);
+}
+
 } // namespace

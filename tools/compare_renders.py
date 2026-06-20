@@ -36,6 +36,8 @@ METRICS
 -------
   mean_diff   : mean |ref - cand| per luminance pixel, scaled to [0, 255]
   max_diff    : max  |ref - cand| per luminance pixel, scaled to [0, 255]
+  p99_diff    : 99th percentile of |ref-cand| (scaled to [0,255])
+  p99.9_diff  : 99.9th percentile of |ref-cand| (scaled to [0,255])
   PSNR        : peak signal-to-noise ratio (dB); inf = identical; < 30 dB = visible
   rel_mean_%  : mean |ref-cand| / max(mean |ref|, eps) * 100
   pass        : selected gate mode with the provided threshold(s)
@@ -106,6 +108,8 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray) -> dict:
     diff255 = diff * 255.0
     mean_d = float(np.mean(diff255))
     max_d  = float(np.max(diff255))
+    p99_d = float(np.percentile(diff255, 99.0))
+    p999_d = float(np.percentile(diff255, 99.9))
     mse    = float(np.mean(diff ** 2))
     mean_ref = float(np.mean(np.abs(ref)))
     rel_mean_pct = float((np.mean(diff) / max(mean_ref, 1.0e-8)) * 100.0)
@@ -114,6 +118,8 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray) -> dict:
     return {
         "mean_diff": mean_d,
         "max_diff": max_d,
+        "p99_diff": p99_d,
+        "p999_diff": p999_d,
         "psnr": psnr,
         "mse": mse,
         "rel_mean_pct": rel_mean_pct,
@@ -245,6 +251,8 @@ def main() -> int:
     print()
     print(f"  mean_diff : {metrics['mean_diff']:7.3f}  (threshold {args.threshold:.1f})")
     print(f"  max_diff  : {metrics['max_diff']:7.3f}")
+    print(f"  p99_diff  : {metrics['p99_diff']:7.3f}")
+    print(f"  p99.9_diff: {metrics['p999_diff']:7.3f}")
     print(f"  PSNR      : {metrics['psnr']:7.2f} dB")
     print(f"  MSE       : {metrics['mse']:.6f}")
     print(f"  rel_mean% : {metrics['rel_mean_pct']:7.3f} %")

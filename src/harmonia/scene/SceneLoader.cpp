@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <toml++/toml.hpp>
 
 #include "aether/format/SceneParser.hpp"
 #include "harmonia/core/Logger.hpp"
@@ -20,6 +21,64 @@
 #include "harmonia/scene/Texture.hpp"
 
 namespace {
+
+void applyStageTogglesFromTable(const toml::table& table, SceneLoader::SceneConfig& cfg) {
+    if (const auto v = table["enable_accumulation_stage"].value<bool>()) {
+        cfg.accumulationStageEnabled = *v;
+    }
+    if (const auto v = table["enable_denoiser_stage"].value<bool>()) {
+        cfg.denoiserStageEnabled = *v;
+    }
+    if (const auto v = table["enable_tonemapper_stage"].value<bool>()) {
+        cfg.tonemapperStageEnabled = *v;
+    }
+
+    if (const toml::table* stages = table["stages"].as_table()) {
+        if (const auto v = (*stages)["accumulation"].value<bool>()) {
+            cfg.accumulationStageEnabled = *v;
+        }
+        if (const auto v = (*stages)["denoiser"].value<bool>()) {
+            cfg.denoiserStageEnabled = *v;
+        }
+        if (const auto v = (*stages)["tonemapper"].value<bool>()) {
+            cfg.tonemapperStageEnabled = *v;
+        }
+    }
+}
+
+void applyPostTonemapOverrideFromTable(const toml::table& table, SceneLoader::SceneConfig& cfg) {
+    if (const toml::table* postTonemap = table["post_tonemap"].as_table()) {
+        if (const auto renderer = (*postTonemap)["renderer"].value<std::string>()) {
+            cfg.postTonemapRenderer = *renderer;
+        }
+    }
+}
+
+void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader::SceneConfig& cfg) {
+    try {
+        const toml::table root = toml::parse_file(sceneFile.string());
+        const toml::table* render = root["render"].as_table();
+        if (render == nullptr) {
+            return;
+        }
+
+        if (const auto ref = (*render)["reference"].value<std::string>()) {
+            try {
+                const std::filesystem::path refPath = sceneFile.parent_path() / *ref;
+                const toml::table renderPreset = toml::parse_file(refPath.string());
+                applyStageTogglesFromTable(renderPreset, cfg);
+                applyPostTonemapOverrideFromTable(renderPreset, cfg);
+            } catch (const toml::parse_error&) {
+                Logger::warn("SceneLoader: malformed render preset reference '{}'", *ref);
+            }
+        }
+
+        applyStageTogglesFromTable(*render, cfg);
+        applyPostTonemapOverrideFromTable(*render, cfg);
+    } catch (const toml::parse_error&) {
+        Logger::warn("SceneLoader: failed to parse '{}' for stage toggles", sceneFile.string());
+    }
+}
 
 // Build a 4×4 TRS matrix from the geometry block's T/R/S fields.
 [[nodiscard]] glm::mat4 trsMatrix(const aether::GeometryBlock& b) {
@@ -149,6 +208,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     }
 
     SceneConfig cfg{};
+    parseRenderStageToggles(sceneFile, cfg);
     MaterialLibrary lib;
     std::unordered_map<std::string, uint32_t> texCache; // relPath → texture index
 
@@ -174,8 +234,6 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     cfg.envUnitNits = desc->envUnitNits;
     if (desc->envMapFile)
         cfg.envMapFile = std::filesystem::path(*desc->envMapFile);
-    cfg.postTonemapRenderer = desc->postTonemapRenderer;
-
     if (desc->tonemapper) {
         const std::string& name = *desc->tonemapper;
         if (name == "aces")

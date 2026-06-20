@@ -4,9 +4,11 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -15,10 +17,11 @@
 #include "harmonia/app/GreenScreenRenderer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/pipeline/IRenderPass.hpp"
+#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/presentation/Swapchain.hpp"
 #include "harmonia/presentation/ToneMapper.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
-#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/IblProbe.hpp"
 #include "harmonia/scene/SceneLoader.hpp"
@@ -45,6 +48,18 @@ namespace harmonia {
 class App {
   public:
     struct Config {
+        struct StagePipeline {
+            bool accumulation = true;
+            bool denoiser = true;
+            bool tonemapper = true;
+        };
+        struct DenoiserOptions {
+            float strength = 0.45F;
+            uint32_t iterations = 2U;
+            bool useHistory = true;
+            float historyBlend = 0.15F;
+        };
+
         std::string title = "Harmonia";
         uint32_t width = 1920;
         uint32_t height = 1080;
@@ -55,6 +70,9 @@ class App {
         std::filesystem::path assetsDir;  ///< canonical Aether asset collection
         std::filesystem::path sceneFile;  ///< bare names are resolved against assetsDir (+ ".scene.toml")
         std::filesystem::path outputFile; ///< non-empty: offscreen render (EXR + PNG), then exit
+        /// Number of scene-referred frames to render before saving in offscreen mode.
+        /// For stochastic pipelines, increase this to improve convergence.
+        uint32_t offscreenFrames = 4;
         /// Screen-space post-effects (SSR/SSAO/bloom). Disabled (--no-postfx) for
         /// parity comparison renders, which require all post-effects off per the
         /// locked comparison contract. Renderers without post-fx ignore this.
@@ -69,6 +87,24 @@ class App {
         uint32_t iblDiffuseResolution = 256;
         /// Optional post-tonemap display-referred overlay renderer.
         bool displayOverlay = false;
+        /// Config-driven stage toggles (scene/render preset overrides may update
+        /// these when a scene is loaded).
+        StagePipeline stages{};
+        /// Shared denoiser controls for the scene-output stage.
+        DenoiserOptions denoiser{};
+        /// Enables replayable frame/sample RNG sequencing for stochastic stages.
+        bool deterministicReplay = false;
+        /// Base seed used by renderer RNG composition (pixel + frame/sample + bounce).
+        uint32_t rngSeed = 0x12345678U;
+        /// Optional stochastic debug path switch for renderer-side visualization/tests.
+        bool rngDebug = false;
+        /// Diagnostic-only mode: for transparent env taps, use deterministic roughness/ray-cone
+        /// style LOD sampling instead of mip0 (off by default).
+        bool diagTransparentEnvLod = false;
+        /// Enable the ray-query global-illumination compute stage (Theia only).
+        /// Off by default — GI requires enough accumulated frames to converge and
+        /// is opted into explicitly when running parity comparisons or quality renders.
+        bool rtGi = false;
     };
 
     App() = default;
@@ -85,7 +121,10 @@ class App {
     /// Parses an argument the host understands (--scene/-s, --output/-o,
     /// --width, --height, --validation, --no-validation, --no-postfx,
     /// --indirect-ambient, --ssgi-strength, --ibl-diffuse-resolution,
-    /// --display-overlay, or a bare scene name). Returns true if consumed;
+    /// --display-overlay, --deterministic-replay, --rng-seed, --rng-debug,
+    /// --diag-transparent-env-lod, --offscreen-frames, --denoiser-strength,
+    /// --denoiser-iterations, --denoiser-history-blend, --denoiser-no-history,
+    /// or a bare scene name). Returns true if consumed;
     /// @p i may be advanced.
     [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
 
@@ -131,7 +170,7 @@ class App {
     /// Number of frames to record for an offscreen capture (--output) before
     /// the image is saved (samples for an accumulating path tracer, warmup
     /// frames for a real-time renderer).
-    [[nodiscard]] virtual uint32_t offscreenFrameCount() const noexcept { return 4; }
+    [[nodiscard]] virtual uint32_t offscreenFrameCount() const noexcept { return std::max(m_config.offscreenFrames, 1U); }
 
     // ── Services for subclasses ─────────────────────────────────────────────
 
@@ -181,12 +220,19 @@ class App {
     [[nodiscard]] bool createHdrImage();
     [[nodiscard]] bool createDenoisedImage();
     [[nodiscard]] bool createToneMapper();
+    void rebuildStagePipeline();
+    void applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig);
+    [[nodiscard]] bool hasTonemapStage() const noexcept;
     [[nodiscard]] std::filesystem::path resolveScenePath(const std::filesystem::path& sceneFile) const;
+    /// Current scene-output source for presentation/capture (HDR fallback when
+    /// denoiser stage is disabled or unavailable).
     [[nodiscard]] const Image& sceneOutputImage() const noexcept;
     [[nodiscard]] VkPipelineStageFlags2 sceneOutputStageMask() noexcept;
     [[nodiscard]] VkAccessFlags2 sceneOutputAccessMask() noexcept;
+    [[nodiscard]] uint64_t accumulationResetToken() const noexcept;
 
     Config m_config{};
+    Config::StagePipeline m_defaultStages{};
     SDL_Window* m_window{};
     Context m_context{};
     CommandPool m_commandPool{};
@@ -195,7 +241,9 @@ class App {
     ToneMapper m_toneMapper{};
     Image m_hdrImage{};
     Image m_denoisedImage{};
-    SceneOutputCopyPass m_sceneOutputCopyPass{};
+    std::vector<std::unique_ptr<IRenderPass>> m_sceneStages;
+    std::vector<std::unique_ptr<IRenderPass>> m_displayStages;
+    bool m_sceneOutputUsesDenoised = false;
     GreenScreenRenderer m_displayRenderer{};
     std::optional<IblProbe> m_iblProbe;
 
@@ -208,6 +256,9 @@ class App {
     std::vector<VkSemaphore> m_renderComplete;
     VkSemaphore m_timelineSemaphore{};
     uint64_t m_nextTimelineValue = 1;
+    uint64_t m_sceneEpoch = 1;
+    uint64_t m_extentEpoch = 1;
+    uint64_t m_stageEpoch = 1;
     uint32_t m_currentFrame = 0;
     uint32_t m_frameIndex = 0;
     std::vector<VkImageLayout> m_swapchainLayouts;

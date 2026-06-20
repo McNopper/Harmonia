@@ -8,6 +8,8 @@ add_executable(harmonia_unit_tests
     unit/test_app_args.cpp
     unit/test_tonemap.cpp
     unit/test_math.cpp
+    unit/test_rng.cpp
+    unit/test_env_sampling_contract.cpp
     unit/test_procedural_geometry.cpp
 )
 
@@ -28,6 +30,7 @@ add_executable(harmonia_component_tests
     component/main.cpp
     component/test_buffer.cpp
     component/test_image.cpp
+    component/test_accumulation_pass.cpp
     component/test_scene_output_copy_pass.cpp
     component/test_commandpool.cpp
 )

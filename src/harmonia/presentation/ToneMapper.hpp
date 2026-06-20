@@ -51,6 +51,8 @@ class ToneMapper {
                 uint32_t tonemapper,
                 ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
 
+    [[nodiscard]] bool isValid() const noexcept { return m_pipeline != VK_NULL_HANDLE; }
+
   private:
     void destroy() noexcept;
 

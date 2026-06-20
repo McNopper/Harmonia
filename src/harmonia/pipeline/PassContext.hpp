@@ -2,7 +2,10 @@
 
 #include <volk/volk.h>
 
+#include <cstdint>
+
 #include "harmonia/utils/OutputColorSpace.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
 
 class Image; // forward — avoids pulling in the full header
 
@@ -11,7 +14,12 @@ class Image; // forward — avoids pulling in the full header
 struct PassContext {
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     uint32_t frameIndex = 0;
+    uint32_t frameSampleIndex = 0;
+    uint32_t rngSeed = 0x12345678U;
+    bool deterministicReplay = false;
     VkExtent2D extent = {};
+    bool fixedView = false;                 ///< true for deterministic offscreen accumulation mode
+    uint64_t accumulationResetToken = 0U;   ///< explicit reset key for progressive accumulation history
 
     /// Outputs from PathTracer — all in VK_IMAGE_LAYOUT_GENERAL.
     const Image* hdrBuffer = nullptr; ///< accumulated HDR radiance
@@ -19,6 +27,14 @@ struct PassContext {
     const Image* gDepth = nullptr;    ///< ray-hit distance G-buffer
     VkImageView gNormalView = VK_NULL_HANDLE;
     VkImageView gDepthView = VK_NULL_HANDLE;
+    VkImageView transparentNormalView = VK_NULL_HANDLE;     ///< D0: first transparent-interface normal
+    VkImageView transparentDepthView = VK_NULL_HANDLE;      ///< D0: first transparent-interface depth
+    VkImageView transparentMaterialIdView = VK_NULL_HANDLE; ///< D0: first transparent-interface material id
+    VkImageView demodulatedAlbedoView = VK_NULL_HANDLE;     ///< D0: denoiser albedo guide
+    VkImageView varianceView = VK_NULL_HANDLE;              ///< D0: per-pixel variance/confidence
+    VkImageView sampleCountView = VK_NULL_HANDLE;           ///< D0: per-pixel accumulated sample count
+    VkImageView motionVectorView = VK_NULL_HANDLE;          ///< D0 future: interactive temporal reprojection
+    VkImageView historyValidityView = VK_NULL_HANDLE;       ///< D0 future: temporal history validity mask
 
     /// Denoiser output (null if denoiser was not run; ToneMapper falls back to hdrBuffer).
     const Image* denoised = nullptr;
@@ -26,4 +42,6 @@ struct PassContext {
     /// Swapchain image view for the current frame (only needed by ToneMapper).
     VkImageView swapchainView = VK_NULL_HANDLE;
     OutputColorSpace colorSpace = OutputColorSpace::eSDR;
+    uint32_t tonemapper = 0;
+    ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
 };

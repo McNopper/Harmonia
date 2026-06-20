@@ -34,6 +34,8 @@ FetchContent_MakeAvailable(aether)
 
 set(HARMONIA_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 set(HARMONIA_ENTRY_SHADERS
+    accumulation.slang
+    denoiser.slang
     tonemap_vert.slang
     tonemap.slang
 )
@@ -61,6 +63,7 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/scene/Texture.cpp
     src/harmonia/utils/ColorSpace.cpp
     src/harmonia/presentation/ImageCapture.cpp
+    src/harmonia/pipeline/AccumulationPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPass.cpp
     src/harmonia/presentation/Surface.cpp
     src/harmonia/presentation/Swapchain.cpp
@@ -88,6 +91,7 @@ target_include_directories(harmonia_vulkan_sdk SYSTEM INTERFACE "${VULKANSDK_INC
 target_link_libraries(harmonia_vulkan_sdk INTERFACE ${VULKANSDK_LIBRARIES})
 
 find_package(OpenImageIO REQUIRED)
+find_package(tomlplusplus CONFIG REQUIRED)
 
 # Resolve Harmonia's shaders relative to Harmonia's own source tree so the
 # tonemap shaders compile correctly when Harmonia is consumed via FetchContent
@@ -110,6 +114,7 @@ target_include_directories(harmonia_lib
 
 target_link_libraries(harmonia_lib
     PUBLIC harmonia_project_options harmonia_vulkan_sdk volk aether::aether OpenImageIO::OpenImageIO
+    PRIVATE tomlplusplus::tomlplusplus
 )
 
 target_compile_definitions(harmonia_lib

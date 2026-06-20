@@ -1,14 +1,21 @@
 #include "harmonia/app/App.hpp"
 
 #include <algorithm>
+#include <bit>
+#include <charconv>
 #include <cstdlib>
+#include <filesystem>
+#include <limits>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/pipeline/AccumulationPass.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
+#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/presentation/ImageCapture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
@@ -40,6 +47,32 @@ namespace {
     return vkCreateSemaphore(device, &info, nullptr, &semaphore);
 }
 
+[[nodiscard]] bool parseUint32(std::string_view text, uint32_t& value) noexcept {
+    uint64_t parsed = 0;
+    const auto begin = text.data();
+    const auto end = begin + text.size();
+    const auto [ptr, ec] = std::from_chars(begin, end, parsed);
+    if (ec != std::errc{} || ptr != end || parsed > std::numeric_limits<uint32_t>::max()) {
+        return false;
+    }
+        value = static_cast<uint32_t>(parsed);
+        return true;
+    }
+
+    [[nodiscard]] bool parseFloat(std::string_view text, float& value) noexcept {
+        if (text.empty()) {
+            return false;
+        }
+        char* end = nullptr;
+        const std::string owned(text);
+        const float parsed = std::strtof(owned.c_str(), &end);
+        if (end != owned.c_str() + owned.size()) {
+            return false;
+        }
+        value = parsed;
+    return true;
+}
+
 /// Drawable size in pixels (high-DPI aware) — the swapchain extent source.
 [[nodiscard]] VkExtent2D windowPixelExtent(SDL_Window* window) {
     int width = 0;
@@ -49,6 +82,52 @@ namespace {
         .width = static_cast<uint32_t>(std::max(width, 1)),
         .height = static_cast<uint32_t>(std::max(height, 1)),
     };
+}
+
+constexpr uint64_t kHashSeed = 1469598103934665603ULL;
+constexpr uint64_t kHashPrime = 1099511628211ULL;
+
+void hashCombineU64(uint64_t& hash, uint64_t value) noexcept {
+    hash ^= value;
+    hash *= kHashPrime;
+}
+
+class ToneMapStagePass final : public IRenderPass {
+  public:
+    explicit ToneMapStagePass(const ToneMapper* toneMapper) : m_toneMapper(toneMapper) {}
+
+    void record(const PassContext& ctx) noexcept override {
+        if (m_toneMapper == nullptr || !m_toneMapper->isValid() || ctx.swapchainView == VK_NULL_HANDLE) {
+            return;
+        }
+        const Image* input = ctx.denoised != nullptr ? ctx.denoised : ctx.hdrBuffer;
+        if (input == nullptr) {
+            return;
+        }
+        m_toneMapper->record(
+            ctx.cmd, input->view(), ctx.swapchainView, ctx.extent, ctx.colorSpace, ctx.tonemapper, ctx.workingColorSpace);
+    }
+
+    void onResize(VkExtent2D extent) noexcept override { m_extent = extent; }
+    [[nodiscard]] const char* name() const noexcept override { return "ToneMapStagePass"; }
+
+  private:
+    const ToneMapper* m_toneMapper = nullptr;
+    VkExtent2D m_extent{};
+};
+
+[[nodiscard]] std::string stageList(const std::vector<std::unique_ptr<IRenderPass>>& stages) {
+    if (stages.empty()) {
+        return "none";
+    }
+    std::ostringstream out;
+    for (size_t i = 0; i < stages.size(); ++i) {
+        if (i > 0) {
+            out << " -> ";
+        }
+        out << stages[i]->name();
+    }
+    return out.str();
 }
 
 } // namespace
@@ -91,6 +170,17 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         }
         return true;
     }
+    if (arg == "--offscreen-frames") {
+        if (const char* v = next("--offscreen-frames")) {
+            uint32_t frames = 0U;
+            if (!parseUint32(v, frames)) {
+                Logger::error("Invalid value for --offscreen-frames: {}", v);
+            } else {
+                config.offscreenFrames = std::max(frames, 1U);
+            }
+        }
+        return true;
+    }
     if (arg == "--validation") {
         config.validation = true;
         return true;
@@ -125,6 +215,74 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         config.displayOverlay = true;
         return true;
     }
+    if (arg == "--deterministic-replay") {
+        config.deterministicReplay = true;
+        return true;
+    }
+    if (arg == "--rng-debug") {
+        config.rngDebug = true;
+        return true;
+    }
+    if (arg == "--diag-transparent-env-lod") {
+        config.diagTransparentEnvLod = true;
+        return true;
+    }
+    if (arg == "--rt-gi") {
+        config.rtGi = true;
+        return true;
+    }
+    if (arg == "--rng-seed") {
+        if (const char* v = next("--rng-seed")) {
+            uint32_t seed = 0U;
+            if (!parseUint32(v, seed)) {
+                Logger::error("Invalid value for --rng-seed: {}", v);
+            } else {
+                config.rngSeed = seed;
+            }
+        }
+        return true;
+    }
+    if (arg == "--denoiser-strength") {
+        if (const char* v = next("--denoiser-strength")) {
+            float strength = 0.0F;
+            if (!parseFloat(v, strength)) {
+                Logger::error("Invalid value for --denoiser-strength: {}", v);
+            } else {
+                config.denoiser.strength = std::clamp(strength, 0.0F, 1.0F);
+            }
+        }
+        return true;
+    }
+    if (arg == "--denoiser-iterations") {
+        if (const char* v = next("--denoiser-iterations")) {
+            uint32_t iterations = 0U;
+            if (!parseUint32(v, iterations)) {
+                Logger::error("Invalid value for --denoiser-iterations: {}", v);
+            } else {
+                config.denoiser.iterations = std::clamp(iterations, 1U, 8U);
+            }
+        }
+        return true;
+    }
+    if (arg == "--denoiser-history-blend") {
+        if (const char* v = next("--denoiser-history-blend")) {
+            float historyBlend = 0.0F;
+            if (!parseFloat(v, historyBlend)) {
+                Logger::error("Invalid value for --denoiser-history-blend: {}", v);
+            } else {
+                config.denoiser.historyBlend = std::clamp(historyBlend, 0.0F, 1.0F);
+            }
+        }
+        return true;
+    }
+    if (arg == "--denoiser-no-history") {
+        config.denoiser.useHistory = false;
+        return true;
+    }
+    if (arg == "--denoiser-history") {
+        config.denoiser.useHistory = true;
+        return true;
+    }
     if (!arg.starts_with("-")) {
         config.sceneFile = std::filesystem::path(arg);
         return true;
@@ -134,6 +292,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
 
 int App::run(Config config) {
     m_config = std::move(config);
+    m_defaultStages = m_config.stages;
 
     if (!bootstrap()) {
         return 1;
@@ -208,7 +367,11 @@ bool App::bootstrap() {
     }
     m_descriptors = std::move(*descriptors);
 
-    if (!createToneMapper() || !createHdrImage() || !createDenoisedImage()) {
+    if (!createHdrImage() || !createDenoisedImage() || !createToneMapper()) {
+        return false;
+    }
+    rebuildStagePipeline();
+    if (!m_hdrImage.isValid()) {
         return false;
     }
 
@@ -249,7 +412,8 @@ bool App::createHdrImage() {
                                   m_swapchain.extent(),
                                   VK_FORMAT_R32G32B32A32_SFLOAT,
                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
-                                      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                   "harmonia.hdr");
     if (!hdrImage) {
@@ -261,9 +425,12 @@ bool App::createHdrImage() {
 }
 
 bool App::createDenoisedImage() {
-    // Scene-output buffer for the shared denoiser stage. E1 keeps it as a
-    // pass-through copy of the renderer's HDR output; later phases will replace
-    // the copy with an actual filter/denoiser.
+    if (!m_config.stages.denoiser) {
+        m_denoisedImage = {};
+        return true;
+    }
+
+    // Scene-output buffer for the shared denoiser stage.
     auto denoisedImage = Image::create(m_context.deviceContext(),
                                        m_swapchain.extent(),
                                        VK_FORMAT_R32G32B32A32_SFLOAT,
@@ -272,36 +439,135 @@ bool App::createDenoisedImage() {
                                        VK_IMAGE_ASPECT_COLOR_BIT,
                                        "harmonia.denoised");
     if (!denoisedImage) {
-        Logger::error("Denoised image creation failed: VkResult {}", static_cast<int>(denoisedImage.error()));
+        Logger::warn("Denoised image creation failed: VkResult {} — disabling denoiser stage",
+                     static_cast<int>(denoisedImage.error()));
         m_denoisedImage = {};
-        return false;
+        return true;
     }
     m_denoisedImage = std::move(*denoisedImage);
     return true;
 }
 
 bool App::createToneMapper() {
+    if (!m_config.stages.tonemapper) {
+        m_toneMapper = {};
+        return true;
+    }
+
     const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
     auto toneMapper = ToneMapper::create(
         m_context.deviceContext(), m_swapchain.format(), shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
     if (!toneMapper) {
-        Logger::error("Tone mapper creation failed: VkResult {}", static_cast<int>(toneMapper.error()));
-        return false;
+        Logger::warn("Tone mapper creation failed: VkResult {} — disabling tonemapper stage",
+                     static_cast<int>(toneMapper.error()));
+        m_toneMapper = {};
+        return true;
     }
     m_toneMapper = std::move(*toneMapper);
     return true;
 }
 
+void App::rebuildStagePipeline() {
+    m_sceneStages.clear();
+    m_displayStages.clear();
+    m_sceneOutputUsesDenoised = false;
+    ++m_stageEpoch;
+
+    if (m_config.stages.accumulation) {
+        const std::filesystem::path shaderPath = std::filesystem::path(HARMONIA_SHADER_DIR) / "accumulation.spv";
+        auto accumulationPass = AccumulationPass::create(m_context.deviceContext(), m_swapchain.extent(), shaderPath);
+        if (accumulationPass) {
+            m_sceneStages.push_back(std::make_unique<AccumulationPass>(std::move(*accumulationPass)));
+        } else {
+            Logger::warn("Accumulation stage unavailable: VkResult {} — disabling accumulation stage",
+                         static_cast<int>(accumulationPass.error()));
+        }
+    }
+
+    if (m_config.stages.denoiser && m_denoisedImage.isValid()) {
+        const std::filesystem::path shaderPath = std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv";
+        auto denoiserPass = SceneOutputCopyPass::create(m_context.deviceContext(),
+                                                        m_swapchain.extent(),
+                                                        shaderPath,
+                                                        SceneOutputCopyPass::Settings{
+                                                            .strength = m_config.denoiser.strength,
+                                                            .iterations = m_config.denoiser.iterations,
+                                                            .useHistory = m_config.denoiser.useHistory,
+                                                            .historyBlend = m_config.denoiser.historyBlend,
+                                                        });
+        if (denoiserPass) {
+            m_sceneStages.push_back(std::make_unique<SceneOutputCopyPass>(std::move(*denoiserPass)));
+            m_sceneOutputUsesDenoised = true;
+        } else {
+            Logger::warn("Denoiser stage unavailable: VkResult {} — falling back to HDR scene output",
+                         static_cast<int>(denoiserPass.error()));
+        }
+    } else if (m_config.stages.denoiser) {
+        Logger::warn("Denoiser stage enabled but unavailable; falling back to HDR scene output");
+    }
+
+    if (m_config.stages.tonemapper && m_toneMapper.isValid()) {
+        m_displayStages.push_back(std::make_unique<ToneMapStagePass>(&m_toneMapper));
+    } else if (m_config.stages.tonemapper) {
+        Logger::warn("Tonemapper stage enabled but unavailable; display tonemapping disabled");
+    }
+
+    for (const auto& pass : m_sceneStages) {
+        pass->onResize(m_swapchain.extent());
+    }
+    for (const auto& pass : m_displayStages) {
+        pass->onResize(m_swapchain.extent());
+    }
+
+    Logger::info("Scene stages: {}", stageList(m_sceneStages));
+    Logger::info("Display stages: {}", stageList(m_displayStages));
+}
+
+void App::applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig) {
+    m_config.stages = m_defaultStages;
+    if (sceneConfig.accumulationStageEnabled.has_value()) {
+        m_config.stages.accumulation = *sceneConfig.accumulationStageEnabled;
+    }
+    if (sceneConfig.denoiserStageEnabled.has_value()) {
+        m_config.stages.denoiser = *sceneConfig.denoiserStageEnabled;
+    }
+    if (sceneConfig.tonemapperStageEnabled.has_value()) {
+        m_config.stages.tonemapper = *sceneConfig.tonemapperStageEnabled;
+    }
+}
+
+bool App::hasTonemapStage() const noexcept {
+    return !m_displayStages.empty();
+}
+
 const Image& App::sceneOutputImage() const noexcept {
-    return m_denoisedImage.isValid() ? m_denoisedImage : m_hdrImage;
+    return m_sceneOutputUsesDenoised ? m_denoisedImage : m_hdrImage;
 }
 
 VkPipelineStageFlags2 App::sceneOutputStageMask() noexcept {
-    return m_denoisedImage.isValid() ? VK_PIPELINE_STAGE_2_TRANSFER_BIT : renderer().outputStageMask();
+    return m_sceneOutputUsesDenoised ? VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT : renderer().outputStageMask();
 }
 
 VkAccessFlags2 App::sceneOutputAccessMask() noexcept {
-    return m_denoisedImage.isValid() ? VK_ACCESS_2_TRANSFER_WRITE_BIT : renderer().outputAccessMask();
+    return m_sceneOutputUsesDenoised ? VK_ACCESS_2_SHADER_WRITE_BIT : renderer().outputAccessMask();
+}
+
+uint64_t App::accumulationResetToken() const noexcept {
+    uint64_t token = kHashSeed;
+    hashCombineU64(token, m_sceneEpoch);
+    hashCombineU64(token, m_extentEpoch);
+    hashCombineU64(token, m_stageEpoch);
+    hashCombineU64(token, static_cast<uint64_t>(m_workingColorSpace));
+    hashCombineU64(token, static_cast<uint64_t>(m_tonemapper));
+    hashCombineU64(token, m_config.stages.accumulation ? 1ULL : 0ULL);
+    hashCombineU64(token, m_config.stages.denoiser ? 1ULL : 0ULL);
+    hashCombineU64(token, m_config.stages.tonemapper ? 1ULL : 0ULL);
+    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.strength));
+    hashCombineU64(token, m_config.denoiser.iterations);
+    hashCombineU64(token, m_config.denoiser.useHistory ? 1ULL : 0ULL);
+    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.historyBlend));
+    hashCombineU64(token, m_config.outputFile.empty() ? static_cast<uint64_t>(m_frameIndex) : 0ULL);
+    return token;
 }
 
 std::filesystem::path App::resolveScenePath(const std::filesystem::path& sceneFile) const {
@@ -340,6 +606,16 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
 
     m_workingColorSpace = sceneConfig->workingColorSpace;
     m_tonemapper = sceneConfig->tonemapper.value_or(0U);
+    applySceneStageConfig(*sceneConfig);
+    Logger::info("Stage config: accumulation={}, denoiser={}, tonemapper={}",
+                 m_config.stages.accumulation,
+                 m_config.stages.denoiser,
+                 m_config.stages.tonemapper);
+    Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}",
+                 m_config.denoiser.strength,
+                 m_config.denoiser.iterations,
+                 m_config.denoiser.useHistory,
+                 m_config.denoiser.historyBlend);
     if (sceneConfig->postTonemapRenderer) {
         if (*sceneConfig->postTonemapRenderer == "green_screen") {
             m_config.displayOverlay = true;
@@ -386,6 +662,12 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
         return false;
     }
 
+    if (!createDenoisedImage() || !createToneMapper()) {
+        return false;
+    }
+    ++m_sceneEpoch;
+    rebuildStagePipeline();
+
     return true;
 }
 
@@ -428,21 +710,30 @@ uint64_t App::renderSceneReferred() {
     };
     renderer().record(frame.renderCmd, target);
 
-    if (m_denoisedImage.isValid()) {
-        const PassContext passContext{
-            .cmd = frame.renderCmd,
-            .frameIndex = m_frameIndex,
-            .extent = m_hdrImage.extent(),
-            .hdrBuffer = &m_hdrImage,
-            .gNormal = nullptr,
-            .gDepth = nullptr,
-            .gNormalView = renderer().gNormalView(),
-            .gDepthView = renderer().gDepthView(),
-            .denoised = &m_denoisedImage,
-            .swapchainView = VK_NULL_HANDLE,
-            .colorSpace = m_swapchain.outputColorSpace(),
-        };
-        m_sceneOutputCopyPass.record(passContext);
+    const PassContext passContext{
+        .cmd = frame.renderCmd,
+        .frameIndex = m_frameIndex,
+        .frameSampleIndex = m_frameIndex,
+        .rngSeed = m_config.rngSeed,
+        .deterministicReplay = m_config.deterministicReplay,
+        .extent = m_hdrImage.extent(),
+        .fixedView = !m_config.outputFile.empty(),
+        .accumulationResetToken = accumulationResetToken(),
+        .hdrBuffer = &m_hdrImage,
+        .gNormal = nullptr,
+        .gDepth = nullptr,
+        .gNormalView = renderer().gNormalView(),
+        .gDepthView = renderer().gDepthView(),
+        .denoised = m_denoisedImage.isValid() ? &m_denoisedImage : nullptr,
+        .swapchainView = VK_NULL_HANDLE,
+        .colorSpace = m_swapchain.outputColorSpace(),
+        .tonemapper = m_tonemapper,
+        .workingColorSpace = m_workingColorSpace,
+    };
+    for (const auto& pass : m_sceneStages) {
+        if (pass) {
+            pass->record(passContext);
+        }
     }
 
     if (vkEndCommandBuffer(frame.renderCmd) != VK_SUCCESS) {
@@ -532,15 +823,55 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
     };
     pipelineBarrier(frame.displayCmd, preToneMapBarriers);
 
-    // The shared ToneMapper is the glue between the scene-referred working
-    // space and the display-referred output of the negotiated swapchain.
-    m_toneMapper.record(frame.displayCmd,
-                        sceneOutputImage().view(),
-                        m_swapchain.imageView(imageIndex),
-                        m_swapchain.extent(),
-                        m_swapchain.outputColorSpace(),
-                        m_tonemapper,
-                        m_workingColorSpace);
+    const PassContext displayPassContext{
+        .cmd = frame.displayCmd,
+        .frameIndex = m_frameIndex,
+        .frameSampleIndex = m_frameIndex,
+        .rngSeed = m_config.rngSeed,
+        .deterministicReplay = m_config.deterministicReplay,
+        .extent = m_swapchain.extent(),
+        .hdrBuffer = &m_hdrImage,
+        .gNormal = nullptr,
+        .gDepth = nullptr,
+        .gNormalView = VK_NULL_HANDLE,
+        .gDepthView = VK_NULL_HANDLE,
+        .denoised = m_sceneOutputUsesDenoised ? &m_denoisedImage : nullptr,
+        .swapchainView = m_swapchain.imageView(imageIndex),
+        .colorSpace = m_swapchain.outputColorSpace(),
+        .tonemapper = m_tonemapper,
+        .workingColorSpace = m_workingColorSpace,
+    };
+    for (const auto& pass : m_displayStages) {
+        if (pass) {
+            pass->record(displayPassContext);
+        }
+    }
+
+    bool swapchainInGeneral = false;
+    if (!hasTonemapStage() && !m_config.displayOverlay) {
+        const std::array toGeneral{
+            imageBarrier(m_swapchain.image(imageIndex),
+                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+        };
+        pipelineBarrier(frame.displayCmd, toGeneral);
+        const VkClearColorValue clear{
+            .float32 = {0.0F, 0.0F, 0.0F, 1.0F},
+        };
+        const VkImageSubresourceRange range{
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        };
+        vkCmdClearColorImage(frame.displayCmd, m_swapchain.image(imageIndex), VK_IMAGE_LAYOUT_GENERAL, &clear, 1, &range);
+        swapchainInGeneral = true;
+    }
 
     if (m_config.displayOverlay) {
         if (!m_displayOverlayLogged) {
@@ -557,6 +888,7 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
         pipelineBarrier(frame.displayCmd, displayPreBarriers);
+        swapchainInGeneral = true;
 
         const RenderTarget displayTarget{
             .image = m_swapchain.image(imageIndex),
@@ -570,11 +902,10 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
 
     const std::array presentBarrier{
         imageBarrier(m_swapchain.image(imageIndex),
-                     m_config.displayOverlay ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                     swapchainInGeneral ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                     m_config.displayOverlay ? VK_PIPELINE_STAGE_2_TRANSFER_BIT
-                                            : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     m_config.displayOverlay ? VK_ACCESS_2_TRANSFER_WRITE_BIT : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                     swapchainInGeneral ? VK_PIPELINE_STAGE_2_TRANSFER_BIT : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                     swapchainInGeneral ? VK_ACCESS_2_TRANSFER_WRITE_BIT : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_NONE,
                      0),
     };
@@ -586,13 +917,17 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
     }
 
     const uint64_t displayValue = m_nextTimelineValue++;
+    const VkPipelineStageFlags2 sceneReadyWaitStage =
+        hasTonemapStage() ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+    const VkPipelineStageFlags2 imageAcquireWaitStage =
+        hasTonemapStage() ? VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_2_TRANSFER_BIT;
     const std::array<VkSemaphoreSubmitInfo, 2> waitInfos{{
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .pNext = nullptr,
             .semaphore = m_timelineSemaphore,
             .value = renderValue,
-            .stageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .stageMask = sceneReadyWaitStage,
             .deviceIndex = 0,
         },
         {
@@ -600,7 +935,7 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
             .pNext = nullptr,
             .semaphore = frame.imageAvailable,
             .value = 0,
-            .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .stageMask = imageAcquireWaitStage,
             .deviceIndex = 0,
         },
     }};
@@ -781,12 +1116,13 @@ void App::handleResize(uint32_t w, uint32_t h) {
     if (!createDenoisedImage()) {
         return;
     }
-    m_sceneOutputCopyPass.onResize(m_swapchain.extent());
 
     // Recreate tone mapper in case the swapchain format changed (HDR10 ↔ SDR).
     if (!createToneMapper()) {
         return;
     }
+    ++m_extentEpoch;
+    rebuildStagePipeline();
 
     if (m_config.displayOverlay) {
         m_displayRenderer.onResize(m_swapchain.extent());
@@ -818,6 +1154,9 @@ void App::shutdown() noexcept {
     }
 
     m_iblProbe.reset();
+    m_sceneStages.clear();
+    m_displayStages.clear();
+    m_sceneOutputUsesDenoised = false;
     m_hdrImage = {};
     m_denoisedImage = {};
     m_toneMapper = {};
