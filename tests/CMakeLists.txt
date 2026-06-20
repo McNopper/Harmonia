@@ -28,6 +28,7 @@ add_executable(harmonia_component_tests
     component/main.cpp
     component/test_buffer.cpp
     component/test_image.cpp
+    component/test_scene_output_copy_pass.cpp
     component/test_commandpool.cpp
 )
 
