@@ -57,6 +57,11 @@ class IRenderer {
     /// with outputStageMask() by the host's pre-tonemap barrier.
     [[nodiscard]] virtual VkAccessFlags2 outputAccessMask() const noexcept { return VK_ACCESS_2_SHADER_WRITE_BIT; }
 
+    /// Optional renderer-owned G-buffers surfaced to Harmonia's shared stages.
+    /// Default: unavailable.
+    [[nodiscard]] virtual VkImageView gNormalView() const noexcept { return VK_NULL_HANDLE; }
+    [[nodiscard]] virtual VkImageView gDepthView() const noexcept { return VK_NULL_HANDLE; }
+
     /// Called when the render target is resized.
     virtual void onResize(VkExtent2D extent) noexcept = 0;
 

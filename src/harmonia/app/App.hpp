@@ -178,8 +178,12 @@ class App {
     void presentFrame(uint32_t slot, uint64_t renderValue);
     void handleResize(uint32_t w, uint32_t h);
     [[nodiscard]] bool createHdrImage();
+    [[nodiscard]] bool createDenoisedImage();
     [[nodiscard]] bool createToneMapper();
     [[nodiscard]] std::filesystem::path resolveScenePath(const std::filesystem::path& sceneFile) const;
+    [[nodiscard]] const Image& sceneOutputImage() const noexcept;
+    [[nodiscard]] VkPipelineStageFlags2 sceneOutputStageMask() noexcept;
+    [[nodiscard]] VkAccessFlags2 sceneOutputAccessMask() noexcept;
 
     Config m_config{};
     SDL_Window* m_window{};
@@ -189,6 +193,8 @@ class App {
     Descriptors m_descriptors{};
     ToneMapper m_toneMapper{};
     Image m_hdrImage{};
+    Image m_denoisedImage{};
+    VkImageLayout m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     GreenScreenRenderer m_displayRenderer{};
     std::optional<IblProbe> m_iblProbe;
 

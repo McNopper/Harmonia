@@ -207,7 +207,7 @@ bool App::bootstrap() {
     }
     m_descriptors = std::move(*descriptors);
 
-    if (!createToneMapper() || !createHdrImage()) {
+    if (!createToneMapper() || !createHdrImage() || !createDenoisedImage()) {
         return false;
     }
 
@@ -259,6 +259,28 @@ bool App::createHdrImage() {
     return true;
 }
 
+bool App::createDenoisedImage() {
+    // Scene-output buffer for the shared denoiser stage. E1 keeps it as a
+    // pass-through copy of the renderer's HDR output; later phases will replace
+    // the copy with an actual filter/denoiser.
+    auto denoisedImage = Image::create(m_context.deviceContext(),
+                                       m_swapchain.extent(),
+                                       VK_FORMAT_R32G32B32A32_SFLOAT,
+                                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       "harmonia.denoised");
+    if (!denoisedImage) {
+        Logger::error("Denoised image creation failed: VkResult {}", static_cast<int>(denoisedImage.error()));
+        m_denoisedImage = {};
+        m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        return false;
+    }
+    m_denoisedImage = std::move(*denoisedImage);
+    m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    return true;
+}
+
 bool App::createToneMapper() {
     const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
     auto toneMapper = ToneMapper::create(
@@ -269,6 +291,18 @@ bool App::createToneMapper() {
     }
     m_toneMapper = std::move(*toneMapper);
     return true;
+}
+
+const Image& App::sceneOutputImage() const noexcept {
+    return m_denoisedImage.isValid() ? m_denoisedImage : m_hdrImage;
+}
+
+VkPipelineStageFlags2 App::sceneOutputStageMask() noexcept {
+    return m_denoisedImage.isValid() ? VK_PIPELINE_STAGE_2_TRANSFER_BIT : renderer().outputStageMask();
+}
+
+VkAccessFlags2 App::sceneOutputAccessMask() noexcept {
+    return m_denoisedImage.isValid() ? VK_ACCESS_2_TRANSFER_WRITE_BIT : renderer().outputAccessMask();
 }
 
 std::filesystem::path App::resolveScenePath(const std::filesystem::path& sceneFile) const {
@@ -395,6 +429,72 @@ uint64_t App::renderSceneReferred() {
     };
     renderer().record(frame.renderCmd, target);
 
+    if (m_denoisedImage.isValid()) {
+        const std::array sceneOutputBarriers{
+            imageBarrier(m_hdrImage.handle(),
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         renderer().outputStageMask(),
+                         renderer().outputAccessMask(),
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_READ_BIT),
+            imageBarrier(m_denoisedImage.handle(),
+                         m_denoisedLayout,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_PIPELINE_STAGE_2_NONE,
+                         0,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+        };
+        pipelineBarrier(frame.renderCmd, sceneOutputBarriers);
+
+        const VkImageCopy copyRegion{
+            .srcSubresource =
+                VkImageSubresourceLayers{
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = 0,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+            .srcOffset = VkOffset3D{0, 0, 0},
+            .dstSubresource =
+                VkImageSubresourceLayers{
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = 0,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+            .dstOffset = VkOffset3D{0, 0, 0},
+            .extent = VkExtent3D{m_hdrImage.extent().width, m_hdrImage.extent().height, 1U},
+        };
+        vkCmdCopyImage(frame.renderCmd,
+                       m_hdrImage.handle(),
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       m_denoisedImage.handle(),
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                       1,
+                       &copyRegion);
+
+        const std::array restoreBarriers{
+            imageBarrier(m_hdrImage.handle(),
+                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_READ_BIT,
+                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                         VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT),
+            imageBarrier(m_denoisedImage.handle(),
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                         VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT),
+        };
+        pipelineBarrier(frame.renderCmd, restoreBarriers);
+        m_denoisedLayout = VK_IMAGE_LAYOUT_GENERAL;
+    }
+
     if (vkEndCommandBuffer(frame.renderCmd) != VK_SUCCESS) {
         Logger::error("Failed to end render command buffer");
         return frame.completionValue;
@@ -465,11 +565,11 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
     }
 
     const std::array preToneMapBarriers{
-        imageBarrier(m_hdrImage.handle(),
+        imageBarrier(sceneOutputImage().handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
-                     renderer().outputStageMask(),
-                     renderer().outputAccessMask(),
+                     sceneOutputStageMask(),
+                     sceneOutputAccessMask(),
                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
         imageBarrier(m_swapchain.image(imageIndex),
@@ -485,7 +585,7 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
     // The shared ToneMapper is the glue between the scene-referred working
     // space and the display-referred output of the negotiated swapchain.
     m_toneMapper.record(frame.displayCmd,
-                        m_hdrImage.view(),
+                        sceneOutputImage().view(),
                         m_swapchain.imageView(imageIndex),
                         m_swapchain.extent(),
                         m_swapchain.outputColorSpace(),
@@ -662,24 +762,24 @@ int App::renderOffscreen() {
     if (m_config.outputFile.extension() == ".png") {
         // Tone-mapped display-referred capture only.
         ok = ImageCapture::savePng(
-            m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile, m_workingColorSpace);
+            m_context.deviceContext(), m_commandPool, sceneOutputImage(), m_config.outputFile, m_workingColorSpace);
     } else {
         // Scene-referred linear EXR (chromaticities-tagged, untonemapped) plus
         // a tone-mapped sRGB PNG sibling for GitHub / README display.
         ok = ImageCapture::saveExr(
-            m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile, m_workingColorSpace);
+            m_context.deviceContext(), m_commandPool, sceneOutputImage(), m_config.outputFile, m_workingColorSpace);
         auto pngPath = m_config.outputFile;
         pngPath.replace_extension(".png");
-        ok =
-            ImageCapture::savePng(m_context.deviceContext(), m_commandPool, m_hdrImage, pngPath, m_workingColorSpace) &&
-            ok;
+        ok = ImageCapture::savePng(
+                 m_context.deviceContext(), m_commandPool, sceneOutputImage(), pngPath, m_workingColorSpace) &&
+             ok;
     }
     return ok ? 0 : 1;
 }
 
 bool App::saveExr(const std::filesystem::path& path) {
     vkDeviceWaitIdle(m_context.deviceContext().device);
-    return ImageCapture::saveExr(m_context.deviceContext(), m_commandPool, m_hdrImage, path, m_workingColorSpace);
+    return ImageCapture::saveExr(m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
 }
 
 void App::handleResize(uint32_t w, uint32_t h) {
@@ -728,6 +828,9 @@ void App::handleResize(uint32_t w, uint32_t h) {
     if (!createHdrImage()) {
         return;
     }
+    if (!createDenoisedImage()) {
+        return;
+    }
 
     // Recreate tone mapper in case the swapchain format changed (HDR10 ↔ SDR).
     if (!createToneMapper()) {
@@ -765,6 +868,8 @@ void App::shutdown() noexcept {
 
     m_iblProbe.reset();
     m_hdrImage = {};
+    m_denoisedImage = {};
+    m_denoisedLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_toneMapper = {};
     m_descriptors = {};
     m_swapchain = {};
