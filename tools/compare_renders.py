@@ -11,6 +11,11 @@ USAGE
 
 OPTIONS
     --threshold FLOAT   Mean-diff threshold for pass/fail (default: 4.0, in 1/255 units)
+    --psnr-threshold FLOAT
+                        Pass if PSNR >= this value (dB)
+    --relative-threshold FLOAT
+                        Pass if relative mean error <= this value (percent)
+    --gate MODE         Gate mode: mean | psnr | relative | any | all (default: mean)
     --heatmap PATH      Write a false-color difference PNG (default: <candidate>_diff.png)
     --channel CH        Compare single channel: r, g, b, luminance (default: luminance)
     --no-heatmap        Skip heatmap output
@@ -28,8 +33,9 @@ METRICS
 -------
   mean_diff   : mean |ref - cand| per luminance pixel, scaled to [0, 255]
   max_diff    : max  |ref - cand| per luminance pixel, scaled to [0, 255]
-  PSNR        : peak signal-to-noise ratio (dB); ∞ = identical; < 30 dB = visible
-  pass        : mean_diff <= threshold (default 4.0)
+  PSNR        : peak signal-to-noise ratio (dB); inf = identical; < 30 dB = visible
+  rel_mean_%  : mean |ref-cand| / max(mean |ref|, eps) * 100
+  pass        : selected gate mode with the provided threshold(s)
 """
 
 from __future__ import annotations
@@ -98,9 +104,58 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray) -> dict:
     mean_d = float(np.mean(diff255))
     max_d  = float(np.max(diff255))
     mse    = float(np.mean(diff ** 2))
+    mean_ref = float(np.mean(np.abs(ref)))
+    rel_mean_pct = float((np.mean(diff) / max(mean_ref, 1.0e-8)) * 100.0)
     # PSNR relative to peak=1.0 (HDR-scene-referred white)
     psnr   = float("inf") if mse == 0.0 else float(10.0 * np.log10(1.0 / mse))
-    return {"mean_diff": mean_d, "max_diff": max_d, "psnr": psnr, "mse": mse}
+    return {
+        "mean_diff": mean_d,
+        "max_diff": max_d,
+        "psnr": psnr,
+        "mse": mse,
+        "rel_mean_pct": rel_mean_pct,
+    }
+
+
+def evaluate_gate(metrics: dict, args: argparse.Namespace) -> tuple[bool, list[str]]:
+    checks = {
+        "mean": metrics["mean_diff"] <= args.threshold,
+        "psnr": (args.psnr_threshold is not None) and (metrics["psnr"] >= args.psnr_threshold),
+        "relative": (args.relative_threshold is not None) and (metrics["rel_mean_pct"] <= args.relative_threshold),
+    }
+
+    if args.gate == "mean":
+        return checks["mean"], [f"mean_diff <= {args.threshold}"]
+    if args.gate == "psnr":
+        if args.psnr_threshold is None:
+            sys.exit("ERROR: --gate psnr requires --psnr-threshold")
+        return checks["psnr"], [f"PSNR >= {args.psnr_threshold} dB"]
+    if args.gate == "relative":
+        if args.relative_threshold is None:
+            sys.exit("ERROR: --gate relative requires --relative-threshold")
+        return checks["relative"], [f"rel_mean_% <= {args.relative_threshold}%"]
+    if args.gate == "any":
+        available = [("mean", checks["mean"])]
+        labels = [f"mean_diff <= {args.threshold}"]
+        if args.psnr_threshold is not None:
+            available.append(("psnr", checks["psnr"]))
+            labels.append(f"PSNR >= {args.psnr_threshold} dB")
+        if args.relative_threshold is not None:
+            available.append(("relative", checks["relative"]))
+            labels.append(f"rel_mean_% <= {args.relative_threshold}%")
+        return any(v for _, v in available), labels
+    if args.gate == "all":
+        available = [checks["mean"]]
+        labels = [f"mean_diff <= {args.threshold}"]
+        if args.psnr_threshold is not None:
+            available.append(checks["psnr"])
+            labels.append(f"PSNR >= {args.psnr_threshold} dB")
+        if args.relative_threshold is not None:
+            available.append(checks["relative"])
+            labels.append(f"rel_mean_% <= {args.relative_threshold}%")
+        return all(available), labels
+
+    sys.exit(f"ERROR: unknown gate mode '{args.gate}'")
 
 
 # ── Heatmap ───────────────────────────────────────────────────────────────────
@@ -137,6 +192,12 @@ def main() -> int:
     parser.add_argument("candidate",  type=Path, help="Theia EXR (under test)")
     parser.add_argument("--threshold", type=float, default=4.0,
                         help="Pass/fail mean-diff threshold in 1/255 units (default: 4.0)")
+    parser.add_argument("--psnr-threshold", type=float, default=None,
+                        help="Pass/fail PSNR threshold in dB (pass when PSNR >= threshold)")
+    parser.add_argument("--relative-threshold", type=float, default=None,
+                        help="Pass/fail relative mean error threshold in percent")
+    parser.add_argument("--gate", choices=("mean", "psnr", "relative", "any", "all"), default="mean",
+                        help="Gate mode for RESULT (default: mean)")
     parser.add_argument("--heatmap",  type=Path, default=None,
                         help="Output heatmap PNG path (default: <candidate>_diff.png)")
     parser.add_argument("--channel",  default="luminance",
@@ -163,15 +224,17 @@ def main() -> int:
     cand_ch = extract_channel(cand, args.channel)
     metrics = compute_metrics(ref_ch, cand_ch)
 
-    passed = metrics["mean_diff"] <= args.threshold
+    passed, gate_labels = evaluate_gate(metrics, args)
 
     print()
     print(f"  mean_diff : {metrics['mean_diff']:7.3f}  (threshold {args.threshold:.1f})")
     print(f"  max_diff  : {metrics['max_diff']:7.3f}")
     print(f"  PSNR      : {metrics['psnr']:7.2f} dB")
     print(f"  MSE       : {metrics['mse']:.6f}")
+    print(f"  rel_mean% : {metrics['rel_mean_pct']:7.3f} %")
+    print(f"  gate      : {args.gate} ({'; '.join(gate_labels)})")
     print()
-    print(f"  RESULT    : {'PASS' if passed else 'FAIL'}  (mean_diff {'<=' if passed else '>'} {args.threshold})")
+    print(f"  RESULT    : {'PASS' if passed else 'FAIL'}")
 
     if not args.no_heatmap:
         heatmap_path = args.heatmap or args.candidate.with_name(
