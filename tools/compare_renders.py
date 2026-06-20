@@ -15,7 +15,10 @@ OPTIONS
                         Pass if PSNR >= this value (dB)
     --relative-threshold FLOAT
                         Pass if relative mean error <= this value (percent)
-    --gate MODE         Gate mode: mean | psnr | relative | any | all (default: mean)
+    --gate MODE         Gate mode: mean | psnr | relative | any | all | scale-aware (default: mean)
+                        scale-aware = pass if mean_diff <= threshold OR
+                                      (rel_mean_% <= relative-threshold and PSNR >= psnr-threshold)
+                                      with defaults 2.5% / 20 dB when not provided.
     --heatmap PATH      Write a false-color difference PNG (default: <candidate>_diff.png)
     --channel CH        Compare single channel: r, g, b, luminance (default: luminance)
     --no-heatmap        Skip heatmap output
@@ -154,6 +157,19 @@ def evaluate_gate(metrics: dict, args: argparse.Namespace) -> tuple[bool, list[s
             available.append(checks["relative"])
             labels.append(f"rel_mean_% <= {args.relative_threshold}%")
         return all(available), labels
+    if args.gate == "scale-aware":
+        # HDR/transmissive scenes can violate a fixed absolute 1/255 threshold even
+        # when the relative error is small; accept either strict absolute pass OR
+        # relative+PSNR pass.
+        psnr_threshold = args.psnr_threshold if args.psnr_threshold is not None else 20.0
+        relative_threshold = args.relative_threshold if args.relative_threshold is not None else 2.5
+        absolute_pass = checks["mean"]
+        relative_psnr_pass = (metrics["rel_mean_pct"] <= relative_threshold) and (metrics["psnr"] >= psnr_threshold)
+        labels = [
+            f"mean_diff <= {args.threshold}",
+            f"(rel_mean_% <= {relative_threshold}% and PSNR >= {psnr_threshold} dB)",
+        ]
+        return absolute_pass or relative_psnr_pass, labels
 
     sys.exit(f"ERROR: unknown gate mode '{args.gate}'")
 
@@ -196,7 +212,7 @@ def main() -> int:
                         help="Pass/fail PSNR threshold in dB (pass when PSNR >= threshold)")
     parser.add_argument("--relative-threshold", type=float, default=None,
                         help="Pass/fail relative mean error threshold in percent")
-    parser.add_argument("--gate", choices=("mean", "psnr", "relative", "any", "all"), default="mean",
+    parser.add_argument("--gate", choices=("mean", "psnr", "relative", "any", "all", "scale-aware"), default="mean",
                         help="Gate mode for RESULT (default: mean)")
     parser.add_argument("--heatmap",  type=Path, default=None,
                         help="Output heatmap PNG path (default: <candidate>_diff.png)")
