@@ -17,6 +17,8 @@ struct PassContext {
     const Image* hdrBuffer = nullptr; ///< accumulated HDR radiance
     const Image* gNormal = nullptr;   ///< world-space normal G-buffer
     const Image* gDepth = nullptr;    ///< ray-hit distance G-buffer
+    VkImageView gNormalView = VK_NULL_HANDLE;
+    VkImageView gDepthView = VK_NULL_HANDLE;
 
     /// Denoiser output (null if denoiser was not run; ToneMapper falls back to hdrBuffer).
     const Image* denoised = nullptr;

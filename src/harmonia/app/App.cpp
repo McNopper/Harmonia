@@ -436,6 +436,8 @@ uint64_t App::renderSceneReferred() {
             .hdrBuffer = &m_hdrImage,
             .gNormal = nullptr,
             .gDepth = nullptr,
+            .gNormalView = renderer().gNormalView(),
+            .gDepthView = renderer().gDepthView(),
             .denoised = &m_denoisedImage,
             .swapchainView = VK_NULL_HANDLE,
             .colorSpace = m_swapchain.outputColorSpace(),
