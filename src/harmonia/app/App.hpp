@@ -102,9 +102,8 @@ class App {
         /// style LOD sampling instead of mip0 (off by default).
         bool diagTransparentEnvLod = false;
         /// Enable the ray-query global-illumination compute stage (Theia only).
-        /// Off by default — GI requires enough accumulated frames to converge and
-        /// is opted into explicitly when running parity comparisons or quality renders.
-        bool rtGi = false;
+        /// On by default; disable with --no-rt-gi for debugging/baselines.
+        bool rtGi = true;
     };
 
     App() = default;
@@ -122,7 +121,7 @@ class App {
     /// --width, --height, --validation, --no-validation, --no-postfx,
     /// --indirect-ambient, --ssgi-strength, --ibl-diffuse-resolution,
     /// --display-overlay, --deterministic-replay, --rng-seed, --rng-debug,
-    /// --diag-transparent-env-lod, --offscreen-frames, --denoiser-strength,
+    /// --diag-transparent-env-lod, --rt-gi, --no-rt-gi, --offscreen-frames, --denoiser-strength,
     /// --denoiser-iterations, --denoiser-history-blend, --denoiser-no-history,
     /// or a bare scene name). Returns true if consumed;
     /// @p i may be advanced.

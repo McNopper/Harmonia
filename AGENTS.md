@@ -35,6 +35,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--width <n>` / `--height <n>` | Render resolution. |
 | `--validation` / `--no-validation` | Vulkan validation layers. |
 | `--no-postfx` | Disable SSR/SSAO/bloom. **Required for parity comparisons.** |
+| `--rt-gi` / `--no-rt-gi` | Toggle Theia ray-query GI stage (default on). |
 | `--indirect-ambient <f>` | Indirect ambient strength. |
 | `--ssgi-strength <f>` | SSGI strength. |
 

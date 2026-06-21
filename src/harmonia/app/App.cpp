@@ -231,6 +231,10 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         config.rtGi = true;
         return true;
     }
+    if (arg == "--no-rt-gi") {
+        config.rtGi = false;
+        return true;
+    }
     if (arg == "--rng-seed") {
         if (const char* v = next("--rng-seed")) {
             uint32_t seed = 0U;
