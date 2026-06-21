@@ -73,6 +73,17 @@ float3 sampleEnvMapLatLong(Texture2D<float4> envMap, SamplerState envSampler, fl
     return max(envMap.SampleLevel(envSampler, float2(u, v), 0).xyz, 0.0.xxx);
 }
 
+/// Detailed environment NEE sample payload so callers can reuse the exact shared
+/// measure/PDF/MIS conventions while also accessing the sampled direction/pdf.
+struct EnvNeeSample {
+    float3 wi;
+    float  envPdf;
+    float  bsdfPdf;
+    float  misWeight;
+    float3 contribution; // throughput-free radiance contribution
+    bool   valid;
+};
+
 /// Emission contribution for a directly-hit surface, guarded against MIS double counting.
 /// Returns 0 unless the surface is an emitter seen on its front side AND the emission may
 /// be added on the camera path: when no NEE is active (emissiveTriangleCount==0), for the
@@ -154,21 +165,31 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
 /// combined with the BSDF sampling strategy through the MIS balance heuristic.
 /// Returns the (throughput-free) radiance contribution; the caller scales by throughput.
 /// Ref: PBR Book 4e §13.4.3; Veach §9.2.
-float3 evalEnvNEE<T : ITracer>(
+EnvNeeSample evalEnvNEESample<T : ITracer>(
     T tracer, SurfaceHit surf,
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
     inout uint seed)
 {
-    if (!hasEnvMap || envW == 0u) {
-        return 0.0.xxx;
+    EnvNeeSample sample;
+    sample.wi = 0.0.xxx;
+    sample.envPdf = 0.0;
+    sample.bsdfPdf = 0.0;
+    sample.misWeight = 0.0;
+    sample.contribution = 0.0.xxx;
+    sample.valid = false;
+
+    if (!hasEnvMap || envW == 0u || envH == 0u) {
+        return sample;
     }
 
-    float  envPdf;
+    float envPdf;
     float2 xi = float2(randFloat(seed), randFloat(seed));
     float3 wi = sampleEnvImportanceDir(marginalCdf, conditionalCdf, envW, envH, xi, envPdf);
-    float  cosI = dot(wi, surf.normal);
+    float cosI = dot(wi, surf.normal);
+    sample.wi = wi;
+    sample.envPdf = envPdf;
     if (cosI > 0.0 && envPdf > 0.0) {
         float3 shadowOrigin = surf.position + surf.geoNormal * kRayEpsilon;
         if (tracer.traceOccluded(shadowOrigin, wi, kInf)) {
@@ -178,10 +199,25 @@ float3 evalEnvNEE<T : ITracer>(
             float  misW    = envPdf / (envPdf + bsdfPdf); // balance heuristic
             float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                 surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-            return bsdfVal * Le * cosI * misW / envPdf;
+            sample.bsdfPdf = bsdfPdf;
+            sample.misWeight = misW;
+            sample.contribution = bsdfVal * Le * cosI * misW / envPdf;
+            sample.valid = true;
         }
     }
-    return 0.0.xxx;
+    return sample;
+}
+
+float3 evalEnvNEE<T : ITracer>(
+    T tracer, SurfaceHit surf,
+    StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
+    uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
+    Texture2D<float4> envMap, SamplerState envSampler,
+    inout uint seed)
+{
+    return evalEnvNEESample(
+        tracer, surf, marginalCdf, conditionalCdf, envW, envH, hasEnvMap, envLuminanceScale,
+        envMap, envSampler, seed).contribution;
 }
 
 /// Estimate the outgoing radiance contribution at one surface vertex and advance the path.
