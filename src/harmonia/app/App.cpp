@@ -566,7 +566,16 @@ uint64_t App::accumulationResetToken() const noexcept {
     hashCombineU64(token, m_config.denoiser.iterations);
     hashCombineU64(token, m_config.denoiser.useHistory ? 1ULL : 0ULL);
     hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.historyBlend));
-    hashCombineU64(token, m_config.outputFile.empty() ? static_cast<uint64_t>(m_frameIndex) : 0ULL);
+    // While accumulating (offscreen capture or interactive progressive mode) the
+    // token must stay constant across frames so history builds up; it changes
+    // only when the view/scene changes (m_accumViewEpoch, bumped by
+    // resetAccumulation()). When interactive accumulation is OFF, fold in the
+    // per-frame index so every interactive frame is a fresh, non-accumulated sample.
+    if (m_config.outputFile.empty() && !m_interactiveAccumulation) {
+        hashCombineU64(token, static_cast<uint64_t>(m_frameIndex));
+    } else {
+        hashCombineU64(token, m_accumViewEpoch);
+    }
     return token;
 }
 
@@ -717,7 +726,7 @@ uint64_t App::renderSceneReferred() {
         .rngSeed = m_config.rngSeed,
         .deterministicReplay = m_config.deterministicReplay,
         .extent = m_hdrImage.extent(),
-        .fixedView = !m_config.outputFile.empty(),
+        .fixedView = !m_config.outputFile.empty() || m_interactiveAccumulation,
         .accumulationResetToken = accumulationResetToken(),
         .hdrBuffer = &m_hdrImage,
         .gNormal = nullptr,

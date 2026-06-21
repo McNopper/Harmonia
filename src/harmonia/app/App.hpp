@@ -175,6 +175,20 @@ class App {
     // ── Services for subclasses ─────────────────────────────────────────────
 
     [[nodiscard]] const Config& config() const noexcept { return m_config; }
+
+    /// Enable progressive accumulation in the interactive (windowed) path so a
+    /// stationary view converges instead of showing each raw, per-frame
+    /// stochastic sample (camera jitter, env/shadow sampling, GI). The renderer
+    /// must call resetAccumulation() whenever the view changes (camera move,
+    /// exposure change, ...) so accumulation restarts. Off by default; the
+    /// offscreen capture path always accumulates regardless of this flag.
+    void setInteractiveAccumulation(bool enabled) noexcept { m_interactiveAccumulation = enabled; }
+
+    /// Restart progressive accumulation from the next frame (drop the converged
+    /// history). Call when the camera moves or any view-affecting parameter
+    /// changes. No-op cost when interactive accumulation is disabled.
+    void resetAccumulation() noexcept { ++m_accumViewEpoch; }
+
     [[nodiscard]] SDL_Window* window() const noexcept { return m_window; }
     [[nodiscard]] Context& context() noexcept { return m_context; }
     [[nodiscard]] const DeviceContext& deviceContext() const noexcept { return m_context.deviceContext(); }
@@ -259,6 +273,8 @@ class App {
     uint64_t m_sceneEpoch = 1;
     uint64_t m_extentEpoch = 1;
     uint64_t m_stageEpoch = 1;
+    uint64_t m_accumViewEpoch = 0;
+    bool m_interactiveAccumulation = false;
     uint32_t m_currentFrame = 0;
     uint32_t m_frameIndex = 0;
     std::vector<VkImageLayout> m_swapchainLayouts;
