@@ -35,12 +35,11 @@ float luminance(float3 c) {
     return dot(c, float3(0.2627f, 0.6780f, 0.0593f));
 }
 
-// Per-component non-finite scrub. The history image is transitioned from UNDEFINED on
-// its first use and never explicitly cleared, so on the seeding frame gHistoryHdr holds
-// uninitialized device memory that may contain NaN/Inf bit patterns. lerp() propagates a
-// NaN history forever (NaN blends to NaN), poisoning the accumulated denoise and the
-// captured EXR. Scrubbing to 0 makes the first-use seed deterministic and is a no-op once
-// the history holds real (finite) radiance.
+// Per-component non-finite scrub: replaces NaN/Inf with 0. NOTE this does NOT
+// catch huge-but-finite garbage (e.g. uninitialised device memory reinterpreted
+// as a ~1e30 float), so it is only a second line of defence — the temporal path
+// below must never read uninitialised history into arithmetic (see the
+// first-use seeding branch).
 float4 sanitize4(float4 v) {
     return float4(isfinite(v.x) ? v.x : 0.0f,
                   isfinite(v.y) ? v.y : 0.0f,
@@ -60,10 +59,11 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
 
     const float2 invExtent = 1.0f / float2(max(width, 1u), max(height, 1u));
     const float2 baseUv = (float2(pixel) + 0.5f.xx) * invExtent;
-    const float4 center = gInputHdr[pixel];
+    const float4 center = sanitize4(gInputHdr[pixel]);
 
     float4 filtered = center;
     if (gDenoiser.applyHistory == 0u) {
+        // ── Spatial edge-aware bilateral filter (parity-validated) ──────────────
         const int radius = int(1u + min(uint(round(gDenoiser.strength * 2.0f)), 2u));
         const float centerLuma = luminance(max(center.xyz, 0.0f.xxx));
         const float3 centerNormal = gDenoiser.hasNormalGuide != 0u
@@ -86,6 +86,13 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
                 const uint2 sampleCoord = uint2(sampleCoordI);
                 const float2 sampleUv = (float2(sampleCoord) + 0.5f.xx) * invExtent;
                 const float4 sampleColor = gInputHdr[sampleCoord];
+
+                // Skip non-finite neighbours so a single firefly/NaN can never bias
+                // the weighted mean (the divide would otherwise propagate it).
+                if (!all(isfinite(sampleColor))) {
+                    continue;
+                }
+
                 const float sampleLuma = luminance(max(sampleColor.xyz, 0.0f.xxx));
 
                 const float dist2 = float(x * x + y * y);
@@ -108,14 +115,35 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
             }
         }
         filtered = (totalWeight > 1e-6f) ? (sum / totalWeight) : center;
+        filtered = sanitize4(filtered);
     }
 
     if (gDenoiser.applyHistory != 0u) {
-        const float4 history = sanitize4(gHistoryHdr[pixel]);
-        const float blend = (gDenoiser.historyFirstUse != 0u) ? 1.0f : saturate(gDenoiser.historyBlend);
-        filtered = lerp(filtered, history, blend);
-        gHistoryHdr[pixel] = filtered;
+        // ── Temporal accumulation (exponential moving average) ─────────────────
+        // Ai = lerp(Ci, Ai-1, alpha)  with first-frame seeding and a Karis-style
+        // temporal colour clamp (Karis, "High Quality Temporal Supersampling",
+        // SIGGRAPH 2014; Schied et al., SVGF, HPG 2017).
+        if (gDenoiser.historyFirstUse != 0u) {
+            // No valid history yet (the image is UNDEFINED on first use and after a
+            // reset, holding uninitialised device memory that may be huge-but-finite
+            // garbage which sanitize4() cannot scrub). Seed the accumulation buffer
+            // with the current frame instead of reading that memory — even a
+            // zero-weight blend risks 0 * Inf = NaN. Output stays = current frame.
+            gHistoryHdr[pixel] = filtered;
+        } else {
+            float4 history = sanitize4(gHistoryHdr[pixel]);
+            // Temporal colour clamp: bound the history sample to a plausible band
+            // around the current pixel so a stale outlier cannot poison the EMA.
+            // Per-pixel (1x1) clamp keeps the in-place history pass deterministic
+            // (reading a wider neighbourhood would race the concurrent writes); it
+            // is a no-op once the history has converged (history ~= current).
+            const float3 clampHi = max(filtered.xyz, 0.0f.xxx) * 8.0f + 1.0f.xxx;
+            history.xyz = clamp(history.xyz, 0.0f.xxx, clampHi);
+            const float blend = saturate(gDenoiser.historyBlend);
+            filtered = sanitize4(lerp(filtered, history, blend));
+            gHistoryHdr[pixel] = filtered;
+        }
     }
 
-    gOutputHdr[pixel] = filtered;
+    gOutputHdr[pixel] = sanitize4(filtered);
 }
