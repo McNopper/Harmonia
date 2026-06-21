@@ -35,7 +35,10 @@ file format.
   (`harmonia::createShaderModule`)
 - **Shared Slang modules** — `bsdf_shared.slang` (OpenPBR BSDF utilities: Fujii diffuse,
   GGX, Fresnel, sheen, lobe weight helpers), `env_sample.slang` (pure-parameter CDF
-  env-map importance sampling), `math.slang` (sampling, RNG, GGX helpers), `env.slang`
+  env-map importance sampling), `path_integrator.slang` (renderer-agnostic unidirectional
+  path-integrator surface estimator — emissive/env NEE + MIS + Russian roulette, shared
+  1:1 between Hyperion's path tracer and Theia's RT-GI compute stage via an `ITracer`
+  abstraction), `math.slang` (sampling, RNG, GGX helpers), `env.slang`
   (env-map wrappers); renderers import these via `-I ${HARMONIA_SHADER_SOURCE_DIR}` and
   add renderer-specific code on top — no shader duplication between Hyperion and Theia
 - **Image I/O** — PNG/JPEG load ([OpenImageIO](https://openimageio.readthedocs.io/)),
