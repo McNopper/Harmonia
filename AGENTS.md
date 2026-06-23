@@ -7,7 +7,8 @@ Quick-start context for AI agents so basic facts don't have to be rediscovered e
 **Harmonia** is the shared **Vulkan pipeline library** used 1:1 by both renderers.
 It owns the `harmonia::App` host (windowing, swapchain, offscreen capture, arg parsing),
 the SPIR-V/Slang shader loading (`compile_slang_shaders`, `createShaderModule`), color-space
-utilities, image I/O, tonemapping, and the `harmonia::IRenderer` interface.
+utilities, image I/O, tonemapping, the shared `path_integrator.slang` estimator + denoiser
+stage, and the `harmonia::IRenderer` interface.
 
 Pipeline (dependency direction):
 
@@ -34,7 +35,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--output <file>` / `-o` | **Headless mode**: render N frames, save EXR (untonemapped) + PNG (tonemapped), exit. |
 | `--width <n>` / `--height <n>` | Render resolution. |
 | `--validation` / `--no-validation` | Vulkan validation layers. |
-| `--no-postfx` | Disable SSR/SSAO/bloom. **Required for parity comparisons.** |
+| `--no-postfx` | Disable Theia SSR/SSAO/bloom (legacy postfx). Used for parity comparisons; postfx is redundant now that RT-GI provides reflections/AO. |
 | `--rt-gi` / `--no-rt-gi` | Toggle Theia ray-query GI stage (default on). |
 | `--indirect-ambient <f>` | Indirect ambient strength. |
 | `--ssgi-strength <f>` | SSGI strength. |
@@ -63,7 +64,8 @@ cmake --build build
 cd build; ctest --output-on-failure
 ```
 
-Image I/O currently uses stb + OpenEXR (OpenImageIO migration deferred).
+Image I/O uses OpenImageIO (PNG/JPEG/EXR load+save, EXR chromaticities); OpenEXR/stb are
+transitive dependencies.
 
 ## Conventions
 

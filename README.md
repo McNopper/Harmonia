@@ -75,6 +75,25 @@ cmake --build build
 cd build && ctest --output-on-failure
 ```
 
+## Validation harness
+
+Batch-compare Hyperion references against Theia candidates with:
+
+```bash
+python tools/validate_renders.py <reference_dir> <candidate_dir>
+```
+
+The default scene set lives in `tools/validation_manifest.toml`:
+`cornell_classic`, `cornell_spheres`, `fixture_ibl`, `dragon_teapot`, and
+`furnace_coverage`. Use `--scale-aware` for HDR/transmissive scenes that need
+the relaxed gate from `compare_renders.py`.
+
+To render and compare a whole batch in one go:
+
+```bash
+python tools/render_and_validate.py <hyperion.exe> <theia.exe> <output_root>
+```
+
 ## Shared denoiser stage
 
 The scene pipeline includes a shared denoiser stage before tone mapping (when

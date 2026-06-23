@@ -1,0 +1,26 @@
+[defaults]
+reference_template = "{scene}.exr"
+candidate_template = "{scene}.exr"
+threshold = 4.0
+channel = "luminance"
+scale_aware = ["fixture_ibl", "furnace_coverage"]
+width = 320
+height = 240
+hyperion_spp = 256
+theia_frames = 256
+
+[[scene]]
+name = "cornell_classic"
+
+[[scene]]
+name = "cornell_spheres"
+
+[[scene]]
+name = "fixture_ibl"
+hyperion_spp = 512
+
+[[scene]]
+name = "dragon_teapot"
+
+[[scene]]
+name = "furnace_coverage"
