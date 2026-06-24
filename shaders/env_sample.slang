@@ -11,6 +11,15 @@ static const float kEnvSamplePi    = 3.14159265359;
 static const float kEnvSampleInvPi = 0.31830988618;
 static const float kEnvSampleEps   = 1.0e-6;
 
+/// Equirectangular (lat-long) direction mapping used consistently by Hyperion/Theia env lookups.
+/// u: atan2(z, x) in [0,1), v: acos(y)/pi with v=0 at +Y (top), v=1 at -Y (bottom).
+float2 dirToLatlong(float3 dir)
+{
+    float3 d = normalize(dir);
+    return float2(atan2(d.z, d.x) * (0.5 * kEnvSampleInvPi) + 0.5,
+                  acos(clamp(d.y, -1.0, 1.0)) * kEnvSampleInvPi);
+}
+
 float sanitizePdf(float pdf)
 {
     return (isfinite(pdf) && pdf > 0.0) ? pdf : 0.0;

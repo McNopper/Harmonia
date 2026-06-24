@@ -67,10 +67,7 @@ struct PathState {
 /// Passed-in texture/sampler keep this module free of renderer globals.
 float3 sampleEnvMapLatLong(Texture2D<float4> envMap, SamplerState envSampler, float3 dir)
 {
-    float3 d = normalize(dir);
-    float u = atan2(d.z, d.x) * (0.5 * kInvPi) + 0.5;
-    float v = acos(clamp(d.y, -1.0, 1.0)) * kInvPi;
-    return max(envMap.SampleLevel(envSampler, float2(u, v), 0).xyz, 0.0.xxx);
+    return max(envMap.SampleLevel(envSampler, dirToLatlong(dir), 0).xyz, 0.0.xxx);
 }
 
 /// Detailed environment NEE sample payload so callers can reuse the exact shared
