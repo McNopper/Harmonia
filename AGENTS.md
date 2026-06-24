@@ -35,7 +35,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--output <file>` / `-o` | **Headless mode**: render N frames, save EXR (untonemapped) + PNG (tonemapped), exit. |
 | `--width <n>` / `--height <n>` | Render resolution. |
 | `--validation` / `--no-validation` | Vulkan validation layers. |
-| `--no-postfx` | Disable Theia SSR/SSAO/bloom (legacy postfx). Used for parity comparisons; postfx is redundant now that RT-GI provides reflections/AO. |
+| `--no-postfx` | Deprecated compatibility flag (`postProcess=false`). Theia legacy postfx path has been removed from runtime. |
 | `--rt-gi` / `--no-rt-gi` | Toggle Theia ray-query GI stage (default on). |
 | `--indirect-ambient <f>` | Indirect ambient strength. |
 | `--ssgi-strength <f>` | SSGI strength. |
