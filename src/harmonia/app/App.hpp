@@ -98,9 +98,6 @@ class App {
         uint32_t rngSeed = 0x12345678U;
         /// Optional stochastic debug path switch for renderer-side visualization/tests.
         bool rngDebug = false;
-        /// Diagnostic-only mode: for transparent env taps, use deterministic roughness/ray-cone
-        /// style LOD sampling instead of mip0 (off by default).
-        bool diagTransparentEnvLod = false;
         /// Enable the ray-query global-illumination compute stage (Theia only).
         /// On by default; disable with --no-rt-gi for debugging/baselines.
         bool rtGi = true;
@@ -121,7 +118,7 @@ class App {
     /// --width, --height, --validation, --no-validation, --no-postfx,
     /// --indirect-ambient, --ssgi-strength, --ibl-diffuse-resolution,
     /// --display-overlay, --deterministic-replay, --rng-seed, --rng-debug,
-    /// --diag-transparent-env-lod, --rt-gi, --no-rt-gi, --offscreen-frames, --denoiser-strength,
+    /// --rt-gi, --no-rt-gi, --offscreen-frames, --denoiser-strength,
     /// --denoiser-iterations, --denoiser-history-blend, --denoiser-no-history,
     /// or a bare scene name). Returns true if consumed;
     /// @p i may be advanced.

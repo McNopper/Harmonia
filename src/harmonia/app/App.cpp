@@ -223,10 +223,6 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         config.rngDebug = true;
         return true;
     }
-    if (arg == "--diag-transparent-env-lod") {
-        config.diagTransparentEnvLod = true;
-        return true;
-    }
     if (arg == "--rt-gi") {
         config.rtGi = true;
         return true;

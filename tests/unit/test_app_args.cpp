@@ -67,19 +67,6 @@ TEST(AppArgs, EnablesRngDebugFlag) {
     EXPECT_TRUE(config.rngDebug);
 }
 
-TEST(AppArgs, EnablesTransparentEnvLodDiagnosticFlag) {
-    harmonia::App::Config config;
-    EXPECT_FALSE(config.diagTransparentEnvLod);
-
-    char arg0[] = "app";
-    char arg1[] = "--diag-transparent-env-lod";
-    char* argv[] = {arg0, arg1};
-    int i = 1;
-
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 2, argv));
-    EXPECT_TRUE(config.diagTransparentEnvLod);
-}
-
 TEST(AppArgs, ParsesDenoiserStrengthAndIterations) {
     harmonia::App::Config config;
 
