@@ -63,8 +63,18 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
 
     float4 filtered = center;
     if (gDenoiser.applyHistory == 0u) {
-        // ── Spatial edge-aware bilateral filter (parity-validated) ──────────────
-        const int radius = int(1u + min(uint(round(gDenoiser.strength * 2.0f)), 2u));
+        // ── À-trous wavelet edge-stopping filter (SVGF-style spatial core) ──────
+        // Each iteration keeps a fixed 5-tap (B3-spline) kernel per axis but spaces
+        // the taps by stepSize = 2^passIndex, so the spatial support grows
+        // exponentially across iterations at constant cost. Edge-stopping weights
+        // (normal / depth / luminance) preserve geometry while the widening reach
+        // suppresses low-frequency Monte-Carlo variance (e.g. glass fireflies).
+        // Ref: Dammertz et al., "Edge-Avoiding À-Trous Wavelet Transform for fast
+        //      Global Illumination Filtering" (HPG 2010); Schied et al., SVGF (HPG 2017).
+        const uint stepSize = 1u << min(gDenoiser.passIndex, 6u);
+        // Separable B3-spline kernel weights for tap offsets {-2,-1,0,1,2}.
+        const float kKernel[5] = {0.0625f, 0.25f, 0.375f, 0.25f, 0.0625f};
+
         const float centerLuma = luminance(max(center.xyz, 0.0f.xxx));
         const float3 centerNormal = gDenoiser.hasNormalGuide != 0u
             ? normalize(gNormalGuide.SampleLevel(gNormalGuideSampler, baseUv, 0.0f).xyz * 2.0f.xxx - 1.0f.xxx)
@@ -73,16 +83,20 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
             ? gDepthGuide.SampleLevel(gDepthGuideSampler, baseUv, 0.0f)
             : 0.0f;
 
+        // Edge-stopping sensitivities. Depth/luminance tolerances are loosened at
+        // coarser à-trous levels (divided by stepSize) so wide taps still blend on
+        // gentle gradients while sharp geometry edges stay rejected.
+        const float normalSigma = 20.0f + gDenoiser.strength * 72.0f;
+        const float depthSigma = (16.0f + gDenoiser.strength * 64.0f) / float(stepSize);
+        const float lumaSigma = (1.5f + (1.0f - gDenoiser.strength) * 8.0f) / float(stepSize);
+
         float4 sum = 0.0f.xxxx;
         float totalWeight = 0.0f;
-        const float normalSigma = 20.0f + gDenoiser.strength * 72.0f;
-        const float depthSigma = 16.0f + gDenoiser.strength * 64.0f;
-        const float lumaSigma = 1.5f + (1.0f - gDenoiser.strength) * 8.0f;
-        const float spatialSigma = 0.15f + (1.0f - gDenoiser.strength) * 0.5f;
-
-        for (int y = -radius; y <= radius; ++y) {
-            for (int x = -radius; x <= radius; ++x) {
-                const int2 sampleCoordI = clamp(int2(pixel) + int2(x, y), int2(0, 0), int2(int(width) - 1, int(height) - 1));
+        for (int y = -2; y <= 2; ++y) {
+            for (int x = -2; x <= 2; ++x) {
+                const int2 offset = int2(x, y) * int(stepSize);
+                const int2 sampleCoordI =
+                    clamp(int2(pixel) + offset, int2(0, 0), int2(int(width) - 1, int(height) - 1));
                 const uint2 sampleCoord = uint2(sampleCoordI);
                 const float2 sampleUv = (float2(sampleCoord) + 0.5f.xx) * invExtent;
                 const float4 sampleColor = gInputHdr[sampleCoord];
@@ -94,9 +108,7 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
                 }
 
                 const float sampleLuma = luminance(max(sampleColor.xyz, 0.0f.xxx));
-
-                const float dist2 = float(x * x + y * y);
-                float weight = exp(-dist2 * spatialSigma);
+                float weight = kKernel[x + 2] * kKernel[y + 2];
                 weight *= exp(-abs(sampleLuma - centerLuma) * lumaSigma);
 
                 if (gDenoiser.hasNormalGuide != 0u) {
