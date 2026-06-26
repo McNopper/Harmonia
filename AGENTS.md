@@ -22,6 +22,14 @@ stays renderer-specific (Hyperion = path tracer w/ index buffers + RT; Theia = m
 rasterizer w/ meshlets). GPU-optimized scene upload / instance / meshlet layouts are
 renderer-specific, NOT here.
 
+**Material model = OpenPBR Surface** (Academy Software Foundation). The shared OpenPBR BSDF
+(`shaders/bsdf_shared.slang`) — diffuse (Fujii/EON), F82 conductor Fresnel, GGX specular &
+microfacet transmission BTDF, sheen, lobe weights — is used 1:1 by both renderers. OpenPBR's
+canonical/reference implementation is **MaterialX** (`mx_*` genGLSL nodes); follow OpenPBR
+parameter naming and cross-check against MaterialX. The shared scene-referred estimator is
+`shaders/path_integrator.slang`; the shared denoiser (`shaders/denoiser.slang`) is an à-trous
+wavelet edge-stopping filter + temporal accumulation.
+
 Hyperion/Theia demos are thin subclasses of `harmonia::App` injecting a `harmonia::IRenderer`.
 Shaders load from `*_SHADER_DIR`, never CWD.
 
@@ -37,8 +45,8 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--validation` / `--no-validation` | Vulkan validation layers. |
 | `--no-postfx` | Deprecated compatibility flag (`postProcess=false`). Theia legacy postfx path has been removed from runtime. |
 | `--rt-gi` / `--no-rt-gi` | Toggle Theia ray-query GI stage (default on). |
-| `--indirect-ambient <f>` | Indirect ambient strength. |
-| `--ssgi-strength <f>` | SSGI strength. |
+| `--indirect-ambient <f>` | **Deprecated** (legacy postfx era; parsed but no longer drives the unified path). |
+| `--ssgi-strength <f>` | **Deprecated** (SSGI removed from runtime; parsed for compatibility only). |
 
 ⚠️ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
 
@@ -49,7 +57,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 Contract (all must hold or the number is meaningless):
 - Reference = Hyperion EXR; candidate = Theia EXR. **Pre-tonemap linear EXR**, never PNG.
 - Same resolution, same working color space (same `[render]` preset).
-- Theia rendered with `--no-postfx`. Hyperion has no postfx.
+- Theia's unified RT path is the only path now (legacy postfx removed; `--no-postfx` is a no-op).
 - Pass = `mean_diff <= 4.0` (in 1/255 luminance units).
 - For IBL references, render Hyperion at high spp (`--spp 512`) — a 16 spp reference is
   noisy and inflates `mean_diff`. See Aether/AGENTS.md "16-vs-512 spp trap".
