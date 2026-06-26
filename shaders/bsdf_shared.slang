@@ -211,6 +211,42 @@ float reflectionPdf(float3 wo, float3 wi, float alphaX, float alphaY)
     return pdfM / max(4.0 * VoH, 1.0e-5);
 }
 
+/// Directional albedo of the single-scattering GGX reflection BRDF with F=1 (white-furnace
+/// reflectance), via the MaterialX analytic fit (`mx_ggx_dir_albedo_analytic`). With F0=F90=1
+/// the directional albedo is A+B. Used for GGX multiple-scattering energy compensation.
+/// `alpha` is the GGX roughness² (isotropic; pass sqrt(alphaX*alphaY) for anisotropic).
+/// Ref: MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl
+float ggxDirAlbedo(float NdotV, float alpha)
+{
+    float x = saturate(NdotV), y = saturate(alpha);
+    float x2 = x * x, y2 = y * y;
+    float4 r = float4( 0.1003,  0.9345, 1.0,    1.0   )
+             + float4(-0.6303, -2.323, -1.765,   0.2281) * x
+             + float4( 9.748,   2.229,  8.263,  15.94  ) * y
+             + float4(-2.038,  -3.748, 11.53,  -55.83  ) * x * y
+             + float4(29.34,    1.424, 28.96,   13.08  ) * x2
+             + float4(-8.245,  -0.7684,-7.507,  41.26  ) * y2
+             + float4(-26.44,   1.436,-36.11,   54.9   ) * x2 * y
+             + float4(19.99,    0.2913,15.86,  300.2   ) * x * y2
+             + float4(-5.448,   0.6286,33.37, -285.1   ) * x2 * y2;
+    float2 ab = clamp(r.xy / r.zw, 0.0.xx, 1.0.xx);
+    return saturate(ab.x + ab.y);
+}
+
+/// Multiple-scattering energy-compensation factor for a GGX microfacet lobe (Turquin 2019 /
+/// Kulla-Conty practical form, as used by Filament). The single-scatter lobe loses energy
+/// (1-Ess) to inter-microfacet shadowing; this multiplier adds it back, tinted by F0 to
+/// account for Fresnel absorption on each additional scattering bounce. With F0→1 (mirror
+/// metal) the factor → 1/Ess and the lobe becomes energy-preserving; with small F0
+/// (dielectric specular) the correction is negligible.
+/// Ref: Turquin, "Practical multiple scattering compensation for microfacet models" (2019);
+///      Kulla & Conty, "Revisiting Physically Based Shading at Imageworks" (SIGGRAPH 2017).
+float3 ggxMultiScatterCompensation(float3 F0, float NdotV, float alpha)
+{
+    float Ess = ggxDirAlbedo(NdotV, alpha);
+    return 1.0.xxx + F0 * (1.0 / max(Ess, 1.0e-3) - 1.0);
+}
+
 float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, float alphaX, float alphaY)
 {
     if (wo.z <= 0.0 || wi.z <= 0.0) {
@@ -229,7 +265,10 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
     float D = GGX_D(h, alphaX, alphaY);
     float G = GGX_G2(wi, wo, alphaX, alphaY);
     float3 F = fresnelF82(F0, F82, VoH);
-    return (D * G / max(4.0 * NoL * NoV, 1.0e-5)) * F;
+    float3 single = (D * G / max(4.0 * NoL * NoV, 1.0e-5)) * F;
+    // GGX multiple-scattering energy compensation (recovers energy lost at high roughness).
+    float alpha = sqrt(max(alphaX * alphaY, 1.0e-8));
+    return single * ggxMultiScatterCompensation(F0, NoV, alpha);
 }
 
 // ─── A2: GGX VNDF specular dielectric microfacet BTDF (OpenPBR-correct) ───
