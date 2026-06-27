@@ -79,17 +79,109 @@ void computeAlpha(float roughness, float anisotropy, out float alphaX, out float
     alphaY = max(alphaY, 0.001);
 }
 
-float3 thinFilmTint(float3 baseColor, float cosTheta, float thickness, float eta, float weight)
+// ─── OpenPBR 1.1 thin-film iridescence (Belcour & Barla, SIGGRAPH 2017) ───
+// Spec model for the OpenPBR `thin_film` lobe, identical to MaterialX `mx_fresnel_airy`.
+// A thin dielectric film over the base produces wavelength-dependent interference
+// (Airy summation). This F0-driven adaptation (Schlick interfaces, base IOR recovered
+// from F0) is the standard engine port (Filament/Blender), giving a deterministic
+// spectral-to-RGB reflectance with no LUT.
+// Refs: Belcour & Barla, "A Practical Extension to Microfacet Theory for the Modeling
+//       of Varying Iridescence" (ACM TOG 2017); OpenPBR Surface v1.1 thin_film lobe.
+
+/// XYZ spectral integration via the Belcour Gaussian-fit colour-matching sensitivity,
+/// returned already converted to linear sRGB (Rec.709) so the achromatic DC reflectance
+/// term can be summed directly in render space.
+float3 thinFilmEvalSensitivity(float opd, float3 shift)
 {
-    if (thickness <= 0.0 || eta <= 1.0 || weight <= 0.0) {
-        return baseColor;
+    float phase = 2.0 * kPi * opd * 1.0e-9;
+    float3 val = float3(5.4856e-13, 4.4201e-13, 5.2481e-13);
+    float3 pos = float3(1.6810e+06, 1.7953e+06, 2.2084e+06);
+    float3 var = float3(4.3278e+09, 9.3046e+09, 6.6121e+09);
+    float3 xyz = val * sqrt(2.0 * kPi * var) * cos(pos * phase + shift) * exp(-var * phase * phase);
+    xyz.x += 9.7470e-14 * sqrt(2.0 * kPi * 4.5282e+09) * cos(2.2399e+06 * phase + shift.x)
+           * exp(-4.5282e+09 * phase * phase);
+    xyz /= 1.0685e-7;
+    // XYZ → linear sRGB (Rec.709, D65).
+    return float3(
+        dot(float3( 3.2404542, -1.5371385, -0.4985314), xyz),
+        dot(float3(-0.9692660,  1.8760108,  0.0415560), xyz),
+        dot(float3( 0.0556434, -0.2040259,  1.0572252), xyz));
+}
+
+/// Recover the (real) base IOR from a normal-incidence reflectance F0.
+float3 fresnel0ToIor(float3 f0)
+{
+    float3 s = sqrt(clamp(f0, 0.0.xxx, 0.9999.xxx));
+    return (1.0.xxx + s) / max(1.0.xxx - s, 1.0e-4.xxx);
+}
+
+float thinFilmSchlick(float f0, float cosT) { return f0 + (1.0 - f0) * pow(saturate(1.0 - cosT), 5.0); }
+float3 thinFilmSchlick3(float3 f0, float cosT) { return f0 + (1.0.xxx - f0) * pow(saturate(1.0 - cosT), 5.0); }
+
+/// Belcour-Barla iridescent reflectance for a thin film over a base of reflectance `baseF0`.
+/// `thicknessNm` is the physical film thickness in nm; `filmIor` the film IOR.
+/// Returns linear Rec.709 RGB reflectance. Reduces to Schlick(baseF0) when thickness→0.
+float3 thinFilmIridescentReflectance(float3 baseF0, float cosTheta1, float thicknessNm, float filmIor)
+{
+    const float outsideIor = 1.0;
+    float eta2 = max(filmIor, outsideIor);
+    cosTheta1 = saturate(cosTheta1);
+
+    // Refraction angle inside the film (Snell).
+    float sinTheta2Sq = sqr(outsideIor / eta2) * max(0.0, 1.0 - sqr(cosTheta1));
+    if (sinTheta2Sq >= 1.0) {
+        return thinFilmSchlick3(baseF0, cosTheta1); // grazing TIR — fall back to base Fresnel
+    }
+    float cosTheta2 = sqrt(1.0 - sinTheta2Sq);
+
+    // Interface 1: air → film (scalar dielectric Schlick + phase).
+    float R0 = sqr((outsideIor - eta2) / (outsideIor + eta2));
+    float R12 = thinFilmSchlick(R0, cosTheta1);
+    float T121 = 1.0 - R12;
+    float phi21 = kPi - ((eta2 < outsideIor) ? kPi : 0.0); // air is rarer ⇒ phi12=0 ⇒ phi21=π
+
+    // Interface 2: film → base (per-channel Schlick from base IOR + phase).
+    float3 baseIor = fresnel0ToIor(baseF0);
+    float3 d23 = (float3(eta2, eta2, eta2) - baseIor) / (float3(eta2, eta2, eta2) + baseIor);
+    float3 R1 = d23 * d23;
+    float3 R23 = thinFilmSchlick3(R1, cosTheta2);
+    float3 phi23 = float3(baseIor.x < eta2 ? kPi : 0.0,
+                          baseIor.y < eta2 ? kPi : 0.0,
+                          baseIor.z < eta2 ? kPi : 0.0);
+
+    // Optical path difference and total phase.
+    float opd = 2.0 * eta2 * max(thicknessNm, 0.0) * cosTheta2;
+    float3 phi = float3(phi21, phi21, phi21) + phi23;
+
+    // Airy summation (Belcour eq. 9–11).
+    float3 R123 = clamp(R12 * R23, 1.0e-5.xxx, 0.9999.xxx);
+    float3 r123 = sqrt(R123);
+    float3 Rs = (T121 * T121) * R23 / (1.0.xxx - R123);
+
+    float3 I = float3(R12, R12, R12) + Rs;          // m = 0 (DC term)
+    float3 Cm = Rs - float3(T121, T121, T121);
+    [unroll]
+    for (int m = 1; m <= 2; ++m) {
+        Cm *= r123;
+        float3 Sm = 2.0 * thinFilmEvalSensitivity(float(m) * opd, float(m) * phi);
+        I += Cm * Sm;
     }
 
-    float3 wavelengths = float3(680.0, 550.0, 440.0);
-    float3 phase = (4.0 * kPi * eta * thickness * max(cosTheta, 0.05)) / wavelengths;
-    float3 iridescence = 0.5 + 0.5 * cos(phase);
-    float blend = saturate(weight * saturate(thickness / 1200.0));
-    return saturate3(lerp(baseColor, baseColor * (0.35 + 0.65 * iridescence), blend));
+    // I is already in linear sRGB (Rec.709): DC reflectance summed with sRGB-converted
+    // spectral terms. Clamp out-of-gamut negatives.
+    return max(I, 0.0.xxx);
+}
+
+/// Backward-compatible helper for paths that modulate a normal-incidence reflectance F0
+/// (e.g. the legacy split-sum IBL fallback): blends F0 toward the Belcour iridescent
+/// reflectance evaluated at `cosTheta`. Returns F0 unchanged when thin-film is inactive.
+float3 thinFilmTint(float3 baseF0, float cosTheta, float thicknessNm, float filmIor, float weight)
+{
+    if (weight <= 0.0 || thicknessNm <= 0.0) {
+        return baseF0;
+    }
+    float3 irid = thinFilmIridescentReflectance(baseF0, cosTheta, thicknessNm, max(filmIor, 1.0));
+    return saturate3(lerp(baseF0, irid, saturate(weight)));
 }
 
 /// Generalized-Schlick conductor Fresnel with F82-tint, per the OpenPBR Surface spec.
@@ -247,7 +339,10 @@ float3 ggxMultiScatterCompensation(float3 F0, float NdotV, float alpha)
     return 1.0.xxx + F0 * (1.0 / max(Ess, 1.0e-3) - 1.0);
 }
 
-float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, float alphaX, float alphaY)
+/// Core microfacet reflection eval with a caller-supplied angular Fresnel `F` (already
+/// evaluated at VoH). Applies GGX D·G/(4·NoL·NoV)·F plus multiple-scattering compensation
+/// keyed on F0. Shared by the plain-Fresnel and thin-film wrappers below.
+float3 evalReflectionMicrofacetWithFresnel(float3 F, float3 F0, float3 wo, float3 wi, float alphaX, float alphaY)
 {
     if (wo.z <= 0.0 || wi.z <= 0.0) {
         return 0.0.xxx;
@@ -264,11 +359,40 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
 
     float D = GGX_D(h, alphaX, alphaY);
     float G = GGX_G2(wi, wo, alphaX, alphaY);
-    float3 F = fresnelF82(F0, F82, VoH);
     float3 single = (D * G / max(4.0 * NoL * NoV, 1.0e-5)) * F;
     // GGX multiple-scattering energy compensation (recovers energy lost at high roughness).
     float alpha = sqrt(max(alphaX * alphaY, 1.0e-8));
     return single * ggxMultiScatterCompensation(F0, NoV, alpha);
+}
+
+float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, float alphaX, float alphaY)
+{
+    if (wo.z <= 0.0 || wi.z <= 0.0) {
+        return 0.0.xxx;
+    }
+    float3 h = normalize(wo + wi);
+    float VoH = saturate(dot(wo, h));
+    float3 F = fresnelF82(F0, F82, VoH);
+    return evalReflectionMicrofacetWithFresnel(F, F0, wo, wi, alphaX, alphaY);
+}
+
+/// Microfacet reflection with the OpenPBR thin-film lobe: blends the base F82 Fresnel with
+/// the Belcour-Barla iridescent reflectance by `tfWeight`. Evaluated at the microfacet
+/// half-angle VoH so iridescence tracks the actual reflection geometry.
+float3 evalReflectionMicrofacetThinFilm(float3 F0, float3 F82, float3 wo, float3 wi, float alphaX, float alphaY,
+                                        float tfThicknessNm, float tfIor, float tfWeight)
+{
+    if (wo.z <= 0.0 || wi.z <= 0.0) {
+        return 0.0.xxx;
+    }
+    float3 h = normalize(wo + wi);
+    float VoH = saturate(dot(wo, h));
+    float3 F = fresnelF82(F0, F82, VoH);
+    if (tfWeight > 0.0 && tfThicknessNm > 0.0) {
+        float3 Firid = thinFilmIridescentReflectance(F0, VoH, tfThicknessNm, max(tfIor, 1.0));
+        F = lerp(F, Firid, saturate(tfWeight));
+    }
+    return evalReflectionMicrofacetWithFresnel(F, F0, wo, wi, alphaX, alphaY);
 }
 
 // ─── A2: GGX VNDF specular dielectric microfacet BTDF (OpenPBR-correct) ───
