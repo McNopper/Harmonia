@@ -33,8 +33,10 @@ file format.
 - **Shader toolchain** — the `compile_slang_shaders` CMake rule (Slang → SPIR-V at build
   time, used identically by Harmonia, Hyperion and Theia) and the shared SPIR-V loader
   (`harmonia::createShaderModule`)
-- **Shared Slang modules** — `bsdf_shared.slang` (OpenPBR BSDF utilities: Fujii diffuse,
-  GGX, Fresnel, sheen, lobe weight helpers), `env_sample.slang` (pure-parameter CDF
+- **Shared Slang modules** — `bsdf_shared.slang` (OpenPBR Surface BSDF: Fujii diffuse,
+  GGX + Turquin/Kulla-Conty MS compensation, F82 conductor Fresnel, MaterialX-faithful
+  `mx_fresnel_airy` thin-film with complex-IOR conductor phase, sheen, lobe weight helpers),
+  `env_sample.slang` (pure-parameter CDF
   env-map importance sampling), `path_integrator.slang` (renderer-agnostic unidirectional
   path-integrator surface estimator — emissive/env NEE + MIS + Russian roulette, shared
   1:1 between Hyperion's path tracer and Theia's RT-GI compute stage via an `ITracer`
@@ -43,7 +45,10 @@ file format.
   add renderer-specific code on top — no shader duplication between Hyperion and Theia
 - **Image I/O** — PNG/JPEG load ([OpenImageIO](https://openimageio.readthedocs.io/)),
   EXR load/save with chromaticities (OpenImageIO, OpenEXR transitively); textures and
-  IBL probes are colour-space-converted on load
+  IBL probes are colour-space-converted on load. Offscreen capture writes a scene-referred
+  EXR plus a tone-mapped sRGB PNG produced by running the **same GPU ToneMapper stage as the
+  interactive window** (`App::tonemapToCaptureImage` → `ImageCapture::saveSdrPng`), so
+  screenshots match the live view regardless of the window's negotiated HDR/SDR swapchain
 
 It does **not** contain a renderer or a renderer's GPU scene. Hyperion provides the
 offline path tracer, Theia the real-time forward renderer; both demos are thin
