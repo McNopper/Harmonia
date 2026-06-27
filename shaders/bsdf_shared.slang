@@ -79,118 +79,21 @@ void computeAlpha(float roughness, float anisotropy, out float alphaX, out float
     alphaY = max(alphaY, 0.001);
 }
 
-// ─── OpenPBR 1.1 thin-film iridescence (Belcour & Barla, SIGGRAPH 2017) ───
-// Spec model for the OpenPBR `thin_film` lobe, identical to MaterialX `mx_fresnel_airy`.
-// A thin dielectric film over the base produces wavelength-dependent interference
-// (Airy summation). This F0-driven adaptation (Schlick interfaces, base IOR recovered
-// from F0) is the standard engine port (Filament/Blender), giving a deterministic
-// spectral-to-RGB reflectance with no LUT.
-// Refs: Belcour & Barla, "A Practical Extension to Microfacet Theory for the Modeling
-//       of Varying Iridescence" (ACM TOG 2017); OpenPBR Surface v1.1 thin_film lobe.
+// ─── OpenPBR 1.1.1 thin-film iridescence — faithful MaterialX mx_fresnel_airy port ───
+// Spec model for the OpenPBR `thin_film` lobe (Belcour & Barla 2017), ported 1:1 from
+// MaterialX `mx_fresnel_airy`: a full s/p-polarized Airy summation with the spectral
+// Gaussian sensitivity, supporting BOTH a Schlick (F0/F82) dielectric base AND a
+// CONDUCTOR base with complex IOR (n,k). The metal lobe uses the true conductor phase
+// (mx_fresnel_conductor_phase_polarized); a real-IOR approximation cannot reproduce the
+// vivid anodized-metal colour shift, so (n,k) is recovered from the artist-friendly
+// (reflectivity, edge-tint) parameters via Gulbrandsen 2014 (`mxArtisticIor`).
+// Refs: Belcour & Barla, ACM TOG 2017; OpenPBR Surface v1.1.1 §thin_film;
+//       MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl.
 
-/// XYZ spectral integration via the Belcour Gaussian-fit colour-matching sensitivity,
-/// returned already converted to linear sRGB (Rec.709) so the achromatic DC reflectance
-/// term can be summed directly in render space.
-float3 thinFilmEvalSensitivity(float opd, float3 shift)
-{
-    float phase = 2.0 * kPi * opd * 1.0e-9;
-    float3 val = float3(5.4856e-13, 4.4201e-13, 5.2481e-13);
-    float3 pos = float3(1.6810e+06, 1.7953e+06, 2.2084e+06);
-    float3 var = float3(4.3278e+09, 9.3046e+09, 6.6121e+09);
-    float3 xyz = val * sqrt(2.0 * kPi * var) * cos(pos * phase + shift) * exp(-var * phase * phase);
-    xyz.x += 9.7470e-14 * sqrt(2.0 * kPi * 4.5282e+09) * cos(2.2399e+06 * phase + shift.x)
-           * exp(-4.5282e+09 * phase * phase);
-    xyz /= 1.0685e-7;
-    // XYZ → linear sRGB (Rec.709, D65).
-    return float3(
-        dot(float3( 3.2404542, -1.5371385, -0.4985314), xyz),
-        dot(float3(-0.9692660,  1.8760108,  0.0415560), xyz),
-        dot(float3( 0.0556434, -0.2040259,  1.0572252), xyz));
-}
-
-/// Recover the (real) base IOR from a normal-incidence reflectance F0.
-float3 fresnel0ToIor(float3 f0)
-{
-    float3 s = sqrt(clamp(f0, 0.0.xxx, 0.9999.xxx));
-    return (1.0.xxx + s) / max(1.0.xxx - s, 1.0e-4.xxx);
-}
-
-float thinFilmSchlick(float f0, float cosT) { return f0 + (1.0 - f0) * pow(saturate(1.0 - cosT), 5.0); }
-float3 thinFilmSchlick3(float3 f0, float cosT) { return f0 + (1.0.xxx - f0) * pow(saturate(1.0 - cosT), 5.0); }
-
-/// Belcour-Barla iridescent reflectance for a thin film over a base of reflectance `baseF0`.
-/// `thicknessNm` is the physical film thickness in nm; `filmIor` the film IOR.
-/// Returns linear Rec.709 RGB reflectance. Reduces to Schlick(baseF0) when thickness→0.
-float3 thinFilmIridescentReflectance(float3 baseF0, float cosTheta1, float thicknessNm, float filmIor)
-{
-    const float outsideIor = 1.0;
-    float eta2 = max(filmIor, outsideIor);
-    cosTheta1 = saturate(cosTheta1);
-
-    // Refraction angle inside the film (Snell).
-    float sinTheta2Sq = sqr(outsideIor / eta2) * max(0.0, 1.0 - sqr(cosTheta1));
-    if (sinTheta2Sq >= 1.0) {
-        return thinFilmSchlick3(baseF0, cosTheta1); // grazing TIR — fall back to base Fresnel
-    }
-    float cosTheta2 = sqrt(1.0 - sinTheta2Sq);
-
-    // Interface 1: air → film (scalar dielectric Schlick + phase).
-    float R0 = sqr((outsideIor - eta2) / (outsideIor + eta2));
-    float R12 = thinFilmSchlick(R0, cosTheta1);
-    float T121 = 1.0 - R12;
-    float phi21 = kPi - ((eta2 < outsideIor) ? kPi : 0.0); // air is rarer ⇒ phi12=0 ⇒ phi21=π
-
-    // Interface 2: film → base (per-channel Schlick from base IOR + phase).
-    float3 baseIor = fresnel0ToIor(baseF0);
-    float3 d23 = (float3(eta2, eta2, eta2) - baseIor) / (float3(eta2, eta2, eta2) + baseIor);
-    float3 R1 = d23 * d23;
-    float3 R23 = thinFilmSchlick3(R1, cosTheta2);
-    float3 phi23 = float3(baseIor.x < eta2 ? kPi : 0.0,
-                          baseIor.y < eta2 ? kPi : 0.0,
-                          baseIor.z < eta2 ? kPi : 0.0);
-
-    // Optical path difference and total phase.
-    float opd = 2.0 * eta2 * max(thicknessNm, 0.0) * cosTheta2;
-    float3 phi = float3(phi21, phi21, phi21) + phi23;
-
-    // Airy summation (Belcour eq. 9–11).
-    float3 R123 = clamp(R12 * R23, 1.0e-5.xxx, 0.9999.xxx);
-    float3 r123 = sqrt(R123);
-    float3 Rs = (T121 * T121) * R23 / (1.0.xxx - R123);
-
-    float3 I = float3(R12, R12, R12) + Rs;          // m = 0 (DC term)
-    float3 Cm = Rs - float3(T121, T121, T121);
-    [unroll]
-    for (int m = 1; m <= 2; ++m) {
-        Cm *= r123;
-        float3 Sm = 2.0 * thinFilmEvalSensitivity(float(m) * opd, float(m) * phi);
-        I += Cm * Sm;
-    }
-
-    // I is already in linear sRGB (Rec.709): DC reflectance summed with sRGB-converted
-    // spectral terms. Clamp out-of-gamut negatives.
-    return max(I, 0.0.xxx);
-}
-
-/// Backward-compatible helper for paths that modulate a normal-incidence reflectance F0
-/// (e.g. the legacy split-sum IBL fallback): blends F0 toward the Belcour iridescent
-/// reflectance evaluated at `cosTheta`. Returns F0 unchanged when thin-film is inactive.
-float3 thinFilmTint(float3 baseF0, float cosTheta, float thicknessNm, float filmIor, float weight)
-{
-    if (weight <= 0.0 || thicknessNm <= 0.0) {
-        return baseF0;
-    }
-    float3 irid = thinFilmIridescentReflectance(baseF0, cosTheta, thicknessNm, max(filmIor, 1.0));
-    return saturate3(lerp(baseF0, irid, saturate(weight)));
-}
-
-/// Generalized-Schlick conductor Fresnel with F82-tint, per the OpenPBR Surface spec.
-///   F_Schlick(μ) = F0 + (1 - F0)(1 - μ)^5
-///   F_82(μ)      = F_Schlick(μ) - [μ(1-μ)^6 / (μ̄(1-μ̄)^6)] · [F_Schlick(μ̄) - F(μ̄)]
-/// with μ̄ = 1/7 (the ~82° peak-deviation angle) and F(μ̄) = F82 · F_Schlick(μ̄),
-/// so the bracketed numerator reduces to F_Schlick(μ̄)·(1 - F82).
+/// Generalized-Schlick conductor Fresnel with F82-tint (OpenPBR Surface spec).
 ///   F0  = reflectance at normal incidence (base_color for metals)
 ///   F82 = tint at the 82° grazing peak  (specular_color)
+/// Declared here so the thin-film Schlick base below can reuse it.
 float3 fresnelF82(float3 F0, float3 F82, float cosTheta)
 {
     const float muBar = 1.0 / 7.0;
@@ -201,6 +104,207 @@ float3 fresnelF82(float3 F0, float3 F82, float cosTheta)
     float3 fSchlick = F0 + (1.0 - F0) * pow(1.0 - mu, 5.0);
     return saturate3(fSchlick - a * mu * pow(1.0 - mu, 6.0));
 }
+
+/// "Artist Friendly Metallic Fresnel" (Gulbrandsen 2014): map a reflectivity (F0) and
+/// edge tint (F82) to a complex index of refraction (n, k) for the conductor Airy base.
+void mxArtisticIor(float3 reflectivity, float3 edgeColor, out float3 ior, out float3 extinction)
+{
+    float3 r = clamp(reflectivity, 0.0.xxx, 0.99.xxx);
+    float3 rSqrt = sqrt(r);
+    float3 nMin = (1.0.xxx - r) / (1.0.xxx + r);
+    float3 nMax = (1.0.xxx + rSqrt) / max(1.0.xxx - rSqrt, float3(1.0e-4, 1.0e-4, 1.0e-4));
+    ior = lerp(nMax, nMin, saturate3(edgeColor));
+    float3 np1 = ior + 1.0.xxx;
+    float3 nm1 = ior - 1.0.xxx;
+    float3 k2 = (np1 * np1 * r - nm1 * nm1) / max(1.0.xxx - r, float3(1.0e-4, 1.0e-4, 1.0e-4));
+    extinction = sqrt(max(k2, 0.0.xxx));
+}
+
+/// Polarized dielectric Fresnel (Rp, Rs) for a real relative IOR.
+void thinFilmFresnelDielectricPolarized(float cosTheta, float ior, out float Rp, out float Rs)
+{
+    float c2 = saturate(cosTheta) * saturate(cosTheta);
+    float s2 = 1.0 - c2;
+    float t0 = max(ior * ior - s2, 0.0);
+    float t1 = t0 + c2;
+    float t2 = 2.0 * sqrt(t0) * cosTheta;
+    Rs = (t1 - t2) / max(t1 + t2, 1.0e-6);
+    float t3 = c2 * t0 + s2 * s2;
+    float t4 = t2 * s2;
+    Rp = Rs * (t3 - t4) / max(t3 + t4, 1.0e-6);
+}
+
+/// Polarized conductor Fresnel (Rp, Rs) for relative complex IOR (n, k).
+void thinFilmFresnelConductorPolarized(float cosTheta, float3 n, float3 k, out float3 Rp, out float3 Rs)
+{
+    float c2 = saturate(cosTheta) * saturate(cosTheta);
+    float s2 = 1.0 - c2;
+    float3 n2 = n * n;
+    float3 k2 = k * k;
+    float3 t0 = n2 - k2 - float3(s2, s2, s2);
+    float3 a2b2 = sqrt(max(t0 * t0 + 4.0 * n2 * k2, 0.0.xxx));
+    float3 t1 = a2b2 + float3(c2, c2, c2);
+    float3 a = sqrt(max(0.5 * (a2b2 + t0), 0.0.xxx));
+    float3 t2 = 2.0 * a * cosTheta;
+    Rs = (t1 - t2) / max(t1 + t2, float3(1.0e-6, 1.0e-6, 1.0e-6));
+    float3 t3 = c2 * a2b2 + float3(s2 * s2, s2 * s2, s2 * s2);
+    float3 t4 = t2 * s2;
+    Rp = Rs * (t3 - t4) / max(t3 + t4, float3(1.0e-6, 1.0e-6, 1.0e-6));
+}
+
+/// Reflection phase shift (phiP, phiS) at a film→conductor interface (Belcour 2017).
+void thinFilmConductorPhasePolarized(float cosTheta, float eta1, float3 eta2, float3 kappa2,
+                                     out float3 phiP, out float3 phiS)
+{
+    float3 k2 = kappa2 / eta2;
+    float s2 = 1.0 - cosTheta * cosTheta;
+    float3 A = eta2 * eta2 * (1.0.xxx - k2 * k2) - (eta1 * eta1) * float3(s2, s2, s2);
+    float3 twoE2k2 = 2.0 * eta2 * eta2 * k2;
+    float3 B = sqrt(max(A * A + twoE2k2 * twoE2k2, 0.0.xxx));
+    float3 U = sqrt(max(0.5 * (A + B), 0.0.xxx));
+    float3 V = max(0.0.xxx, sqrt(max(0.5 * (B - A), 0.0.xxx)));
+    float e1c = eta1 * cosTheta;
+    phiS = atan2(2.0 * eta1 * V * cosTheta, U * U + V * V - float3(e1c * e1c, e1c * e1c, e1c * e1c));
+    float3 e22c = eta2 * eta2 * cosTheta;
+    float3 num = 2.0 * eta1 * e22c * (2.0 * k2 * U - (1.0.xxx - k2 * k2) * V);
+    float3 t = eta2 * eta2 * (1.0.xxx + k2 * k2) * cosTheta;
+    float3 den = t * t - (eta1 * eta1) * (U * U + V * V);
+    phiP = atan2(num, den);
+}
+
+/// Belcour Gaussian-fit colour-matching sensitivity (returns XYZ; `opd` in metres).
+float3 thinFilmSensitivity(float opd, float3 shift)
+{
+    float phase = 2.0 * kPi * opd;
+    float3 val = float3(5.4856e-13, 4.4201e-13, 5.2481e-13);
+    float3 pos = float3(1.6810e+06, 1.7953e+06, 2.2084e+06);
+    float3 var = float3(4.3278e+09, 9.3046e+09, 6.6121e+09);
+    float3 xyz = val * sqrt(2.0 * kPi * var) * cos(pos * phase + shift) * exp(-var * phase * phase);
+    xyz.x += 9.7470e-14 * sqrt(2.0 * kPi * 4.5282e+09) * cos(2.2399e+06 * phase + shift.x)
+           * exp(-4.5282e+09 * phase * phase);
+    return xyz / 1.0685e-7;
+}
+
+/// XYZ → CIE RGB (neutral E illuminant), matching MaterialX mx_fresnel_airy.
+float3 thinFilmXyzToRgb(float3 v)
+{
+    return float3(
+        dot(float3( 2.3706743, -0.9000405, -0.4706338), v),
+        dot(float3(-0.5138850,  1.4253036,  0.0885814), v),
+        dot(float3( 0.0052982, -0.0146949,  1.0093968), v));
+}
+
+/// Recover the (real) base IOR from a normal-incidence reflectance F0.
+float3 fresnel0ToIor(float3 f0)
+{
+    float3 s = sqrt(clamp(f0, 0.0.xxx, 0.9999.xxx));
+    return (1.0.xxx + s) / max(1.0.xxx - s, 1.0e-4.xxx);
+}
+
+/// Full Airy iridescent reflectance for a thin film over a base — faithful to MaterialX
+/// mx_fresnel_airy. `isConductor` selects the complex-IOR conductor base (n,k) versus the
+/// Schlick (F0/F82) dielectric base. Returns linear RGB reflectance.
+float3 thinFilmAiry(float cosTheta, bool isConductor, float3 F0, float3 F82,
+                    float3 nCond, float3 kCond, float tfThicknessNm, float tfIor)
+{
+    float eta1 = 1.0;
+    float eta2 = max(tfIor, eta1);
+    float ct = saturate(cosTheta);
+    float cosTtSq = 1.0 - (1.0 - ct * ct) * (eta1 / eta2) * (eta1 / eta2);
+    bool tir = (cosTtSq <= 0.0);
+    float cosTt = sqrt(max(cosTtSq, 0.0));
+
+    // First interface (air → film), polarized dielectric.
+    float R12p, R12s;
+    thinFilmFresnelDielectricPolarized(ct, eta2 / eta1, R12p, R12s);
+    if (tir) { R12p = 1.0; R12s = 1.0; }
+    float T121p = 1.0 - R12p;
+    float T121s = 1.0 - R12s;
+
+    // Second interface (film → base): conductor (n,k) or Schlick dielectric.
+    float3 R23p, R23s, phi23p, phi23s;
+    if (isConductor) {
+        thinFilmFresnelConductorPolarized(cosTt, nCond / eta2, kCond / eta2, R23p, R23s);
+        thinFilmConductorPhasePolarized(cosTt, eta2, nCond, kCond, phi23p, phi23s);
+    } else {
+        float3 f = 0.5 * fresnelF82(F0, F82, cosTt);
+        R23p = f;
+        R23s = f;
+        float3 eta3 = fresnel0ToIor(F0);
+        phi23p = float3(eta3.x < eta2 ? kPi : 0.0, eta3.y < eta2 ? kPi : 0.0, eta3.z < eta2 ? kPi : 0.0);
+        phi23s = phi23p;
+    }
+
+    // First-interface phase shift (p flips past Brewster; s is always π).
+    float cosB = cos(atan(eta2 / eta1));
+    float phi21p = (ct < cosB) ? 0.0 : kPi;
+    float phi21s = kPi;
+
+    float3 r123p = sqrt(max(float3(R12p, R12p, R12p) * R23p, 0.0.xxx));
+    float3 r123s = sqrt(max(float3(R12s, R12s, R12s) * R23s, 0.0.xxx));
+
+    float opd = 2.0 * eta2 * cosTt * max(tfThicknessNm, 0.0) * 1.0e-9; // metres
+
+    float3 I = 0.0.xxx;
+    float3 Cm, Sm;
+
+    // Parallel polarization.
+    float3 Rsp = (T121p * T121p * R23p) / max(1.0.xxx - float3(R12p, R12p, R12p) * R23p, float3(1.0e-4, 1.0e-4, 1.0e-4));
+    I += float3(R12p, R12p, R12p) + Rsp;
+    Cm = Rsp - float3(T121p, T121p, T121p);
+    [unroll]
+    for (int m = 1; m <= 2; ++m) {
+        Cm *= r123p;
+        Sm = 2.0 * thinFilmSensitivity(float(m) * opd, float(m) * (phi23p + float3(phi21p, phi21p, phi21p)));
+        I += Cm * Sm;
+    }
+
+    // Perpendicular polarization.
+    float3 Rss = (T121s * T121s * R23s) / max(1.0.xxx - float3(R12s, R12s, R12s) * R23s, float3(1.0e-4, 1.0e-4, 1.0e-4));
+    I += float3(R12s, R12s, R12s) + Rss;
+    Cm = Rss - float3(T121s, T121s, T121s);
+    [unroll]
+    for (int m = 1; m <= 2; ++m) {
+        Cm *= r123s;
+        Sm = 2.0 * thinFilmSensitivity(float(m) * opd, float(m) * (phi23s + float3(phi21s, phi21s, phi21s)));
+        I += Cm * Sm;
+    }
+
+    I *= 0.5; // average the two polarizations
+    return saturate3(thinFilmXyzToRgb(I));
+}
+
+/// OpenPBR thin-film Fresnel for the glossy base: the Schlick (dielectric) and conductor
+/// (metal) Airy reflectances blended by metalness — matching OpenPBR's outer
+/// lerp(dielectric_brdf, conductor_brdf, base_metalness).
+float3 thinFilmFresnel(float metalness, float3 dielectricF0, float3 baseColor, float3 F82,
+                       float cosTheta, float tfThicknessNm, float tfIor)
+{
+    float ior = max(tfIor, 1.0);
+    float3 schlick = thinFilmAiry(cosTheta, false, dielectricF0, F82, 0.0.xxx, 0.0.xxx, tfThicknessNm, ior);
+    if (metalness <= 0.0) {
+        return schlick;
+    }
+    float3 n, k;
+    mxArtisticIor(baseColor, F82, n, k);
+    float3 conductor = thinFilmAiry(cosTheta, true, baseColor, F82, n, k, tfThicknessNm, ior);
+    return lerp(schlick, conductor, saturate(metalness));
+}
+
+/// Backward-compatible helper for the legacy split-sum IBL fallback (raster GI-off path):
+/// modulates a normal-incidence reflectance F0 toward the (Schlick-base) Airy reflectance.
+/// Returns F0 unchanged when thin-film is inactive.
+float3 thinFilmTint(float3 baseF0, float cosTheta, float thicknessNm, float filmIor, float weight)
+{
+    if (weight <= 0.0 || thicknessNm <= 0.0) {
+        return baseF0;
+    }
+    float3 irid = thinFilmAiry(cosTheta, false, baseF0, 1.0.xxx, 0.0.xxx, 0.0.xxx, thicknessNm, max(filmIor, 1.0));
+    return saturate3(lerp(baseF0, irid, saturate(weight)));
+}
+
+/// Generalized-Schlick conductor Fresnel with F82-tint is defined above (moved earlier so
+/// the thin-film Schlick base can reuse it).
 
 // Fujii improved Oren-Nayar constants.
 // Ref: https://mimosa-pudica.net/improved-oren-nayar.html
@@ -376,23 +480,27 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
     return evalReflectionMicrofacetWithFresnel(F, F0, wo, wi, alphaX, alphaY);
 }
 
-/// Microfacet reflection with the OpenPBR thin-film lobe: blends the base F82 Fresnel with
-/// the Belcour-Barla iridescent reflectance by `tfWeight`. Evaluated at the microfacet
-/// half-angle VoH so iridescence tracks the actual reflection geometry.
-float3 evalReflectionMicrofacetThinFilm(float3 F0, float3 F82, float3 wo, float3 wi, float alphaX, float alphaY,
+/// Microfacet reflection with the OpenPBR thin-film lobe. The base glossy Fresnel is
+/// lerp(dielectricF0, baseColor, metalness); thin-film replaces it with the metalness-blend
+/// of the Schlick (dielectric) and conductor (metal) Airy reflectances, weighted by tfWeight.
+/// Evaluated at the microfacet half-angle VoH so iridescence tracks the reflection geometry.
+float3 evalReflectionMicrofacetThinFilm(float3 dielectricF0, float3 baseColor, float3 F82, float metalness,
+                                        float3 wo, float3 wi, float alphaX, float alphaY,
                                         float tfThicknessNm, float tfIor, float tfWeight)
 {
     if (wo.z <= 0.0 || wi.z <= 0.0) {
         return 0.0.xxx;
     }
+    float m = saturate(metalness);
+    float3 glossyF0 = lerp(dielectricF0, baseColor, m);
     float3 h = normalize(wo + wi);
     float VoH = saturate(dot(wo, h));
-    float3 F = fresnelF82(F0, F82, VoH);
+    float3 F = fresnelF82(glossyF0, F82, VoH);
     if (tfWeight > 0.0 && tfThicknessNm > 0.0) {
-        float3 Firid = thinFilmIridescentReflectance(F0, VoH, tfThicknessNm, max(tfIor, 1.0));
-        F = lerp(F, Firid, saturate(tfWeight));
+        float3 Ftf = thinFilmFresnel(m, dielectricF0, baseColor, F82, VoH, tfThicknessNm, max(tfIor, 1.0));
+        F = lerp(F, Ftf, saturate(tfWeight));
     }
-    return evalReflectionMicrofacetWithFresnel(F, F0, wo, wi, alphaX, alphaY);
+    return evalReflectionMicrofacetWithFresnel(F, glossyF0, wo, wi, alphaX, alphaY);
 }
 
 // ─── A2: GGX VNDF specular dielectric microfacet BTDF (OpenPBR-correct) ───
