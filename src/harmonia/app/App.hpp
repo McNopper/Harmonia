@@ -230,6 +230,10 @@ class App {
     [[nodiscard]] bool createHdrImage();
     [[nodiscard]] bool createDenoisedImage();
     [[nodiscard]] bool createToneMapper();
+    /// Offscreen capture: run the shared GPU display stages (ToneMapper) into the
+    /// display-format capture image so a screenshot matches the interactive window
+    /// exactly (same tonemapper, same math). Returns false on failure.
+    [[nodiscard]] bool tonemapToCaptureImage();
     void rebuildStagePipeline();
     void applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig);
     [[nodiscard]] bool hasTonemapStage() const noexcept;
@@ -249,8 +253,10 @@ class App {
     Swapchain m_swapchain{};
     Descriptors m_descriptors{};
     ToneMapper m_toneMapper{};
+    ToneMapper m_captureToneMapper{}; // offscreen-only: SDR 8-bit pipeline for PNG capture
     Image m_hdrImage{};
     Image m_denoisedImage{};
+    Image m_displayCaptureImage{}; // offscreen-only: SDR sRGB target for the GPU ToneMapper
     std::vector<std::unique_ptr<IRenderPass>> m_sceneStages;
     std::vector<std::unique_ptr<IRenderPass>> m_displayStages;
     bool m_sceneOutputUsesDenoised = false;

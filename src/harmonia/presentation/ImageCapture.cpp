@@ -178,4 +178,65 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
     return true;
 }
 
+bool saveSdrPng(const DeviceContext& ctx,
+                const CommandPool& pool,
+                const Image& sdrImage,
+                const std::filesystem::path& path,
+                bool swapRB) {
+    if (!ctx.isValid() || !sdrImage.isValid()) {
+        return false;
+    }
+    vkDeviceWaitIdle(ctx.device);
+
+    const uint32_t width = sdrImage.extent().width;
+    const uint32_t height = sdrImage.extent().height;
+    const VkDeviceSize byteSize = static_cast<VkDeviceSize>(width) * height * 4U; // 8-bit RGBA
+
+    auto readback = Buffer::create(
+        ctx, byteSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "harmonia.sdr.readback");
+    if (!readback) {
+        return false;
+    }
+
+    auto cmd = pool.beginOneShot();
+    if (!cmd) {
+        return false;
+    }
+    // The capture image is left in TRANSFER_SRC_OPTIMAL by the offscreen tonemap pass.
+    const VkBufferImageCopy region{
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+        .imageOffset = {0, 0, 0},
+        .imageExtent = {width, height, 1},
+    };
+    vkCmdCopyImageToBuffer(
+        *cmd, sdrImage.handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback->handle(), 1, &region);
+    if (pool.endOneShot(*cmd) != VK_SUCCESS) {
+        return false;
+    }
+
+    const auto* src = static_cast<const uint8_t*>(readback->mappedData());
+    std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 3U);
+    for (size_t i = 0; i < static_cast<size_t>(width) * height; ++i) {
+        const uint8_t c0 = src[i * 4U + 0];
+        const uint8_t c2 = src[i * 4U + 2];
+        pixels[i * 3U + 0] = swapRB ? c2 : c0;
+        pixels[i * 3U + 1] = src[i * 4U + 1];
+        pixels[i * 3U + 2] = swapRB ? c0 : c2;
+    }
+
+    OIIO::ImageSpec spec(static_cast<int>(width), static_cast<int>(height), 3, OIIO::TypeDesc::UINT8);
+    auto out = OIIO::ImageOutput::create(path.string());
+    if (!out || !out->open(path.string(), spec)) {
+        Logger::error("ImageCapture::saveSdrPng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        return false;
+    }
+    out->write_image(OIIO::TypeDesc::UINT8, pixels.data());
+    out->close();
+    Logger::info("Saved tone-mapped PNG (GPU tonemapper) to {}", path.string());
+    return true;
+}
+
 } // namespace ImageCapture

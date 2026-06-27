@@ -35,4 +35,15 @@ bool saveExr(const DeviceContext& ctx,
              const std::filesystem::path& path,
              ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020);
 
+// Writes an already display-referred, tone-mapped 8-bit image (the output of the GPU
+// ToneMapper display stage, e.g. an RGBA8/BGRA8 sRGB capture target) straight to an 8-bit
+// RGB PNG with no further tone mapping. This is how offscreen capture matches the interactive
+// window exactly: both go through the same GPU ToneMapper. `swapRB` handles BGRA swapchains.
+// The image must be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL-capable GENERAL on entry.
+bool saveSdrPng(const DeviceContext& ctx,
+                const CommandPool& pool,
+                const Image& sdrImage,
+                const std::filesystem::path& path,
+                bool swapRB);
+
 } // namespace ImageCapture
