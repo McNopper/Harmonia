@@ -64,9 +64,9 @@ namespace {
                                      std::max(p.transmission_dispersion_abbe_number, 1.0f));
     g.transmissionScatter = glm::vec4(p.transmission_scatter, p.transmission_scatter_anisotropy);
 
-    // Subsurface
+    // Subsurface: GpuMaterial packs the per-channel scale in xyz, scalar radius in w.
     g.subsurfaceColorWeight = glm::vec4(cc(p.subsurface_color), p.subsurface_weight);
-    g.subsurfaceRadiusScale = glm::vec4(p.subsurface_radius, p.subsurface_scale);
+    g.subsurfaceRadiusScale = glm::vec4(p.subsurface_radius_scale, p.subsurface_radius);
 
     // Texture indices (filled by SceneLoader later; sentinel = kNoTexture)
     g.textureIndices = glm::uvec4(kNoTexture);
@@ -92,7 +92,7 @@ namespace {
     // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
     const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
     g.opacityFlagsPad = glm::vec4(
-        std::clamp(p.opacity, 0.0f, 1.0f), flags, p.subsurface_scatter_anisotropy, p.thin_walled ? 1.0f : 0.0f);
+        std::clamp(p.geometry_opacity, 0.0f, 1.0f), flags, p.subsurface_scatter_anisotropy, p.geometry_thin_walled ? 1.0f : 0.0f);
 
     return Material::fromGpu(g, p.emission_as_light_source);
 }
