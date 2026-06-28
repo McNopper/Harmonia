@@ -35,7 +35,8 @@ file format.
   (`harmonia::createShaderModule`)
 - **Shared Slang modules** — `bsdf_shared.slang` (OpenPBR Surface BSDF: Fujii diffuse,
   GGX + Turquin/Kulla-Conty MS compensation, F82 conductor Fresnel, MaterialX-faithful
-  `mx_fresnel_airy` thin-film with complex-IOR conductor phase, sheen, lobe weight helpers),
+  `mx_fresnel_airy` thin-film with complex-IOR conductor phase, Zeltner LTC sheen, lobe
+  weight helpers),
   `env_sample.slang` (pure-parameter CDF
   env-map importance sampling), `path_integrator.slang` (renderer-agnostic unidirectional
   path-integrator surface estimator — emissive/env NEE + MIS + Russian roulette, shared

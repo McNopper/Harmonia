@@ -377,18 +377,82 @@ float3 diffuseColorDirAlbedo(float cosTheta, float roughness, float3 color)
     return lerp(colorMS, color, dAlbedo);
 }
 
+// ── OpenPBR sheen — Zeltner et al. 2022 ──────────────────────────────────────────────────
+// "Practical Multiple-Scattering Sheen Using Linearly Transformed Cosines" — the OpenPBR-
+// specified fuzz model (replacing the older Disney retroreflective sheen). Faithful port of
+// MaterialX `mx_microfacet_sheen.glsl`: the LTC matrix coefficients and the sheen directional
+// albedo are CLOSED-FORM rational/Gaussian fits, so NO precomputed LUT is required.
+// Refs: https://github.com/tizian/ltc-sheen ;
+//       MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_sheen.glsl
+
+/// Gaussian fit to the Zeltner sheen directional-albedo table. Drives both the sheen lobe
+/// magnitude and the physically-correct (view-dependent) attenuation of the layers below it.
+float sheenDirAlbedo(float cosTheta, float roughness)
+{
+    float x = saturate(cosTheta);
+    float y = clamp(roughness, 0.01, 1.0);
+    float s = y * (0.0206607 + 1.58491 * y) / (0.0379424 + y * (1.32227 + y));
+    float m = y * (-0.193854 + y * (-1.14885 + y * (1.7932 - 0.95943 * y * y))) / (0.046391 + y);
+    float o = y * (0.000654023 + (-0.0207818 + 0.119681 * y) * y) / (1.26264 + y * (-1.92021 + y));
+    return saturate(exp(-0.5 * sqr((x - m) / s)) / (s * sqrt(2.0 * kPi)) + o);
+}
+
+/// Rational fits to the inverse LTC matrix coefficients
+/// (M^-1 = [[aInv, 0, bInv], [0, aInv, 0], [0, 0, 1]]).
+float sheenLtcAInv(float cosTheta, float roughness)
+{
+    float x = cosTheta, y = roughness;
+    return (2.58126 * x + 0.813703 * y) * y / (1.0 + 0.310327 * x * x + 2.60994 * x * y);
+}
+
+float sheenLtcBInv(float cosTheta, float roughness)
+{
+    float x = cosTheta, y = roughness;
+    return safeSqrt(1.0 - x) * (y - 1.0) * y * y * y
+         / (0.0000254053 + 1.71228 * x - 1.71506 * x * y + 1.34174 * y * y);
+}
+
+/// Zeltner LTC sheen BRDF×cosine in the local shading frame (N = +Z). An LTC fits BRDF·cosθ
+/// to a transformed clamped-cosine, so the returned value ALREADY includes the N·L cosine.
+float zeltnerSheenBrdfCos(float3 wo, float3 wi, float roughness)
+{
+    float NdotV = clamp(wo.z, 1.0e-4, 1.0);
+
+    // Tangent in the plane of V and N (= +Z) to orient the LTC lobe; cross(N, X) = (-X.y, X.x, 0).
+    float3 w;
+    float3 Xax = float3(wo.x, wo.y, 0.0);
+    float lenSq = dot(Xax, Xax);
+    if (lenSq > 1.0e-8) {
+        Xax *= rsqrt(lenSq);
+        float3 Yax = float3(-Xax.y, Xax.x, 0.0);
+        w = float3(dot(Xax, wi), dot(Yax, wi), wi.z);
+    } else {
+        w = wi; // V == N: any orthonormal basis works.
+    }
+
+    float aInv = sheenLtcAInv(NdotV, roughness);
+    float bInv = sheenLtcBInv(NdotV, roughness);
+
+    // wo' = M^-1 · w (back to the clamped-cosine configuration).
+    float3 wo2 = float3(aInv * w.x + bInv * w.z, aInv * w.y, w.z);
+    float l2 = dot(wo2, wo2);
+    float Do = max(wo2.z, 0.0) * kInvPi;       // clamped-cosine PDF
+    return Do * sqr(aInv / max(l2, 1.0e-8));   // Do(wo') · |M^-1| / ||M^-1·w||^4
+}
+
+/// OpenPBR fuzz/sheen lobe. Returns the BRDF WITHOUT the cosine (our eval convention — the
+/// integrator multiplies by N·L), so the LTC's built-in cosine is divided back out. The lobe
+/// is scaled by its directional albedo for energy conservation; the same factor attenuates the
+/// layers beneath the fuzz (see `baseLayerScale` in each renderer's evalBSDF).
 float3 evalSheen(float3 color, float roughness, float3 wo, float3 wi)
 {
     if (wo.z <= 0.0 || wi.z <= 0.0) {
         return 0.0.xxx;
     }
-
-    float3 h = normalize(wo + wi);
-    float fd90 = 0.5 + 2.0 * roughness * sqr(saturate(dot(wi, h)));
-    float viewScatter = 1.0 + (fd90 - 1.0) * pow(1.0 - wi.z, 5.0);
-    float lightScatter = 1.0 + (fd90 - 1.0) * pow(1.0 - wo.z, 5.0);
-    float retro = pow(1.0 - saturate(dot(wi, h)), 5.0);
-    return color * kInvPi * viewScatter * lightScatter * (0.25 + 0.75 * retro);
+    float r = clamp(roughness, 0.01, 1.0);
+    float dirAlbedo = sheenDirAlbedo(wo.z, r);
+    float brdfCos = zeltnerSheenBrdfCos(wo, wi, r);
+    return color * dirAlbedo * brdfCos / max(wi.z, 1.0e-4);
 }
 
 float reflectionPdf(float3 wo, float3 wi, float alphaX, float alphaY)
