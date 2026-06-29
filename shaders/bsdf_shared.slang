@@ -544,6 +544,37 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
     return evalReflectionMicrofacetWithFresnel(F, F0, wo, wi, alphaX, alphaY);
 }
 
+// ── OpenPBR layer stacking — directional-albedo coupling (spec §"layer") ─────────────────
+// OpenPBR composites layers as R_out = R_top + (1 - E_top(ωo)) · R_base, NOT a linear blend, so
+// the substrate is attenuated by the top layer's view-dependent directional albedo E_top and
+// total energy never exceeds 1. These helpers return that E_top for the coat and specular layers
+// (Fresnel-weighted GGX albedo), so each lower lobe can be scaled by (1 - E_above). Replaces the
+// old crude `rcp(coatEta²)` coat-darkening. Ref: OpenPBR Surface v1.1.1 "Coat"/"layer";
+// MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl directional-albedo coupling.
+
+/// Directional albedo (white-furnace reflectance) of a Fresnel-weighted GGX lobe with normal-
+/// incidence reflectance F0: E ≈ F0 + (1-F0)·Ess(NoV). This is the fraction of energy the layer
+/// reflects (and thus removes from the substrate beneath it).
+float fresnelGgxDirAlbedo(float NdotV, float f0, float alpha)
+{
+    float Ess = mx_ggx_dir_albedo(NdotV, alpha);
+    return saturate(f0 + (1.0 - f0) * Ess);
+}
+
+/// Substrate transmittance through the clear coat: (1 - coat_weight · E_coat(NoV)). coatEta gives
+/// the coat F0; alpha its roughness. Internal-reflection darkening (coat_darkening) tints what
+/// returns. This is the OpenPBR-correct replacement for the rcp(coatEta²) approximation.
+float coatBaseTransmittance(float NdotV, float coatWeight, float coatEta, float coatAlpha)
+{
+    if (coatWeight <= 0.0) {
+        return 1.0;
+    }
+    float c = (coatEta - 1.0) / (coatEta + 1.0);
+    float coatF0 = c * c;
+    float E = fresnelGgxDirAlbedo(NdotV, coatF0, coatAlpha);
+    return saturate(1.0 - coatWeight * E);
+}
+
 /// Microfacet reflection with the OpenPBR thin-film lobe. The base glossy Fresnel is
 /// lerp(dielectricF0, baseColor, metalness); thin-film replaces it with the metalness-blend
 /// of the Schlick (dielectric) and conductor (metal) Airy reflectances, weighted by tfWeight.
