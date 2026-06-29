@@ -562,13 +562,14 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
 // old crude `rcp(coatEta²)` coat-darkening. Ref: OpenPBR Surface v1.1.1 "Coat"/"layer";
 // MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl directional-albedo coupling.
 
-/// Directional albedo (white-furnace reflectance) of a Fresnel-weighted GGX lobe with normal-
-/// incidence reflectance F0: E ≈ F0 + (1-F0)·Ess(NoV). This is the fraction of energy the layer
-/// reflects (and thus removes from the substrate beneath it).
+/// Directional albedo (reflectance) of a Fresnel-weighted GGX lobe with normal-incidence
+/// reflectance F0. For a dielectric this stays ≈F0 head-on and rises to 1 at grazing (Schlick
+/// directional Fresnel); it is the fraction of energy the layer removes from the substrate. NOT
+/// the F=1 GGX albedo (that would over-darken a dielectric base to black at high roughness).
 float fresnelGgxDirAlbedo(float NdotV, float f0, float alpha)
 {
-    float Ess = mx_ggx_dir_albedo(NdotV, alpha);
-    return saturate(f0 + (1.0 - f0) * Ess);
+    float fc = pow(1.0 - saturate(NdotV), 5.0);
+    return saturate(f0 + (1.0 - f0) * fc);
 }
 
 /// Substrate transmittance through the clear coat: (1 - coat_weight · E_coat(NoV)). coatEta gives
