@@ -86,7 +86,7 @@ void computeAlpha(float roughness, float anisotropy, out float alphaX, out float
 // CONDUCTOR base with complex IOR (n,k). The metal lobe uses the true conductor phase
 // (mx_fresnel_conductor_phase_polarized); a real-IOR approximation cannot reproduce the
 // vivid anodized-metal colour shift, so (n,k) is recovered from the artist-friendly
-// (reflectivity, edge-tint) parameters via Gulbrandsen 2014 (`mxArtisticIor`).
+// (reflectivity, edge-tint) parameters via Gulbrandsen 2014 (`mx_artistic_ior`).
 // Refs: Belcour & Barla, ACM TOG 2017; OpenPBR Surface v1.1.1 §thin_film;
 //       MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl.
 
@@ -94,7 +94,7 @@ void computeAlpha(float roughness, float anisotropy, out float alphaX, out float
 ///   F0  = reflectance at normal incidence (base_color for metals)
 ///   F82 = tint at the 82° grazing peak  (specular_color)
 /// Declared here so the thin-film Schlick base below can reuse it.
-float3 fresnelF82(float3 F0, float3 F82, float cosTheta)
+float3 mx_fresnel_F82(float3 F0, float3 F82, float cosTheta)
 {
     const float muBar = 1.0 / 7.0;
     const float denom = muBar * pow(1.0 - muBar, 6.0); // μ̄(1-μ̄)^6
@@ -107,7 +107,7 @@ float3 fresnelF82(float3 F0, float3 F82, float cosTheta)
 
 /// "Artist Friendly Metallic Fresnel" (Gulbrandsen 2014): map a reflectivity (F0) and
 /// edge tint (F82) to a complex index of refraction (n, k) for the conductor Airy base.
-void mxArtisticIor(float3 reflectivity, float3 edgeColor, out float3 ior, out float3 extinction)
+void mx_artistic_ior(float3 reflectivity, float3 edgeColor, out float3 ior, out float3 extinction)
 {
     float3 r = clamp(reflectivity, 0.0.xxx, 0.99.xxx);
     float3 rSqrt = sqrt(r);
@@ -121,7 +121,7 @@ void mxArtisticIor(float3 reflectivity, float3 edgeColor, out float3 ior, out fl
 }
 
 /// Polarized dielectric Fresnel (Rp, Rs) for a real relative IOR.
-void thinFilmFresnelDielectricPolarized(float cosTheta, float ior, out float Rp, out float Rs)
+void mx_fresnel_dielectric_polarized(float cosTheta, float ior, out float Rp, out float Rs)
 {
     float c2 = saturate(cosTheta) * saturate(cosTheta);
     float s2 = 1.0 - c2;
@@ -135,7 +135,7 @@ void thinFilmFresnelDielectricPolarized(float cosTheta, float ior, out float Rp,
 }
 
 /// Polarized conductor Fresnel (Rp, Rs) for relative complex IOR (n, k).
-void thinFilmFresnelConductorPolarized(float cosTheta, float3 n, float3 k, out float3 Rp, out float3 Rs)
+void mx_fresnel_conductor_polarized(float cosTheta, float3 n, float3 k, out float3 Rp, out float3 Rs)
 {
     float c2 = saturate(cosTheta) * saturate(cosTheta);
     float s2 = 1.0 - c2;
@@ -153,7 +153,7 @@ void thinFilmFresnelConductorPolarized(float cosTheta, float3 n, float3 k, out f
 }
 
 /// Reflection phase shift (phiP, phiS) at a film→conductor interface (Belcour 2017).
-void thinFilmConductorPhasePolarized(float cosTheta, float eta1, float3 eta2, float3 kappa2,
+void mx_fresnel_conductor_phase_polarized(float cosTheta, float eta1, float3 eta2, float3 kappa2,
                                      out float3 phiP, out float3 phiS)
 {
     float3 k2 = kappa2 / eta2;
@@ -173,7 +173,7 @@ void thinFilmConductorPhasePolarized(float cosTheta, float eta1, float3 eta2, fl
 }
 
 /// Belcour Gaussian-fit colour-matching sensitivity (returns XYZ; `opd` in metres).
-float3 thinFilmSensitivity(float opd, float3 shift)
+float3 mx_eval_sensitivity(float opd, float3 shift)
 {
     float phase = 2.0 * kPi * opd;
     float3 val = float3(5.4856e-13, 4.4201e-13, 5.2481e-13);
@@ -186,7 +186,7 @@ float3 thinFilmSensitivity(float opd, float3 shift)
 }
 
 /// XYZ → CIE RGB (neutral E illuminant), matching MaterialX mx_fresnel_airy.
-float3 thinFilmXyzToRgb(float3 v)
+float3 mx_xyz_to_rgb(float3 v)
 {
     return float3(
         dot(float3( 2.3706743, -0.9000405, -0.4706338), v),
@@ -195,7 +195,7 @@ float3 thinFilmXyzToRgb(float3 v)
 }
 
 /// Recover the (real) base IOR from a normal-incidence reflectance F0.
-float3 fresnel0ToIor(float3 f0)
+float3 mx_f0_to_ior(float3 f0)
 {
     float3 s = sqrt(clamp(f0, 0.0.xxx, 0.9999.xxx));
     return (1.0.xxx + s) / max(1.0.xxx - s, 1.0e-4.xxx);
@@ -204,7 +204,7 @@ float3 fresnel0ToIor(float3 f0)
 /// Full Airy iridescent reflectance for a thin film over a base — faithful to MaterialX
 /// mx_fresnel_airy. `isConductor` selects the complex-IOR conductor base (n,k) versus the
 /// Schlick (F0/F82) dielectric base. Returns linear RGB reflectance.
-float3 thinFilmAiry(float cosTheta, bool isConductor, float3 F0, float3 F82,
+float3 mx_fresnel_airy(float cosTheta, bool isConductor, float3 F0, float3 F82,
                     float3 nCond, float3 kCond, float tfThicknessNm, float tfIor)
 {
     float eta1 = 1.0;
@@ -216,7 +216,7 @@ float3 thinFilmAiry(float cosTheta, bool isConductor, float3 F0, float3 F82,
 
     // First interface (air → film), polarized dielectric.
     float R12p, R12s;
-    thinFilmFresnelDielectricPolarized(ct, eta2 / eta1, R12p, R12s);
+    mx_fresnel_dielectric_polarized(ct, eta2 / eta1, R12p, R12s);
     if (tir) { R12p = 1.0; R12s = 1.0; }
     float T121p = 1.0 - R12p;
     float T121s = 1.0 - R12s;
@@ -224,13 +224,13 @@ float3 thinFilmAiry(float cosTheta, bool isConductor, float3 F0, float3 F82,
     // Second interface (film → base): conductor (n,k) or Schlick dielectric.
     float3 R23p, R23s, phi23p, phi23s;
     if (isConductor) {
-        thinFilmFresnelConductorPolarized(cosTt, nCond / eta2, kCond / eta2, R23p, R23s);
-        thinFilmConductorPhasePolarized(cosTt, eta2, nCond, kCond, phi23p, phi23s);
+        mx_fresnel_conductor_polarized(cosTt, nCond / eta2, kCond / eta2, R23p, R23s);
+        mx_fresnel_conductor_phase_polarized(cosTt, eta2, nCond, kCond, phi23p, phi23s);
     } else {
-        float3 f = 0.5 * fresnelF82(F0, F82, cosTt);
+        float3 f = 0.5 * mx_fresnel_F82(F0, F82, cosTt);
         R23p = f;
         R23s = f;
-        float3 eta3 = fresnel0ToIor(F0);
+        float3 eta3 = mx_f0_to_ior(F0);
         phi23p = float3(eta3.x < eta2 ? kPi : 0.0, eta3.y < eta2 ? kPi : 0.0, eta3.z < eta2 ? kPi : 0.0);
         phi23s = phi23p;
     }
@@ -255,7 +255,7 @@ float3 thinFilmAiry(float cosTheta, bool isConductor, float3 F0, float3 F82,
     [unroll]
     for (int m = 1; m <= 2; ++m) {
         Cm *= r123p;
-        Sm = 2.0 * thinFilmSensitivity(float(m) * opd, float(m) * (phi23p + float3(phi21p, phi21p, phi21p)));
+        Sm = 2.0 * mx_eval_sensitivity(float(m) * opd, float(m) * (phi23p + float3(phi21p, phi21p, phi21p)));
         I += Cm * Sm;
     }
 
@@ -266,12 +266,12 @@ float3 thinFilmAiry(float cosTheta, bool isConductor, float3 F0, float3 F82,
     [unroll]
     for (int m = 1; m <= 2; ++m) {
         Cm *= r123s;
-        Sm = 2.0 * thinFilmSensitivity(float(m) * opd, float(m) * (phi23s + float3(phi21s, phi21s, phi21s)));
+        Sm = 2.0 * mx_eval_sensitivity(float(m) * opd, float(m) * (phi23s + float3(phi21s, phi21s, phi21s)));
         I += Cm * Sm;
     }
 
     I *= 0.5; // average the two polarizations
-    return saturate3(thinFilmXyzToRgb(I));
+    return saturate3(mx_xyz_to_rgb(I));
 }
 
 /// OpenPBR thin-film Fresnel for the glossy base: the Schlick (dielectric) and conductor
@@ -281,13 +281,13 @@ float3 thinFilmFresnel(float metalness, float3 dielectricF0, float3 baseColor, f
                        float cosTheta, float tfThicknessNm, float tfIor)
 {
     float ior = max(tfIor, 1.0);
-    float3 schlick = thinFilmAiry(cosTheta, false, dielectricF0, F82, 0.0.xxx, 0.0.xxx, tfThicknessNm, ior);
+    float3 schlick = mx_fresnel_airy(cosTheta, false, dielectricF0, F82, 0.0.xxx, 0.0.xxx, tfThicknessNm, ior);
     if (metalness <= 0.0) {
         return schlick;
     }
     float3 n, k;
-    mxArtisticIor(baseColor, F82, n, k);
-    float3 conductor = thinFilmAiry(cosTheta, true, baseColor, F82, n, k, tfThicknessNm, ior);
+    mx_artistic_ior(baseColor, F82, n, k);
+    float3 conductor = mx_fresnel_airy(cosTheta, true, baseColor, F82, n, k, tfThicknessNm, ior);
     return lerp(schlick, conductor, saturate(metalness));
 }
 
@@ -299,7 +299,7 @@ float3 thinFilmTint(float3 baseF0, float cosTheta, float thicknessNm, float film
     if (weight <= 0.0 || thicknessNm <= 0.0) {
         return baseF0;
     }
-    float3 irid = thinFilmAiry(cosTheta, false, baseF0, 1.0.xxx, 0.0.xxx, 0.0.xxx, thicknessNm, max(filmIor, 1.0));
+    float3 irid = mx_fresnel_airy(cosTheta, false, baseF0, 1.0.xxx, 0.0.xxx, 0.0.xxx, thicknessNm, max(filmIor, 1.0));
     return saturate3(lerp(baseF0, irid, saturate(weight)));
 }
 
@@ -387,7 +387,7 @@ float3 diffuseColorDirAlbedo(float cosTheta, float roughness, float3 color)
 
 /// Gaussian fit to the Zeltner sheen directional-albedo table. Drives both the sheen lobe
 /// magnitude and the physically-correct (view-dependent) attenuation of the layers below it.
-float sheenDirAlbedo(float cosTheta, float roughness)
+float mx_zeltner_sheen_dir_albedo(float cosTheta, float roughness)
 {
     float x = saturate(cosTheta);
     float y = clamp(roughness, 0.01, 1.0);
@@ -399,13 +399,13 @@ float sheenDirAlbedo(float cosTheta, float roughness)
 
 /// Rational fits to the inverse LTC matrix coefficients
 /// (M^-1 = [[aInv, 0, bInv], [0, aInv, 0], [0, 0, 1]]).
-float sheenLtcAInv(float cosTheta, float roughness)
+float mx_zeltner_sheen_ltc_aInv(float cosTheta, float roughness)
 {
     float x = cosTheta, y = roughness;
     return (2.58126 * x + 0.813703 * y) * y / (1.0 + 0.310327 * x * x + 2.60994 * x * y);
 }
 
-float sheenLtcBInv(float cosTheta, float roughness)
+float mx_zeltner_sheen_ltc_bInv(float cosTheta, float roughness)
 {
     float x = cosTheta, y = roughness;
     return safeSqrt(1.0 - x) * (y - 1.0) * y * y * y
@@ -414,7 +414,7 @@ float sheenLtcBInv(float cosTheta, float roughness)
 
 /// Zeltner LTC sheen BRDF×cosine in the local shading frame (N = +Z). An LTC fits BRDF·cosθ
 /// to a transformed clamped-cosine, so the returned value ALREADY includes the N·L cosine.
-float zeltnerSheenBrdfCos(float3 wo, float3 wi, float roughness)
+float mx_zeltner_sheen_brdf(float3 wo, float3 wi, float roughness)
 {
     float NdotV = clamp(wo.z, 1.0e-4, 1.0);
 
@@ -430,8 +430,8 @@ float zeltnerSheenBrdfCos(float3 wo, float3 wi, float roughness)
         w = wi; // V == N: any orthonormal basis works.
     }
 
-    float aInv = sheenLtcAInv(NdotV, roughness);
-    float bInv = sheenLtcBInv(NdotV, roughness);
+    float aInv = mx_zeltner_sheen_ltc_aInv(NdotV, roughness);
+    float bInv = mx_zeltner_sheen_ltc_bInv(NdotV, roughness);
 
     // wo' = M^-1 · w (back to the clamped-cosine configuration).
     float3 wo2 = float3(aInv * w.x + bInv * w.z, aInv * w.y, w.z);
@@ -450,8 +450,8 @@ float3 evalSheen(float3 color, float roughness, float3 wo, float3 wi)
         return 0.0.xxx;
     }
     float r = clamp(roughness, 0.01, 1.0);
-    float dirAlbedo = sheenDirAlbedo(wo.z, r);
-    float brdfCos = zeltnerSheenBrdfCos(wo, wi, r);
+    float dirAlbedo = mx_zeltner_sheen_dir_albedo(wo.z, r);
+    float brdfCos = mx_zeltner_sheen_brdf(wo, wi, r);
     return color * dirAlbedo * brdfCos / max(wi.z, 1.0e-4);
 }
 
@@ -476,7 +476,7 @@ float reflectionPdf(float3 wo, float3 wi, float alphaX, float alphaY)
 /// the directional albedo is A+B. Used for GGX multiple-scattering energy compensation.
 /// `alpha` is the GGX roughness² (isotropic; pass sqrt(alphaX*alphaY) for anisotropic).
 /// Ref: MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl
-float ggxDirAlbedo(float NdotV, float alpha)
+float mx_ggx_dir_albedo(float NdotV, float alpha)
 {
     float x = saturate(NdotV), y = saturate(alpha);
     float x2 = x * x, y2 = y * y;
@@ -503,7 +503,7 @@ float ggxDirAlbedo(float NdotV, float alpha)
 ///      Kulla & Conty, "Revisiting Physically Based Shading at Imageworks" (SIGGRAPH 2017).
 float3 ggxMultiScatterCompensation(float3 F0, float NdotV, float alpha)
 {
-    float Ess = ggxDirAlbedo(NdotV, alpha);
+    float Ess = mx_ggx_dir_albedo(NdotV, alpha);
     return 1.0.xxx + F0 * (1.0 / max(Ess, 1.0e-3) - 1.0);
 }
 
@@ -540,7 +540,7 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
     }
     float3 h = normalize(wo + wi);
     float VoH = saturate(dot(wo, h));
-    float3 F = fresnelF82(F0, F82, VoH);
+    float3 F = mx_fresnel_F82(F0, F82, VoH);
     return evalReflectionMicrofacetWithFresnel(F, F0, wo, wi, alphaX, alphaY);
 }
 
@@ -559,7 +559,7 @@ float3 evalReflectionMicrofacetThinFilm(float3 dielectricF0, float3 baseColor, f
     float3 glossyF0 = lerp(dielectricF0, baseColor, m);
     float3 h = normalize(wo + wi);
     float VoH = saturate(dot(wo, h));
-    float3 F = fresnelF82(glossyF0, F82, VoH);
+    float3 F = mx_fresnel_F82(glossyF0, F82, VoH);
     if (tfWeight > 0.0 && tfThicknessNm > 0.0) {
         float3 Ftf = thinFilmFresnel(m, dielectricF0, baseColor, F82, VoH, tfThicknessNm, max(tfIor, 1.0));
         F = lerp(F, Ftf, saturate(tfWeight));
