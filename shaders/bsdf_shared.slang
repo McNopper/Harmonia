@@ -507,6 +507,16 @@ float3 ggxMultiScatterCompensation(float3 F0, float NdotV, float alpha)
     return 1.0.xxx + F0 * (1.0 / max(Ess, 1.0e-3) - 1.0);
 }
 
+/// Multiple-scattering energy-compensation factor for the rough dielectric transmission BTDF.
+/// The single-scatter lobe transmits only Ess of the energy (the rest is lost to shadowing);
+/// scale by 1/Ess so rough glass stops losing energy. Dielectric (no F0 tint) → near-achromatic.
+/// Ref: Turquin 2019; Kulla-Conty 2017 (dielectric variant). Caller multiplies the BTDF by this.
+float ggxTransmissionMultiScatterCompensation(float NdotV, float alpha)
+{
+    float Ess = mx_ggx_dir_albedo(NdotV, alpha);
+    return 1.0 / max(Ess, 1.0e-3);
+}
+
 /// Core microfacet reflection eval with a caller-supplied angular Fresnel `F` (already
 /// evaluated at VoH). Applies GGX D·G/(4·NoL·NoV)·F plus multiple-scattering compensation
 /// keyed on F0. Shared by the plain-Fresnel and thin-film wrappers below.
@@ -621,6 +631,12 @@ float3 evalTransmissionMicrofacet(float3 color, float depth, float eta, float al
     float G = GGX_G2(wi, wo, alphaX, alphaY);
     float denom = 4.0 * abs(wo.z) * abs(wi.z);
     float3 f_specular = (D * G / max(denom, 1.0e-5)) * (1.0 - F);
+
+    // Multiple-scattering compensation: a rough dielectric BTDF loses energy (1-Ess) to inter-
+    // microfacet shadowing exactly like the reflection lobe (Step 2). Recover it with the same
+    // Turquin/Kulla-Conty 1/Ess boost so rough glass stops darkening. Ref: Turquin 2019.
+    float msAlpha = sqrt(max(alphaX * alphaY, 1.0e-8));
+    f_specular *= ggxTransmissionMultiScatterCompensation(abs(wo.z), msAlpha);
 
     // Beer–Lambert absorption via transmission_depth + transmission_color
     float3 absorption = exp(-max(depth, 0.001) * (1.0.xxx - saturate3(color)));
