@@ -18,9 +18,6 @@ struct BSDFSample {
     float  mediumEta;    ///< relative IOR of the medium's dielectric boundary (specular_ior)
 };
 
-/// Minimum specular weight — F0 at normal incidence for common dielectrics (~4 %).
-static const float kMinSpecularF0 = 0.04;
-
 float3 saturate3(float3 v)
 {
     return clamp(v, 0.0.xxx, 1.0.xxx);
@@ -692,20 +689,6 @@ float fresnelGgxDirAlbedo(float NdotV, float f0, float alpha)
     return saturate(f0 + (1.0 - f0) * fc);
 }
 
-/// Substrate transmittance through the clear coat: (1 - coat_weight · E_coat(NoV)). coatEta gives
-/// the coat F0; alpha its roughness. Internal-reflection darkening (coat_darkening) tints what
-/// returns. This is the OpenPBR-correct replacement for the rcp(coatEta²) approximation.
-float coatBaseTransmittance(float NdotV, float coatWeight, float coatEta, float coatAlpha)
-{
-    if (coatWeight <= 0.0) {
-        return 1.0;
-    }
-    float c = (coatEta - 1.0) / (coatEta + 1.0);
-    float coatF0 = c * c;
-    float E = fresnelGgxDirAlbedo(NdotV, coatF0, coatAlpha);
-    return saturate(1.0 - coatWeight * E);
-}
-
 /// Microfacet reflection with the OpenPBR thin-film lobe. The base glossy Fresnel is
 /// lerp(dielectricF0, baseColor, metalness); thin-film replaces it with the metalness-blend
 /// of the Schlick (dielectric) and conductor (metal) Airy reflectances, weighted by tfWeight.
@@ -826,8 +809,17 @@ void computeLobeWeights(
     subsurfaceWeight = saturate(mat.subsurfaceColorWeight.w) * (1.0 - transmission);
     float opaqueBase = baseWeight * (1.0 - transmission);
     diffuseWeight = opaqueBase * (1.0 - metalness) * (1.0 - subsurfaceWeight);
-    specularWeight = opaqueBase * (1.0 - metalness) * max(saturate(mat.specularColorWeight.w), kMinSpecularF0);
-    metalWeight = baseWeight * metalness;
+    // G3 (spec): specular_weight modulates the dielectric F0/eta (see openpbrModulatedEta), NOT the
+    // dielectric lobe weight — so the dielectric reflection carries the full base allocation and its
+    // brightness is governed by the scaled Fresnel. For the METAL base, the spec applies
+    // specular_weight directly as the generalized-Schlick BSDF weight (metal_bsdf weight=specular_weight).
+    // At specular_weight=0 the spec's modulated eta → 1 (no dielectric interface → zero reflection at
+    // ALL angles); our generalized-Schlick Fresnel keeps a grazing term when F0=0, so gate the
+    // dielectric lobe to vanish as specular_weight→0. This is a no-op at the default specular_weight=1.
+    float specularParam = saturate(mat.specularColorWeight.w);
+    float dielectricPresence = smoothstep(0.0, 0.03, specularParam);
+    specularWeight = opaqueBase * (1.0 - metalness) * dielectricPresence;
+    metalWeight = baseWeight * metalness * specularParam;
     transmissionWeight = baseWeight * transmission;
 
     // Thin-walled subsurface degenerates into a diffuse reflection + diffuse transmission
