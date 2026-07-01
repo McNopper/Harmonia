@@ -24,11 +24,14 @@ renderer-specific, NOT here.
 
 **Material model = OpenPBR Surface** (Academy Software Foundation). The shared OpenPBR BSDF
 (`shaders/bsdf_shared.slang`) — diffuse (Fujii/EON), F82 conductor Fresnel, GGX specular &
-microfacet transmission BTDF, sheen, lobe weights — is used 1:1 by both renderers. OpenPBR's
-canonical/reference implementation is **MaterialX** (`mx_*` genGLSL nodes); follow OpenPBR
-parameter naming and cross-check against MaterialX. The shared scene-referred estimator is
-`shaders/path_integrator.slang`; the shared denoiser (`shaders/denoiser.slang`) is an à-trous
-wavelet edge-stopping filter + temporal accumulation.
+microfacet transmission BTDF with Turquin/Kulla-Conty multiple-scattering compensation, LTC
+sheen, thin-film iridescence (`mx_fresnel_airy`), the coat/fuzz layering algebra, and the
+volumetric-medium primitives for the chromatic subsurface / transmission random walk
+(`sssExtinction`, `transmissionVolumeCoeffs`, Henyey-Greenstein) — is used 1:1 by both
+renderers. OpenPBR's canonical/reference implementation is **MaterialX** (`mx_*` genGLSL nodes);
+follow OpenPBR parameter naming and cross-check against MaterialX. The shared scene-referred
+estimator is `shaders/path_integrator.slang`; the shared denoiser (`shaders/denoiser.slang`) is
+an à-trous wavelet edge-stopping filter + temporal accumulation.
 
 Hyperion/Theia demos are thin subclasses of `harmonia::App` injecting a `harmonia::IRenderer`.
 Shaders load from `*_SHADER_DIR`, never CWD.
