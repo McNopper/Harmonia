@@ -67,7 +67,7 @@ struct PathState {
     // their own volumetric loop; renderers that don't (Theia, for now) simply ignore them —
     // sampleBSDF never sets entersMedium=true there, so these stay false/0.
     bool    insideMedium;
-    float   mediumSigmaT;
+    float3  mediumSigmaT;
     float3  mediumAlbedo;
     float   mediumG;
     float   mediumEta;

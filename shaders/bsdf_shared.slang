@@ -12,8 +12,8 @@ struct BSDFSample {
     // is true, using the accompanying medium parameters. Harmless/unused for renderers that
     // don't implement the walk yet (defaults to false/0).
     bool   entersMedium;
-    float  mediumSigmaT; ///< scalar (achromatic) extinction coefficient, 1/mean-free-path
-    float3 mediumAlbedo; ///< per-channel single-scatter albedo (≈ subsurface_color)
+    float3 mediumSigmaT; ///< G5/G6: per-channel extinction coefficient, 1/mean-free-path (RGB)
+    float3 mediumAlbedo; ///< per-channel single-scatter albedo (≈ subsurface_color / scatter)
     float  mediumG;      ///< Henyey-Greenstein anisotropy (subsurface_scatter_anisotropy)
     float  mediumEta;    ///< relative IOR of the medium's dielectric boundary (specular_ior)
 };
@@ -52,22 +52,33 @@ float3 toLocal(float3 v, float3 T, float3 B, float3 N)
 
 // ── Step 3: bulk subsurface — shared volumetric random-walk primitives ──────────────────
 // OpenPBR 1.1.1 models subsurface as light entering through the SAME dielectric interface as
+// OpenPBR 1.1.1 models subsurface as light entering through the SAME dielectric interface as
 // specular/transmission, undergoing multiple scattering in a homogeneous medium, then exiting.
-// These are the shared "volume primitives" (extinction mapping + phase-function sampling)
-// referenced by Step 3/Step 4 of the roadmap so a future participating-medium rewrite (Step 4)
-// can reuse them for nested dielectrics too.
-//
-// Deliberate bounded-scope simplification (documented, not a bug): extinction is ACHROMATIC
-// (a single scalar mean-free-path derived from subsurface_radius × luminance(radius_scale))
-// while the per-channel colour comes entirely from the single-scatter albedo
-// (subsurface_color). A fully spectral walk would need per-channel extinction + spectral MIS
-// (Wilkie et al. 2014); deferred as a future refinement.
+// These are the shared "volume primitives" (per-channel extinction mapping + phase-function
+// sampling) used by the chromatic (hero-wavelength) volumetric random walk (G5/G6). The same
+// primitives serve bulk subsurface AND transmission_scatter media (the spec `anisotropic_vdf`).
 
-/// Scalar (achromatic) extinction coefficient 1/mean-free-path for the bulk subsurface medium.
-float sssExtinction(float radius, float3 radiusScale)
+/// G5: per-channel extinction σ_t.rgb = 1/(subsurface_radius · subsurface_radius_scale.rgb) for
+/// the bulk subsurface medium — chromatic mean free paths (skin reddening at silhouettes, etc.).
+float3 sssExtinction(float radius, float3 radiusScale)
 {
-    float mfp = max(radius, 1.0e-4) * max(luminance(saturate3(radiusScale)), 1.0e-4);
-    return 1.0 / max(mfp, 1.0e-4);
+    float3 mfp = max(radius, 1.0e-4) * max(saturate3(radiusScale), 1.0e-4.xxx);
+    return 1.0.xxx / max(mfp, 1.0e-4.xxx);
+}
+
+/// G6: per-channel absorption/scattering coefficients for the transmission volume, per the spec
+/// `dielectric_volume` VDF: σ_t = -ln(transmission_color)/transmission_depth (extinction);
+/// σ_s = transmission_scatter/transmission_depth (scattering). Returns σ_t in `sigmaT` and the
+/// per-channel single-scatter albedo (σ_s/σ_t) in `albedo`. Caller gates on transmission_depth>0.
+void transmissionVolumeCoeffs(float3 transmissionColor, float3 transmissionScatter, float depth,
+                              out float3 sigmaT, out float3 albedo)
+{
+    float d = max(depth, 1.0e-4);
+    float3 extinction = -log(max(saturate3(transmissionColor), 1.0e-4.xxx)) / d; // absorption+scatter
+    float3 scattering = max(saturate3(transmissionScatter), 0.0.xxx) / d;
+    // Extinction must be >= scattering (absorption non-negative); clamp defensively.
+    sigmaT = max(extinction, scattering + 1.0e-4.xxx);
+    albedo = saturate3(scattering / max(sigmaT, 1.0e-4.xxx));
 }
 
 /// Henyey-Greenstein phase-function importance sample. `wi` is the ray's current travel
