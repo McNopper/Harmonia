@@ -135,6 +135,59 @@ void computeAlpha(float roughness, float anisotropy, out float alphaX, out float
     alphaY = max(alphaY, 0.001);
 }
 
+// ── OpenPBR 1.1.1 layer algebra (spec nodegraph, open_pbr_surface.mtlx) ──────────────────
+// Exact ports of the scalar coupling formulas the MaterialX nodegraph applies between layers,
+// replacing earlier approximations. See files/openpbr-1.1.1-gap-audit.md (G1-G4,G7).
+
+/// G4: coat roughens the specular base. Spec: effective_specular_roughness =
+/// mix(specular_roughness, (2·coat_r⁴ + spec_r⁴)^¼, coat_weight). Feed the RESULT to computeAlpha
+/// (do NOT combine in alpha-space). Ref: open_pbr_surface.mtlx `effective_specular_roughness`.
+float openpbrEffectiveSpecularRoughness(float specularRoughness, float coatRoughness, float coatWeight)
+{
+    float combined = pow(min(1.0, 2.0 * pow(coatRoughness, 4.0) + pow(specularRoughness, 4.0)), 0.25);
+    return lerp(specularRoughness, combined, saturate(coatWeight));
+}
+
+/// G3: the dielectric base F0/eta modulated by specular_weight, and — when a coat is present —
+/// seen through the coat's relative IOR. Spec: eta_s = mix(specular_ior, specular_ior/coat_ior
+/// [TIR-safe inverted], coat_weight); F0 = ((eta_s-1)/(eta_s+1))²; scaled_F0 = specular_weight·F0;
+/// then re-derive the modulated eta from the (sign-preserving) sqrt of the clamped scaled F0.
+/// Ref: open_pbr_surface.mtlx `modulated_eta_s`. Returns the effective relative IOR.
+float openpbrModulatedEta(float specularIor, float specularWeight, float coatIor, float coatWeight)
+{
+    float ratio = specularIor / max(coatIor, 1.0e-4);
+    if (ratio < 1.0) {
+        ratio = coatIor / max(specularIor, 1.0e-4); // invert to avoid TIR artifact (spec Coat-TIR fix)
+    }
+    float etaS = lerp(specularIor, ratio, saturate(coatWeight));
+    float f0sqrt = (etaS - 1.0) / (etaS + 1.0);
+    float f0 = f0sqrt * f0sqrt;
+    float scaledF0 = clamp(saturate(specularWeight) * f0, 0.0, 0.99999);
+    float eps = sign(etaS - 1.0) * sqrt(scaledF0);
+    return (1.0 + eps) / max(1.0 - eps, 1.0e-4);
+}
+
+/// G1: physical coat darkening factor applied to the whole base substrate (a per-channel MULTIPLY,
+/// NOT a view-dependent attenuation). Spec: base_darkening = (1-Kcoat)/(1-Ebase·Kcoat), with
+/// Kcoat = 1-(1-coat_F0)/coat_ior², modulated toward white by coat_weight·coat_darkening. `Ebase`
+/// is the base-albedo estimate (metal: base_color·specular_weight; dielectric: mix(base_color,
+/// subsurface_color, subsurface_weight); blended by metalness). Ref: `base_darkening`.
+float3 openpbrCoatDarkening(float3 Ebase, float coatIor, float coatWeight, float coatDarkening)
+{
+    float coatF0sqrt = (coatIor - 1.0) / (coatIor + 1.0);
+    float coatF0 = coatF0sqrt * coatF0sqrt;
+    float Kcoat = 1.0 - (1.0 - coatF0) / max(coatIor * coatIor, 1.0e-4);
+    float3 darkening = (1.0 - Kcoat).xxx / max(1.0.xxx - saturate3(Ebase) * Kcoat, 1.0e-4.xxx);
+    return lerp(1.0.xxx, darkening, saturate(coatWeight * coatDarkening));
+}
+
+/// G2: coat_color acts as an absorption tint on everything beneath the coat. Spec:
+/// coat_attenuation = mix(1, coat_color, coat_weight), multiplied into the base substrate.
+float3 openpbrCoatColorAttenuation(float3 coatColor, float coatWeight)
+{
+    return lerp(1.0.xxx, saturate3(coatColor), saturate(coatWeight));
+}
+
 // ─── OpenPBR 1.1.1 thin-film iridescence — faithful MaterialX mx_fresnel_airy port ───
 // Spec model for the OpenPBR `thin_film` lobe (Belcour & Barla 2017), ported 1:1 from
 // MaterialX `mx_fresnel_airy`: a full s/p-polarized Airy summation with the spectral
