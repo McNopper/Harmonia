@@ -55,7 +55,7 @@ struct PathState {
     float3  radiance;
     float3  throughput;
     uint    depth;
-    uint    seed;
+    RngState seed;
     bool    terminated;
     bool    specularBounce;
     float   lastBsdfPdf;
@@ -116,7 +116,7 @@ float3 evalEmissionGuarded(float3 emission, uint depth, bool specularBounce,
 float3 evalEmissiveTriangleNEE<T : ITracer>(
     T tracer, SurfaceHit surf,
     StructuredBuffer<GpuEmissiveTriangle> emissiveTriangles, uint emissiveTriangleCount,
-    inout uint seed)
+    inout RngState seed)
 {
     if (emissiveTriangleCount == 0u) {
         return 0.0.xxx;
@@ -177,7 +177,7 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
-    inout uint seed)
+    inout RngState seed)
 {
     EnvNeeSample sample;
     sample.wi = 0.0.xxx;
@@ -220,7 +220,7 @@ float3 evalEnvNEE<T : ITracer>(
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
-    inout uint seed)
+    inout RngState seed)
 {
     return evalEnvNEESample(
         tracer, surf, marginalCdf, conditionalCdf, envW, envH, hasEnvMap, envLuminanceScale,

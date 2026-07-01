@@ -1,4 +1,5 @@
 import common;
+__exported import rng;
 
 float sqr(float x)
 {
@@ -175,13 +176,15 @@ uint wangHash(uint seed)
     return seed;
 }
 
-float randFloat(inout uint seed)
+/// A0(a): `randFloat`/`randFloat2` now draw from the shared Owen-scrambled Sobol' sampler
+/// (see rng.slang) instead of Wang-hash white noise. Same call sites, unbiased estimator,
+/// lower-discrepancy (faster-converging, denoiser-friendlier) point sets.
+float randFloat(inout RngState seed)
 {
-    seed = wangHash(seed);
-    return (seed & 0x00ffffffu) / 16777216.0; // 2^24 — maps 24-bit mantissa to [0, 1)
+    return rngNextFloat(seed);
 }
 
-float2 randFloat2(inout uint seed)
+float2 randFloat2(inout RngState seed)
 {
-    return float2(randFloat(seed), randFloat(seed));
+    return rngNextFloat2(seed);
 }

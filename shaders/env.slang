@@ -27,7 +27,7 @@ float3 evalEnvironment(float3 direction, float envLuminanceScale)
 
 /// Importance-sample the env map using the pre-built 2D separable CDF.
 /// Returns the sampled world-space direction; pdfOmega is the solid-angle PDF.
-float3 sampleEnvImportance(inout uint seed, out float pdfOmega)
+float3 sampleEnvImportance(inout RngState seed, out float pdfOmega)
 {
     return sampleEnvImportanceDir(
         envMarginalCdf, envConditionalCdf,

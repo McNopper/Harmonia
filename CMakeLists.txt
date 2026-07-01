@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(harmonia VERSION 0.6.1 LANGUAGES C CXX)
+project(harmonia VERSION 0.6.2 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
