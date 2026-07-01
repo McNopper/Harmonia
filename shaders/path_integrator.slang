@@ -243,6 +243,18 @@ void integrateSurface<T : ITracer>(
     //    added only when it is not already accounted for by NEE (see evalEmissionGuarded).
     float3 emission = max(surf.mat.emissionColorLum.xyz, 0.0.xxx)
                     * max(surf.mat.emissionColorLum.w, 0.0);
+    // G7 (OpenPBR spec): emission escaping through the coat is attenuated by the coat's Schlick
+    // transmittance envelope (generalized_schlick color0=1-coat_F0, color90=0, exp=5) and tinted
+    // by coat_color, mixed in by coat_weight. Ref: open_pbr_surface.mtlx `emission_edf`.
+    float emCoatWeight = saturate(surf.mat.coatColorWeight.w);
+    if (emCoatWeight > 0.0 && max(emission.x, max(emission.y, emission.z)) > 0.0) {
+        float emCoatEta = max(surf.mat.coatRoughAnisoIorDark.z, 1.01);
+        float emCoatF0 = sqr((emCoatEta - 1.0) / (emCoatEta + 1.0));
+        float emNoV = saturate(dot(surf.wo, surf.normal));
+        float emTransmit = (1.0 - emCoatF0) * (1.0 - pow(1.0 - emNoV, 5.0));
+        float3 emCoatAtten = lerp(1.0.xxx, emTransmit * saturate3(surf.mat.coatColorWeight.xyz), emCoatWeight);
+        emission *= emCoatAtten;
+    }
     if (max(emission.x, max(emission.y, emission.z)) > 0.0 && dot(surf.wo, surf.geoNormal) > 0.0) {
         state.radiance += state.throughput * evalEmissionGuarded(
             emission, state.depth, state.specularBounce, surf.wo, surf.geoNormal, emissiveTriangleCount);
