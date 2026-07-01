@@ -25,8 +25,8 @@ class Descriptors {
     /// Populate the path-tracer scene descriptor set (set 1) from raw GPU buffers and
     /// scene textures. Scene-type-agnostic so each renderer can build its own Scene and
     /// still reuse Harmonia's shared descriptor layout. Buffer bindings: 0=instances,
-    /// 1=materials, 2=vertices, 3=indices, 5=lights, 7=emissive triangles; binding 4 =
-    /// bindless texture array.
+    /// 1=materials, 2=vertices, 3=indices, 5=lights, 7=emissive triangles,
+    /// 10=emissive power CDF; binding 4 = bindless texture array.
     VkResult updateSceneSet(const DeviceContext& ctx,
                             VkBuffer instanceBuffer,
                             VkBuffer materialBuffer,
@@ -34,6 +34,7 @@ class Descriptors {
                             VkBuffer indexBuffer,
                             VkBuffer lightBuffer,
                             VkBuffer emissiveTriangleBuffer,
+                            VkBuffer emissiveCdfBuffer,
                             std::span<const Texture> textures);
     VkResult updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler);
     VkResult updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf);

@@ -109,22 +109,50 @@ float3 evalEmissionGuarded(float3 emission, uint depth, bool specularBounce,
 }
 
 /// Next-event estimation against the emissive-triangle set via direct area sampling.
-/// Uniform triangle selection, Shirley sqrt-folding barycentric sample, area→solid-angle
+/// Power-proportional triangle selection (flat power CDF — a light tree's leaf sampling
+/// without the tree hierarchy), Shirley sqrt-folding barycentric sample, area→solid-angle
 /// PDF conversion, shadow test through the tracer, and a single BSDF evaluation.
+/// The selection probability is folded back into the PDF, so the estimator stays unbiased:
+/// bright emitters get proportionally more samples, all get the correct weight.
 /// Returns the (throughput-free) radiance contribution; the caller scales by throughput.
-/// Ref: Shirley et al. 1996.
+/// Ref: Shirley et al. 1996 (area sampling); Conty & Kulla 2018 "Importance Sampling of
+///      Many Lights…" (power-weighted leaf selection).
 float3 evalEmissiveTriangleNEE<T : ITracer>(
     T tracer, SurfaceHit surf,
     StructuredBuffer<GpuEmissiveTriangle> emissiveTriangles, uint emissiveTriangleCount,
+    StructuredBuffer<float> emissiveCdf,
     inout RngState seed)
 {
     if (emissiveTriangleCount == 0u) {
         return 0.0.xxx;
     }
 
-    // Uniform triangle selection: pick index in [0, N).
-    uint triIdx = min(uint(randFloat(seed) * float(emissiveTriangleCount)),
-                      emissiveTriangleCount - 1u);
+    // Power-proportional triangle selection via binary search on the prefix-sum power CDF.
+    // cdf[i] = (Σ_{j≤i} power_j) / totalPower, with cdf[N-1] == 1. Find the first index
+    // whose cumulative probability reaches u. 20 iterations covers 2^20 ≈ 1M triangles.
+    float u  = randFloat(seed);
+    uint  lo = 0u;
+    uint  hi = emissiveTriangleCount - 1u;
+    for (uint step = 0u; step < 20u; ++step) {
+        if (lo >= hi) {
+            break;
+        }
+        uint mid = (lo + hi) / 2u;
+        if (emissiveCdf[mid] < u) {
+            lo = mid + 1u;
+        } else {
+            hi = mid;
+        }
+    }
+    uint triIdx = min(lo, emissiveTriangleCount - 1u);
+
+    // Selection probability of this triangle = cdf[i] - cdf[i-1] (cdf[-1] ≡ 0). Guard the
+    // all-zero-power degenerate case (black emitters) with a uniform 1/N fallback.
+    float triPdf = (triIdx == 0u) ? emissiveCdf[0] : (emissiveCdf[triIdx] - emissiveCdf[triIdx - 1u]);
+    if (triPdf <= 0.0) {
+        triPdf = 1.0 / float(emissiveTriangleCount);
+    }
+
     GpuEmissiveTriangle tri = emissiveTriangles[triIdx];
 
     float3 v0    = tri.v0_area.xyz;
@@ -148,8 +176,10 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
     float cosI     = dot(wi, surf.normal); // cosine at shading surface
 
     if (cosLight > 0.0 && cosI > 0.0) {
-        // Area PDF to solid-angle PDF: pdf_ω = (1 / (N_tri × area)) × dist² / cosLight
-        float areaPdf  = 1.0 / (float(emissiveTriangleCount) * area);
+        // Power-weighted selection folds into the area PDF: pdf_area = triPdf / area
+        // (triPdf = P(select this triangle); 1/area = uniform position within it).
+        // Area PDF to solid-angle PDF: pdf_ω = (triPdf / area) × dist² / cosLight.
+        float areaPdf  = triPdf / area;
         float solidPdf = areaPdf * dist * dist / cosLight;
 
         // Shadow ray stops just before the emitter surface to avoid self-intersection.
@@ -234,6 +264,7 @@ float3 evalEnvNEE<T : ITracer>(
 void integrateSurface<T : ITracer>(
     T tracer, SurfaceHit surf,
     uint emissiveTriangleCount, StructuredBuffer<GpuEmissiveTriangle> emissiveTriangles,
+    StructuredBuffer<float> emissiveCdf,
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
@@ -275,9 +306,9 @@ void integrateSurface<T : ITracer>(
         return;
     }
 
-    // 3) NEE: direct emissive-triangle area sampling.
+    // 3) NEE: direct emissive-triangle area sampling (power-proportional selection).
     state.radiance += state.throughput * evalEmissiveTriangleNEE(
-        tracer, surf, emissiveTriangles, emissiveTriangleCount, state.seed);
+        tracer, surf, emissiveTriangles, emissiveTriangleCount, emissiveCdf, state.seed);
 
     // 4) NEE: environment importance sampling with MIS.
     state.radiance += state.throughput * evalEnvNEE(
