@@ -61,6 +61,16 @@ struct PathState {
     float   lastBsdfPdf;
     float3  nextOrigin;     ///< written by integrateSurface; read by caller for next bounce
     float3  nextDirection;
+    // Step 3 (bulk subsurface random walk): set true when this bounce enters a bulk
+    // subsurface medium (BSDFSample.entersMedium). Renderers that implement the walk (see
+    // Hyperion's raygen/miss/closesthit) read these back from the caller's payload and drive
+    // their own volumetric loop; renderers that don't (Theia, for now) simply ignore them —
+    // sampleBSDF never sets entersMedium=true there, so these stay false/0.
+    bool    insideMedium;
+    float   mediumSigmaT;
+    float3  mediumAlbedo;
+    float   mediumG;
+    float   mediumEta;
 };
 
 /// Equirectangular (lat-long) env-map lookup matching env.slang's sampleEnvMap convention.
@@ -277,6 +287,11 @@ void integrateSurface<T : ITracer>(
     state.specularBounce = bsdfSample.isDelta;
     state.lastBsdfPdf    = bsdfSample.isDelta ? 1.0e30 : bsdfSample.pdf;
     state.throughput    *= bsdfSample.weight;
+    state.insideMedium   = bsdfSample.entersMedium;
+    state.mediumSigmaT   = bsdfSample.mediumSigmaT;
+    state.mediumAlbedo   = bsdfSample.mediumAlbedo;
+    state.mediumG        = bsdfSample.mediumG;
+    state.mediumEta      = bsdfSample.mediumEta;
     state.nextOrigin     = surf.position
         + surf.geoNormal * (dot(bsdfSample.direction, surf.geoNormal) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
     state.nextDirection  = normalize(bsdfSample.direction);

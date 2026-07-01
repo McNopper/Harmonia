@@ -6,6 +6,16 @@ struct BSDFSample {
     float3 weight;
     float  pdf;
     bool   isDelta;
+    // Step 3 (bulk subsurface random walk): set when this sample refracts INTO a bulk
+    // subsurface medium instead of continuing as an ordinary surface bounce. The renderer's
+    // path integrator hands off to its own volumetric random-walk loop when `entersMedium`
+    // is true, using the accompanying medium parameters. Harmless/unused for renderers that
+    // don't implement the walk yet (defaults to false/0).
+    bool   entersMedium;
+    float  mediumSigmaT; ///< scalar (achromatic) extinction coefficient, 1/mean-free-path
+    float3 mediumAlbedo; ///< per-channel single-scatter albedo (≈ subsurface_color)
+    float  mediumG;      ///< Henyey-Greenstein anisotropy (subsurface_scatter_anisotropy)
+    float  mediumEta;    ///< relative IOR of the medium's dielectric boundary (specular_ior)
 };
 
 /// Minimum specular weight — F0 at normal incidence for common dielectrics (~4 %).
@@ -38,6 +48,52 @@ float3 effectiveTransColor(GpuMaterial mat)
 float3 toLocal(float3 v, float3 T, float3 B, float3 N)
 {
     return float3(dot(v, T), dot(v, B), dot(v, N));
+}
+
+// ── Step 3: bulk subsurface — shared volumetric random-walk primitives ──────────────────
+// OpenPBR 1.1.1 models subsurface as light entering through the SAME dielectric interface as
+// specular/transmission, undergoing multiple scattering in a homogeneous medium, then exiting.
+// These are the shared "volume primitives" (extinction mapping + phase-function sampling)
+// referenced by Step 3/Step 4 of the roadmap so a future participating-medium rewrite (Step 4)
+// can reuse them for nested dielectrics too.
+//
+// Deliberate bounded-scope simplification (documented, not a bug): extinction is ACHROMATIC
+// (a single scalar mean-free-path derived from subsurface_radius × luminance(radius_scale))
+// while the per-channel colour comes entirely from the single-scatter albedo
+// (subsurface_color). A fully spectral walk would need per-channel extinction + spectral MIS
+// (Wilkie et al. 2014); deferred as a future refinement.
+
+/// Scalar (achromatic) extinction coefficient 1/mean-free-path for the bulk subsurface medium.
+float sssExtinction(float radius, float3 radiusScale)
+{
+    float mfp = max(radius, 1.0e-4) * max(luminance(saturate3(radiusScale)), 1.0e-4);
+    return 1.0 / max(mfp, 1.0e-4);
+}
+
+/// Henyey-Greenstein phase-function importance sample. `wi` is the ray's current travel
+/// direction (pointing INTO the scatter point); returns a new travel direction distributed
+/// per HG(cosTheta, g) relative to `wi` continuing forward. g=0 → isotropic (uniform sphere);
+/// g>0 → forward-scattering; g<0 → back-scattering. Mean cosine of the returned distribution
+/// equals `g` by construction — this is what OpenPBR's subsurface_scatter_anisotropy controls.
+/// Ref: Henyey & Greenstein 1941; PBR Book 4e §11.3.2 "The Henyey-Greenstein Phase Function".
+float3 sampleHenyeyGreenstein(float3 wi, float g, float2 xi)
+{
+    float cosTheta;
+    if (abs(g) < 1.0e-3) {
+        cosTheta = 1.0 - 2.0 * xi.x;
+    } else {
+        float sqrTerm = (1.0 - g * g) / (1.0 + g - 2.0 * g * xi.x);
+        cosTheta = -(1.0 + g * g - sqrTerm * sqrTerm) / (2.0 * g);
+    }
+    float sinTheta = safeSqrt(1.0 - cosTheta * cosTheta);
+    float phi = 2.0 * kPi * xi.y;
+    float3x3 basis = buildTBN(wi);
+    // Z-component is negated: the (1+g²-2g·xi)-form solves for cosTheta measured against the
+    // REVERSED travel direction (standard phase-function convention); negating gives the mean
+    // cosine relative to the FORWARD continuation direction, matching g's intended sign
+    // (g>0 → new direction biased toward continuing forward along `wi`).
+    float3 localDir = float3(sinTheta * cos(phi), sinTheta * sin(phi), -cosTheta);
+    return normalize(basis[0] * localDir.x + basis[1] * localDir.y + wi * localDir.z);
 }
 
 float3 toWorld(float3 v, float3 T, float3 B, float3 N)
