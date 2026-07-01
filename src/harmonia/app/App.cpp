@@ -733,6 +733,7 @@ uint64_t App::renderSceneReferred() {
         .gDepth = nullptr,
         .gNormalView = renderer().gNormalView(),
         .gDepthView = renderer().gDepthView(),
+        .motionVectorView = renderer().motionVectorView(),
         .denoised = m_denoisedImage.isValid() ? &m_denoisedImage : nullptr,
         .swapchainView = VK_NULL_HANDLE,
         .colorSpace = m_swapchain.outputColorSpace(),

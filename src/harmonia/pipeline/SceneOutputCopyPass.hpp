@@ -13,15 +13,21 @@ struct PassContext;
 
 namespace harmonia {
 
+/// Configuration for the denoiser/accumulation pass.
+/// Defined outside SceneOutputCopyPass to avoid CWG2664 (Clang 22+ C++23 restriction on nested-struct
+/// NSDMIs in default arguments / data-member initializers of the enclosing class).
+struct SceneOutputCopyPassSettings {
+    float strength = 0.45F;      ///< spatial denoiser strength [0, 1]
+    uint32_t iterations = 2U;    ///< bilateral passes [1, 8]
+    bool useHistory = true;      ///< enable temporal blending in fixed-view mode
+    float historyBlend = 0.15F;  ///< temporal blend factor [0, 1]
+};
+
 /// Shared denoiser stage operating on scene-referred HDR output before tone mapping.
 class SceneOutputCopyPass final : public IRenderPass {
   public:
-    struct Settings {
-        float strength = 0.45F;      ///< spatial denoiser strength [0, 1]
-        uint32_t iterations = 2U;    ///< bilateral passes [1, 8]
-        bool useHistory = true;      ///< enable temporal blending in fixed-view mode
-        float historyBlend = 0.15F;  ///< temporal blend factor [0, 1]
-    };
+    /// \deprecated Use harmonia::SceneOutputCopyPassSettings directly.
+    using Settings = SceneOutputCopyPassSettings;
 
     [[nodiscard]] static std::expected<SceneOutputCopyPass, VkResult> create(const DeviceContext& ctx,
                                                                               VkExtent2D extent,
@@ -52,7 +58,8 @@ class SceneOutputCopyPass final : public IRenderPass {
 
     Image m_historyImage{};
     Image m_workImage{};
-    Settings m_settings{};
+    Image m_dummyMotionVectors{};  ///< 1×1 R32G32F fallback bound to binding 5 when ctx.motionVectorView is null
+    Settings m_settings;  // Default-initialized (uses NSDMIs from SceneOutputCopyPassSettings)
     VkExtent2D m_extent{};
     uint64_t m_lastResetToken = 0U;
     bool m_firstUse = true;

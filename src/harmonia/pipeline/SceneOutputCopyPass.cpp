@@ -22,6 +22,7 @@ struct alignas(16) DenoiserPushConstants {
     uint32_t historyFirstUse = 1U;
     uint32_t iterations = 1U;
     uint32_t passIndex = 0U;
+    uint32_t hasMotionVectors = 0U;  ///< 1 when ctx.motionVectorView is populated
 };
 
 [[nodiscard]] float clamp01(float value) noexcept {
@@ -77,6 +78,13 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         },
         VkDescriptorSetLayoutBinding{
             .binding = 4,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr,
+        },
+        VkDescriptorSetLayoutBinding{
+            .binding = 5,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -198,6 +206,7 @@ SceneOutputCopyPass::SceneOutputCopyPass(SceneOutputCopyPass&& other) noexcept
       m_guideSampler(std::exchange(other.m_guideSampler, VK_NULL_HANDLE)),
       m_historyImage(std::move(other.m_historyImage)),
       m_workImage(std::move(other.m_workImage)),
+      m_dummyMotionVectors(std::move(other.m_dummyMotionVectors)),
       m_settings(other.m_settings),
       m_extent(other.m_extent),
       m_lastResetToken(other.m_lastResetToken),
@@ -221,6 +230,7 @@ SceneOutputCopyPass& SceneOutputCopyPass::operator=(SceneOutputCopyPass&& other)
         m_guideSampler = std::exchange(other.m_guideSampler, VK_NULL_HANDLE);
         m_historyImage = std::move(other.m_historyImage);
         m_workImage = std::move(other.m_workImage);
+        m_dummyMotionVectors = std::move(other.m_dummyMotionVectors);
         m_settings = other.m_settings;
         m_extent = other.m_extent;
         m_lastResetToken = other.m_lastResetToken;
@@ -244,7 +254,8 @@ SceneOutputCopyPass::~SceneOutputCopyPass() noexcept {
 void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     if (m_ctx == nullptr || m_pipeline == VK_NULL_HANDLE || m_pipelineLayout == VK_NULL_HANDLE ||
         m_setLayout == VK_NULL_HANDLE || m_guideSampler == VK_NULL_HANDLE || ctx.cmd == VK_NULL_HANDLE ||
-        ctx.hdrBuffer == nullptr || ctx.denoised == nullptr || !m_historyImage.isValid() || !m_workImage.isValid()) {
+        ctx.hdrBuffer == nullptr || ctx.denoised == nullptr || !m_historyImage.isValid() || !m_workImage.isValid() ||
+        !m_dummyMotionVectors.isValid()) {
         return;
     }
     if (ctx.extent.width == 0U || ctx.extent.height == 0U) {
@@ -290,8 +301,23 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                      m_historyFirstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+        // Dummy 1×1 R32G32F image always bound at binding 5; transition UNDEFINED→GENERAL
+        // on first use so the descriptor's imageLayout claim is valid even when no real
+        // motion-vector pass has run (hasMotionVectors == 0 prevents any actual read).
+        imageBarrier(m_dummyMotionVectors.handle(),
+                     m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                     VK_IMAGE_LAYOUT_GENERAL,
+                     m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                     m_firstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
     pipelineBarrier(ctx.cmd, preComputeBarriers);
+
+    // Resolve motion-vector binding: use the real view when available, fall back to
+    // the 1×1 dummy (keeps the descriptor valid; hasMotionVectors=0 prevents reads).
+    const bool hasMotionVectors = ctx.motionVectorView != VK_NULL_HANDLE;
+    const VkImageView motionVecView = hasMotionVectors ? ctx.motionVectorView : m_dummyMotionVectors.view();
 
     vkCmdBindPipeline(ctx.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
     constexpr uint32_t kGroupSize = 8U;
@@ -341,6 +367,11 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
         const VkDescriptorImageInfo historyInfo{
             .sampler = VK_NULL_HANDLE,
             .imageView = m_historyImage.view(),
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+        const VkDescriptorImageInfo motionVecInfo{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = motionVecView,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
         const std::array writes{
@@ -404,6 +435,18 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                 .pBufferInfo = nullptr,
                 .pTexelBufferView = nullptr,
             },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = VK_NULL_HANDLE,
+                .dstBinding = 5,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &motionVecInfo,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            },
         };
 
         const DenoiserPushConstants push{
@@ -415,6 +458,7 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
             .historyFirstUse = m_historyFirstUse ? 1U : 0U,
             .iterations = iterations,
             .passIndex = passIndex,
+            .hasMotionVectors = 0U,  // spatial passes never read motion vectors
         };
         vkCmdPushDescriptorSet(ctx.cmd,
                                VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -517,6 +561,11 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
             .imageView = m_historyImage.view(),
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
+        const VkDescriptorImageInfo motionVecHistInfo{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = motionVecView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
         const std::array historyWrites{
             VkWriteDescriptorSet{
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -578,6 +627,18 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                 .pBufferInfo = nullptr,
                 .pTexelBufferView = nullptr,
             },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = VK_NULL_HANDLE,
+                .dstBinding = 5,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &motionVecHistInfo,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            },
         };
 
         const DenoiserPushConstants push{
@@ -589,6 +650,7 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
             .historyFirstUse = m_historyFirstUse ? 1U : 0U,
             .iterations = iterations,
             .passIndex = iterations,
+            .hasMotionVectors = hasMotionVectors ? 1U : 0U,
         };
         vkCmdPushDescriptorSet(ctx.cmd,
                                VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -678,8 +740,23 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
         return false;
     }
 
+    // 1×1 R32G32F placeholder bound to binding 5 when no real motion vectors are available.
+    // Keeps the push-descriptor set valid (correct format) while hasMotionVectors=0
+    // ensures the shader never reads from it.
+    auto dummyMv = Image::create(*m_ctx,
+                                 {1U, 1U},
+                                 VK_FORMAT_R32G32_SFLOAT,
+                                 VK_IMAGE_USAGE_STORAGE_BIT,
+                                 VK_IMAGE_ASPECT_COLOR_BIT,
+                                 "harmonia.denoiser.dummyMotionVec");
+    if (!dummyMv) {
+        Logger::error("SceneDenoiserPass dummy motion vector image creation failed: VkResult {}", static_cast<int>(dummyMv.error()));
+        return false;
+    }
+
     m_historyImage = std::move(*history);
     m_workImage = std::move(*work);
+    m_dummyMotionVectors = std::move(*dummyMv);
     return true;
 }
 
@@ -691,6 +768,7 @@ void SceneOutputCopyPass::resetHistory(uint64_t resetToken) noexcept {
 void SceneOutputCopyPass::destroy() noexcept {
     m_historyImage = {};
     m_workImage = {};
+    m_dummyMotionVectors = {};
     if (m_ctx != nullptr) {
         if (m_pipeline != VK_NULL_HANDLE) {
             vkDestroyPipeline(m_ctx->device, m_pipeline, nullptr);

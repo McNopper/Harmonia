@@ -61,6 +61,10 @@ class IRenderer {
     /// Default: unavailable.
     [[nodiscard]] virtual VkImageView gNormalView() const noexcept { return VK_NULL_HANDLE; }
     [[nodiscard]] virtual VkImageView gDepthView() const noexcept { return VK_NULL_HANDLE; }
+    /// Per-pixel (dx, dy) motion-vector image view in VK_IMAGE_LAYOUT_GENERAL
+    /// (R32G32_SFLOAT). Populated by renderers that support camera/object motion
+    /// vectors; defaults to null (denoiser falls back to static history lookup).
+    [[nodiscard]] virtual VkImageView motionVectorView() const noexcept { return VK_NULL_HANDLE; }
 
     /// Called when the render target is resized.
     virtual void onResize(VkExtent2D extent) noexcept = 0;

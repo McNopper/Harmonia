@@ -12,7 +12,7 @@
 namespace {
 
 constexpr float kPi = 3.14159265359F;
-constexpr float kInvPi = 0.31830988618F;
+[[maybe_unused]] constexpr float kInvPi = 0.31830988618F;
 
 uint32_t sampleCdf1D(const std::vector<float>& cdf, uint32_t base, uint32_t n, float r) {
     uint32_t lo = 0U;

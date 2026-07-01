@@ -133,6 +133,14 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
             GIT_SHALLOW TRUE
         )
         FetchContent_MakeAvailable(googletest)
+        # gtest v1.15.2 has an implicit char8_t→char32_t conversion in C++23; suppress.
+        foreach(_gt_tgt IN ITEMS gtest gtest_main gmock gmock_main)
+            if(TARGET ${_gt_tgt})
+                target_compile_options(${_gt_tgt} PRIVATE
+                    $<$<CXX_COMPILER_ID:Clang,MSVC>:-Wno-character-conversion>
+                )
+            endif()
+        endforeach()
     endif()
     if(TARGET gtest)
         set_property(TARGET gtest PROPERTY SYSTEM ON)

@@ -17,6 +17,9 @@ SamplerState gDepthGuideSampler;
 [[vk::binding(4, 0)]]
 RWTexture2D<float4> gHistoryHdr;
 
+[[vk::binding(5, 0)]] [vk::image_format("rg32f")]
+RWTexture2D<float2> gMotionVectors;  // per-pixel (dx, dy) in pixel coords; only valid when hasMotionVectors != 0
+
 struct DenoiserPushConstants {
     float strength;
     float historyBlend;
@@ -26,6 +29,7 @@ struct DenoiserPushConstants {
     uint historyFirstUse;
     uint iterations;
     uint passIndex;
+    uint hasMotionVectors;  // 1 when gMotionVectors is populated; 0 = static lookup fallback
 };
 
 [[vk::push_constant]]
@@ -143,7 +147,31 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
             // zero-weight blend risks 0 * Inf = NaN. Output stays = current frame.
             gHistoryHdr[pixel] = filtered;
         } else {
-            float4 history = sanitize4(gHistoryHdr[pixel]);
+            // Temporal reprojection: when motion vectors are available, look up the
+            // history at the reprojected screen position so camera motion does not
+            // blend a pixel with a different world point from the previous frame.
+            // Without motion vectors (hasMotionVectors == 0), fall back to the
+            // original static-pixel lookup (backward-compatible with Hyperion).
+            float4 history;
+            if (gDenoiser.hasMotionVectors != 0u) {
+                float2 mv = gMotionVectors[pixel];  // pixel-coord delta (prev - cur)
+                int2 reproj = clamp(int2(pixel) + int2(round(mv)),
+                                    int2(0, 0), int2(int(width)-1, int(height)-1));
+                history = sanitize4(gHistoryHdr[reproj]);
+                // Disocclusion: very large motion means the sample came from off-screen
+                // or was heavily occluded — seed history at the current position instead
+                // of blending stale ghosted data.
+                float2 absMotion = abs(mv);
+                bool disoccluded = absMotion.x > float(width) * 0.5f ||
+                                   absMotion.y > float(height) * 0.5f;
+                if (disoccluded) {
+                    gHistoryHdr[pixel] = filtered;
+                    gOutputHdr[pixel] = sanitize4(filtered);
+                    return;
+                }
+            } else {
+                history = sanitize4(gHistoryHdr[pixel]);
+            }
             // Temporal colour clamp: bound the history sample to a plausible band
             // around the current pixel so a stale outlier cannot poison the EMA.
             // Per-pixel (1x1) clamp keeps the in-place history pass deterministic
