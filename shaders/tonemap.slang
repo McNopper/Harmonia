@@ -288,6 +288,50 @@ float3 hdr10SoftClip(float3 nitsLinear) {
 }
 
 // ---------------------------------------------------------------------------
+// Firefly suppression (Karis / SMAA-inspired neighbourhood soft-clamp)
+// ---------------------------------------------------------------------------
+//
+// Rare spectral or SSS fireflies produce isolated pixels that are many times
+// brighter than their neighbours. Left unclamped they can contaminate
+// auto-exposure, bloom, or temporal accumulation.
+//
+// Algorithm: read the 3×3 neighbourhood from hdrTarget and compute the
+// maximum neighbour luminance. If the centre pixel exceeds 4× that maximum
+// (and is above the fast-path threshold of 10 scene-linear units), scale it
+// back to 4× the neighbour max. The 4× headroom allows real bright pixels
+// (e.g. a specular highlight near a dark background) to survive; only true
+// isolated outliers are attenuated.
+//
+// This is a display-stage-only operation: it does NOT modify the accumulation
+// buffer, so the path-integrator estimator remains unbiased.
+
+/// Soft-clamp an HDR centre pixel against its 3×3 neighbourhood maximum.
+/// Uses Rec.2020 luminance coefficients for both working spaces; the slight
+/// inaccuracy for Rec.709 inputs is negligible given the rough threshold.
+float3 softenFirefly(RWTexture2D<float4> hdr, int2 coord, float3 center) {
+    const float3 kLumWeights = float3(0.2627f, 0.6780f, 0.0593f); // Rec.2020 Kr/Kg/Kb
+    float centerLum = dot(center, kLumWeights);
+    if (centerLum < 10.0f) return center; // fast path: well below any firefly threshold
+
+    float maxNeighbourLum = 0.0f;
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            if (dx == 0 && dy == 0) continue;
+            float3 n = max(hdr[coord + int2(dx, dy)].xyz, 0.0f.xxx);
+            maxNeighbourLum = max(maxNeighbourLum, dot(n, kLumWeights));
+        }
+    }
+
+    // Allow up to 4× the brightest neighbour; clamp floor of 10.0 ensures
+    // we never suppress a uniformly-bright region below threshold.
+    float clampLum = max(maxNeighbourLum * 4.0f, 10.0f);
+    if (centerLum > clampLum) {
+        center *= clampLum / centerLum;
+    }
+    return center;
+}
+
+// ---------------------------------------------------------------------------
 // Fragment entry point
 // ---------------------------------------------------------------------------
 
@@ -296,6 +340,7 @@ float4 tonemapFrag(float4 svPos : SV_Position) : SV_Target0
 {
     int2 coord = int2(svPos.xy);
     float3 hdr = max(hdrTarget[coord].xyz, 0.0f.xxx);
+    hdr = softenFirefly(hdrTarget, coord, hdr); // suppress isolated HDR outliers (fireflies)
 
     // The ToneMapper is the glue between the scene-referred working space and
     // the display-referred output space. The paths below assume linear
