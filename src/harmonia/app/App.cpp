@@ -283,6 +283,25 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         config.denoiser.useHistory = true;
         return true;
     }
+    if (arg == "--denoiser-no-gradient") {
+        config.denoiser.useGradient = false;
+        return true;
+    }
+    if (arg == "--denoiser-gradient") {
+        config.denoiser.useGradient = true;
+        return true;
+    }
+    if (arg == "--denoiser-gradient-alpha") {
+        if (const char* v = next("--denoiser-gradient-alpha")) {
+            float gradientAlpha = 0.0F;
+            if (!parseFloat(v, gradientAlpha)) {
+                Logger::error("Invalid value for --denoiser-gradient-alpha: {}", v);
+            } else {
+                config.denoiser.gradientAlpha = std::clamp(gradientAlpha, 0.0F, 1.0F);
+            }
+        }
+        return true;
+    }
     if (!arg.starts_with("-")) {
         config.sceneFile = std::filesystem::path(arg);
         return true;
@@ -494,6 +513,8 @@ void App::rebuildStagePipeline() {
                                                             .iterations = m_config.denoiser.iterations,
                                                             .useHistory = m_config.denoiser.useHistory,
                                                             .historyBlend = m_config.denoiser.historyBlend,
+                                                            .useGradient = m_config.denoiser.useGradient,
+                                                            .gradientAlpha = m_config.denoiser.gradientAlpha,
                                                         });
         if (denoiserPass) {
             m_sceneStages.push_back(std::make_unique<SceneOutputCopyPass>(std::move(*denoiserPass)));
@@ -566,6 +587,8 @@ uint64_t App::accumulationResetToken() const noexcept {
     hashCombineU64(token, m_config.denoiser.iterations);
     hashCombineU64(token, m_config.denoiser.useHistory ? 1ULL : 0ULL);
     hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.historyBlend));
+    hashCombineU64(token, m_config.denoiser.useGradient ? 1ULL : 0ULL);
+    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.gradientAlpha));
     // While accumulating (offscreen capture or interactive progressive mode) the
     // token must stay constant across frames so history builds up; it changes
     // only when the view/scene changes (m_accumViewEpoch, bumped by
@@ -620,11 +643,13 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
                  m_config.stages.accumulation,
                  m_config.stages.denoiser,
                  m_config.stages.tonemapper);
-    Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}",
+    Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}, gradient={}, gradient_alpha={:.3f}",
                  m_config.denoiser.strength,
                  m_config.denoiser.iterations,
                  m_config.denoiser.useHistory,
-                 m_config.denoiser.historyBlend);
+                 m_config.denoiser.historyBlend,
+                 m_config.denoiser.useGradient,
+                 m_config.denoiser.gradientAlpha);
     if (sceneConfig->postTonemapRenderer) {
         if (*sceneConfig->postTonemapRenderer == "green_screen") {
             m_config.displayOverlay = true;

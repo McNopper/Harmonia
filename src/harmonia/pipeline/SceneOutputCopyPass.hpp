@@ -21,6 +21,8 @@ struct SceneOutputCopyPassSettings {
     uint32_t iterations = 2U;    ///< bilateral passes [1, 8]
     bool useHistory = true;      ///< enable temporal blending in fixed-view mode
     float historyBlend = 0.15F;  ///< temporal blend factor [0, 1]
+    bool useGradient = true;     ///< A-SVGF: gradient-driven adaptive history + variance-guided spatial filter
+    float gradientAlpha = 0.2F;  ///< A-SVGF: temporal blend factor for the gradient [0, 1]
 };
 
 /// Shared denoiser stage operating on scene-referred HDR output before tone mapping.
@@ -59,6 +61,9 @@ class SceneOutputCopyPass final : public IRenderPass {
     Image m_historyImage{};
     Image m_workImage{};
     Image m_dummyMotionVectors{};  ///< 1×1 R32G32F fallback bound to binding 5 when ctx.motionVectorView is null
+    Image m_gradientImage{};       ///< A-SVGF R32G32F gradient/variance (binding 6); full-res, history lifetime
+    Image m_prevGradientImage{};   ///< A-SVGF R32G32F previous gradient/variance (binding 7)
+    Image m_dummyGradient{};       ///< 1×1 R32G32F fallback bound to bindings 6/7 when useGradient is off
     Settings m_settings;  // Default-initialized (uses NSDMIs from SceneOutputCopyPassSettings)
     VkExtent2D m_extent{};
     uint64_t m_lastResetToken = 0U;

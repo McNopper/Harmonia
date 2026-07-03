@@ -58,6 +58,8 @@ class App {
             uint32_t iterations = 2U;
             bool useHistory = true;
             float historyBlend = 0.15F;
+            bool useGradient = true;    ///< A-SVGF adaptive temporal filtering (gradient-driven)
+            float gradientAlpha = 0.2F; ///< temporal blend factor for the A-SVGF gradient
         };
 
         std::string title = "Harmonia";

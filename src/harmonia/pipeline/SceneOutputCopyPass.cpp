@@ -23,6 +23,12 @@ struct alignas(16) DenoiserPushConstants {
     uint32_t iterations = 1U;
     uint32_t passIndex = 0U;
     uint32_t hasMotionVectors = 0U;  ///< 1 when ctx.motionVectorView is populated
+    // ── A-SVGF (A2) ───────────────────────────────────────────────────────────
+    uint32_t computeGradient = 0U;      ///< temporal pass computes gradient + variance
+    uint32_t gradientFilterMode = 0U;   ///< 1 = this dispatch is the gradient à-trous blur pass
+    uint32_t gradientFilterPass = 0U;   ///< gradient à-trous pass index (tap spacing)
+    uint32_t hasGradientVariance = 0U;  ///< gGradientVariance holds valid gradient/variance
+    float gradientAlpha = 0.2F;         ///< temporal blend factor for the gradient
 };
 
 [[nodiscard]] float clamp01(float value) noexcept {
@@ -85,6 +91,20 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         },
         VkDescriptorSetLayoutBinding{
             .binding = 5,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr,
+        },
+        VkDescriptorSetLayoutBinding{
+            .binding = 6,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr,
+        },
+        VkDescriptorSetLayoutBinding{
+            .binding = 7,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -207,6 +227,9 @@ SceneOutputCopyPass::SceneOutputCopyPass(SceneOutputCopyPass&& other) noexcept
       m_historyImage(std::move(other.m_historyImage)),
       m_workImage(std::move(other.m_workImage)),
       m_dummyMotionVectors(std::move(other.m_dummyMotionVectors)),
+      m_gradientImage(std::move(other.m_gradientImage)),
+      m_prevGradientImage(std::move(other.m_prevGradientImage)),
+      m_dummyGradient(std::move(other.m_dummyGradient)),
       m_settings(other.m_settings),
       m_extent(other.m_extent),
       m_lastResetToken(other.m_lastResetToken),
@@ -231,6 +254,9 @@ SceneOutputCopyPass& SceneOutputCopyPass::operator=(SceneOutputCopyPass&& other)
         m_historyImage = std::move(other.m_historyImage);
         m_workImage = std::move(other.m_workImage);
         m_dummyMotionVectors = std::move(other.m_dummyMotionVectors);
+        m_gradientImage = std::move(other.m_gradientImage);
+        m_prevGradientImage = std::move(other.m_prevGradientImage);
+        m_dummyGradient = std::move(other.m_dummyGradient);
         m_settings = other.m_settings;
         m_extent = other.m_extent;
         m_lastResetToken = other.m_lastResetToken;
@@ -271,6 +297,11 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     if (ctx.accumulationResetToken != m_lastResetToken) {
         resetHistory(ctx.accumulationResetToken);
     }
+
+    // A-SVGF gradient path is active only when enabled, the full-res gradient
+    // buffers exist, and temporal history is actually applied (fixed view).
+    const bool applyHistory = m_settings.useHistory && ctx.fixedView;
+    const bool useGradient = m_settings.useGradient && m_gradientImage.isValid() && m_prevGradientImage.isValid();
 
     const std::array preComputeBarriers{
         imageBarrier(ctx.hdrBuffer->handle(),
@@ -314,10 +345,53 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     };
     pipelineBarrier(ctx.cmd, preComputeBarriers);
 
+    // Gradient/variance buffers (bindings 6/7) → GENERAL for the compute passes.
+    // Real full-res images share the history lifetime (UNDEFINED on first use);
+    // when the gradient path is off the 1×1 dummy is transitioned instead so its
+    // descriptor binding stays valid without a real read.
+    if (useGradient) {
+        const std::array gradientBarriers{
+            imageBarrier(m_gradientImage.handle(),
+                         m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+            imageBarrier(m_prevGradientImage.handle(),
+                         m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+        };
+        pipelineBarrier(ctx.cmd, gradientBarriers);
+    } else {
+        const std::array dummyGradientBarrier{
+            imageBarrier(m_dummyGradient.handle(),
+                         m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         m_firstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+        };
+        pipelineBarrier(ctx.cmd, dummyGradientBarrier);
+    }
+
     // Resolve motion-vector binding: use the real view when available, fall back to
     // the 1×1 dummy (keeps the descriptor valid; hasMotionVectors=0 prevents reads).
     const bool hasMotionVectors = ctx.motionVectorView != VK_NULL_HANDLE;
     const VkImageView motionVecView = hasMotionVectors ? ctx.motionVectorView : m_dummyMotionVectors.view();
+
+    // Gradient/variance descriptor views (bindings 6/7). Real images when the
+    // gradient path is active; otherwise the shared 1×1 dummy.
+    const VkImageView gradientView = useGradient ? m_gradientImage.view() : m_dummyGradient.view();
+    const VkImageView prevGradientView = useGradient ? m_prevGradientImage.view() : m_dummyGradient.view();
+    // The variance buffer only holds meaningful data once a prior temporal pass
+    // has written it (i.e. gradient enabled, history applied, past first use).
+    const bool hasGradientVariance = useGradient && applyHistory && !m_historyFirstUse;
 
     vkCmdBindPipeline(ctx.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
     constexpr uint32_t kGroupSize = 8U;
@@ -372,6 +446,16 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
         const VkDescriptorImageInfo motionVecInfo{
             .sampler = VK_NULL_HANDLE,
             .imageView = motionVecView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+        const VkDescriptorImageInfo gradientInfo{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = gradientView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+        const VkDescriptorImageInfo prevGradientInfo{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = prevGradientView,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
         const std::array writes{
@@ -447,6 +531,30 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                 .pBufferInfo = nullptr,
                 .pTexelBufferView = nullptr,
             },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = VK_NULL_HANDLE,
+                .dstBinding = 6,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &gradientInfo,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = VK_NULL_HANDLE,
+                .dstBinding = 7,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &prevGradientInfo,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            },
         };
 
         const DenoiserPushConstants push{
@@ -459,6 +567,11 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
             .iterations = iterations,
             .passIndex = passIndex,
             .hasMotionVectors = 0U,  // spatial passes never read motion vectors
+            .computeGradient = 0U,   // gradient is computed in the temporal pass only
+            .gradientFilterMode = 0U,
+            .gradientFilterPass = 0U,
+            .hasGradientVariance = hasGradientVariance ? 1U : 0U,  // variance-guided luma edge stopping
+            .gradientAlpha = m_settings.gradientAlpha,
         };
         vkCmdPushDescriptorSet(ctx.cmd,
                                VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -539,7 +652,6 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
         pipelineBarrier(ctx.cmd, copyRestore);
     }
 
-    const bool applyHistory = m_settings.useHistory && ctx.fixedView;
     if (applyHistory) {
         const VkDescriptorImageInfo denoisedInfo{
             .sampler = VK_NULL_HANDLE,
@@ -564,6 +676,16 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
         const VkDescriptorImageInfo motionVecHistInfo{
             .sampler = VK_NULL_HANDLE,
             .imageView = motionVecView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+        const VkDescriptorImageInfo gradientHistInfo{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = gradientView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+        const VkDescriptorImageInfo prevGradientHistInfo{
+            .sampler = VK_NULL_HANDLE,
+            .imageView = prevGradientView,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
         const std::array historyWrites{
@@ -639,6 +761,30 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                 .pBufferInfo = nullptr,
                 .pTexelBufferView = nullptr,
             },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = VK_NULL_HANDLE,
+                .dstBinding = 6,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &gradientHistInfo,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = VK_NULL_HANDLE,
+                .dstBinding = 7,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &prevGradientHistInfo,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            },
         };
 
         const DenoiserPushConstants push{
@@ -651,6 +797,11 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
             .iterations = iterations,
             .passIndex = iterations,
             .hasMotionVectors = hasMotionVectors ? 1U : 0U,
+            .computeGradient = useGradient ? 1U : 0U,  // temporal pass writes gradient + variance
+            .gradientFilterMode = 0U,
+            .gradientFilterPass = 0U,
+            .hasGradientVariance = 0U,  // temporal pass writes, does not read, the variance
+            .gradientAlpha = m_settings.gradientAlpha,
         };
         vkCmdPushDescriptorSet(ctx.cmd,
                                VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -660,6 +811,154 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                                historyWrites.data());
         vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0U, sizeof(push), &push);
         vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1U);
+    }
+
+    // ── A-SVGF gradient à-trous propagation + prev-frame carry ──────────────────
+    // After the temporal pass has written this frame's per-pixel gradient into
+    // m_gradientImage, spread it spatially with a few à-trous-spaced Gaussian
+    // passes (ping-ponging m_gradientImage ↔ m_prevGradientImage; an even pass
+    // count returns the result to m_gradientImage), then copy it into
+    // m_prevGradientImage so next frame's temporal smoothing and variance guiding
+    // read a defined, consistent value. On first use the temporal pass only seeds
+    // the gradient to zero, so the blur is skipped and only the carry copy runs.
+    if (useGradient && applyHistory) {
+        if (!m_historyFirstUse) {
+            constexpr uint32_t kGradientFilterPasses = 2U;  // even → final result lands in m_gradientImage
+            for (uint32_t gp = 0U; gp < kGradientFilterPasses; ++gp) {
+                const bool srcIsGradient = (gp % 2U) == 0U;
+                const VkImageView gradSrcView = srcIsGradient ? m_gradientImage.view() : m_prevGradientImage.view();
+                const VkImageView gradDstView = srcIsGradient ? m_prevGradientImage.view() : m_gradientImage.view();
+                const VkImage gradSrcImage = srcIsGradient ? m_gradientImage.handle() : m_prevGradientImage.handle();
+                const VkImage gradDstImage = srcIsGradient ? m_prevGradientImage.handle() : m_gradientImage.handle();
+
+                const std::array gradPassBarriers{
+                    imageBarrier(gradSrcImage,
+                                 VK_IMAGE_LAYOUT_GENERAL,
+                                 VK_IMAGE_LAYOUT_GENERAL,
+                                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                 VK_ACCESS_2_SHADER_READ_BIT),
+                    imageBarrier(gradDstImage,
+                                 VK_IMAGE_LAYOUT_GENERAL,
+                                 VK_IMAGE_LAYOUT_GENERAL,
+                                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                 VK_ACCESS_2_SHADER_WRITE_BIT),
+                };
+                pipelineBarrier(ctx.cmd, gradPassBarriers);
+
+                // binding 6 = destination (gGradientVariance, written);
+                // binding 7 = source (gPrevGradientVariance, read neighbourhood).
+                const VkDescriptorImageInfo gradDstInfo{
+                    .sampler = VK_NULL_HANDLE,
+                    .imageView = gradDstView,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                };
+                const VkDescriptorImageInfo gradSrcInfo{
+                    .sampler = VK_NULL_HANDLE,
+                    .imageView = gradSrcView,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                };
+                const std::array gradWrites{
+                    VkWriteDescriptorSet{
+                        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                        .pNext = nullptr,
+                        .dstSet = VK_NULL_HANDLE,
+                        .dstBinding = 6,
+                        .dstArrayElement = 0,
+                        .descriptorCount = 1,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                        .pImageInfo = &gradDstInfo,
+                        .pBufferInfo = nullptr,
+                        .pTexelBufferView = nullptr,
+                    },
+                    VkWriteDescriptorSet{
+                        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                        .pNext = nullptr,
+                        .dstSet = VK_NULL_HANDLE,
+                        .dstBinding = 7,
+                        .dstArrayElement = 0,
+                        .descriptorCount = 1,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                        .pImageInfo = &gradSrcInfo,
+                        .pBufferInfo = nullptr,
+                        .pTexelBufferView = nullptr,
+                    },
+                };
+
+                DenoiserPushConstants gradPush{};
+                gradPush.strength = m_settings.strength;
+                gradPush.historyBlend = m_settings.historyBlend;
+                gradPush.iterations = iterations;
+                gradPush.passIndex = iterations;
+                gradPush.gradientFilterMode = 1U;
+                gradPush.gradientFilterPass = gp;
+                gradPush.gradientAlpha = m_settings.gradientAlpha;
+
+                vkCmdPushDescriptorSet(ctx.cmd,
+                                       VK_PIPELINE_BIND_POINT_COMPUTE,
+                                       m_pipelineLayout,
+                                       0U,
+                                       static_cast<uint32_t>(gradWrites.size()),
+                                       gradWrites.data());
+                vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0U, sizeof(gradPush), &gradPush);
+                vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1U);
+            }
+        }
+
+        // Carry the (possibly blurred) gradient into the previous-frame buffer.
+        const std::array gradCopyPrep{
+            imageBarrier(m_gradientImage.handle(),
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_READ_BIT),
+            imageBarrier(m_prevGradientImage.handle(),
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+        };
+        pipelineBarrier(ctx.cmd, gradCopyPrep);
+
+        const VkImageCopy gradCopyRegion{
+            .srcSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0U, 0U, 1U},
+            .srcOffset = VkOffset3D{0, 0, 0},
+            .dstSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0U, 0U, 1U},
+            .dstOffset = VkOffset3D{0, 0, 0},
+            .extent = VkExtent3D{ctx.extent.width, ctx.extent.height, 1U},
+        };
+        vkCmdCopyImage(ctx.cmd,
+                       m_gradientImage.handle(),
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       m_prevGradientImage.handle(),
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                       1U,
+                       &gradCopyRegion);
+
+        const std::array gradCopyRestore{
+            imageBarrier(m_gradientImage.handle(),
+                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_READ_BIT,
+                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+            imageBarrier(m_prevGradientImage.handle(),
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+        };
+        pipelineBarrier(ctx.cmd, gradCopyRestore);
     }
 
     const std::array restoreBarriers{
@@ -754,9 +1053,57 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
         return false;
     }
 
+    // A-SVGF gradient/variance buffers (bindings 6/7). Full-res R32G32F, same
+    // lifetime as the history image; STORAGE for the compute passes plus
+    // TRANSFER for the end-of-frame gradient→prev copy. Only allocated when the
+    // gradient path is enabled — otherwise the 1×1 dummy below is bound so the
+    // descriptors stay valid without wasting a full-res allocation.
+    Image gradient{};
+    Image prevGradient{};
+    if (m_settings.useGradient) {
+        auto grad = Image::create(*m_ctx,
+                                  extent,
+                                  VK_FORMAT_R32G32_SFLOAT,
+                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                  VK_IMAGE_ASPECT_COLOR_BIT,
+                                  "harmonia.denoiser.gradient");
+        if (!grad) {
+            Logger::error("SceneDenoiserPass gradient image creation failed: VkResult {}", static_cast<int>(grad.error()));
+            return false;
+        }
+        auto prevGrad = Image::create(*m_ctx,
+                                      extent,
+                                      VK_FORMAT_R32G32_SFLOAT,
+                                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                      VK_IMAGE_ASPECT_COLOR_BIT,
+                                      "harmonia.denoiser.prevGradient");
+        if (!prevGrad) {
+            Logger::error("SceneDenoiserPass prev-gradient image creation failed: VkResult {}", static_cast<int>(prevGrad.error()));
+            return false;
+        }
+        gradient = std::move(*grad);
+        prevGradient = std::move(*prevGrad);
+    }
+
+    // 1×1 R32G32F placeholder bound to bindings 6/7 when the gradient path is
+    // disabled; keeps the push-descriptor set valid without any real read.
+    auto dummyGrad = Image::create(*m_ctx,
+                                   {1U, 1U},
+                                   VK_FORMAT_R32G32_SFLOAT,
+                                   VK_IMAGE_USAGE_STORAGE_BIT,
+                                   VK_IMAGE_ASPECT_COLOR_BIT,
+                                   "harmonia.denoiser.dummyGradient");
+    if (!dummyGrad) {
+        Logger::error("SceneDenoiserPass dummy gradient image creation failed: VkResult {}", static_cast<int>(dummyGrad.error()));
+        return false;
+    }
+
     m_historyImage = std::move(*history);
     m_workImage = std::move(*work);
     m_dummyMotionVectors = std::move(*dummyMv);
+    m_gradientImage = std::move(gradient);
+    m_prevGradientImage = std::move(prevGradient);
+    m_dummyGradient = std::move(*dummyGrad);
     return true;
 }
 
@@ -769,6 +1116,9 @@ void SceneOutputCopyPass::destroy() noexcept {
     m_historyImage = {};
     m_workImage = {};
     m_dummyMotionVectors = {};
+    m_gradientImage = {};
+    m_prevGradientImage = {};
+    m_dummyGradient = {};
     if (m_ctx != nullptr) {
         if (m_pipeline != VK_NULL_HANDLE) {
             vkDestroyPipeline(m_ctx->device, m_pipeline, nullptr);

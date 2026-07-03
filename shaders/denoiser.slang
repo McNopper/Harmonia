@@ -20,6 +20,18 @@ RWTexture2D<float4> gHistoryHdr;
 [[vk::binding(5, 0)]] [vk::image_format("rg32f")]
 RWTexture2D<float2> gMotionVectors;  // per-pixel (dx, dy) in pixel coords; only valid when hasMotionVectors != 0
 
+// ── A-SVGF (A2): adaptive temporal filtering state ──────────────────────────
+// R = temporal gradient (pixel-relative luminance change, range [0,1]);
+// G = per-pixel variance estimate (gradient²). Written by the temporal pass and
+// smoothed by the gradient à-trous filter passes; only valid when the relevant
+// push-constant flag (computeGradient / hasGradientVariance) is set.
+[[vk::binding(6, 0)]] [vk::image_format("rg32f")]
+RWTexture2D<float2> gGradientVariance;
+// Previous frame's gradient/variance. Read for temporal smoothing of the
+// gradient, and reused as the ping-pong source for the gradient filter passes.
+[[vk::binding(7, 0)]] [vk::image_format("rg32f")]
+RWTexture2D<float2> gPrevGradientVariance;
+
 struct DenoiserPushConstants {
     float strength;
     float historyBlend;
@@ -30,6 +42,12 @@ struct DenoiserPushConstants {
     uint iterations;
     uint passIndex;
     uint hasMotionVectors;  // 1 when gMotionVectors is populated; 0 = static lookup fallback
+    // ── A-SVGF (A2) ─────────────────────────────────────────────────────────
+    uint computeGradient;      // 1 = temporal pass computes gradient + variance
+    uint gradientFilterMode;   // 1 = this dispatch is the gradient à-trous blur pass
+    uint gradientFilterPass;   // 0..N: gradient à-trous pass index (tap spacing)
+    uint hasGradientVariance;  // 1 = gGradientVariance holds valid gradient/variance
+    float gradientAlpha;       // temporal blend for the gradient (default 0.2)
 };
 
 [[vk::push_constant]]
@@ -58,6 +76,32 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
     uint height = 0u;
     gInputHdr.GetDimensions(width, height);
     if (pixel.x >= width || pixel.y >= height) {
+        return;
+    }
+
+    // ── A-SVGF gradient propagation pass (à-trous on the gradient buffer) ────
+    // Spreads the temporal-gradient / variance signal across a neighbourhood so
+    // an isolated disocclusion/lighting-change pixel influences its surround
+    // (disocclusion affects a region, not one texel) and per-pixel gradient
+    // noise is removed. Reads the source (gPrevGradientVariance), writes the
+    // destination (gGradientVariance); the host swaps the two views per pass so
+    // successive iterations ping-pong. Ref: Schied et al., A-SVGF (HPG 2018).
+    if (gDenoiser.gradientFilterMode != 0u) {
+        const uint gstep = 1u << min(gDenoiser.gradientFilterPass, 4u);
+        const float gk[3] = {0.25f, 0.5f, 0.25f};
+        float2 gacc = 0.0f.xx;
+        float gwsum = 0.0f;
+        for (int gy = -1; gy <= 1; ++gy) {
+            for (int gx = -1; gx <= 1; ++gx) {
+                const int2 gc = clamp(int2(pixel) + int2(gx, gy) * int(gstep),
+                                      int2(0, 0), int2(int(width) - 1, int(height) - 1));
+                const float2 gv = gPrevGradientVariance[uint2(gc)];
+                const float gw = gk[gx + 1] * gk[gy + 1];
+                gacc += gv * gw;
+                gwsum += gw;
+            }
+        }
+        gGradientVariance[pixel] = (gwsum > 1e-6f) ? (gacc / gwsum) : gPrevGradientVariance[pixel];
         return;
     }
 
@@ -113,7 +157,15 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
 
                 const float sampleLuma = luminance(max(sampleColor.xyz, 0.0f.xxx));
                 float weight = kKernel[x + 2] * kKernel[y + 2];
-                weight *= exp(-abs(sampleLuma - centerLuma) * lumaSigma);
+                // Variance-guided luma edge stopping (A-SVGF): where the per-pixel
+                // variance estimate is high (noisy / recently disoccluded), loosen
+                // the luminance threshold so those regions are filtered more
+                // aggressively. With hasGradientVariance == 0 this is a no-op
+                // (varSigmaBoost = 0 → lumaSigmaAdaptive == lumaSigma).
+                const float varSigmaBoost = (gDenoiser.hasGradientVariance != 0u)
+                    ? saturate(gGradientVariance[sampleCoord].g * 8.0f) : 0.0f;
+                const float lumaSigmaAdaptive = lumaSigma / (1.0f + varSigmaBoost);
+                weight *= exp(-abs(sampleLuma - centerLuma) * lumaSigmaAdaptive);
 
                 if (gDenoiser.hasNormalGuide != 0u) {
                     const float3 sampleNormal =
@@ -145,6 +197,11 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
             // garbage which sanitize4() cannot scrub). Seed the accumulation buffer
             // with the current frame instead of reading that memory — even a
             // zero-weight blend risks 0 * Inf = NaN. Output stays = current frame.
+            if (gDenoiser.computeGradient != 0u) {
+                // Seed the gradient/variance to zero (no temporal change yet) so the
+                // next frame's smoothing reads a defined value instead of garbage.
+                gGradientVariance[pixel] = float2(0.0f, 0.0f);
+            }
             gHistoryHdr[pixel] = filtered;
         } else {
             // Temporal reprojection: when motion vectors are available, look up the
@@ -165,6 +222,11 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
                 bool disoccluded = absMotion.x > float(width) * 0.5f ||
                                    absMotion.y > float(height) * 0.5f;
                 if (disoccluded) {
+                    if (gDenoiser.computeGradient != 0u) {
+                        // Full temporal change: max gradient so downstream passes
+                        // reject stale history around the disoccluded region.
+                        gGradientVariance[pixel] = float2(1.0f, 1.0f);
+                    }
                     gHistoryHdr[pixel] = filtered;
                     gOutputHdr[pixel] = sanitize4(filtered);
                     return;
@@ -180,7 +242,28 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
             const float3 clampHi = max(filtered.xyz, 0.0f.xxx) * 8.0f + 1.0f.xxx;
             history.xyz = clamp(history.xyz, 0.0f.xxx, clampHi);
             const float blend = saturate(gDenoiser.historyBlend);
-            filtered = sanitize4(lerp(filtered, history, blend));
+            if (gDenoiser.computeGradient != 0u) {
+                // ── A-SVGF adaptive temporal gradient + history rejection ─────
+                // Temporal gradient: pixel-relative luminance change between the
+                // current estimate and the reprojected history (range [0,1]).
+                const float curLum  = luminance(max(filtered.xyz, 0.0f.xxx));
+                const float prevLum = luminance(max(history.xyz, 0.0f.xxx));
+                const float gradient = (prevLum > 1e-4f)
+                    ? abs(curLum - prevLum) / (curLum + prevLum + 1e-4f) : 0.0f;
+                // Smooth the gradient temporally against the previous frame.
+                const float prevGrad = gPrevGradientVariance[pixel].r;
+                const float smoothGrad = lerp(gradient, prevGrad, gDenoiser.gradientAlpha);
+                const float variance = smoothGrad * smoothGrad;
+                gGradientVariance[pixel] = float2(smoothGrad, variance);
+                // High gradient (disocclusion / lighting change / fast motion)
+                // lowers the history weight so the estimate re-converges faster;
+                // a stable pixel (gradient → 0) keeps the full configured blend,
+                // so a converged static scene is unchanged from the fixed-blend path.
+                const float adaptiveBlend = blend * (1.0f - saturate(smoothGrad * 4.0f));
+                filtered = sanitize4(lerp(filtered, history, adaptiveBlend));
+            } else {
+                filtered = sanitize4(lerp(filtered, history, blend));
+            }
             gHistoryHdr[pixel] = filtered;
         }
     }
