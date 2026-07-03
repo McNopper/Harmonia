@@ -14,6 +14,7 @@ struct DeviceContext {
     VmaAllocator allocator = VK_NULL_HANDLE;
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     uint32_t graphicsFamily = 0;
+    bool positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is enabled.
 
     [[nodiscard]] bool isValid() const noexcept { return device != VK_NULL_HANDLE; }
 

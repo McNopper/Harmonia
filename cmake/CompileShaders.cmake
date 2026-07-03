@@ -34,6 +34,17 @@ function(compile_slang_shaders target output_dir)
         endforeach()
     endif()
 
+    # Extra preprocessor defines (e.g. -DPOSITION_FETCH_ENABLED) and explicit
+    # file dependencies (e.g. for shaders that #include another source file).
+    set(_extra_define_flags)
+    if(DEFINED COMPILE_SLANG_EXTRA_DEFINES)
+        list(APPEND _extra_define_flags ${COMPILE_SLANG_EXTRA_DEFINES})
+    endif()
+    set(_extra_depends)
+    if(DEFINED COMPILE_SLANG_EXTRA_DEPENDS)
+        list(APPEND _extra_depends ${COMPILE_SLANG_EXTRA_DEPENDS})
+    endif()
+
     # Non-entry support modules recompile every entry shader when they change.
     # Scan both the local shader root and any extra include dirs.
     set(_support_shaders)
@@ -69,19 +80,21 @@ function(compile_slang_shaders target output_dir)
                 -g0 -O2
                 -I "${_shader_root}"
                 ${_extra_include_flags}
-                -o "${_output_shader}"
-                # 31000: [[vk::combinedImageSampler]] is HLSL/DXC syntax; Slang 2026.x does not
-                #        recognise it as a named attribute but still emits correct combined-image-
-                #        sampler SPIR-V.  The pairing is intentional — suppress the noise.
-                # 39001: explicit binding overlap is expected and correct for combined image
-                #        samplers where Texture2D and SamplerState share the same binding slot.
-                # 41012: Slang auto-promotes the effective profile to include standard SPIR-V
-                #        extensions (spvImageQuery, spvDerivativeControl, …) from its runtime.
-                #        The upgrade is harmless — suppress the informational diagnostic.
-                -warnings-disable 31000,39001,41012
-            DEPENDS
-                "${_input_shader}"
-                ${_support_shaders}
+                    ${_extra_define_flags}
+                    -o "${_output_shader}"
+                    # 31000: [[vk::combinedImageSampler]] is HLSL/DXC syntax; Slang 2026.x does not
+                    #        recognise it as a named attribute but still emits correct combined-image-
+                    #        sampler SPIR-V.  The pairing is intentional — suppress the noise.
+                    # 39001: explicit binding overlap is expected and correct for combined image
+                    #        samplers where Texture2D and SamplerState share the same binding slot.
+                    # 41012: Slang auto-promotes the effective profile to include standard SPIR-V
+                    #        extensions (spvImageQuery, spvDerivativeControl, …) from its runtime.
+                    #        The upgrade is harmless — suppress the informational diagnostic.
+                    -warnings-disable 31000,39001,41012
+                DEPENDS
+                    "${_input_shader}"
+                    ${_support_shaders}
+                    ${_extra_depends}
             COMMENT "Compiling Slang shader ${_shader_name}"
             VERBATIM
             COMMAND_EXPAND_LISTS
