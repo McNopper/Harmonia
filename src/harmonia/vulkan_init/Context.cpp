@@ -101,9 +101,12 @@ namespace {
     VkPhysicalDeviceMeshShaderFeaturesEXT meshFeaturesSupported{};
     meshFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
     meshFeaturesSupported.pNext = &rtFeaturesSupported;
+    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeaturesSupported{};
+    positionFetchFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
+    positionFetchFeaturesSupported.pNext = &meshFeaturesSupported;
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeaturesSupported{};
     asFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    asFeaturesSupported.pNext = &meshFeaturesSupported;
+    asFeaturesSupported.pNext = &positionFetchFeaturesSupported;
     VkPhysicalDeviceVulkan14Features features14Supported{};
     features14Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
     features14Supported.pNext = &asFeaturesSupported;
@@ -152,9 +155,15 @@ namespace {
     asFeatures.accelerationStructure = VK_TRUE;
     asFeatures.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE;
 
+    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeatures{};
+    positionFetchFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
+    positionFetchFeatures.pNext = &asFeatures;
+    const bool positionFetchSupported = positionFetchFeaturesSupported.rayTracingPositionFetch == VK_TRUE;
+    positionFetchFeatures.rayTracingPositionFetch = positionFetchSupported ? VK_TRUE : VK_FALSE;
+
     VkPhysicalDeviceVulkan14Features features14{};
     features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
-    features14.pNext = &asFeatures;
+    features14.pNext = &positionFetchFeatures;
     features14.pushDescriptor = VK_TRUE;
 
     VkPhysicalDeviceVulkan13Features features13{};
@@ -212,6 +221,7 @@ namespace {
         .queueCount = 1,
         .pQueuePriorities = &queuePriority,
     };
+
     std::vector<const char*> deviceExtensions{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
@@ -219,6 +229,9 @@ namespace {
         VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
         VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
     };
+    if (positionFetchSupported) {
+        deviceExtensions.push_back(VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME);
+    }
     if (meshShaderSupported) {
         deviceExtensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
     }
@@ -235,7 +248,11 @@ namespace {
         .pEnabledFeatures = nullptr,
     };
 
-    return vkCreateDevice(info.device, &createInfo, nullptr, &ctx.device);
+    const VkResult result = vkCreateDevice(info.device, &createInfo, nullptr, &ctx.device);
+    if (result == VK_SUCCESS) {
+        ctx.positionFetchSupported = positionFetchSupported;
+    }
+    return result;
 }
 } // namespace
 
