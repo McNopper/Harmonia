@@ -95,9 +95,12 @@ namespace {
 [[nodiscard]] VkResult createDevice(const PhysicalDeviceInfo& info, DeviceContext& ctx) {
     VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeaturesSupported{};
     rayQueryFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+    VkPhysicalDeviceRayTracingMaintenance1FeaturesKHR rtMaintenance1FeaturesSupported{};
+    rtMaintenance1FeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
+    rtMaintenance1FeaturesSupported.pNext = &rayQueryFeaturesSupported;
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeaturesSupported{};
     rtFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    rtFeaturesSupported.pNext = &rayQueryFeaturesSupported;
+    rtFeaturesSupported.pNext = &rtMaintenance1FeaturesSupported;
     VkPhysicalDeviceMeshShaderFeaturesEXT meshFeaturesSupported{};
     meshFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
     meshFeaturesSupported.pNext = &rtFeaturesSupported;
@@ -126,6 +129,10 @@ namespace {
     supportedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     supportedFeatures.pNext = &features11Supported;
     vkGetPhysicalDeviceFeatures2(info.device, &supportedFeatures);
+
+    const bool indirectRt2Supported =
+        rtMaintenance1FeaturesSupported.rayTracingMaintenance1 == VK_TRUE &&
+        rtMaintenance1FeaturesSupported.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
 
     if (features12Supported.bufferDeviceAddress != VK_TRUE || features12Supported.descriptorIndexing != VK_TRUE ||
         features12Supported.runtimeDescriptorArray != VK_TRUE ||
@@ -164,9 +171,15 @@ namespace {
     const bool serSupported = serFeaturesSupported.rayTracingInvocationReorder == VK_TRUE;
     serFeatures.rayTracingInvocationReorder = serSupported ? VK_TRUE : VK_FALSE;
 
+    VkPhysicalDeviceRayTracingMaintenance1FeaturesKHR rtMaintenance1Features{};
+    rtMaintenance1Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
+    rtMaintenance1Features.pNext = &serFeatures;
+    rtMaintenance1Features.rayTracingMaintenance1 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
+    rtMaintenance1Features.rayTracingPipelineTraceRaysIndirect2 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
+
     VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeatures{};
     positionFetchFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
-    positionFetchFeatures.pNext = &serFeatures;
+    positionFetchFeatures.pNext = &rtMaintenance1Features;
     const bool positionFetchSupported = positionFetchFeaturesSupported.rayTracingPositionFetch == VK_TRUE;
     positionFetchFeatures.rayTracingPositionFetch = positionFetchSupported ? VK_TRUE : VK_FALSE;
 
@@ -270,6 +283,9 @@ namespace {
     if (serSupported) {
         deviceExtensions.push_back(VK_EXT_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME);
     }
+    if (indirectRt2Supported) {
+        deviceExtensions.push_back(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
+    }
     if (positionFetchSupported) {
         deviceExtensions.push_back(VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME);
     }
@@ -293,6 +309,7 @@ namespace {
     if (result == VK_SUCCESS) {
         ctx.positionFetchSupported = positionFetchSupported;
         ctx.serSupported = serSupported;
+        ctx.indirectRt2Supported = indirectRt2Supported;
         ctx.asyncComputeQueueFamily = asyncComputeFamily;
     }
     return result;
