@@ -15,6 +15,7 @@ struct DeviceContext {
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     uint32_t graphicsFamily = 0;
     bool positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is enabled.
+    bool serSupported = false;           ///< VK_EXT_ray_tracing_invocation_reorder is enabled.
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
     /// VK_NULL_HANDLE when the device has no dedicated compute queue family.

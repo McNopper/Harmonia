@@ -89,6 +89,7 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         info.properties.pNext = &info.rtProps;
         vkGetPhysicalDeviceProperties2(device, &info.properties);
         vkGetPhysicalDeviceMemoryProperties(device, &info.memProperties);
+        info.serSupported = hasSerSupport(device);
 
         const int score = scoreDevice(info.properties.properties) + 500;
         if (!foundCompatible || score > bestScore) {
@@ -131,6 +132,40 @@ bool PhysicalDevice::hasRayTracingSupport(VkPhysicalDevice device) {
            features12.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
            features13.dynamicRendering == VK_TRUE && features13.synchronization2 == VK_TRUE &&
            features13.maintenance4 == VK_TRUE && features14.pushDescriptor == VK_TRUE;
+}
+
+bool PhysicalDevice::hasSerSupport(VkPhysicalDevice device) {
+    uint32_t extensionCount = 0;
+    VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+    if (result != VK_SUCCESS || extensionCount == 0U) {
+        return false;
+    }
+
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+    if (result != VK_SUCCESS) {
+        return false;
+    }
+
+    bool extensionAvailable = false;
+    for (const VkExtensionProperties& extension : extensions) {
+        if (std::string_view(extension.extensionName) == VK_EXT_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME) {
+            extensionAvailable = true;
+            break;
+        }
+    }
+    if (!extensionAvailable) {
+        return false;
+    }
+
+    VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT serFeatures{};
+    serFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
+    VkPhysicalDeviceFeatures2 features2{};
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &serFeatures;
+    vkGetPhysicalDeviceFeatures2(device, &features2);
+
+    return serFeatures.rayTracingInvocationReorder == VK_TRUE;
 }
 
 bool PhysicalDevice::hasRequiredExtensions(VkPhysicalDevice device) {

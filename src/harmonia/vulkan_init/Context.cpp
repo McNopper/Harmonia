@@ -101,9 +101,12 @@ namespace {
     VkPhysicalDeviceMeshShaderFeaturesEXT meshFeaturesSupported{};
     meshFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
     meshFeaturesSupported.pNext = &rtFeaturesSupported;
+    VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT serFeaturesSupported{};
+    serFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
+    serFeaturesSupported.pNext = &meshFeaturesSupported;
     VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeaturesSupported{};
     positionFetchFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
-    positionFetchFeaturesSupported.pNext = &meshFeaturesSupported;
+    positionFetchFeaturesSupported.pNext = &serFeaturesSupported;
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeaturesSupported{};
     asFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     asFeaturesSupported.pNext = &positionFetchFeaturesSupported;
@@ -155,9 +158,15 @@ namespace {
     asFeatures.accelerationStructure = VK_TRUE;
     asFeatures.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE;
 
+    VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT serFeatures{};
+    serFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
+    serFeatures.pNext = &asFeatures;
+    const bool serSupported = serFeaturesSupported.rayTracingInvocationReorder == VK_TRUE;
+    serFeatures.rayTracingInvocationReorder = serSupported ? VK_TRUE : VK_FALSE;
+
     VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeatures{};
     positionFetchFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
-    positionFetchFeatures.pNext = &asFeatures;
+    positionFetchFeatures.pNext = &serFeatures;
     const bool positionFetchSupported = positionFetchFeaturesSupported.rayTracingPositionFetch == VK_TRUE;
     positionFetchFeatures.rayTracingPositionFetch = positionFetchSupported ? VK_TRUE : VK_FALSE;
 
@@ -258,6 +267,9 @@ namespace {
         VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
         VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
     };
+    if (serSupported) {
+        deviceExtensions.push_back(VK_EXT_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME);
+    }
     if (positionFetchSupported) {
         deviceExtensions.push_back(VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME);
     }
@@ -280,6 +292,7 @@ namespace {
     const VkResult result = vkCreateDevice(info.device, &createInfo, nullptr, &ctx.device);
     if (result == VK_SUCCESS) {
         ctx.positionFetchSupported = positionFetchSupported;
+        ctx.serSupported = serSupported;
         ctx.asyncComputeQueueFamily = asyncComputeFamily;
     }
     return result;

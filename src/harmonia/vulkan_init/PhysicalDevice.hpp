@@ -10,6 +10,7 @@ struct PhysicalDeviceInfo {
     VkPhysicalDeviceMemoryProperties memProperties{};
     uint32_t graphicsFamily{};
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps{};
+    bool serSupported = false; ///< VK_EXT_ray_tracing_invocation_reorder is available.
 };
 
 class PhysicalDevice {
@@ -19,4 +20,5 @@ class PhysicalDevice {
   private:
     [[nodiscard]] static bool hasRayTracingSupport(VkPhysicalDevice device);
     [[nodiscard]] static bool hasRequiredExtensions(VkPhysicalDevice device);
+    [[nodiscard]] static bool hasSerSupport(VkPhysicalDevice device);
 };
