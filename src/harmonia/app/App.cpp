@@ -573,6 +573,15 @@ VkAccessFlags2 App::sceneOutputAccessMask() noexcept {
     return m_sceneOutputUsesDenoised ? VK_ACCESS_2_SHADER_WRITE_BIT : renderer().outputAccessMask();
 }
 
+VkImageView App::denoiserGradientImageView() const noexcept {
+    for (const auto& stage : m_sceneStages) {
+        if (auto* pass = dynamic_cast<const SceneOutputCopyPass*>(stage.get())) {
+            return pass->gradientImageView();
+        }
+    }
+    return VK_NULL_HANDLE;
+}
+
 uint64_t App::accumulationResetToken() const noexcept {
     uint64_t token = kHashSeed;
     hashCombineU64(token, m_sceneEpoch);

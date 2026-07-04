@@ -47,6 +47,15 @@ class SceneOutputCopyPass final : public IRenderPass {
     void onResize(VkExtent2D extent) noexcept override;
     [[nodiscard]] const char* name() const noexcept override { return "SceneDenoiserPass"; }
 
+    /// A3(b): view of the A-SVGF per-pixel gradient/variance image (R32G32F,
+    /// R = temporal gradient, G = variance). Valid after the first record() call;
+    /// always in VK_IMAGE_LAYOUT_GENERAL. Returns VK_NULL_HANDLE when useGradient
+    /// is false or the pass has not been initialized.
+    [[nodiscard]] VkImageView gradientImageView() const noexcept {
+        return (m_settings.useGradient && m_gradientImage.isValid())
+            ? m_gradientImage.view() : VK_NULL_HANDLE;
+    }
+
   private:
     [[nodiscard]] bool createWorkImages(VkExtent2D extent) noexcept;
     void resetHistory(uint64_t resetToken) noexcept;

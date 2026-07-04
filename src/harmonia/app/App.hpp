@@ -225,6 +225,11 @@ class App {
     /// offscreen path only.
     bool saveExr(const std::filesystem::path& path);
 
+    /// A3(b): returns the A-SVGF gradient/variance image view from the shared denoiser pass,
+    /// or VK_NULL_HANDLE when the denoiser is disabled or gradient tracking is off.
+    /// Renderers can pass this to their GI pass for per-pixel adaptive firefly clamping.
+    [[nodiscard]] VkImageView denoiserGradientImageView() const noexcept;
+
   private:
     struct FrameResources {
         VkCommandBuffer renderCmd{};  ///< scene-referred renderer recording
