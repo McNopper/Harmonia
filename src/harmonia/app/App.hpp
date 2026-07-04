@@ -158,6 +158,20 @@ class App {
         return false;
     }
 
+    /// Called after renderer().record() and before the scene stages are recorded.
+    /// The default returns {renderCmd, VK_NULL_HANDLE} for the single-queue path.
+    /// Subclasses may override to split the frame across an async compute queue:
+    ///   - end renderCmd and submit it to the graphics queue (signalling a semaphore)
+    ///   - dispatch async compute work on a separate queue
+    ///   - begin and return a fresh graphics-family command buffer that the caller
+    ///     will use to record the scene stages (denoiser etc.)
+    /// @return {stagesCmd, asyncWaitSem}: cmd for scene stages and an optional binary
+    ///         semaphore the final stages submit waits on (VK_NULL_HANDLE = no wait)
+    [[nodiscard]] virtual std::pair<VkCommandBuffer, VkSemaphore>
+    onBeforeSceneStages(VkCommandBuffer renderCmd) noexcept {
+        return {renderCmd, VK_NULL_HANDLE};
+    }
+
     /// Per-frame update (camera controller, window title, ...).
     virtual void onUpdate(float dtSeconds) { static_cast<void>(dtSeconds); }
 

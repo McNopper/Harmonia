@@ -212,15 +212,44 @@ namespace {
     meshFeatures.meshShader = VK_TRUE;
     meshFeatures.taskShader = meshFeaturesSupported.taskShader;
 
+    // Detect a dedicated async compute queue family (COMPUTE without GRAPHICS).
+    uint32_t asyncComputeFamily = UINT32_MAX;
+    {
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(info.device, &queueFamilyCount, nullptr);
+        std::vector<VkQueueFamilyProperties> queueProps(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(info.device, &queueFamilyCount, queueProps.data());
+        for (uint32_t i = 0; i < queueFamilyCount; ++i) {
+            const auto& props = queueProps[i];
+            if ((props.queueFlags & VK_QUEUE_COMPUTE_BIT) && !(props.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
+                props.queueCount > 0) {
+                asyncComputeFamily = i;
+                break;
+            }
+        }
+    }
+
     constexpr float queuePriority = 1.0f;
-    const VkDeviceQueueCreateInfo queueInfo{
+    constexpr float asyncQueuePriority = 0.5f;
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    queueCreateInfos.push_back({
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .queueFamilyIndex = info.graphicsFamily,
         .queueCount = 1,
         .pQueuePriorities = &queuePriority,
-    };
+    });
+    if (asyncComputeFamily != UINT32_MAX) {
+        queueCreateInfos.push_back({
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .queueFamilyIndex = asyncComputeFamily,
+            .queueCount = 1,
+            .pQueuePriorities = &asyncQueuePriority,
+        });
+    }
 
     std::vector<const char*> deviceExtensions{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -239,8 +268,8 @@ namespace {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = meshShaderSupported ? static_cast<const void*>(&meshFeatures) : static_cast<const void*>(&features2),
         .flags = 0,
-        .queueCreateInfoCount = 1,
-        .pQueueCreateInfos = &queueInfo,
+        .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+        .pQueueCreateInfos = queueCreateInfos.data(),
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
         .enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size()),
@@ -251,6 +280,7 @@ namespace {
     const VkResult result = vkCreateDevice(info.device, &createInfo, nullptr, &ctx.device);
     if (result == VK_SUCCESS) {
         ctx.positionFetchSupported = positionFetchSupported;
+        ctx.asyncComputeQueueFamily = asyncComputeFamily;
     }
     return result;
 }
@@ -378,6 +408,12 @@ std::expected<Context, VkResult> Context::create(Config config) {
                      context.m_physicalDeviceInfo.graphicsFamily,
                      0,
                      &context.m_deviceContext.graphicsQueue);
+    if (context.m_deviceContext.asyncComputeQueueFamily != UINT32_MAX) {
+        vkGetDeviceQueue(context.m_deviceContext.device,
+                         context.m_deviceContext.asyncComputeQueueFamily,
+                         0,
+                         &context.m_deviceContext.asyncComputeQueue);
+    }
     result = createAllocator(context.m_deviceContext, context.m_instance, context.m_deviceContext.allocator);
     if (result != VK_SUCCESS) {
         return std::unexpected(result);

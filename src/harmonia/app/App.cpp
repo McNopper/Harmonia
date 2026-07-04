@@ -744,8 +744,12 @@ uint64_t App::renderSceneReferred() {
     };
     renderer().record(frame.renderCmd, target);
 
+    // Allow subclasses to split the frame for async compute.
+    // Default: {frame.renderCmd, VK_NULL_HANDLE} — single-queue path unchanged.
+    auto [stagesCmd, asyncWaitSem] = onBeforeSceneStages(frame.renderCmd);
+
     const PassContext passContext{
-        .cmd = frame.renderCmd,
+        .cmd = stagesCmd,
         .frameIndex = m_frameIndex,
         .frameSampleIndex = m_frameIndex,
         .rngSeed = m_config.rngSeed,
@@ -771,7 +775,7 @@ uint64_t App::renderSceneReferred() {
         }
     }
 
-    if (vkEndCommandBuffer(frame.renderCmd) != VK_SUCCESS) {
+    if (vkEndCommandBuffer(stagesCmd) != VK_SUCCESS) {
         Logger::error("Failed to end render command buffer");
         return frame.completionValue;
     }
@@ -780,7 +784,7 @@ uint64_t App::renderSceneReferred() {
     const VkCommandBufferSubmitInfo cmdInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
         .pNext = nullptr,
-        .commandBuffer = frame.renderCmd,
+        .commandBuffer = stagesCmd,
         .deviceMask = 0,
     };
     const VkSemaphoreSubmitInfo timelineSignal{
@@ -791,12 +795,21 @@ uint64_t App::renderSceneReferred() {
         .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
         .deviceIndex = 0,
     };
+    const VkSemaphoreSubmitInfo asyncWait{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .semaphore = asyncWaitSem,
+        .value = 0,
+        .stageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+        .deviceIndex = 0,
+    };
+    const uint32_t waitCount = (asyncWaitSem != VK_NULL_HANDLE) ? 1U : 0U;
     const VkSubmitInfo2 submitInfo{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
         .pNext = nullptr,
         .flags = 0,
-        .waitSemaphoreInfoCount = 0,
-        .pWaitSemaphoreInfos = nullptr,
+        .waitSemaphoreInfoCount = waitCount,
+        .pWaitSemaphoreInfos = waitCount > 0U ? &asyncWait : nullptr,
         .commandBufferInfoCount = 1,
         .pCommandBufferInfos = &cmdInfo,
         .signalSemaphoreInfoCount = 1,

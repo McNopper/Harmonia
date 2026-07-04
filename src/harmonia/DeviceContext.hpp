@@ -16,7 +16,13 @@ struct DeviceContext {
     uint32_t graphicsFamily = 0;
     bool positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is enabled.
 
+    /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
+    /// VK_NULL_HANDLE when the device has no dedicated compute queue family.
+    VkQueue asyncComputeQueue = VK_NULL_HANDLE;
+    uint32_t asyncComputeQueueFamily = UINT32_MAX;
+
     [[nodiscard]] bool isValid() const noexcept { return device != VK_NULL_HANDLE; }
+    [[nodiscard]] bool hasAsyncCompute() const noexcept { return asyncComputeQueue != VK_NULL_HANDLE; }
 
     void setDebugName(VkObjectType type, uint64_t handle, const char* name) const noexcept {
         if (device == VK_NULL_HANDLE || handle == 0U || name == nullptr || name[0] == '\0' ||
