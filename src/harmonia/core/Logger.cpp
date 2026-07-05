@@ -4,9 +4,26 @@
 #include <mutex>
 #include <print>
 
-void Logger::log(Level level, std::string message) {
+namespace {
+std::mutex& logMutex() {
     static std::mutex mutex;
-    std::lock_guard lock(mutex);
+    return mutex;
+}
+
+std::string& logTag() {
+    // Default tag for the shared Harmonia core; applications override via setTag().
+    static std::string tag = "HARMONIA";
+    return tag;
+}
+} // namespace
+
+void Logger::setTag(std::string_view tag) {
+    std::lock_guard lock(logMutex());
+    logTag() = std::string(tag);
+}
+
+void Logger::log(Level level, std::string message) {
+    std::lock_guard lock(logMutex());
 
     const char* levelString = "UNKNOWN";
     switch (level) {
@@ -21,7 +38,7 @@ void Logger::log(Level level, std::string message) {
         break;
     }
 
-    const std::string formatted = std::format("[HYPERION][{}] {}", levelString, message);
+    const std::string formatted = std::format("[{}][{}] {}", logTag(), levelString, message);
     std::FILE* const stream = level == Level::Error ? stderr : stdout;
     std::print(stream, "{}\n", formatted);
     std::fflush(stream);

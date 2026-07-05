@@ -7,6 +7,11 @@
 
 class Logger {
   public:
+    /// Set the tag shown in the log prefix, e.g. "THEIA" → "[THEIA][INFO] ...".
+    /// Each application should call this once at startup so its log lines identify
+    /// the running program rather than the shared Harmonia core default.
+    static void setTag(std::string_view tag);
+
     template <typename... Args> static void info(std::format_string<Args...> fmt, Args&&... args) {
         log(Level::Info, std::format(fmt, std::forward<Args>(args)...));
     }
