@@ -611,6 +611,26 @@ uint64_t App::accumulationResetToken() const noexcept {
     return token;
 }
 
+uint64_t App::denoiserResetToken() const noexcept {
+    // Hashes only scene/extent/config changes — NOT m_accumViewEpoch (camera movement).
+    // This keeps the A-SVGF denoiser's temporal history intact across camera motion so
+    // it can reproject via motion vectors (A-SVGF / SVGF design: Schied et al. 2017/2018).
+    uint64_t token = kHashSeed;
+    hashCombineU64(token, m_sceneEpoch);
+    hashCombineU64(token, m_extentEpoch);
+    hashCombineU64(token, m_stageEpoch);
+    hashCombineU64(token, static_cast<uint64_t>(m_workingColorSpace));
+    hashCombineU64(token, m_config.stages.denoiser ? 1ULL : 0ULL);
+    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.strength));
+    hashCombineU64(token, m_config.denoiser.iterations);
+    hashCombineU64(token, m_config.denoiser.useHistory ? 1ULL : 0ULL);
+    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.historyBlend));
+    hashCombineU64(token, m_config.denoiser.useGradient ? 1ULL : 0ULL);
+    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.gradientAlpha));
+    return token;
+}
+
+
 std::filesystem::path App::resolveScenePath(const std::filesystem::path& sceneFile) const {
     // Absolute/existing path is used as-is; otherwise the bare name (with an
     // optional ".scene.toml" extension) is looked up in the assets directory —
@@ -766,6 +786,7 @@ uint64_t App::renderSceneReferred() {
         .extent = m_hdrImage.extent(),
         .fixedView = !m_config.outputFile.empty() || m_interactiveAccumulation,
         .accumulationResetToken = accumulationResetToken(),
+        .denoiserResetToken = denoiserResetToken(),
         .hdrBuffer = &m_hdrImage,
         .gNormal = nullptr,
         .gDepth = nullptr,

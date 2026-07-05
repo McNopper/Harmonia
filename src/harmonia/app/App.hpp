@@ -265,6 +265,11 @@ class App {
     [[nodiscard]] VkPipelineStageFlags2 sceneOutputStageMask() noexcept;
     [[nodiscard]] VkAccessFlags2 sceneOutputAccessMask() noexcept;
     [[nodiscard]] uint64_t accumulationResetToken() const noexcept;
+    /// Reset token for the A-SVGF temporal denoiser. Changes only on scene/resize/config
+    /// changes — NOT on camera movement — so the denoiser can reproject history via motion
+    /// vectors across camera motion (A-SVGF / SVGF design). AccumulationPass uses the
+    /// separate accumulationResetToken which does change on camera movement.
+    [[nodiscard]] uint64_t denoiserResetToken() const noexcept;
 
     Config m_config{};
     Config::StagePipeline m_defaultStages{};

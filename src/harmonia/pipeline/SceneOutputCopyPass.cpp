@@ -294,8 +294,8 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
         }
     }
 
-    if (ctx.accumulationResetToken != m_lastResetToken) {
-        resetHistory(ctx.accumulationResetToken);
+    if (ctx.denoiserResetToken != m_lastResetToken) {
+        resetHistory(ctx.denoiserResetToken);
     }
 
     // A-SVGF gradient path is active only when enabled, the full-res gradient

@@ -20,6 +20,11 @@ struct PassContext {
     VkExtent2D extent = {};
     bool fixedView = false;                 ///< true for deterministic offscreen accumulation mode
     uint64_t accumulationResetToken = 0U;   ///< explicit reset key for progressive accumulation history
+    /// Separate reset key for temporal denoiser history. Changes only on scene/resize/config
+    /// changes — NOT on camera movement. This allows the A-SVGF denoiser to reproject its
+    /// temporal history across camera motion via motion vectors (SVGF/A-SVGF design intent),
+    /// while AccumulationPass still resets its per-view average on every camera movement.
+    uint64_t denoiserResetToken = 0U;
 
     /// Outputs from PathTracer — all in VK_IMAGE_LAYOUT_GENERAL.
     const Image* hdrBuffer = nullptr; ///< accumulated HDR radiance
