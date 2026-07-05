@@ -12,9 +12,11 @@ stage, and the `harmonia::IRenderer` interface.
 
 Pipeline (dependency direction):
 
-```
-Aether (file format)  ->  Harmonia (this repo)  ->  Hyperion (path tracer, ground truth)
-                                                 \-> Theia    (real-time rasterizer)
+```mermaid
+flowchart LR
+    A["Aether<br/>file format"] --> H["<b>Harmonia</b><br/>shared Vulkan lib (this repo)"]
+    H --> Hy["Hyperion<br/>path tracer · ground truth"]
+    H --> T["Theia<br/>real-time renderer"]
 ```
 
 **Split rule:** code shared 1:1 between renderers goes in Harmonia. Code that diverges
@@ -81,6 +83,9 @@ transitive dependencies.
 ## Conventions
 
 - Commit, but do **not** push unless asked.
+- **Logging:** the shared `Logger` prefixes each line with a per-app tag. Applications call
+  `Logger::setTag("...")` once at startup (Hyperion → `[HYPERION]`, Theia → `[THEIA]`); the
+  Harmonia default is `[HARMONIA]`. Keep the tag uppercase to match the `[INFO]` level style.
 - **GPU-driven, latest standard Vulkan, cross-vendor only** (core + `KHR`/`EXT`). No
   vendor-specific extensions (`VK_NV_*`/`VK_AMD_*`/`VK_INTEL_*`) — must run on any vendor.
 - Working color space is scene-referred (e.g. `lin_rec2020_scene` / `lin_rec709_scene`).

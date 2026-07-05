@@ -10,7 +10,12 @@ file format.
 > two renderers on one foundation: Vulkan core, GPU scene upload, color management,
 > tonemapping, SDR/HDR presentation.
 
-> ⚠️ **Early stage / work in progress.**
+```mermaid
+flowchart LR
+    A["Aether<br/>file format"] --> H["<b>Harmonia</b><br/>shared Vulkan lib"]
+    H --> Hy["Hyperion<br/>path tracer · ground truth"]
+    H --> T["Theia<br/>real-time renderer"]
+```
 
 ---
 
@@ -102,9 +107,11 @@ python tools/render_and_validate.py <hyperion.exe> <theia.exe> <output_root>
 
 ## Shared denoiser stage
 
-The scene pipeline includes a shared denoiser stage before tone mapping (when
-`stages.denoiser` is enabled). It filters accumulated HDR with guide buffers
-(`gNormal`/`gDepth`) and can optionally blend history in fixed-view mode.
+The scene pipeline includes a shared **A-SVGF** denoiser stage before tone mapping (when
+`stages.denoiser` is enabled): an à-trous wavelet edge-stopping filter with temporal
+accumulation and an adaptive per-pixel gradient that reprojects history via motion vectors
+(so camera motion does not reset the temporal history). It filters accumulated HDR with
+guide buffers (`gNormal`/`gDepth`) and blends history in fixed-view mode.
 
 Runtime tuning flags:
 
@@ -112,6 +119,8 @@ Runtime tuning flags:
 - `--denoiser-iterations <1..8>` spatial passes (default `2`)
 - `--denoiser-history-blend <0..1>` temporal blend amount (default `0.15`)
 - `--denoiser-no-history` / `--denoiser-history` disable/enable temporal blend
+- `--denoiser-no-gradient` / `--denoiser-gradient` disable/enable the A-SVGF adaptive gradient
+- `--denoiser-gradient-alpha <0..1>` temporal blend for the gradient (default `0.2`)
 
 ## Consuming Harmonia
 
