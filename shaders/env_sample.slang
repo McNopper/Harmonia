@@ -114,7 +114,7 @@ float evalEnvImportancePdfDir(
     float pCol = conditionalCdf[row * (W + 1u) + col + 1u]
                - conditionalCdf[row * (W + 1u) + col];
 
-    float theta    = kEnvSamplePi * (float(row) + 0.5) / float(H);
+    float theta    = kEnvSamplePi * v;          // exact theta from direction, not bin centre
     float sinTheta = max(sin(theta), 1.0e-5);
     return sanitizePdf((pRow * pCol * float(W) * float(H)) / (2.0 * kEnvSamplePi * kEnvSamplePi * sinTheta));
 }
