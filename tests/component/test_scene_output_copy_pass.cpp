@@ -2,7 +2,7 @@
 
 #include <volk/volk.h>
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 #include <gtest/gtest.h>
 
 #include <array>
@@ -19,9 +19,9 @@
 
 namespace {
 
-[[nodiscard]] std::vector<glm::vec4> readRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image) {
+[[nodiscard]] std::vector<sm::float4> readRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image) {
     const VkDeviceSize byteSize =
-        static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(glm::vec4);
+        static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(sm::float4);
     auto readback = Buffer::create(deviceCtx,
                                    byteSize,
                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -65,14 +65,14 @@ namespace {
                          VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
     EXPECT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 
-    std::vector<glm::vec4> pixels(image.extent().width * image.extent().height);
+    std::vector<sm::float4> pixels(image.extent().width * image.extent().height);
     std::memcpy(pixels.data(), readback->mappedData(), static_cast<size_t>(byteSize));
     return pixels;
 }
 
-void uploadRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image, const std::vector<glm::vec4>& pixels) {
+void uploadRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image, const std::vector<sm::float4>& pixels) {
     const VkDeviceSize byteSize =
-        static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(glm::vec4);
+        static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(sm::float4);
     auto staging = Buffer::create(deviceCtx,
                                   byteSize,
                                   VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -149,7 +149,7 @@ void uploadDepthImage(const DeviceContext& deviceCtx, CommandPool& commandPool, 
     ASSERT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 }
 
-[[nodiscard]] float luminance(const glm::vec4& c) {
+[[nodiscard]] float luminance(const sm::float4& c) {
     return c.r * 0.2627F + c.g * 0.6780F + c.b * 0.0593F;
 }
 
@@ -157,7 +157,7 @@ void uploadDepthImage(const DeviceContext& deviceCtx, CommandPool& commandPool, 
 
 TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
     constexpr VkExtent2D kExtent{16U, 8U};
-    const VkDeviceSize kRgbaBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(glm::vec4);
+    const VkDeviceSize kRgbaBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
     static_cast<void>(kRgbaBytes);
 
     auto hdr = Image::create(deviceCtx(),
@@ -193,8 +193,8 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
                                 "test.sceneoutput.gdepth");
     ASSERT_TRUE(gDepth.has_value()) << static_cast<int>(gDepth.error());
 
-    std::vector<glm::vec4> hdrPixels(kExtent.width * kExtent.height);
-    std::vector<glm::vec4> normalPixels(kExtent.width * kExtent.height);
+    std::vector<sm::float4> hdrPixels(kExtent.width * kExtent.height);
+    std::vector<sm::float4> normalPixels(kExtent.width * kExtent.height);
     std::vector<float> depthPixels(kExtent.width * kExtent.height);
     for (uint32_t y = 0; y < kExtent.height; ++y) {
         for (uint32_t x = 0; x < kExtent.width; ++x) {
@@ -204,8 +204,8 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
             const int pattern = static_cast<int>((x * 17U + y * 29U) % 9U) - 4;
             const float noise = static_cast<float>(pattern) * 0.035F;
             const float value = std::max(base + noise, 0.0F);
-            hdrPixels[idx] = glm::vec4(value, value, value, 1.0F);
-            normalPixels[idx] = left ? glm::vec4(0.5F, 0.5F, 1.0F, 0.0F) : glm::vec4(1.0F, 0.5F, 0.5F, 0.0F);
+            hdrPixels[idx] = sm::float4(value, value, value, 1.0F);
+            normalPixels[idx] = left ? sm::float4(0.5F, 0.5F, 1.0F, 0.0F) : sm::float4(1.0F, 0.5F, 0.5F, 0.0F);
             depthPixels[idx] = left ? 1.0F : 4.0F;
         }
     }
@@ -354,7 +354,7 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_NoOpWhenDenoiserOutputMissing) {
 
     const auto pixels = readRgbaImage(deviceCtx(), commandPool(), *hdr);
     ASSERT_FALSE(pixels.empty());
-    const glm::vec4 expected(kClear.float32[0], kClear.float32[1], kClear.float32[2], kClear.float32[3]);
+    const sm::float4 expected(kClear.float32[0], kClear.float32[1], kClear.float32[2], kClear.float32[3]);
     EXPECT_NEAR(pixels[0].r, expected.r, 1e-5F);
     EXPECT_NEAR(pixels[0].g, expected.g, 1e-5F);
     EXPECT_NEAR(pixels[0].b, expected.b, 1e-5F);

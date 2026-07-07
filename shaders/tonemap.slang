@@ -76,8 +76,7 @@ static const float3x3 kRec709ToP3 = float3x3(
 // tone curve; no copyrightable expression is reproduced.
 //
 // All matrices are row-major for Slang float3x3 (mul(M, v) = M·v).
-// Row-major values are transposed from the GLM column-major form in
-// src/hyperion/utils/ColorSpace.cpp, which holds the same numeric values.
+// These hold the same numeric values as src/harmonia/utils/ColorSpace.cpp.
 
 /// Rec.2020 → ACEScg AP1
 static const float3x3 kRec2020ToAP1 = float3x3(

@@ -2,7 +2,7 @@
 
 #include <volk/volk.h>
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 #include <gtest/gtest.h>
 
 #include <array>
@@ -16,11 +16,11 @@
 
 namespace {
 
-[[nodiscard]] glm::vec4 readFirstPixel(CommandPool& commandPool, Image& image, Buffer& readback) {
+[[nodiscard]] sm::float4 readFirstPixel(CommandPool& commandPool, Image& image, Buffer& readback) {
     auto cmd = commandPool.beginOneShot();
     EXPECT_TRUE(cmd.has_value()) << static_cast<int>(cmd.error());
     if (!cmd) {
-        return glm::vec4(0.0F);
+        return sm::float4(0.0F);
     }
 
     image.transition(*cmd,
@@ -48,7 +48,7 @@ namespace {
                      VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
     EXPECT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 
-    const auto* pixels = static_cast<const glm::vec4*>(readback.mappedData());
+    const auto* pixels = static_cast<const sm::float4*>(readback.mappedData());
     return pixels[0];
 }
 
@@ -56,7 +56,7 @@ namespace {
 
 TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
     constexpr VkExtent2D kExtent{8U, 8U};
-    constexpr VkDeviceSize kReadbackBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(glm::vec4);
+    constexpr VkDeviceSize kReadbackBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
 
     auto hdr = Image::create(deviceCtx(),
                              kExtent,
@@ -86,7 +86,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
     };
 
     bool firstFrame = true;
-    glm::vec4 expected{};
+    sm::float4 expected{};
     for (size_t frame = 0; frame < colors.size(); ++frame) {
         auto cmd = commandPool().beginOneShot();
         ASSERT_TRUE(cmd.has_value()) << static_cast<int>(cmd.error());
@@ -132,7 +132,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
         pass->record(passContext);
         ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
 
-        const glm::vec4 sample(
+        const sm::float4 sample(
             colors[frame].float32[0], colors[frame].float32[1], colors[frame].float32[2], colors[frame].float32[3]);
         if (frame == 0) {
             expected = sample;
@@ -140,7 +140,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
             expected = expected + (sample - expected) * (1.0F / static_cast<float>(frame + 1));
         }
 
-        const glm::vec4 pixel = readFirstPixel(commandPool(), *hdr, *readback);
+        const sm::float4 pixel = readFirstPixel(commandPool(), *hdr, *readback);
         EXPECT_NEAR(pixel.r, expected.r, 1e-4F) << "frame " << frame << " R";
         EXPECT_NEAR(pixel.g, expected.g, 1e-4F) << "frame " << frame << " G";
         EXPECT_NEAR(pixel.b, expected.b, 1e-4F) << "frame " << frame << " B";
@@ -150,7 +150,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
 
 TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
     constexpr VkExtent2D kExtent{8U, 8U};
-    constexpr VkDeviceSize kReadbackBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(glm::vec4);
+    constexpr VkDeviceSize kReadbackBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
 
     auto hdr = Image::create(deviceCtx(),
                              kExtent,
@@ -227,8 +227,8 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
         ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
     }
 
-    const glm::vec4 pixel = readFirstPixel(commandPool(), *hdr, *readback);
-    const glm::vec4 expected(colors[2].float32[0], colors[2].float32[1], colors[2].float32[2], colors[2].float32[3]);
+    const sm::float4 pixel = readFirstPixel(commandPool(), *hdr, *readback);
+    const sm::float4 expected(colors[2].float32[0], colors[2].float32[1], colors[2].float32[2], colors[2].float32[3]);
     EXPECT_NEAR(pixel.r, expected.r, 1e-4F);
     EXPECT_NEAR(pixel.g, expected.g, 1e-4F);
     EXPECT_NEAR(pixel.b, expected.b, 1e-4F);

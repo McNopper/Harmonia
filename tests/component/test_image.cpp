@@ -7,7 +7,7 @@
 
 #include <volk/volk.h>
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -40,7 +40,7 @@ TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
 TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     constexpr VkExtent2D kExtent{8U, 8U};
     constexpr uint32_t kPixelCount = kExtent.width * kExtent.height;
-    constexpr VkDeviceSize kReadbackBytes = kPixelCount * sizeof(glm::vec4);
+    constexpr VkDeviceSize kReadbackBytes = kPixelCount * sizeof(sm::float4);
 
     // Expected clear value
     constexpr VkClearColorValue kClear{.float32 = {0.5F, 0.25F, 0.125F, 1.0F}};
@@ -103,7 +103,7 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
 
     ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
 
-    const auto* pixels = static_cast<const glm::vec4*>(readback->mappedData());
+    const auto* pixels = static_cast<const sm::float4*>(readback->mappedData());
     for (uint32_t i = 0; i < kPixelCount; ++i) {
         EXPECT_NEAR(pixels[i].r, kClear.float32[0], 1e-5F) << "pixel " << i << " R";
         EXPECT_NEAR(pixels[i].g, kClear.float32[1], 1e-5F) << "pixel " << i << " G";
