@@ -29,6 +29,8 @@ FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
     GIT_TAG v0.6.9
+)
+FetchContent_MakeAvailable(aether)
 
 FetchContent_Declare(
     slang_math
