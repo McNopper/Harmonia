@@ -121,7 +121,7 @@ VkTransformMatrixKHR Xform::toVkTransform() const noexcept {
 
 std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(const DeviceContext& ctx,
                                                                             const CommandPool& pool,
-                                                                            MeshData data,
+                                                                            MeshData&& data,
                                                                             uint32_t materialIndex,
                                                                             std::string_view debugName) {
     auto mesh = Mesh::create(ctx, pool, data, debugName);

@@ -47,18 +47,6 @@ namespace {
     return vkCreateSemaphore(device, &info, nullptr, &semaphore);
 }
 
-[[nodiscard]] bool parseUint32(std::string_view text, uint32_t& value) noexcept {
-    uint64_t parsed = 0;
-    const auto begin = text.data();
-    const auto end = begin + text.size();
-    const auto [ptr, ec] = std::from_chars(begin, end, parsed);
-    if (ec != std::errc{} || ptr != end || parsed > std::numeric_limits<uint32_t>::max()) {
-        return false;
-    }
-        value = static_cast<uint32_t>(parsed);
-        return true;
-    }
-
     [[nodiscard]] bool parseFloat(std::string_view text, float& value) noexcept {
         if (text.empty()) {
             return false;
@@ -132,6 +120,18 @@ class ToneMapStagePass final : public IRenderPass {
 
 } // namespace
 
+bool App::parseUint32(std::string_view text, uint32_t& value) noexcept {
+    uint64_t parsed = 0;
+    const auto begin = text.data();
+    const auto end = begin + text.size();
+    const auto [ptr, ec] = std::from_chars(begin, end, parsed);
+    if (ec != std::errc{} || ptr != end || parsed > std::numeric_limits<uint32_t>::max()) {
+        return false;
+    }
+    value = static_cast<uint32_t>(parsed);
+    return true;
+}
+
 App::~App() {
     shutdown();
 }
@@ -173,7 +173,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     if (arg == "--offscreen-frames") {
         if (const char* v = next("--offscreen-frames")) {
             uint32_t frames = 0U;
-            if (!parseUint32(v, frames)) {
+            if (!App::parseUint32(v, frames)) {
                 Logger::error("Invalid value for --offscreen-frames: {}", v);
             } else {
                 config.offscreenFrames = std::max(frames, 1U);
@@ -234,7 +234,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     if (arg == "--rng-seed") {
         if (const char* v = next("--rng-seed")) {
             uint32_t seed = 0U;
-            if (!parseUint32(v, seed)) {
+            if (!App::parseUint32(v, seed)) {
                 Logger::error("Invalid value for --rng-seed: {}", v);
             } else {
                 config.rngSeed = seed;
@@ -256,7 +256,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     if (arg == "--denoiser-iterations") {
         if (const char* v = next("--denoiser-iterations")) {
             uint32_t iterations = 0U;
-            if (!parseUint32(v, iterations)) {
+            if (!App::parseUint32(v, iterations)) {
                 Logger::error("Invalid value for --denoiser-iterations: {}", v);
             } else {
                 config.denoiser.iterations = std::clamp(iterations, 1U, 8U);
@@ -309,7 +309,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     return false;
 }
 
-int App::run(Config config) {
+int App::run(Config&& config) {
     m_config = std::move(config);
     m_defaultStages = m_config.stages;
 

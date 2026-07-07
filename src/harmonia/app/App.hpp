@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "harmonia/app/IRenderer.hpp"
@@ -114,7 +115,7 @@ class App {
 
     /// Bootstrap, load the scene, then run offscreen capture or the
     /// interactive loop. Returns the process exit code.
-    int run(Config config);
+    int run(Config&& config);
 
     /// Parses an argument the host understands (--scene/-s, --output/-o,
     /// --width, --height, --validation, --no-validation, --no-postfx,
@@ -125,6 +126,10 @@ class App {
     /// or a bare scene name). Returns true if consumed;
     /// @p i may be advanced.
     [[nodiscard]] static bool applyCommonArg(Config& config, int& i, int argc, char* const argv[]);
+
+    /// Parse a decimal uint32 from @p text into @p value.
+    /// Returns false on invalid input or overflow.
+    [[nodiscard]] static bool parseUint32(std::string_view text, uint32_t& value) noexcept;
 
   protected:
     // ── Hooks (renderer injection) ──────────────────────────────────────────

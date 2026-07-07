@@ -6,6 +6,8 @@
 #include <limits>
 #include <numbers>
 
+#include "harmonia/utils/ColorSpace.hpp"
+
 namespace Math {
 inline constexpr float kPi = std::numbers::pi_v<float>;
 inline constexpr float k2Pi = 2.0F * kPi;
@@ -24,8 +26,9 @@ inline constexpr float kInv2Pi = 1.0F / k2Pi;
     return a / b;
 }
 
-[[nodiscard]] inline float luminance(sm::float3 c) noexcept {
-    return (0.2627F * c.r) + (0.6780F * c.g) + (0.0593F * c.b);
+/// Rec.2020 luminance — delegates to ColorSpace::luminance (single source of truth).
+[[nodiscard]] inline float luminance(const sm::float3& c) noexcept {
+    return ColorSpace::luminance(c);
 }
 
 [[nodiscard]] inline sm::float3 srgbToLinear(sm::float3 c) noexcept {

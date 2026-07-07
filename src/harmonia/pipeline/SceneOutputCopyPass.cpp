@@ -44,14 +44,15 @@ struct alignas(16) DenoiserPushConstants {
 std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const DeviceContext& ctx,
                                                                           VkExtent2D extent,
                                                                           const std::filesystem::path& computeSpvPath,
-                                                                          Settings settings) {
+                                                                          const Settings& settings) {
     if (!ctx.isValid() || extent.width == 0U || extent.height == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    settings.strength = clamp01(settings.strength);
-    settings.historyBlend = clamp01(settings.historyBlend);
-    settings.iterations = clampIterations(settings.iterations);
+    Settings s = settings;
+    s.strength = clamp01(s.strength);
+    s.historyBlend = clamp01(s.historyBlend);
+    s.iterations = clampIterations(s.iterations);
 
     const std::array bindings{
         VkDescriptorSetLayoutBinding{

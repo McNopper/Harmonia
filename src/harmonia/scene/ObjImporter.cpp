@@ -157,8 +157,8 @@ bool flushMesh(PendingMesh& pending,
         mesh.indices.push_back(it->second);
     }
 
-    const Material mat = resolveMaterial(pending.name, options);
-    const uint32_t mi = scene.addMaterial(mat);
+    Material mat = resolveMaterial(pending.name, options);
+    const uint32_t mi = scene.addMaterial(std::move(mat));
     if (scene.addMesh(ctx, pool, std::move(mesh), mi, pending.name) == std::numeric_limits<uint32_t>::max()) {
         Logger::error("OBJ: failed to upload mesh '{}'", pending.name);
         return false;

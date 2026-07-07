@@ -46,7 +46,7 @@ void Camera::setTarget(sm::float3 target) noexcept {
     }
 }
 
-void Camera::setPhysicalCamera(PhysicalCamera physical) noexcept {
+void Camera::setPhysicalCamera(const PhysicalCamera& physical) noexcept {
     m_params.physical = physical;
 }
 

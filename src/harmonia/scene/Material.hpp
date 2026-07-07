@@ -64,7 +64,7 @@ class Material {
     }
 
     /// Construct a Material wrapping an already-populated GpuMaterial.
-    [[nodiscard]] static Material fromGpu(GpuMaterial g, bool emissiveAsLightSource = true) {
+    [[nodiscard]] static Material fromGpu(const GpuMaterial& g, bool emissiveAsLightSource = true) {
         Material m;
         m.m_gpu = g;
         m.m_emissiveAsLightSource = emissiveAsLightSource;

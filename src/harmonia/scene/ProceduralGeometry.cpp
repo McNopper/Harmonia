@@ -7,7 +7,7 @@
 #include <cstdint>
 
 namespace ProceduralGeometry {
-MeshData makeBox(sm::float3 halfExtent, sm::float4x4 transform) {
+MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform) {
     struct Face {
         sm::float3 normal;
         std::array<sm::float3, 4> positions;
@@ -26,7 +26,7 @@ MeshData makeBox(sm::float3 halfExtent, sm::float4x4 transform) {
         {{0.0f, 0.0f, -1.0f}, {hx - hy - hz, -hx - hy - hz, -hx + hy - hz, hx + hy - hz}},
     }};
 
-    const sm::float3x3 normalMatrix = sm::inverseTranspose(sm::mat3(transform));
+    const sm::float3x3 normalMatrix = sm::inverseTranspose(sm::toFloat3x3(transform));
     const std::array<sm::float2, 4> uvs{{
         {0.0f, 0.0f},
         {1.0f, 0.0f},
@@ -129,3 +129,4 @@ SphereAabb makeSphereAabb(sm::float3 center, float radius) noexcept {
     };
 }
 } // namespace ProceduralGeometry
+

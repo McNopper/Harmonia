@@ -45,7 +45,7 @@ class TriangleMesh final : public Geometry {
   public:
     [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult> create(const DeviceContext& ctx,
                                                                                        const CommandPool& pool,
-                                                                                       MeshData data,
+                                                                                       MeshData&& data,
                                                                                        uint32_t materialIndex,
                                                                                        std::string_view debugName = "");
 

@@ -13,19 +13,19 @@ namespace {
 
 class RecordingSceneBuilder final : public ISceneBuilder {
   public:
-    uint32_t addMaterial(Material /*mat*/) override {
+    uint32_t addMaterial(Material&& /*mat*/) override {
         ++materialCount;
         return static_cast<uint32_t>(materialCount - 1);
     }
 
-    uint32_t addTexture(Texture /*texture*/) override {
+    uint32_t addTexture(Texture&& /*texture*/) override {
         ++textureCount;
         return static_cast<uint32_t>(textureCount - 1);
     }
 
     uint32_t addMesh(const DeviceContext& /*ctx*/,
                      const CommandPool& /*pool*/,
-                     MeshData data,
+                     MeshData&& data,
                      uint32_t /*materialIdx*/,
                      std::string_view /*name*/) override {
         if (data.vertices.empty() || data.indices.empty()) {

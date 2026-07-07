@@ -2,6 +2,7 @@
 
 #include <slang-math/slang-math.hpp>
 
+#include <cmath>
 #include <utility>
 
 #include "harmonia/GpuTypes.hpp"
@@ -22,6 +23,12 @@ class Camera {
 
         /// Exposure multiplier: 1 / (1.2 × 2^EV100)
         [[nodiscard]] float exposure() const noexcept;
+
+        /// Convenience factory: fixed aperture=1, iso=100, compute shutterSpeed from ev100.
+        /// Formula: shutterSpeedHz = pow(2, ev100) with aperture=1, iso=100.
+        [[nodiscard]] static PhysicalCamera fromEv100(float ev100) noexcept {
+            return PhysicalCamera{50.0f, 1.0f, std::pow(2.0f, ev100), 100.0f, {36.0f, 24.0f}};
+        }
     };
 
     struct Params {
@@ -48,7 +55,7 @@ class Camera {
     void setAspect(float aspect) noexcept;
     void setPosition(sm::float3 pos) noexcept;
     void setTarget(sm::float3 target) noexcept;
-    void setPhysicalCamera(PhysicalCamera physical) noexcept;
+    void setPhysicalCamera(const PhysicalCamera& physical) noexcept;
 
     [[nodiscard]] const PhysicalCamera& physicalCamera() const noexcept { return m_params.physical; }
     [[nodiscard]] CameraData getCameraData(uint32_t frameIndex, uint32_t maxDepth) const noexcept;

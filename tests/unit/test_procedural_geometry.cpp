@@ -53,7 +53,7 @@ TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
 TEST(ProceduralGeometry, MakeBoxRotationTransformsNormals) {
     const sm::float4x4 rotation = Math::makeRotationY(Math::kPi * 0.5F);
     const MeshData mesh = ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
-    const sm::float3x3 normalTransform = sm::mat3(rotation);
+    const sm::float3x3 normalTransform = sm::toFloat3x3(rotation);
 
     const std::array expectedDirections{
         sm::normalize(normalTransform * sm::float3(1.0F, 0.0F, 0.0F)),
@@ -89,3 +89,4 @@ TEST(ProceduralGeometry, MakeSphereAabbWithOffsetMatchesExpectedBounds) {
     EXPECT_NEAR(aabb.max.y, 2.5F, kEpsilon);
     EXPECT_NEAR(aabb.max.z, 3.5F, kEpsilon);
 }
+

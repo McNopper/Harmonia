@@ -34,7 +34,7 @@ class SceneOutputCopyPass final : public IRenderPass {
     [[nodiscard]] static std::expected<SceneOutputCopyPass, VkResult> create(const DeviceContext& ctx,
                                                                               VkExtent2D extent,
                                                                               const std::filesystem::path& computeSpvPath,
-                                                                              Settings settings = {});
+                                                                              const Settings& settings = {});
 
     SceneOutputCopyPass() = default;
     SceneOutputCopyPass(const SceneOutputCopyPass&) = delete;

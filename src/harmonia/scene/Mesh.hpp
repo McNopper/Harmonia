@@ -27,7 +27,7 @@ class Mesh {
     ~Mesh() = default;
 
     [[nodiscard]] static std::expected<Mesh, VkResult>
-    create(const DeviceContext& ctx, const CommandPool& cmdPool, MeshData data, std::string_view debugName = "");
+    create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshData& data, std::string_view debugName = "");
 
     [[nodiscard]] const Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
     [[nodiscard]] const Buffer& indexBuffer() const noexcept { return m_indexBuffer; }

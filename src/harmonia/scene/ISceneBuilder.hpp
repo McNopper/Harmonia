@@ -23,13 +23,13 @@ class ISceneBuilder {
   public:
     virtual ~ISceneBuilder() = default;
 
-    [[nodiscard]] virtual uint32_t addMaterial(Material mat) = 0;
+    [[nodiscard]] virtual uint32_t addMaterial(Material&& mat) = 0;
 
-    [[nodiscard]] virtual uint32_t addTexture(Texture texture) = 0;
+    [[nodiscard]] virtual uint32_t addTexture(Texture&& texture) = 0;
 
     [[nodiscard]] virtual uint32_t addMesh(const DeviceContext& ctx,
                                            const CommandPool& pool,
-                                           MeshData data,
+                                           MeshData&& data,
                                            uint32_t materialIdx,
                                            std::string_view name) = 0;
 
