@@ -136,7 +136,7 @@ and link the `harmonia::harmonia` target.
 | [Aether](https://github.com/McNopper/Aether) | Scene & material file formats (`.scene.toml` / `.materials.toml` / OBJ) — GPU-agnostic CPU data |
 | [Vulkan SDK](https://vulkan.lunarg.com/) | Vulkan 1.4 API, Slang compiler (`slangc`), SDL3, volk |
 | [VMA](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) | GPU memory allocation |
-| [GLM](https://github.com/g-truc/glm) | Mathematics |
+| [slang-math](https://github.com/McNopper/slang-math) | Mathematics — vector/quaternion/matrix types; header-only, via FetchContent |
 | [OpenImageIO](https://openimageio.readthedocs.io/) | Image I/O — PNG/JPEG/EXR load and save; EXR chromaticities for working color-space metadata |
 | [Slang](https://shader-slang.com/) | Shader language (Slang → SPIR-V); shared modules compiled via `compile_slang_shaders` |
 | [Google Test](https://github.com/google/googletest) | Testing |

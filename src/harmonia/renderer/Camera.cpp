@@ -51,12 +51,14 @@ void Camera::setPhysicalCamera(const PhysicalCamera& physical) noexcept {
 }
 
 CameraData Camera::getCameraData(uint32_t frameIndex, uint32_t maxDepth) const noexcept {
-    const sm::float4x4 view = viewMatrix();
-    const sm::float4x4 proj = projectionMatrix();
+    const float aspect = std::max(m_params.aspectRatio, 0.001f);
+    const float fovY   = sm::radians(m_params.vfovDeg);
+    const float zNear  = std::max(m_params.nearPlane, 0.001f);
+    const float zFar   = std::max(m_params.farPlane, zNear + 0.001f);
 
     return CameraData{
-        .invView = sm::inverse(view),
-        .invProj = sm::inverse(proj),
+        .invView = sm::inverseLookAtRH(m_params.position, m_params.target, m_params.up),
+        .invProj = sm::inversePerspectiveRH_ZO(fovY, aspect, zNear, zFar),
         .position = sm::float4(m_params.position, 1.0f),
         .lensRadius = std::max(m_params.lensRadius, 0.0f),
         .focusDistance =

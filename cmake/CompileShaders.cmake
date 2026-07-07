@@ -77,6 +77,7 @@ function(compile_slang_shaders target output_dir)
             COMMAND "${SLANGC_EXECUTABLE}" "${_input_shader}"
                 -target spirv
                 -profile spirv_1_6
+                -matrix-layout-row-major
                 -g0 -O2
                 -I "${_shader_root}"
                 ${_extra_include_flags}
