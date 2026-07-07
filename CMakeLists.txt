@@ -60,12 +60,14 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/renderer/Descriptors.cpp
     src/harmonia/renderer/Pipeline.cpp
     src/harmonia/scene/Geometry.cpp
+    src/harmonia/scene/EmissiveBuilder.cpp
     src/harmonia/scene/IblProbe.cpp
     src/harmonia/scene/Light.cpp
     src/harmonia/scene/Mesh.cpp
     src/harmonia/scene/MaterialLibrary.cpp
     src/harmonia/scene/ObjImporter.cpp
     src/harmonia/scene/ProceduralGeometry.cpp
+    src/harmonia/scene/SceneBase.cpp
     src/harmonia/scene/SceneLoader.cpp
     src/harmonia/scene/Texture.cpp
     src/harmonia/utils/ColorSpace.cpp
