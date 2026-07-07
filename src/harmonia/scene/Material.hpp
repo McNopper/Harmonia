@@ -1,7 +1,6 @@
 #pragma once
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <algorithm>
 
@@ -9,57 +8,58 @@
 
 class Material {
   public:
-    [[nodiscard]] static Material diffuse(glm::vec3 color, float roughness = 1.0f, float specIor = 1.5f) {
+    [[nodiscard]] static Material diffuse(sm::float3 color, float roughness = 1.0f, float specIor = 1.5f) {
         Material material;
-        material.m_gpu.baseColorWeight = glm::vec4(glm::max(color, glm::vec3(0.0f)), 1.0f);
-        material.m_gpu.baseMetalnessDiffRough = glm::vec4(0.0f, std::clamp(roughness, 0.0f, 1.0f), 0.0f, 0.0f);
-        material.m_gpu.specularColorWeight = glm::vec4(1.0f);
+        material.m_gpu.baseColorWeight = sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), 1.0f);
+        material.m_gpu.baseMetalnessDiffRough = sm::float4{0.0f, std::clamp(roughness, 0.0f, 1.0f), 0.0f, 0.0f};
+        material.m_gpu.specularColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 1.0f};
         material.m_gpu.specularRoughAnisoIor =
-            glm::vec4(std::clamp(roughness, 0.0f, 1.0f), 0.0f, std::max(specIor, 1.0f), 0.0f);
-        material.m_gpu.transmissionColorWeight = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
-        material.m_gpu.subsurfaceRadiusScale = glm::vec4(1.0f);
-        material.m_gpu.textureIndices = glm::uvec4(kNoTexture);
-        material.m_gpu.textureIndices2 = glm::uvec4(kNoTexture);
-        material.m_gpu.coatColorWeight = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
-        material.m_gpu.coatRoughAnisoIorDark = glm::vec4(0.0f, 0.0f, 1.6f, 0.0f);
-        material.m_gpu.fuzzColorWeight = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
-        material.m_gpu.fuzzRoughPad = glm::vec4(0.5f, 0.0f, 0.0f, 0.0f);
-        material.m_gpu.opacityFlagsPad = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+            sm::float4{std::clamp(roughness, 0.0f, 1.0f), 0.0f, std::max(specIor, 1.0f), 0.0f};
+        material.m_gpu.transmissionColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 0.0f};
+        material.m_gpu.subsurfaceRadiusScale = sm::float4{1.0f, 1.0f, 1.0f, 1.0f};
+        material.m_gpu.textureIndices = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
+        material.m_gpu.textureIndices2 = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
+        material.m_gpu.coatColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 0.0f};
+        material.m_gpu.coatRoughAnisoIorDark = sm::float4{0.0f, 0.0f, 1.6f, 0.0f};
+        material.m_gpu.fuzzColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 0.0f};
+        material.m_gpu.fuzzRoughPad = sm::float4{0.5f, 0.0f, 0.0f, 0.0f};
+        material.m_gpu.opacityFlagsPad = sm::float4{1.0f, 0.0f, 0.0f, 0.0f};
         return material;
     }
 
-    [[nodiscard]] static Material metal(glm::vec3 color, float roughness = 0.0f) {
+    [[nodiscard]] static Material metal(sm::float3 color, float roughness = 0.0f) {
         Material material = diffuse(color, roughness, 1.5f);
         material.m_gpu.baseMetalnessDiffRough.x = 1.0f;
         material.m_gpu.baseMetalnessDiffRough.y = 0.0f;
-        material.m_gpu.specularColorWeight = glm::vec4(glm::max(color, glm::vec3(0.0f)), 1.0f);
+        material.m_gpu.specularColorWeight = sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), 1.0f);
         material.m_gpu.specularRoughAnisoIor.x = std::clamp(roughness, 0.0f, 1.0f);
         return material;
     }
 
-    [[nodiscard]] static Material mirror(glm::vec3 color = {0.99f, 0.99f, 0.99f}) {
+    [[nodiscard]] static Material mirror(sm::float3 color = {0.99f, 0.99f, 0.99f}) {
         Material material = metal(color, 0.0f);
         material.m_gpu.specularRoughAnisoIor.x = 0.0f;
-        material.m_gpu.opacityFlagsPad = glm::vec4(1.0f, 3.0f, 0.0f, 0.0f); // flags=3 → mirror (delta reflect)
+        material.m_gpu.opacityFlagsPad = sm::float4{1.0f, 3.0f, 0.0f, 0.0f}; // flags=3 → mirror (delta reflect)
         return material;
     }
 
     [[nodiscard]] static Material glass(float ior = 1.52f, float roughness = 0.0f) {
-        Material material = diffuse(glm::vec3(1.0f), roughness, ior);
-        material.m_gpu.baseColorWeight = glm::vec4(1.0f);
-        material.m_gpu.baseMetalnessDiffRough = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
-        material.m_gpu.specularColorWeight = glm::vec4(1.0f);
+        Material material = diffuse(sm::float3{1.0f, 1.0f, 1.0f}, roughness, ior);
+        material.m_gpu.baseColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 1.0f};
+        material.m_gpu.baseMetalnessDiffRough = sm::float4{0.0f, 0.0f, 0.0f, 0.0f};
+        material.m_gpu.specularColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 1.0f};
         material.m_gpu.specularRoughAnisoIor =
-            glm::vec4(std::clamp(roughness, 0.0f, 1.0f), 0.0f, std::max(ior, 1.0f), 0.0f);
-        material.m_gpu.transmissionColorWeight = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-        material.m_gpu.transmissionParams = glm::vec4(0.0f, std::clamp(roughness, 0.0f, 1.0f), 0.0f, 0.0f);
-        material.m_gpu.opacityFlagsPad = glm::vec4(1.0f, 2.0f, 0.0f, 0.0f); // opacity=1, flags=2 → glass
+            sm::float4{std::clamp(roughness, 0.0f, 1.0f), 0.0f, std::max(ior, 1.0f), 0.0f};
+        material.m_gpu.transmissionColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 1.0f};
+        material.m_gpu.transmissionParams = sm::float4{0.0f, std::clamp(roughness, 0.0f, 1.0f), 0.0f, 0.0f};
+        material.m_gpu.opacityFlagsPad = sm::float4{1.0f, 2.0f, 0.0f, 0.0f}; // opacity=1, flags=2 → glass
         return material;
     }
 
-    [[nodiscard]] static Material emissive(glm::vec3 color, float luminanceNits) {
+    [[nodiscard]] static Material emissive(sm::float3 color, float luminanceNits) {
         Material material = diffuse(color, 1.0f, 1.5f);
-        material.m_gpu.emissionColorLum = glm::vec4(glm::max(color, glm::vec3(0.0f)), std::max(luminanceNits, 0.0f));
+        material.m_gpu.emissionColorLum =
+            sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), std::max(luminanceNits, 0.0f));
         return material;
     }
 
@@ -76,21 +76,23 @@ class Material {
         return *this;
     }
 
-    Material& coat(float w, glm::vec3 color = {1.0f, 1.0f, 1.0f}, float ior = 1.6f, float rough = 0.0f) {
-        m_gpu.coatColorWeight = glm::vec4(glm::max(color, glm::vec3(0.0f)), std::clamp(w, 0.0f, 1.0f));
-        m_gpu.coatRoughAnisoIorDark = glm::vec4(std::clamp(rough, 0.0f, 1.0f), 0.0f, std::max(ior, 1.0f), 0.0f);
+    Material& coat(float w, sm::float3 color = {1.0f, 1.0f, 1.0f}, float ior = 1.6f, float rough = 0.0f) {
+        m_gpu.coatColorWeight = sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), std::clamp(w, 0.0f, 1.0f));
+        m_gpu.coatRoughAnisoIorDark = sm::float4{std::clamp(rough, 0.0f, 1.0f), 0.0f, std::max(ior, 1.0f), 0.0f};
         return *this;
     }
 
-    Material& fuzz(float w, glm::vec3 color = {1.0f, 1.0f, 1.0f}, float rough = 0.5f) {
-        m_gpu.fuzzColorWeight = glm::vec4(glm::max(color, glm::vec3(0.0f)), std::clamp(w, 0.0f, 1.0f));
-        m_gpu.fuzzRoughPad = glm::vec4(std::clamp(rough, 0.0f, 1.0f), 0.0f, 0.0f, 0.0f);
+    Material& fuzz(float w, sm::float3 color = {1.0f, 1.0f, 1.0f}, float rough = 0.5f) {
+        m_gpu.fuzzColorWeight = sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), std::clamp(w, 0.0f, 1.0f));
+        m_gpu.fuzzRoughPad = sm::float4{std::clamp(rough, 0.0f, 1.0f), 0.0f, 0.0f, 0.0f};
         return *this;
     }
 
-    Material& subsurface(float w, glm::vec3 color, glm::vec3 radius, float scale = 1.0f) {
-        m_gpu.subsurfaceColorWeight = glm::vec4(glm::max(color, glm::vec3(0.0f)), std::clamp(w, 0.0f, 1.0f));
-        m_gpu.subsurfaceRadiusScale = glm::vec4(glm::max(radius, glm::vec3(0.0f)), std::max(scale, 0.0f));
+    Material& subsurface(float w, sm::float3 color, sm::float3 radius, float scale = 1.0f) {
+        m_gpu.subsurfaceColorWeight =
+            sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), std::clamp(w, 0.0f, 1.0f));
+        m_gpu.subsurfaceRadiusScale =
+            sm::float4(sm::max(radius, sm::float3{0.0f, 0.0f, 0.0f}), std::max(scale, 0.0f));
         return *this;
     }
 

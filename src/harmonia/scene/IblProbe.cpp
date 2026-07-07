@@ -1,7 +1,5 @@
 #include "harmonia/scene/IblProbe.hpp"
 
-#include <glm/glm.hpp>
-
 #include <OpenImageIO/imageio.h>
 #include <algorithm>
 #include <cmath>
@@ -314,7 +312,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     // Convert the brightest grid cell into a world-space direction toward the sun.
     // Inverts the lat-long convention used by the shaders (env.slang):
     //   u = atan2(z,x)/(2π) + 0.5,  v = acos(y)/π  (v=0 at top, y=+1)
-    glm::vec3 domSunDir{0.0f, 1.0f, 0.0f};
+    sm::float3 domSunDir{0.0f, 1.0f, 0.0f};
     float domSunStrength = 0.0f;
     {
         const float uNorm = (static_cast<float>(sunBestU) + 0.5f) / static_cast<float>(kCdfW);
@@ -322,7 +320,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         const float phi = (uNorm - 0.5f) * 2.0f * kPiCpu;
         const float theta = vNorm * kPiCpu;
         const float sinT = std::sin(theta);
-        domSunDir = glm::normalize(glm::vec3(sinT * std::cos(phi), std::cos(theta), sinT * std::sin(phi)));
+        domSunDir = sm::normalize(sm::float3{sinT * std::cos(phi), std::cos(theta), sinT * std::sin(phi)});
         // Concentration: ratio of the brightest cell to the mean. Uniform/overcast skies
         // give a ratio near 1 (no harsh shadows); a clear sun gives a very large ratio.
         const float meanAvg =

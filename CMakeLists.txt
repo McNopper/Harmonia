@@ -32,6 +32,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(aether)
 
+FetchContent_Declare(
+    slang_math
+    GIT_REPOSITORY https://github.com/McNopper/slang-math.git
+    GIT_TAG 0221118
+)
+FetchContent_MakeAvailable(slang_math)
+
 set(HARMONIA_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 set(HARMONIA_ENTRY_SHADERS
     accumulation.slang
@@ -113,7 +120,7 @@ target_include_directories(harmonia_lib
 )
 
 target_link_libraries(harmonia_lib
-    PUBLIC harmonia_project_options harmonia_vulkan_sdk volk aether::aether OpenImageIO::OpenImageIO
+    PUBLIC harmonia_project_options harmonia_vulkan_sdk volk aether::aether slang-math::slang-math OpenImageIO::OpenImageIO
     PRIVATE tomlplusplus::tomlplusplus
 )
 

@@ -1,9 +1,8 @@
 #pragma once
 
 #include <volk/volk.h>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+
+#include <slang-math/slang-math.hpp>
 
 #include <expected>
 #include <memory>
@@ -17,12 +16,12 @@
 #include "harmonia/scene/Mesh.hpp"
 
 struct Xform {
-    glm::vec3 translation = {0.0f, 0.0f, 0.0f};
-    glm::quat rotation = glm::identity<glm::quat>();
-    glm::vec3 scale = {1.0f, 1.0f, 1.0f};
+    sm::float3 translation = {0.0f, 0.0f, 0.0f};
+    sm::quaternion rotation = sm::identity<sm::quaternion>();
+    sm::float3 scale = {1.0f, 1.0f, 1.0f};
 
-    [[nodiscard]] glm::mat4 matrix() const noexcept;
-    [[nodiscard]] glm::mat4 inverseMatrix() const noexcept;
+    [[nodiscard]] sm::float4x4 matrix() const noexcept;
+    [[nodiscard]] sm::float4x4 inverseMatrix() const noexcept;
     [[nodiscard]] VkTransformMatrixKHR toVkTransform() const noexcept;
 };
 
@@ -70,7 +69,7 @@ class Sphere final : public Geometry {
   public:
     [[nodiscard]] static std::expected<std::unique_ptr<Sphere>, VkResult> create(const DeviceContext& ctx,
                                                                                  const CommandPool& pool,
-                                                                                 glm::vec3 center,
+                                                                                 sm::float3 center,
                                                                                  float radius,
                                                                                  uint32_t materialIndex,
                                                                                  std::string_view debugName = "");
@@ -78,11 +77,11 @@ class Sphere final : public Geometry {
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceIndex) const noexcept override;
 
-    [[nodiscard]] glm::vec3 center() const noexcept;
+    [[nodiscard]] sm::float3 center() const noexcept;
     [[nodiscard]] float radius() const noexcept;
 
   private:
-    glm::vec3 m_center{};
+    sm::float3 m_center{};
     float m_radius = 0.0f;
     Buffer m_aabbBuffer{};
     AccelerationStructure m_accelerationStructure{};

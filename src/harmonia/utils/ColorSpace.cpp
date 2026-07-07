@@ -8,64 +8,67 @@ namespace ColorSpace {
 // ── Rec.2020 ↔ Rec.709 ───────────────────────────────────────────────────────
 // Matrices from ITU-R BT.2087 / IEC 61966-2-1
 // clang-format off
-static constexpr glm::mat3 kRec2020_to_Rec709 = glm::mat3(
-    // column-major (GLM)    row 0               row 1               row 2
-    glm::vec3( 1.6604910f, -0.1245505f, -0.0181508f),  // col 0 (from R)
-    glm::vec3(-0.5876411f,  1.1328999f, -0.1005789f),  // col 1 (from G)
-    glm::vec3(-0.0728499f, -0.0083494f,  1.1187297f)   // col 2 (from B)
+// GLM col-major: col0={1.6604910,-0.1245505,-0.0181508}, col1={-0.5876411,1.1328999,-0.1005789}, col2={-0.0728499,-0.0083494,1.1187297}
+static constexpr sm::float3x3 kRec2020_to_Rec709 = sm::float3x3(
+    { 1.6604910f, -0.5876411f, -0.0728499f},  // row 0
+    {-0.1245505f,  1.1328999f, -0.0083494f},  // row 1
+    {-0.0181508f, -0.1005789f,  1.1187297f}   // row 2
 );
 
-static constexpr glm::mat3 kRec709_to_Rec2020 = glm::mat3(
-    glm::vec3(0.6274039f,  0.0690973f,  0.0163914f),
-    glm::vec3(0.3292830f,  0.9195404f,  0.0880133f),
-    glm::vec3(0.0433131f,  0.0113623f,  0.8955953f)
+// GLM col-major: col0={0.6274039,0.0690973,0.0163914}, col1={0.3292830,0.9195404,0.0880133}, col2={0.0433131,0.0113623,0.8955953}
+static constexpr sm::float3x3 kRec709_to_Rec2020 = sm::float3x3(
+    {0.6274039f, 0.3292830f, 0.0433131f},  // row 0
+    {0.0690973f, 0.9195404f, 0.0113623f},  // row 1
+    {0.0163914f, 0.0880133f, 0.8955953f}   // row 2
 );
 
 // ── Rec.2020 ↔ CIE XYZ D65 ───────────────────────────────────────────────────
-// From ITU-R BT.2020 (2015) Table 4
-static constexpr glm::mat3 kRec2020_to_XYZ = glm::mat3(
-    glm::vec3(0.6370f, 0.2627f, 0.0000f),
-    glm::vec3(0.1446f, 0.6780f, 0.0281f),
-    glm::vec3(0.1689f, 0.0593f, 1.0610f)
+// GLM col-major: col0={0.6370,0.2627,0.0000}, col1={0.1446,0.6780,0.0281}, col2={0.1689,0.0593,1.0610}
+static constexpr sm::float3x3 kRec2020_to_XYZ = sm::float3x3(
+    {0.6370f, 0.1446f, 0.1689f},  // row 0
+    {0.2627f, 0.6780f, 0.0593f},  // row 1
+    {0.0000f, 0.0281f, 1.0610f}   // row 2
 );
 
-static constexpr glm::mat3 kXYZ_to_Rec2020 = glm::mat3(
-    glm::vec3( 1.7166512f, -0.6666844f,  0.0176399f),
-    glm::vec3(-0.3556708f,  1.6164812f, -0.0427706f),
-    glm::vec3(-0.2533663f,  0.0157685f,  0.9421031f)
+// GLM col-major: col0={1.7166512,-0.6666844,0.0176399}, col1={-0.3556708,1.6164812,-0.0427706}, col2={-0.2533663,0.0157685,0.9421031}
+static constexpr sm::float3x3 kXYZ_to_Rec2020 = sm::float3x3(
+    { 1.7166512f, -0.3556708f, -0.2533663f},  // row 0
+    {-0.6666844f,  1.6164812f,  0.0157685f},  // row 1
+    { 0.0176399f, -0.0427706f,  0.9421031f}   // row 2
 );
 
 // ── Rec.2020 ↔ ACES AP1 (ACEScg) ─────────────────────────────────────────────
-// Via XYZ: Rec.2020 → XYZ → AP1
-static constexpr glm::mat3 kRec2020_to_AP1 = glm::mat3(
-    glm::vec3( 0.6131324f,  0.0701243f,  0.0205076f),
-    glm::vec3( 0.3395255f,  0.9163394f,  0.1096098f),
-    glm::vec3( 0.0474491f,  0.0135363f,  0.8699926f)
+// GLM col-major: col0={0.6131324,0.0701243,0.0205076}, col1={0.3395255,0.9163394,0.1096098}, col2={0.0474491,0.0135363,0.8699926}
+static constexpr sm::float3x3 kRec2020_to_AP1 = sm::float3x3(
+    {0.6131324f, 0.3395255f, 0.0474491f},  // row 0
+    {0.0701243f, 0.9163394f, 0.0135363f},  // row 1
+    {0.0205076f, 0.1096098f, 0.8699926f}   // row 2
 );
 
-static constexpr glm::mat3 kAP1_to_Rec2020 = glm::mat3(
-    glm::vec3( 1.7048586f, -0.1300066f, -0.0240033f),
-    glm::vec3(-0.6217882f,  1.1407579f, -0.1289716f),
-    glm::vec3(-0.0832704f, -0.0107513f,  1.1529749f)
+// GLM col-major: col0={1.7048586,-0.1300066,-0.0240033}, col1={-0.6217882,1.1407579,-0.1289716}, col2={-0.0832704,-0.0107513,1.1529749}
+static constexpr sm::float3x3 kAP1_to_Rec2020 = sm::float3x3(
+    { 1.7048586f, -0.6217882f, -0.0832704f},  // row 0
+    {-0.1300066f,  1.1407579f, -0.0107513f},  // row 1
+    {-0.0240033f, -0.1289716f,  1.1529749f}   // row 2
 );
 // clang-format on
 
-glm::vec3 rec2020ToRec709(glm::vec3 c) noexcept {
+sm::float3 rec2020ToRec709(sm::float3 c) noexcept {
     return kRec2020_to_Rec709 * c;
 }
-glm::vec3 rec709ToRec2020(glm::vec3 c) noexcept {
+sm::float3 rec709ToRec2020(sm::float3 c) noexcept {
     return kRec709_to_Rec2020 * c;
 }
-glm::vec3 rec2020ToXyz(glm::vec3 c) noexcept {
+sm::float3 rec2020ToXyz(sm::float3 c) noexcept {
     return kRec2020_to_XYZ * c;
 }
-glm::vec3 xyzToRec2020(glm::vec3 xyz) noexcept {
+sm::float3 xyzToRec2020(sm::float3 xyz) noexcept {
     return kXYZ_to_Rec2020 * xyz;
 }
-glm::vec3 rec2020ToAcesCg(glm::vec3 c) noexcept {
+sm::float3 rec2020ToAcesCg(sm::float3 c) noexcept {
     return kRec2020_to_AP1 * c;
 }
-glm::vec3 acesCgToRec2020(glm::vec3 c) noexcept {
+sm::float3 acesCgToRec2020(sm::float3 c) noexcept {
     return kAP1_to_Rec2020 * c;
 }
 
@@ -80,10 +83,10 @@ float srgbToLinearChannel(float v) noexcept {
 }
 } // namespace
 
-glm::vec3 linearRec709ToSrgb(glm::vec3 c) noexcept {
+sm::float3 linearRec709ToSrgb(sm::float3 c) noexcept {
     return {linearToSrgbChannel(c.r), linearToSrgbChannel(c.g), linearToSrgbChannel(c.b)};
 }
-glm::vec3 srgbToLinearRec709(glm::vec3 c) noexcept {
+sm::float3 srgbToLinearRec709(sm::float3 c) noexcept {
     return {srgbToLinearChannel(c.r), srgbToLinearChannel(c.g), srgbToLinearChannel(c.b)};
 }
 
@@ -100,7 +103,7 @@ float pqOetf(float Yn) noexcept {
     const float Ym1 = std::pow(Yn, kPQ_m1);
     return std::pow((kPQ_c1 + kPQ_c2 * Ym1) / (1.f + kPQ_c3 * Ym1), kPQ_m2);
 }
-glm::vec3 pqOetf(glm::vec3 Yn) noexcept {
+sm::float3 pqOetf(sm::float3 Yn) noexcept {
     return {pqOetf(Yn.r), pqOetf(Yn.g), pqOetf(Yn.b)};
 }
 
@@ -109,7 +112,7 @@ float pqEotf(float E) noexcept {
     const float Em2 = std::pow(E, 1.f / kPQ_m2);
     return std::pow(std::max(Em2 - kPQ_c1, 0.f) / (kPQ_c2 - kPQ_c3 * Em2), 1.f / kPQ_m1);
 }
-glm::vec3 pqEotf(glm::vec3 E) noexcept {
+sm::float3 pqEotf(sm::float3 E) noexcept {
     return {pqEotf(E.r), pqEotf(E.g), pqEotf(E.b)};
 }
 
@@ -123,7 +126,7 @@ float hlgOetf(float E) noexcept {
     E = std::max(E, 0.f);
     return (E <= 1.f / 12.f) ? std::sqrt(3.f * E) : (kHLG_a * std::log(12.f * E - kHLG_b) + kHLG_c);
 }
-glm::vec3 hlgOetf(glm::vec3 E) noexcept {
+sm::float3 hlgOetf(sm::float3 E) noexcept {
     return {hlgOetf(E.r), hlgOetf(E.g), hlgOetf(E.b)};
 }
 

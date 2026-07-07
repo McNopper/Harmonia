@@ -1,8 +1,6 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "harmonia/renderer/Camera.hpp"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -26,7 +24,7 @@ std::pair<float, float> Camera::nearFarFromDistance(float camDist) noexcept {
 
 Camera::Camera(const Params& params) noexcept : m_params(params) {
     if (m_params.focusDist <= 0.0f) {
-        m_params.focusDist = glm::length(m_params.target - m_params.position);
+        m_params.focusDist = sm::length(m_params.target - m_params.position);
     }
 }
 
@@ -34,17 +32,17 @@ void Camera::setAspect(float aspect) noexcept {
     m_params.aspectRatio = std::max(aspect, 0.001f);
 }
 
-void Camera::setPosition(glm::vec3 pos) noexcept {
+void Camera::setPosition(sm::float3 pos) noexcept {
     m_params.position = pos;
     if (m_params.focusDist <= 0.0f) {
-        m_params.focusDist = glm::length(m_params.target - m_params.position);
+        m_params.focusDist = sm::length(m_params.target - m_params.position);
     }
 }
 
-void Camera::setTarget(glm::vec3 target) noexcept {
+void Camera::setTarget(sm::float3 target) noexcept {
     m_params.target = target;
     if (m_params.focusDist <= 0.0f) {
-        m_params.focusDist = glm::length(m_params.target - m_params.position);
+        m_params.focusDist = sm::length(m_params.target - m_params.position);
     }
 }
 
@@ -53,16 +51,16 @@ void Camera::setPhysicalCamera(PhysicalCamera physical) noexcept {
 }
 
 CameraData Camera::getCameraData(uint32_t frameIndex, uint32_t maxDepth) const noexcept {
-    const glm::mat4 view = viewMatrix();
-    const glm::mat4 proj = projectionMatrix();
+    const sm::float4x4 view = viewMatrix();
+    const sm::float4x4 proj = projectionMatrix();
 
     return CameraData{
-        .invView = glm::inverse(view),
-        .invProj = glm::inverse(proj),
-        .position = glm::vec4(m_params.position, 1.0f),
+        .invView = sm::inverse(view),
+        .invProj = sm::inverse(proj),
+        .position = sm::float4(m_params.position, 1.0f),
         .lensRadius = std::max(m_params.lensRadius, 0.0f),
         .focusDistance =
-            m_params.focusDist > 0.0f ? m_params.focusDist : glm::length(m_params.target - m_params.position),
+            m_params.focusDist > 0.0f ? m_params.focusDist : sm::length(m_params.target - m_params.position),
         .frameIndex = frameIndex,
         .maxDepth = maxDepth,
         .exposure = m_params.physical.exposure(),
@@ -70,13 +68,13 @@ CameraData Camera::getCameraData(uint32_t frameIndex, uint32_t maxDepth) const n
     };
 }
 
-glm::mat4 Camera::viewMatrix() const noexcept {
-    return glm::lookAtRH(m_params.position, m_params.target, m_params.up);
+sm::float4x4 Camera::viewMatrix() const noexcept {
+    return sm::lookAtRH(m_params.position, m_params.target, m_params.up);
 }
 
-glm::mat4 Camera::projectionMatrix() const noexcept {
-    return glm::perspectiveRH_ZO(glm::radians(m_params.vfovDeg),
-                                 std::max(m_params.aspectRatio, 0.001f),
-                                 std::max(m_params.nearPlane, 0.001f),
-                                 std::max(m_params.farPlane, m_params.nearPlane + 0.001f));
+sm::float4x4 Camera::projectionMatrix() const noexcept {
+    return sm::perspectiveRH_ZO(sm::radians(m_params.vfovDeg),
+                                std::max(m_params.aspectRatio, 0.001f),
+                                std::max(m_params.nearPlane, 0.001f),
+                                std::max(m_params.farPlane, m_params.nearPlane + 0.001f));
 }

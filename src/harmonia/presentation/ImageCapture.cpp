@@ -1,6 +1,6 @@
 #include "harmonia/presentation/ImageCapture.hpp"
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <OpenImageIO/imageio.h>
 #include <cmath>
@@ -108,13 +108,13 @@ bool savePng(const DeviceContext& ctx,
     for (uint32_t y = 0; y < height; ++y) {
         for (uint32_t x = 0; x < width; ++x) {
             const size_t srcIdx = (static_cast<size_t>(y) * width + x) * 4U;
-            glm::vec3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
+            sm::float3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
             if (upConvert) {
                 hdr = ColorSpace::rec709ToRec2020(hdr);
             }
-            const glm::vec3 sdrLinear = ToneMapping::acesFittedSDR(hdr);
-            const glm::vec3 sdrGamma = ColorSpace::linearRec709ToSrgb(sdrLinear);
-            const glm::vec3 clamped = glm::clamp(sdrGamma, 0.f, 1.f);
+            const sm::float3 sdrLinear = ToneMapping::acesFittedSDR(hdr);
+            const sm::float3 sdrGamma = ColorSpace::linearRec709ToSrgb(sdrLinear);
+            const sm::float3 clamped = sm::clamp(sdrGamma, sm::float3{0.f, 0.f, 0.f}, sm::float3{1.f, 1.f, 1.f});
             const size_t dstIdx = (static_cast<size_t>(y) * width + x) * 3U;
             pixels[dstIdx + 0] = static_cast<uint8_t>(std::lround(clamped.r * 255.f));
             pixels[dstIdx + 1] = static_cast<uint8_t>(std::lround(clamped.g * 255.f));

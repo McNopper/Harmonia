@@ -1,9 +1,6 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "harmonia/scene/SceneLoader.hpp"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <array>
 #include <limits>
@@ -81,9 +78,9 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
 }
 
 // Build a 4×4 TRS matrix from the geometry block's T/R/S fields.
-[[nodiscard]] glm::mat4 trsMatrix(const aether::GeometryBlock& b) {
-    return glm::translate(glm::mat4(1.0f), b.translation) * glm::mat4_cast(b.rotation) *
-           glm::scale(glm::mat4(1.0f), b.scale);
+[[nodiscard]] sm::float4x4 trsMatrix(const aether::GeometryBlock& b) {
+    return sm::translate(sm::float4x4(1.0f), b.translation) * sm::mat4_cast(b.rotation) *
+           sm::scale(sm::float4x4(1.0f), b.scale);
 }
 
 // ── Geometry-block uploader ───────────────────────────────────────────────────
@@ -179,7 +176,7 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
     }
 
     case aether::GeometryBlock::Kind::Box: {
-        if (blk.boxHalf == glm::vec3(0.0f)) {
+        if (blk.boxHalf == sm::float3{0.0f, 0.0f, 0.0f}) {
             Logger::warn("SceneLoader: box half-extents are zero — skipping");
             return true;
         }
@@ -256,7 +253,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
         cfg.cameraPos = *cam.position;
     if (cam.lookAt) {
         cfg.cameraAt = *cam.lookAt;
-        cfg.cameraUp = cam.up.value_or(glm::vec3(0.0f, 1.0f, 0.0f));
+        cfg.cameraUp = cam.up.value_or(sm::float3{0.0f, 1.0f, 0.0f});
     }
     if (cam.vfov)
         cfg.cameraVfov = *cam.vfov;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <filesystem>
 #include <optional>
@@ -39,9 +39,9 @@
 class SceneLoader {
   public:
     struct SceneConfig {
-        std::optional<glm::vec3> cameraPos;
-        std::optional<glm::vec3> cameraAt;
-        std::optional<glm::vec3> cameraUp;
+        std::optional<sm::float3> cameraPos;
+        std::optional<sm::float3> cameraAt;
+        std::optional<sm::float3> cameraUp;
         std::optional<float> cameraVfov;
         std::optional<float> cameraEv100; ///< physical camera EV100 override
         std::optional<uint32_t> spp;

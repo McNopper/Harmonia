@@ -31,7 +31,7 @@ GpuLight RectLight::toGpu() const noexcept {
     GpuLight g{};
     g.position = position;
     g.type = packType(LightType::Rect);
-    g.direction = glm::normalize(direction);
+    g.direction = sm::normalize(direction);
     g.range = 0.0f;
     g.color = color;
     g.intensity = luminance / kLumEfficacy;
@@ -55,7 +55,7 @@ GpuLight PointLight::toGpu() const noexcept {
     GpuLight g{};
     g.position = position;
     g.type = packType(LightType::Point);
-    g.direction = glm::vec3(0.0f, -1.0f, 0.0f); // unused for point
+    g.direction = sm::float3{0.0f, -1.0f, 0.0f}; // unused for point
     g.range = range;
     g.color = color;
     g.intensity = cd / kLumEfficacy;
@@ -78,14 +78,14 @@ GpuLight SpotLight::toGpu() const noexcept {
     GpuLight g{};
     g.position = position;
     g.type = packType(LightType::Spot);
-    g.direction = glm::normalize(direction);
+    g.direction = sm::normalize(direction);
     g.range = range;
     g.color = color;
     g.intensity = cd / kLumEfficacy;
     g.halfWidth = 0.0f;
     g.halfHeight = 0.0f;
-    g.cosInner = std::cos(glm::radians(innerAngleDeg));
-    g.cosOuter = std::cos(glm::radians(outerAngleDeg));
+    g.cosInner = std::cos(sm::radians(innerAngleDeg));
+    g.cosOuter = std::cos(sm::radians(outerAngleDeg));
     return g;
 }
 
@@ -97,9 +97,9 @@ GpuLight DirectionalLight::toGpu() const noexcept {
     // In the shader: contribution = color * intensity * BSDF * visibility
     // (the cosine term is already in the BSDF evaluation).
     GpuLight g{};
-    g.position = glm::vec3(0.0f); // unused
+    g.position = sm::float3{0.0f, 0.0f, 0.0f}; // unused
     g.type = packType(LightType::Directional);
-    g.direction = glm::normalize(direction);
+    g.direction = sm::normalize(direction);
     g.range = 0.0f;
     g.color = color;
     g.intensity = illuminance / kLumEfficacy;
@@ -116,9 +116,9 @@ GpuLight DirectionalLight::toGpu() const noexcept {
 GpuLight SkyLight::toGpu() const noexcept {
     // Sky radiance scale [W/sr/m²] = luminance [cd/m²] / 683.
     GpuLight g{};
-    g.position = glm::vec3(0.0f);
+    g.position = sm::float3{0.0f, 0.0f, 0.0f};
     g.type = packType(LightType::Sky);
-    g.direction = glm::vec3(0.0f, 1.0f, 0.0f);
+    g.direction = sm::float3{0.0f, 1.0f, 0.0f};
     g.range = 0.0f;
     g.color = color;
     g.intensity = luminance / kLumEfficacy;

@@ -230,7 +230,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
             const float b = raw[i * 4 + 2] / 255.0f;
             const uint8_t a = raw[i * 4 + 3];
 
-            glm::vec3 linear{r, g, b};
+            sm::float3 linear{r, g, b};
             switch (colorSpace) {
             case TextureColorSpace::SrgbRec709Scene:
                 linear = ColorSpace::srgbToLinearRec709(linear); // decode sRGB OETF

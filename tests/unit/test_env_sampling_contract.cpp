@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -37,7 +37,7 @@ float sampleAndEvalPdf(uint32_t& rngState) {
         0.0F, 0.25F, 0.5F, 0.75F, 1.0F,
     };
 
-    const glm::vec2 xi = Rng::nextFloat2(rngState);
+    const sm::float2 xi = Rng::nextFloat2(rngState);
     const uint32_t row = sampleCdf1D(marginal, 0U, H, xi.x);
     const uint32_t col = sampleCdf1D(conditional, row * (W + 1U), W, xi.y);
 

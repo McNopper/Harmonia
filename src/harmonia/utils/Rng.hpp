@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <cstdint>
 
@@ -19,7 +19,7 @@ namespace Rng {
     return wangHash(seed ^ (value + 0x9e3779b9U + (seed << 6U) + (seed >> 2U)));
 }
 
-[[nodiscard]] inline uint32_t composeSeed(glm::uvec2 pixel,
+[[nodiscard]] inline uint32_t composeSeed(sm::uint2 pixel,
                                           uint32_t frameSampleIndex,
                                           uint32_t bounceIndex,
                                           uint32_t baseSeed) noexcept {
@@ -36,8 +36,8 @@ namespace Rng {
     return static_cast<float>(state & 0x00ffffffU) * (1.0F / 16777216.0F);
 }
 
-[[nodiscard]] inline glm::vec2 nextFloat2(uint32_t& state) noexcept {
-    return glm::vec2(nextFloat(state), nextFloat(state));
+[[nodiscard]] inline sm::float2 nextFloat2(uint32_t& state) noexcept {
+    return sm::float2{nextFloat(state), nextFloat(state)};
 }
 
 } // namespace Rng

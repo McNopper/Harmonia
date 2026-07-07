@@ -2,7 +2,7 @@
 
 #include <volk/volk.h>
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <expected>
 #include <filesystem>
@@ -55,7 +55,7 @@ class IblProbe {
     /// Dominant ("sun") direction extracted from the brightest region of the panorama,
     /// expressed as a normalised world-space direction pointing *towards* the light.
     /// Used to drive ray-traced directional shadows for IBL-lit scenes.
-    [[nodiscard]] glm::vec3 sunDirection() const noexcept { return m_sunDirection; }
+    [[nodiscard]] sm::float3 sunDirection() const noexcept { return m_sunDirection; }
 
     /// Relative strength of the dominant light in [0,1]: 0 for a uniform/overcast
     /// panorama (no crisp shadows), approaching 1 for a clear, concentrated sun.
@@ -73,6 +73,6 @@ class IblProbe {
     uint32_t m_cdfWidth{0};
     uint32_t m_cdfHeight{0};
 
-    glm::vec3 m_sunDirection{0.0f, 1.0f, 0.0f}; ///< world-space direction towards the dominant light
-    float m_sunStrength{0.0f};                  ///< [0,1] concentration of the dominant light
+    sm::float3 m_sunDirection{0.0f, 1.0f, 0.0f}; ///< world-space direction towards the dominant light
+    float m_sunStrength{0.0f};                   ///< [0,1] concentration of the dominant light
 };

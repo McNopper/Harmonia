@@ -4,8 +4,8 @@
 
 #include <cstdint>
 #include <type_traits>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
+
+#include <slang-math/slang-math.hpp>
 
 /// Tone mapper selection (matches PushConstants::tonemapper and tonemap.slang switch).
 /// Applied only for SDR and Display P3 output; HDR paths (HDR10/HLG/scRGB) use their
@@ -27,38 +27,38 @@ enum class LightType : uint32_t {
 };
 
 struct GpuVertex {
-    glm::vec3 position;
+    sm::float3 position;
     float tangentX = 0.0f; ///< Tangent vector X component (world space)
-    glm::vec3 normal;
+    sm::float3 normal;
     float tangentY = 0.0f; ///< Tangent vector Y component (world space)
-    glm::vec2 uv;
+    sm::float2 uv;
     float tangentZ      = 0.0f; ///< Tangent vector Z component (world space)
     float bitangentSign = 0.0f; ///< ±1 handedness of the bitangent (B = sign × (N × T))
 };
 
 struct GpuMaterial {
-    glm::vec4 baseColorWeight;
-    glm::vec4 baseMetalnessDiffRough;
-    glm::vec4 specularColorWeight;
-    glm::vec4 specularRoughAnisoIor;
-    glm::vec4 transmissionColorWeight;
-    glm::vec4 transmissionParams;  ///< x = transmission_depth, y = (spec_roughness dup), z = dispersion_scale, w =
-                                   ///< dispersion_abbe_number
-    glm::vec4 transmissionScatter; ///< xyz = transmission_scatter (single-scatter albedo), w =
-                                   ///< transmission_scatter_anisotropy (g)
-    glm::vec4 subsurfaceColorWeight;
-    glm::vec4 subsurfaceRadiusScale;
-    glm::uvec4 textureIndices; ///< bindless texture indices: [base_color, normal, orm, emission]; ~0u = none
-    glm::vec4 thinFilmParams;
-    glm::vec4 coatColorWeight;
-    glm::vec4 coatRoughAnisoIorDark;
-    glm::vec4 fuzzColorWeight;
-    glm::vec4 fuzzRoughPad;
-    glm::vec4
+    sm::float4 baseColorWeight;
+    sm::float4 baseMetalnessDiffRough;
+    sm::float4 specularColorWeight;
+    sm::float4 specularRoughAnisoIor;
+    sm::float4 transmissionColorWeight;
+    sm::float4 transmissionParams;  ///< x = transmission_depth, y = (spec_roughness dup), z = dispersion_scale, w =
+                                    ///< dispersion_abbe_number
+    sm::float4 transmissionScatter; ///< xyz = transmission_scatter (single-scatter albedo), w =
+                                    ///< transmission_scatter_anisotropy (g)
+    sm::float4 subsurfaceColorWeight;
+    sm::float4 subsurfaceRadiusScale;
+    sm::uint4 textureIndices; ///< bindless texture indices: [base_color, normal, orm, emission]; ~0u = none
+    sm::float4 thinFilmParams;
+    sm::float4 coatColorWeight;
+    sm::float4 coatRoughAnisoIorDark;
+    sm::float4 fuzzColorWeight;
+    sm::float4 fuzzRoughPad;
+    sm::float4
         emissionColorLum; ///< xyz = emission_color (linear Rec.2020), w = emission_luminance in cd/m² (OpenPBR spec)
-    glm::vec4 opacityFlagsPad;  ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w =
-                                ///< geometry_thin_walled
-    glm::uvec4 textureIndices2; ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
+    sm::float4 opacityFlagsPad;  ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w =
+                                 ///< geometry_thin_walled
+    sm::uint4 textureIndices2; ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
 };
 
 // GpuInstance is renderer-specific (path-tracer index layout vs rasterizer meshlet
@@ -67,10 +67,10 @@ struct GpuMaterial {
 /// Per-triangle emissive descriptor for NEE direct area sampling (std430, 64 bytes = 4×float4).
 /// Edge vectors and emission components share float4 w-channels to avoid padding.
 struct GpuEmissiveTriangle {
-    glm::vec4 v0_area;      ///< xyz = v0 world pos, w = triangle area
-    glm::vec4 edge1_emitR;  ///< xyz = edge1 (v1-v0) world, w = emission.r
-    glm::vec4 edge2_emitG;  ///< xyz = edge2 (v2-v0) world, w = emission.g
-    glm::vec4 normal_emitB; ///< xyz = face normal (unit) world, w = emission.b
+    sm::float4 v0_area;      ///< xyz = v0 world pos, w = triangle area
+    sm::float4 edge1_emitR;  ///< xyz = edge1 (v1-v0) world, w = emission.r
+    sm::float4 edge2_emitG;  ///< xyz = edge2 (v2-v0) world, w = emission.g
+    sm::float4 normal_emitB; ///< xyz = face normal (unit) world, w = emission.b
 };
 
 /// GPU-side light descriptor (std430, 64 bytes).
@@ -81,11 +81,11 @@ struct GpuEmissiveTriangle {
 ///   Point / Spot : radiant intensity [W/sr]      = luminous intensity [cd] / 683
 ///   Directional  : irradiance        [W/m²]      = illuminance [lux]     / 683
 struct GpuLight {
-    glm::vec3 position;
+    sm::float3 position;
     float type = 0.0f; ///< reinterpret_cast<uint32_t> → LightType
-    glm::vec3 direction;
+    sm::float3 direction;
     float range = 0.0f; ///< attenuation cutoff; 0 = infinite
-    glm::vec3 color;
+    sm::float3 color;
     float intensity  = 0.0f; ///< radiometric (see above)
     float halfWidth  = 0.0f; ///< rect half-width  / spot unused
     float halfHeight = 0.0f; ///< rect half-height / spot unused
@@ -94,9 +94,9 @@ struct GpuLight {
 };
 
 struct CameraData {
-    glm::mat4 invView;
-    glm::mat4 invProj;
-    glm::vec4 position;
+    sm::float4x4 invView;
+    sm::float4x4 invProj;
+    sm::float4 position;
     float    lensRadius    = 0.0f;
     float    focusDistance = 0.0f;
     uint32_t frameIndex    = 0;

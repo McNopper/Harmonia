@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <cstdint>
 
@@ -28,7 +28,7 @@ struct Pcg32 {
         return static_cast<float>(next()) * kScale;
     }
 
-    [[nodiscard]] glm::vec2 nextVec2() noexcept { return glm::vec2(nextFloat(), nextFloat()); }
+    [[nodiscard]] sm::float2 nextVec2() noexcept { return sm::float2{nextFloat(), nextFloat()}; }
 };
 
 [[nodiscard]] inline float halton(uint32_t index, uint32_t base) noexcept {
@@ -49,6 +49,6 @@ struct Pcg32 {
     return result;
 }
 
-[[nodiscard]] inline glm::vec2 halton2D(uint32_t index) noexcept {
-    return glm::vec2(halton(index, 2U), halton(index, 3U));
+[[nodiscard]] inline sm::float2 halton2D(uint32_t index) noexcept {
+    return sm::float2{halton(index, 2U), halton(index, 3U)};
 }

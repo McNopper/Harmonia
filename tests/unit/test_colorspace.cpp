@@ -1,6 +1,5 @@
 
-#include <glm/geometric.hpp>
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <array>
 #include <gtest/gtest.h>
@@ -13,19 +12,19 @@ constexpr float kEpsilon = 1.0e-5F;
 
 TEST(ColorSpace, SrgbRoundTripsWithinTolerance) {
     const std::array values{
-        glm::vec3(0.0F),
-        glm::vec3(0.18F),
-        glm::vec3(1.0F),
-        glm::vec3(0.25F, 0.5F, 0.75F),
-        glm::vec3(0.0031308F, 0.04045F, 0.9F),
+        sm::float3(0.0F, 0.0F, 0.0F),
+        sm::float3(0.18F, 0.18F, 0.18F),
+        sm::float3(1.0F, 1.0F, 1.0F),
+        sm::float3(0.25F, 0.5F, 0.75F),
+        sm::float3(0.0031308F, 0.04045F, 0.9F),
     };
 
-    for (const glm::vec3 srgb : values) {
-        const glm::vec3 linear = ColorSpace::srgbToLinearRec709(srgb);
-        const glm::vec3 roundtrip = ColorSpace::linearRec709ToSrgb(linear);
-        EXPECT_NEAR(roundtrip.r, srgb.r, kEpsilon);
-        EXPECT_NEAR(roundtrip.g, srgb.g, kEpsilon);
-        EXPECT_NEAR(roundtrip.b, srgb.b, kEpsilon);
+    for (const sm::float3 srgb : values) {
+        const sm::float3 linear = ColorSpace::srgbToLinearRec709(srgb);
+        const sm::float3 roundtrip = ColorSpace::linearRec709ToSrgb(linear);
+        EXPECT_NEAR(roundtrip.x, srgb.x, kEpsilon);
+        EXPECT_NEAR(roundtrip.y, srgb.y, kEpsilon);
+        EXPECT_NEAR(roundtrip.z, srgb.z, kEpsilon);
     }
 }
 
@@ -43,22 +42,22 @@ TEST(ColorSpace, PqOetfHasExpectedEndpointsAndMonotonicity) {
 }
 
 TEST(ColorSpace, PqOetfVectorOverloadMatchesScalar) {
-    const glm::vec3 linear(0.0F, 0.18F, 1.0F);
-    const glm::vec3 encoded = ColorSpace::pqOetf(linear);
+    const sm::float3 linear(0.0F, 0.18F, 1.0F);
+    const sm::float3 encoded = ColorSpace::pqOetf(linear);
 
-    EXPECT_NEAR(encoded.r, ColorSpace::pqOetf(linear.r), kEpsilon);
-    EXPECT_NEAR(encoded.g, ColorSpace::pqOetf(linear.g), kEpsilon);
-    EXPECT_NEAR(encoded.b, ColorSpace::pqOetf(linear.b), kEpsilon);
+    EXPECT_NEAR(encoded.x, ColorSpace::pqOetf(linear.x), kEpsilon);
+    EXPECT_NEAR(encoded.y, ColorSpace::pqOetf(linear.y), kEpsilon);
+    EXPECT_NEAR(encoded.z, ColorSpace::pqOetf(linear.z), kEpsilon);
 }
 
 TEST(ColorSpace, Rec2020WhitePointRemainsNeutral) {
-    const glm::vec3 white = ColorSpace::rec709ToRec2020(glm::vec3(1.0F));
-    EXPECT_NEAR(white.r, 1.0F, kEpsilon);
-    EXPECT_NEAR(white.g, 1.0F, kEpsilon);
-    EXPECT_NEAR(white.b, 1.0F, kEpsilon);
+    const sm::float3 white = ColorSpace::rec709ToRec2020(sm::float3(1.0F, 1.0F, 1.0F));
+    EXPECT_NEAR(white.x, 1.0F, kEpsilon);
+    EXPECT_NEAR(white.y, 1.0F, kEpsilon);
+    EXPECT_NEAR(white.z, 1.0F, kEpsilon);
 }
 
 TEST(ColorSpace, Rec2020ConversionPreservesBlack) {
-    const glm::vec3 black = ColorSpace::rec709ToRec2020(glm::vec3(0.0F));
-    EXPECT_NEAR(glm::length(black), 0.0F, kEpsilon);
+    const sm::float3 black = ColorSpace::rec709ToRec2020(sm::float3(0.0F, 0.0F, 0.0F));
+    EXPECT_NEAR(sm::length(black), 0.0F, kEpsilon);
 }

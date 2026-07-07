@@ -1,8 +1,5 @@
 #include <volk/volk.h>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <algorithm>
 #include <array>
@@ -105,20 +102,20 @@ namespace {
 }
 } // namespace
 
-glm::mat4 Xform::matrix() const noexcept {
-    return glm::translate(glm::mat4(1.0f), translation) * glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale);
+sm::float4x4 Xform::matrix() const noexcept {
+    return sm::translate(sm::float4x4(1.0f), translation) * sm::mat4_cast(rotation) * sm::scale(sm::float4x4(1.0f), scale);
 }
 
-glm::mat4 Xform::inverseMatrix() const noexcept {
-    return glm::inverse(matrix());
+sm::float4x4 Xform::inverseMatrix() const noexcept {
+    return sm::inverse(matrix());
 }
 
 VkTransformMatrixKHR Xform::toVkTransform() const noexcept {
-    const glm::mat4 transform = matrix();
+    const sm::float4x4 transform = matrix();
     return VkTransformMatrixKHR{{
-        {transform[0][0], transform[1][0], transform[2][0], transform[3][0]},
-        {transform[0][1], transform[1][1], transform[2][1], transform[3][1]},
-        {transform[0][2], transform[1][2], transform[2][2], transform[3][2]},
+        {transform[0][0], transform[0][1], transform[0][2], transform[0][3]},
+        {transform[1][0], transform[1][1], transform[1][2], transform[1][3]},
+        {transform[2][0], transform[2][1], transform[2][2], transform[2][3]},
     }};
 }
 
@@ -209,7 +206,7 @@ const MeshData& TriangleMesh::data() const noexcept {
 
 std::expected<std::unique_ptr<Sphere>, VkResult> Sphere::create(const DeviceContext& ctx,
                                                                 const CommandPool& pool,
-                                                                glm::vec3 center,
+                                                                sm::float3 center,
                                                                 float radius,
                                                                 uint32_t materialIndex,
                                                                 std::string_view debugName) {
@@ -285,7 +282,7 @@ VkAccelerationStructureInstanceKHR Sphere::makeInstance(uint32_t instanceIndex) 
     };
 }
 
-glm::vec3 Sphere::center() const noexcept {
+sm::float3 Sphere::center() const noexcept {
     return m_center;
 }
 

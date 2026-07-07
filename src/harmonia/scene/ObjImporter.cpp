@@ -1,8 +1,6 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "harmonia/scene/ObjImporter.hpp"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <cstdint>
 #include <fstream>
@@ -41,11 +39,11 @@ struct PendingMesh {
     return std::string(sv.substr(first, sv.find_last_not_of(" \t\r\n") - first + 1));
 }
 
-[[nodiscard]] bool parseVec3(std::istringstream& s, glm::vec3& v) {
+[[nodiscard]] bool parseVec3(std::istringstream& s, sm::float3& v) {
     return static_cast<bool>(s >> v.x >> v.y >> v.z);
 }
 
-[[nodiscard]] bool parseVec2(std::istringstream& s, glm::vec2& v) {
+[[nodiscard]] bool parseVec2(std::istringstream& s, sm::float2& v) {
     return static_cast<bool>(s >> v.x >> v.y);
 }
 
@@ -103,7 +101,7 @@ struct PendingMesh {
                 return *m;
         }
     }
-    return Material::diffuse(glm::vec3(0.8f));
+    return Material::diffuse(sm::float3{0.8f, 0.8f, 0.8f});
 }
 
 // ── Mesh flush ────────────────────────────────────────────────────────────
@@ -112,15 +110,15 @@ bool flushMesh(PendingMesh& pending,
                ISceneBuilder& scene,
                const DeviceContext& ctx,
                const CommandPool& pool,
-               const std::vector<glm::vec3>& positions,
-               const std::vector<glm::vec3>& normals,
-               const std::vector<glm::vec2>& texcoords,
+               const std::vector<sm::float3>& positions,
+               const std::vector<sm::float3>& normals,
+               const std::vector<sm::float2>& texcoords,
                const ImportOptions& options) {
     if (pending.indices.empty())
         return true;
 
-    const glm::mat4& T = options.worldTransform;
-    const glm::mat4 Tn = glm::transpose(glm::inverse(T));
+    const sm::float4x4& T = options.worldTransform;
+    const sm::float4x4 Tn = sm::transpose(sm::inverse(T));
 
     std::unordered_map<GpuVertex, uint32_t, VertexHash, VertexEqual> unique;
     MeshData mesh;
@@ -137,13 +135,13 @@ bool flushMesh(PendingMesh& pending,
             return false;
         }
 
-        const glm::vec3 pos = glm::vec3(T * glm::vec4(positions[static_cast<size_t>(p)], 1.0f));
-        const glm::vec3 nrm = glm::normalize(
-            glm::vec3(Tn * glm::vec4((n >= 0 && n < static_cast<int>(normals.size())) ? normals[static_cast<size_t>(n)]
-                                                                                      : glm::vec3(0.0f, 1.0f, 0.0f),
-                                     0.0f)));
-        const glm::vec2 uv =
-            (t >= 0 && t < static_cast<int>(texcoords.size())) ? texcoords[static_cast<size_t>(t)] : glm::vec2(0.0f);
+        const sm::float3 pos = static_cast<sm::float3>(T * sm::float4(positions[static_cast<size_t>(p)], 1.0f));
+        const sm::float3 nrm = sm::normalize(
+            static_cast<sm::float3>(Tn * sm::float4((n >= 0 && n < static_cast<int>(normals.size())) ? normals[static_cast<size_t>(n)]
+                                                                                                        : sm::float3{0.0f, 1.0f, 0.0f},
+                                                   0.0f)));
+        const sm::float2 uv =
+            (t >= 0 && t < static_cast<int>(texcoords.size())) ? texcoords[static_cast<size_t>(t)] : sm::float2{0.0f, 0.0f};
 
         GpuVertex v{.position = pos,
                     .tangentX = 0.0f,
@@ -185,9 +183,9 @@ bool ObjImporter::import(const std::filesystem::path& path,
         return false;
     }
 
-    std::vector<glm::vec3> positions;
-    std::vector<glm::vec3> normals;
-    std::vector<glm::vec2> texcoords;
+    std::vector<sm::float3> positions;
+    std::vector<sm::float3> normals;
+    std::vector<sm::float2> texcoords;
     PendingMesh pending{.name = path.stem().string(), .indices = {}};
 
     std::string line;
@@ -201,15 +199,15 @@ bool ObjImporter::import(const std::filesystem::path& path,
         ss >> kw;
 
         if (kw == "v") {
-            glm::vec3 p{};
+            sm::float3 p{};
             if (parseVec3(ss, p))
                 positions.push_back(p);
         } else if (kw == "vn") {
-            glm::vec3 n{};
+            sm::float3 n{};
             if (parseVec3(ss, n))
-                normals.push_back(glm::normalize(n));
+                normals.push_back(sm::normalize(n));
         } else if (kw == "vt") {
-            glm::vec2 uv{};
+            sm::float2 uv{};
             if (parseVec2(ss, uv))
                 texcoords.push_back(uv);
         } else if (kw == "usemtl") {

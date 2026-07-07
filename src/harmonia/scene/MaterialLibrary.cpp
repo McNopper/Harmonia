@@ -1,7 +1,4 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "harmonia/scene/MaterialLibrary.hpp"
-
-#include <glm/glm.hpp>
 
 #include <algorithm>
 
@@ -37,7 +34,7 @@ namespace {
 [[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p, ColorSpace::WorkingColorSpace workingSpace) {
     const bool srcRec709 = (p.inputColorSpace == aether::MaterialColorSpace::LinRec709);
     const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
-    const auto cc = [srcRec709, dstRec2020](glm::vec3 c) {
+    const auto cc = [srcRec709, dstRec2020](sm::float3 c) {
         if (srcRec709 && dstRec2020)
             return ColorSpace::rec709ToRec2020(c);
         if (!srcRec709 && !dstRec2020)
@@ -48,51 +45,52 @@ namespace {
     GpuMaterial g{};
 
     // Base layer
-    g.baseColorWeight = glm::vec4(cc(p.base_color), p.base_weight);
-    g.baseMetalnessDiffRough = glm::vec4(p.base_metalness, p.base_diffuse_roughness, 0.0f, 0.0f);
+    g.baseColorWeight = sm::float4(cc(p.base_color), p.base_weight);
+    g.baseMetalnessDiffRough = sm::float4{p.base_metalness, p.base_diffuse_roughness, 0.0f, 0.0f};
 
     // Specular
-    g.specularColorWeight = glm::vec4(cc(p.specular_color), p.specular_weight);
+    g.specularColorWeight = sm::float4(cc(p.specular_color), p.specular_weight);
     g.specularRoughAnisoIor =
-        glm::vec4(p.specular_roughness, p.specular_roughness_anisotropy, std::max(p.specular_ior, 1.0f), 0.0f);
+        sm::float4{p.specular_roughness, p.specular_roughness_anisotropy, std::max(p.specular_ior, 1.0f), 0.0f};
 
     // Transmission
-    g.transmissionColorWeight = glm::vec4(cc(p.transmission_color), p.transmission_weight);
-    g.transmissionParams = glm::vec4(p.transmission_depth,
-                                     p.specular_roughness,
-                                     p.transmission_dispersion_scale,
-                                     std::max(p.transmission_dispersion_abbe_number, 1.0f));
-    g.transmissionScatter = glm::vec4(p.transmission_scatter, p.transmission_scatter_anisotropy);
+    g.transmissionColorWeight = sm::float4(cc(p.transmission_color), p.transmission_weight);
+    g.transmissionParams = sm::float4{p.transmission_depth,
+                                      p.specular_roughness,
+                                      p.transmission_dispersion_scale,
+                                      std::max(p.transmission_dispersion_abbe_number, 1.0f)};
+    g.transmissionScatter = sm::float4(p.transmission_scatter, p.transmission_scatter_anisotropy);
 
     // Subsurface: GpuMaterial packs the per-channel scale in xyz, scalar radius in w.
-    g.subsurfaceColorWeight = glm::vec4(cc(p.subsurface_color), p.subsurface_weight);
-    g.subsurfaceRadiusScale = glm::vec4(p.subsurface_radius_scale, p.subsurface_radius);
+    g.subsurfaceColorWeight = sm::float4(cc(p.subsurface_color), p.subsurface_weight);
+    g.subsurfaceRadiusScale = sm::float4(p.subsurface_radius_scale, p.subsurface_radius);
 
     // Texture indices (filled by SceneLoader later; sentinel = kNoTexture)
-    g.textureIndices = glm::uvec4(kNoTexture);
-    g.textureIndices2 = glm::uvec4(kNoTexture);
+    g.textureIndices = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
+    g.textureIndices2 = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
 
     // Thin film
-    g.thinFilmParams = glm::vec4(p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f), p.thin_film_weight, 0.0f);
+    g.thinFilmParams =
+        sm::float4{p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f), p.thin_film_weight, 0.0f};
 
     // Coat
-    g.coatColorWeight = glm::vec4(cc(p.coat_color), p.coat_weight);
-    g.coatRoughAnisoIorDark = glm::vec4(p.coat_roughness,
-                                        p.coat_roughness_anisotropy,
-                                        std::max(p.coat_ior, 1.0f),
-                                        std::clamp(p.coat_darkening, 0.0f, 1.0f));
+    g.coatColorWeight = sm::float4(cc(p.coat_color), p.coat_weight);
+    g.coatRoughAnisoIorDark = sm::float4{p.coat_roughness,
+                                         p.coat_roughness_anisotropy,
+                                         std::max(p.coat_ior, 1.0f),
+                                         std::clamp(p.coat_darkening, 0.0f, 1.0f)};
 
     // Fuzz / sheen
-    g.fuzzColorWeight = glm::vec4(cc(p.fuzz_color), p.fuzz_weight);
-    g.fuzzRoughPad = glm::vec4(std::clamp(p.fuzz_roughness, 0.0f, 1.0f), 0.0f, 0.0f, 0.0f);
+    g.fuzzColorWeight = sm::float4(cc(p.fuzz_color), p.fuzz_weight);
+    g.fuzzRoughPad = sm::float4{std::clamp(p.fuzz_roughness, 0.0f, 1.0f), 0.0f, 0.0f, 0.0f};
 
     // Emission
-    g.emissionColorLum = glm::vec4(cc(p.emission_color), std::max(p.emission_luminance, 0.0f));
+    g.emissionColorLum = sm::float4(cc(p.emission_color), std::max(p.emission_luminance, 0.0f));
 
     // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
     const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
-    g.opacityFlagsPad = glm::vec4(
-        std::clamp(p.geometry_opacity, 0.0f, 1.0f), flags, p.subsurface_scatter_anisotropy, p.geometry_thin_walled ? 1.0f : 0.0f);
+    g.opacityFlagsPad = sm::float4{
+        std::clamp(p.geometry_opacity, 0.0f, 1.0f), flags, p.subsurface_scatter_anisotropy, p.geometry_thin_walled ? 1.0f : 0.0f};
 
     return Material::fromGpu(g, p.emission_as_light_source);
 }
@@ -136,7 +134,7 @@ std::optional<Material> MaterialLibrary::get(const std::string& name) const {
 }
 
 Material MaterialLibrary::getOrDefault(const std::string& name) const {
-    return get(name).value_or(Material::diffuse(glm::vec3(0.8f)));
+    return get(name).value_or(Material::diffuse(sm::float3{0.8f, 0.8f, 0.8f}));
 }
 
 std::optional<MaterialLibrary::MaterialTextureRefs> MaterialLibrary::textureRefs(const std::string& name) const {

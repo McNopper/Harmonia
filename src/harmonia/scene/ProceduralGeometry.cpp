@@ -1,25 +1,21 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/constants.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <array>
 #include <cmath>
 #include <cstdint>
 
 namespace ProceduralGeometry {
-MeshData makeBox(glm::vec3 halfExtent, glm::mat4 transform) {
+MeshData makeBox(sm::float3 halfExtent, sm::float4x4 transform) {
     struct Face {
-        glm::vec3 normal;
-        std::array<glm::vec3, 4> positions;
+        sm::float3 normal;
+        std::array<sm::float3, 4> positions;
     };
 
-    const glm::vec3 hx = {halfExtent.x, 0.0f, 0.0f};
-    const glm::vec3 hy = {0.0f, halfExtent.y, 0.0f};
-    const glm::vec3 hz = {0.0f, 0.0f, halfExtent.z};
+    const sm::float3 hx = {halfExtent.x, 0.0f, 0.0f};
+    const sm::float3 hy = {0.0f, halfExtent.y, 0.0f};
+    const sm::float3 hz = {0.0f, 0.0f, halfExtent.z};
 
     const std::array<Face, 6> faces{{
         {{1.0f, 0.0f, 0.0f}, {hx - hy - hz, hx + hy - hz, hx + hy + hz, hx - hy + hz}},
@@ -30,8 +26,8 @@ MeshData makeBox(glm::vec3 halfExtent, glm::mat4 transform) {
         {{0.0f, 0.0f, -1.0f}, {hx - hy - hz, -hx - hy - hz, -hx + hy - hz, hx + hy - hz}},
     }};
 
-    const glm::mat3 normalMatrix = glm::inverseTranspose(glm::mat3(transform));
-    const std::array<glm::vec2, 4> uvs{{
+    const sm::float3x3 normalMatrix = sm::inverseTranspose(sm::mat3(transform));
+    const std::array<sm::float2, 4> uvs{{
         {0.0f, 0.0f},
         {1.0f, 0.0f},
         {1.0f, 1.0f},
@@ -44,12 +40,12 @@ MeshData makeBox(glm::vec3 halfExtent, glm::mat4 transform) {
 
     for (const Face& face : faces) {
         const uint32_t baseVertex = static_cast<uint32_t>(mesh.vertices.size());
-        const glm::vec3 transformedNormal = glm::normalize(normalMatrix * face.normal);
+        const sm::float3 transformedNormal = sm::normalize(normalMatrix * face.normal);
 
         for (size_t i = 0; i < face.positions.size(); ++i) {
-            const glm::vec4 transformedPosition = transform * glm::vec4(face.positions[i], 1.0f);
+            const sm::float4 transformedPosition = transform * sm::float4(face.positions[i], 1.0f);
             mesh.vertices.push_back(GpuVertex{
-                .position = glm::vec3(transformedPosition),
+                .position = static_cast<sm::float3>(transformedPosition),
                 .tangentX = 0.0f,
                 .normal = transformedNormal,
                 .tangentY = 0.0f,
@@ -73,12 +69,12 @@ MeshData makeBox(glm::vec3 halfExtent, glm::mat4 transform) {
     return mesh;
 }
 
-MeshData makeSphere(glm::vec3 center, float radius, uint32_t rings, uint32_t slices) {
+MeshData makeSphere(sm::float3 center, float radius, uint32_t rings, uint32_t slices) {
     MeshData mesh;
     mesh.vertices.reserve((rings + 1) * (slices + 1));
     mesh.indices.reserve(rings * slices * 6);
 
-    const float pi = glm::pi<float>();
+    const float pi = sm::pi<float>();
 
     for (uint32_t r = 0; r <= rings; ++r) {
         const float v = static_cast<float>(r) / static_cast<float>(rings);
@@ -93,9 +89,9 @@ MeshData makeSphere(glm::vec3 center, float radius, uint32_t rings, uint32_t sli
             const float cosP = std::cos(phi);
 
             // Y-up normal: theta=0 → (0,1,0), theta=PI → (0,-1,0)
-            const glm::vec3 normal{sinT * cosP, cosT, sinT * sinP};
+            const sm::float3 normal{sinT * cosP, cosT, sinT * sinP};
             // Tangent = dN/dphi normalised (east direction along longitude)
-            glm::vec3 tangent{-sinP, 0.0f, cosP};
+            sm::float3 tangent{-sinP, 0.0f, cosP};
             if (sinT < 1e-4f)
                 tangent = {1.0f, 0.0f, 0.0f}; // pole fallback
 
@@ -124,8 +120,9 @@ MeshData makeSphere(glm::vec3 center, float radius, uint32_t rings, uint32_t sli
     return mesh;
 }
 
-SphereAabb makeSphereAabb(glm::vec3 center, float radius) noexcept {
-    const glm::vec3 extent(std::max(radius, 0.0f));
+SphereAabb makeSphereAabb(sm::float3 center, float radius) noexcept {
+    const float extentValue = std::max(radius, 0.0f);
+    const sm::float3 extent{extentValue, extentValue, extentValue};
     return SphereAabb{
         .min = center - extent,
         .max = center + extent,

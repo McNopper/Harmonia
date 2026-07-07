@@ -1,7 +1,6 @@
 #pragma once
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <cstdint>
 #include <string_view>
@@ -36,7 +35,7 @@ class ISceneBuilder {
 
     [[nodiscard]] virtual uint32_t addSphere(const DeviceContext& ctx,
                                              const CommandPool& pool,
-                                             glm::vec3 center,
+                                             sm::float3 center,
                                              float radius,
                                              uint32_t materialIdx) = 0;
 };

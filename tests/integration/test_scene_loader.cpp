@@ -2,6 +2,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include <limits>
+#include <slang-math/slang-math.hpp>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,7 +37,7 @@ class RecordingSceneBuilder final : public ISceneBuilder {
 
     uint32_t addSphere(const DeviceContext& /*ctx*/,
                        const CommandPool& /*pool*/,
-                       glm::vec3 /*center*/,
+                       sm::float3 /*center*/,
                        float radius,
                        uint32_t /*materialIdx*/) override {
         if (radius <= 0.0F) {

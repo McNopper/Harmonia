@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <filesystem>
 #include <string>
@@ -15,7 +15,7 @@ class MaterialLibrary;
 /// Options passed to ISceneImporter::import().
 struct ImportOptions {
     /// Transform applied to every vertex position and normal.
-    glm::mat4 worldTransform = glm::mat4(1.0f);
+    sm::float4x4 worldTransform = sm::float4x4(1.0f);
 
     /// If non-null, used to resolve material names from overrides below.
     const MaterialLibrary* library = nullptr;
