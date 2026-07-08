@@ -103,7 +103,7 @@ namespace {
 } // namespace
 
 sm::float4x4 Xform::matrix() const noexcept {
-    return sm::translate(sm::float4x4(1.0f), translation) * sm::mat4_cast(rotation) * sm::scale(sm::float4x4(1.0f), scale);
+    return sm::translate(sm::float4x4(1.0f), translation) * sm::toFloat4x4(rotation) * sm::scale(sm::float4x4(1.0f), scale);
 }
 
 sm::float4x4 Xform::inverseMatrix() const noexcept {

@@ -79,7 +79,7 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
 
 // Build a 4×4 TRS matrix from the geometry block's T/R/S fields.
 [[nodiscard]] sm::float4x4 trsMatrix(const aether::GeometryBlock& b) {
-    return sm::translate(sm::float4x4(1.0f), b.translation) * sm::mat4_cast(b.rotation) *
+    return sm::translate(sm::float4x4(1.0f), b.translation) * sm::toFloat4x4(b.rotation) *
            sm::scale(sm::float4x4(1.0f), b.scale);
 }
 

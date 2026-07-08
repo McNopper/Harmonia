@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(harmonia VERSION 0.6.10 LANGUAGES C CXX)
+project(harmonia VERSION 0.6.11 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -35,7 +35,7 @@ FetchContent_MakeAvailable(aether)
 FetchContent_Declare(
     slang_math
     GIT_REPOSITORY https://github.com/McNopper/slang-math.git
-    GIT_TAG v0.1.4
+    GIT_TAG v0.1.5
 )
 FetchContent_MakeAvailable(slang_math)
 

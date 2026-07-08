@@ -57,8 +57,8 @@ CameraData Camera::getCameraData(uint32_t frameIndex, uint32_t maxDepth) const n
     const float zFar   = std::max(m_params.farPlane, zNear + 0.001f);
 
     return CameraData{
-        .invView = sm::inverseLookAtRH(m_params.position, m_params.target, m_params.up),
-        .invProj = sm::inversePerspectiveRH_ZO(fovY, aspect, zNear, zFar),
+        .invView = sm::inverseLookAt(m_params.position, m_params.target, m_params.up),
+        .invProj = sm::inversePerspective(fovY, aspect, zNear, zFar),
         .position = sm::float4(m_params.position, 1.0f),
         .lensRadius = std::max(m_params.lensRadius, 0.0f),
         .focusDistance =
@@ -71,11 +71,11 @@ CameraData Camera::getCameraData(uint32_t frameIndex, uint32_t maxDepth) const n
 }
 
 sm::float4x4 Camera::viewMatrix() const noexcept {
-    return sm::lookAtRH(m_params.position, m_params.target, m_params.up);
+    return sm::lookAt(m_params.position, m_params.target, m_params.up);
 }
 
 sm::float4x4 Camera::projectionMatrix() const noexcept {
-    return sm::perspectiveRH_ZO(sm::radians(m_params.vfovDeg),
+    return sm::perspective(sm::radians(m_params.vfovDeg),
                                 std::max(m_params.aspectRatio, 0.001f),
                                 std::max(m_params.nearPlane, 0.001f),
                                 std::max(m_params.farPlane, m_params.nearPlane + 0.001f));
