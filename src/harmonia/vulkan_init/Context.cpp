@@ -77,7 +77,8 @@ namespace {
     functions.vkGetDeviceImageMemoryRequirements = vkGetDeviceImageMemoryRequirements;
 
     const VmaAllocatorCreateInfo createInfo{
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT
+               | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT,
         .physicalDevice = ctx.physicalDevice,
         .device = ctx.device,
         .preferredLargeHeapBlockSize = 0,
@@ -146,7 +147,8 @@ namespace {
         features12Supported.descriptorBindingStorageImageUpdateAfterBind != VK_TRUE ||
         features12Supported.timelineSemaphore != VK_TRUE || features13Supported.dynamicRendering != VK_TRUE ||
         features13Supported.synchronization2 != VK_TRUE || features13Supported.maintenance4 != VK_TRUE ||
-        features14Supported.pushDescriptor != VK_TRUE || asFeaturesSupported.accelerationStructure != VK_TRUE ||
+        features14Supported.pushDescriptor != VK_TRUE || features14Supported.maintenance5 != VK_TRUE ||
+        asFeaturesSupported.accelerationStructure != VK_TRUE ||
         asFeaturesSupported.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||
         rtFeaturesSupported.rayTracingPipeline != VK_TRUE || rayQueryFeaturesSupported.rayQuery != VK_TRUE ||
         supportedFeatures.features.fragmentStoresAndAtomics != VK_TRUE ||
@@ -191,6 +193,7 @@ namespace {
     features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
     features14.pNext = &positionFetchFeatures;
     features14.pushDescriptor = VK_TRUE;
+    features14.maintenance5 = VK_TRUE;
 
     VkPhysicalDeviceVulkan13Features features13{};
     features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
