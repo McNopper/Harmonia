@@ -12,6 +12,7 @@ struct PhysicalDeviceInfo {
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps{};
     bool serSupported = false;         ///< VK_EXT_ray_tracing_invocation_reorder is available.
     bool indirectRt2Supported = false; ///< rayTracingPipelineTraceRaysIndirect2 available.
+    bool dgcSupported = false;         ///< VK_EXT_device_generated_commands is available.
 };
 
 class PhysicalDevice {
@@ -23,4 +24,5 @@ class PhysicalDevice {
     [[nodiscard]] static bool hasRequiredExtensions(VkPhysicalDevice device);
     [[nodiscard]] static bool hasSerSupport(VkPhysicalDevice device);
     [[nodiscard]] static bool hasRayTracingMaintenance1Support(VkPhysicalDevice device);
+    [[nodiscard]] static bool hasDgcSupport(VkPhysicalDevice device);
 };

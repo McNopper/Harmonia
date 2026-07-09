@@ -113,9 +113,12 @@ namespace {
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeaturesSupported{};
     asFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     asFeaturesSupported.pNext = &positionFetchFeaturesSupported;
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgcFeaturesSupported{};
+    dgcFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
+    dgcFeaturesSupported.pNext = &asFeaturesSupported;
     VkPhysicalDeviceVulkan14Features features14Supported{};
     features14Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
-    features14Supported.pNext = &asFeaturesSupported;
+    features14Supported.pNext = &dgcFeaturesSupported;
     VkPhysicalDeviceVulkan13Features features13Supported{};
     features13Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     features13Supported.pNext = &features14Supported;
@@ -133,6 +136,7 @@ namespace {
     const bool indirectRt2Supported =
         rtMaintenance1FeaturesSupported.rayTracingMaintenance1 == VK_TRUE &&
         rtMaintenance1FeaturesSupported.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
+    const bool dgcSupported = info.dgcSupported && dgcFeaturesSupported.deviceGeneratedCommands == VK_TRUE;
 
     if (features12Supported.bufferDeviceAddress != VK_TRUE || features12Supported.descriptorIndexing != VK_TRUE ||
         features12Supported.runtimeDescriptorArray != VK_TRUE ||
@@ -234,6 +238,14 @@ namespace {
     meshFeatures.meshShader = VK_TRUE;
     meshFeatures.taskShader = meshFeaturesSupported.taskShader;
 
+    // VK_EXT_device_generated_commands: GPU-driven mesh/compute draw commands.
+    // Optional: enabled when the device supports it so both Theia and Hyperion can use
+    // the same device. Falls back to indirect draw when not available.
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgcFeatures{};
+    dgcFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
+    dgcFeatures.pNext = meshShaderSupported ? static_cast<void*>(&meshFeatures) : static_cast<void*>(&features2);
+    dgcFeatures.deviceGeneratedCommands = VK_TRUE;
+
     // Detect a dedicated async compute queue family (COMPUTE without GRAPHICS).
     uint32_t asyncComputeFamily = UINT32_MAX;
     {
@@ -292,9 +304,14 @@ namespace {
     if (meshShaderSupported) {
         deviceExtensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
     }
+    if (dgcSupported) {
+        deviceExtensions.push_back(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
+    }
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = meshShaderSupported ? static_cast<const void*>(&meshFeatures) : static_cast<const void*>(&features2),
+        .pNext = dgcSupported     ? static_cast<const void*>(&dgcFeatures)
+                 : meshShaderSupported ? static_cast<const void*>(&meshFeatures)
+                                       : static_cast<const void*>(&features2),
         .flags = 0,
         .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
         .pQueueCreateInfos = queueCreateInfos.data(),
@@ -310,6 +327,7 @@ namespace {
         ctx.positionFetchSupported = positionFetchSupported;
         ctx.serSupported = serSupported;
         ctx.indirectRt2Supported = indirectRt2Supported;
+        ctx.dgcSupported = dgcSupported;
         ctx.asyncComputeQueueFamily = asyncComputeFamily;
     }
     return result;

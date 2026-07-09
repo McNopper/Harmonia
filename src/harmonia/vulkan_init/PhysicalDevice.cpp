@@ -91,6 +91,7 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         vkGetPhysicalDeviceMemoryProperties(device, &info.memProperties);
         info.serSupported = hasSerSupport(device);
         info.indirectRt2Supported = hasRayTracingMaintenance1Support(device);
+        info.dgcSupported = hasDgcSupport(device);
 
         const int score = scoreDevice(info.properties.properties) + 500;
         if (!foundCompatible || score > bestScore) {
@@ -230,4 +231,38 @@ bool PhysicalDevice::hasRequiredExtensions(VkPhysicalDevice device) {
         }
     }
     return true;
+}
+
+bool PhysicalDevice::hasDgcSupport(VkPhysicalDevice device) {
+    uint32_t extensionCount = 0;
+    VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+    if (result != VK_SUCCESS || extensionCount == 0U) {
+        return false;
+    }
+
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+    if (result != VK_SUCCESS) {
+        return false;
+    }
+
+    bool extensionAvailable = false;
+    for (const VkExtensionProperties& extension : extensions) {
+        if (std::string_view(extension.extensionName) == VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME) {
+            extensionAvailable = true;
+            break;
+        }
+    }
+    if (!extensionAvailable) {
+        return false;
+    }
+
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgcFeatures{};
+    dgcFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
+    VkPhysicalDeviceFeatures2 features2{};
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &dgcFeatures;
+    vkGetPhysicalDeviceFeatures2(device, &features2);
+
+    return dgcFeatures.deviceGeneratedCommands == VK_TRUE;
 }
