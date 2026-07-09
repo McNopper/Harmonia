@@ -90,3 +90,25 @@ transitive dependencies.
   vendor-specific extensions (`VK_NV_*`/`VK_AMD_*`/`VK_INTEL_*`) — must run on any vendor.
 - Working color space is scene-referred (e.g. `lin_rec2020_scene` / `lin_rec709_scene`).
 - SDL3, slangc and volk come from the Vulkan SDK (not vcpkg); vcpkg provides openexr, stb.
+
+## GPU-driven design (Harmonia device layer)
+
+**Principle:** all draw/dispatch submission parameters are GPU-resident and GPU-written.
+The CPU records commands only; it never reads back GPU-side state to determine counts or parameters.
+
+**Optional extensions managed here (all follow the same probe→enable pattern):**
+
+| Extension | `DeviceContext` flag | Purpose |
+|-----------|---------------------|---------|
+| `VK_EXT_mesh_shader` | — (implicit: mesh draws used when enabled) | Mesh/task shaders (Theia rasterizer) |
+| `VK_EXT_ray_tracing_invocation_reorder` | `serSupported` | SER reorder hint (Hyperion/Theia RT) |
+| `VK_KHR_ray_tracing_maintenance1` | `indirectRt2Supported` | `vkCmdTraceRaysIndirect2KHR` (Hyperion) |
+| `VK_EXT_device_generated_commands` | `dgcSupported` | GPU-generated mesh draw commands (Theia GD block) |
+
+**Acceleration structure builds — device-side only (Khronos deprecation compliant):**
+- All BLAS/TLAS builds use `vkCmdBuildAccelerationStructuresKHR` (device-side).
+- `vkBuildAccelerationStructuresKHR` (host-side) is **never used** — it is deprecated per the
+  [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
+- `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` is the **future forward
+  path** for AS creation (cleanest device-address-only API). Plan when it becomes available on the
+  dev hardware (not yet on RTX 4050 / Vulkan 1.4.341).
