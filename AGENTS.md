@@ -48,10 +48,8 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--output <file>` / `-o` | **Headless mode**: render N frames, save EXR (untonemapped) + PNG (tonemapped), exit. |
 | `--width <n>` / `--height <n>` | Render resolution. |
 | `--validation` / `--no-validation` | Vulkan validation layers. |
-| `--no-postfx` | Deprecated compatibility flag (`postProcess=false`). Theia legacy postfx path has been removed from runtime. |
 | `--rt-gi` / `--no-rt-gi` | Toggle Theia ray-query GI stage (default on). |
-| `--indirect-ambient <f>` | **Deprecated** (legacy postfx era; parsed but no longer drives the unified path). |
-| `--ssgi-strength <f>` | **Deprecated** (SSGI removed from runtime; parsed for compatibility only). |
+| `--indirect-ambient <f>` | Presentation-only indirect ambient boost (scene-referred linear units). |
 
 ⚠️ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
 
@@ -62,7 +60,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 Contract (all must hold or the number is meaningless):
 - Reference = Hyperion EXR; candidate = Theia EXR. **Pre-tonemap linear EXR**, never PNG.
 - Same resolution, same working color space (same `[render]` preset).
-- Theia's unified RT path is the only path now (legacy postfx removed; `--no-postfx` is a no-op).
+- Theia's unified accumulation RT path is the only path now.
 - Pass = `mean_diff <= 4.0` (in 1/255 luminance units).
 - For IBL references, render Hyperion at high spp (`--spp 512`) — a 16 spp reference is
   noisy and inflates `mean_diff`. See Aether/AGENTS.md "16-vs-512 spp trap".

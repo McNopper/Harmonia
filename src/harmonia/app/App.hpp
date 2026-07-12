@@ -76,16 +76,10 @@ class App {
         /// Number of scene-referred frames to render before saving in offscreen mode.
         /// For stochastic pipelines, increase this to improve convergence.
         uint32_t offscreenFrames = 4;
-        /// Screen-space post-effects (SSR/SSAO/bloom). Disabled (--no-postfx) for
-        /// parity comparison renders, which require all post-effects off per the
-        /// locked comparison contract. Renderers without post-fx ignore this.
-        bool postProcess = true;
         /// Presentation-only indirect ambient boost (scene-referred linear units).
         /// Kept at 0.0 for parity fixtures; non-zero values are for interactive
         /// quality tuning only.
         float indirectAmbient = 0.0f;
-        /// Optional screen-space GI complement, also presentation-only.
-        float ssgiStrength = 0.0f;
         /// IBL diffuse irradiance atlas width; height is width / 2 (2:1 lat-long).
         uint32_t iblDiffuseResolution = 256;
         /// Optional post-tonemap display-referred overlay renderer.
@@ -118,8 +112,8 @@ class App {
     int run(Config&& config);
 
     /// Parses an argument the host understands (--scene/-s, --output/-o,
-    /// --width, --height, --validation, --no-validation, --no-postfx,
-    /// --indirect-ambient, --ssgi-strength, --ibl-diffuse-resolution,
+    /// --width, --height, --validation, --no-validation,
+    /// --indirect-ambient, --ibl-diffuse-resolution,
     /// --display-overlay, --deterministic-replay, --rng-seed, --rng-debug,
     /// --rt-gi, --no-rt-gi, --offscreen-frames, --denoiser-strength,
     /// --denoiser-iterations, --denoiser-history-blend, --denoiser-no-history,
