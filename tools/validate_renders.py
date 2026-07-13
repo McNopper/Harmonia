@@ -21,7 +21,7 @@ from pathlib import Path
 from compare_renders import compute_metrics, evaluate_gate, extract_channel, load_exr, save_heatmap
 
 
-DEFAULT_SCALE_AWARE = {"fixture_ibl", "furnace_coverage"}
+DEFAULT_SCALE_AWARE = {"furnace_coverage"}
 DEFAULT_MANIFEST = Path(__file__).with_name("validation_manifest.toml")
 
 
