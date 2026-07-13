@@ -24,8 +24,10 @@
 ///   - samples_per_pixel / max_depth        → SceneConfig::spp / maxDepth
 ///   - environment_map / environment_unit_nits → IBL panorama (EXR, converted to
 ///                                            the working color space on load)
-///   - camera translate / look_at / up / vertical_field_of_view / ev100
-///                                          → SceneConfig camera overrides
+///   - camera translate / rotate (or rotate_x/y/z) / vertical_field_of_view / ev100
+///                                          → SceneConfig camera overrides (same TRS
+///                                            shape as a geometry block; forward/up
+///                                            are derived from the rotation quaternion)
 ///   - tonemapper ("aces" | "agx" | "reinhard" | "hable")
 ///                                          → SceneConfig::tonemapper enum value
 ///   - post_tonemap.renderer ("green_screen") → SceneConfig::postTonemapRenderer

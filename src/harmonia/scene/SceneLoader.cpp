@@ -246,14 +246,20 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     }
 
     // ── Camera ────────────────────────────────────────────────────────────────
-    // The parser already resolved rotate / rotate_y / look_at into a single
-    // look-at + up representation (last-one-wins).
+    // The camera's placement is a plain TRS transform — identical in shape to a
+    // geometry block's (translation + rotation quaternion; scale is parsed by
+    // Aether but has no defined meaning for a camera, so it is ignored here).
+    // Forward/up are derived from the rotation quaternion exactly like a
+    // geometry instance's local axes would be: forward = rotation·(0,0,-1),
+    // up = rotation·(0,1,0).
     const aether::CameraDesc& cam = desc->camera;
-    if (cam.position)
-        cfg.cameraPos = *cam.position;
-    if (cam.lookAt) {
-        cfg.cameraAt = *cam.lookAt;
-        cfg.cameraUp = cam.up.value_or(sm::float3{0.0f, 1.0f, 0.0f});
+    if (cam.translation)
+        cfg.cameraPos = *cam.translation;
+    if (cam.rotation) {
+        const sm::float3 pos = cam.translation.value_or(sm::float3{0.0f, 0.0f, 0.0f});
+        const sm::quaternion rot = *cam.rotation;
+        cfg.cameraAt = pos + (rot * sm::float3{0.0f, 0.0f, -1.0f});
+        cfg.cameraUp = rot * sm::float3{0.0f, 1.0f, 0.0f};
     }
     if (cam.vfov)
         cfg.cameraVfov = *cam.vfov;

@@ -32,8 +32,8 @@ class Camera {
     };
 
     struct Params {
-        sm::float3 position{278.0f, 273.0f, -800.0f};
-        sm::float3 target{278.0f, 273.0f, 0.0f};
+        sm::float3 position{0.0f, 0.0f, 10.0f};
+        sm::float3 target{0.0f, 0.0f, 0.0f};
         sm::float3 up{0.0f, 1.0f, 0.0f};
         float vfovDeg{39.1f};
         float aspectRatio{16.0f / 9.0f};
