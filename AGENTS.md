@@ -62,7 +62,7 @@ Contract (all must hold or the number is meaningless):
 - Same resolution, same working color space (same `[render]` preset).
 - Theia's unified accumulation RT path is the only path now.
 - Pass = `mean_diff <= 4.0` (in 1/255 luminance units).
-- For IBL references, render Hyperion at high spp (`--spp 512`) — a 16 spp reference is
+- For IBL references, render Hyperion at high spp (`--spp 256`) — a 16 spp reference is
   noisy and inflates `mean_diff`. See Aether/AGENTS.md "16-vs-512 spp trap".
 
 ## Build & test
