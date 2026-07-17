@@ -10,13 +10,6 @@
 
 namespace harmonia {
 
-/// Renderer-neutral per-instance descriptor for the emissive builder.
-/// Callers fill this from their renderer-specific GpuInstance arrays.
-struct EmissiveInstanceInfo {
-    uint32_t geometryKind;  ///< 0 = triangle mesh, 1 = analytic sphere
-    uint32_t materialIndex; ///< index into the scene's material list
-};
-
 /// Output of the emissive-triangle builder.
 struct EmissiveData {
     /// One packed GpuEmissiveTriangle per emissive surface triangle (world-space
@@ -28,19 +21,22 @@ struct EmissiveData {
     std::vector<float> power;
 };
 
-/// Build the emissive-triangle buffer and its power vector from the scene geometry.
+/// Build the emissive-triangle buffer and its power vector from the scene.
 ///
 /// Shared implementation used by both Hyperion (path tracer) and Theia (real-time
-/// renderer).  The result's `triangles` array is ready for direct GPU upload; callers
-/// still build the CDF from `power` themselves (the CDF upload is renderer-side).
+/// renderer).  Iterates the instance list: for each instance whose mesh is a
+/// triangle mesh with an emissive material, the mesh's object-space triangles are
+/// transformed by the instance's transform into world space.  The result's
+/// `triangles` array is ready for direct GPU upload; callers still build the CDF
+/// from `power` themselves (the CDF upload is renderer-side).
 ///
-/// @param geometries   Scene geometry list (TriangleMesh / Sphere / …).
-/// @param instances    Per-geometry renderer-neutral metadata (kind + material index).
-/// @param materials    Host material list for emissive-as-light-source checks.
+/// @param meshes      Unique scene meshes (TriangleMesh / Sphere / …).
+/// @param instances   Instance placements (mesh index + transform + material).
+/// @param materials   Host material list for emissive-as-light-source checks.
 /// @param gpuMaterials GPU material list for emission colour/luminance lookup.
 [[nodiscard]] EmissiveData buildEmissiveData(
-    const std::vector<std::unique_ptr<Geometry>>& geometries,
-    const std::vector<EmissiveInstanceInfo>&      instances,
+    const std::vector<std::unique_ptr<Geometry>>& meshes,
+    const std::vector<InstanceRecord>&            instances,
     const std::vector<Material>&                  materials,
     const std::vector<GpuMaterial>&               gpuMaterials);
 

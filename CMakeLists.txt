@@ -65,7 +65,6 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/scene/Light.cpp
     src/harmonia/scene/Mesh.cpp
     src/harmonia/scene/MaterialLibrary.cpp
-    src/harmonia/scene/ObjImporter.cpp
     src/harmonia/scene/ProceduralGeometry.cpp
     src/harmonia/scene/SceneBase.cpp
     src/harmonia/scene/SceneLoader.cpp

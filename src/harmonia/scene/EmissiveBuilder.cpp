@@ -11,16 +11,15 @@
 
 namespace harmonia {
 
-EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& geometries,
-                                const std::vector<EmissiveInstanceInfo>&      instances,
+EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& meshes,
+                                const std::vector<InstanceRecord>&            instances,
                                 const std::vector<Material>&                  materials,
                                 const std::vector<GpuMaterial>&               gpuMaterials) {
     EmissiveData result;
 
-    for (size_t i = 0; i < geometries.size(); ++i) {
-        const EmissiveInstanceInfo& inst = instances[i];
-        if (inst.geometryKind != 0U) {
-            continue; // spheres not supported for NEE yet
+    for (const InstanceRecord& inst : instances) {
+        if (inst.meshIndex >= meshes.size()) {
+            continue;
         }
         if (inst.materialIndex >= materials.size() || !materials[inst.materialIndex].emissiveAsLightSource()) {
             continue;
@@ -29,9 +28,9 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& geo
         if (gpuMat.emissionColorLum.w <= 0.0F) { // NOLINT(cppcoreguidelines-pro-type-union-access)
             continue;
         }
-        const auto* mesh = dynamic_cast<const TriangleMesh*>(geometries[i].get());
+        const auto* mesh = dynamic_cast<const TriangleMesh*>(meshes[inst.meshIndex].get());
         if (mesh == nullptr) {
-            continue;
+            continue; // spheres not supported for NEE yet
         }
         const auto& verts  = mesh->data().vertices;
         const auto& idxBuf = mesh->data().indices;
@@ -39,7 +38,8 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& geo
             continue;
         }
 
-        const sm::float4x4 xformMat = geometries[i]->xform.matrix();
+        // The mesh lives in object space; the instance transform places it.
+        const sm::float4x4 xformMat = inst.xform.matrix();
         const sm::float3 emission   = static_cast<sm::float3>(gpuMat.emissionColorLum) *
                                       gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
 

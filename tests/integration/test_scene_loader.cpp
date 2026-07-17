@@ -26,7 +26,6 @@ class RecordingSceneBuilder final : public ISceneBuilder {
     uint32_t addMesh(const DeviceContext& /*ctx*/,
                      const CommandPool& /*pool*/,
                      MeshData&& data,
-                     uint32_t /*materialIdx*/,
                      std::string_view /*name*/) override {
         if (data.vertices.empty() || data.indices.empty()) {
             return std::numeric_limits<uint32_t>::max();
@@ -35,22 +34,27 @@ class RecordingSceneBuilder final : public ISceneBuilder {
         return static_cast<uint32_t>(meshCount - 1);
     }
 
-    uint32_t addSphere(const DeviceContext& /*ctx*/,
-                       const CommandPool& /*pool*/,
-                       sm::float3 /*center*/,
-                       float radius,
-                       uint32_t /*materialIdx*/) override {
+    uint32_t addSphereMesh(const DeviceContext& /*ctx*/,
+                           const CommandPool& /*pool*/,
+                           float radius,
+                           std::string_view /*name*/) override {
         if (radius <= 0.0F) {
             return std::numeric_limits<uint32_t>::max();
         }
-        ++sphereCount;
-        return static_cast<uint32_t>(sphereCount - 1);
+        ++sphereMeshCount;
+        return static_cast<uint32_t>(meshCount + sphereMeshCount - 1);
+    }
+
+    uint32_t addInstance(uint32_t /*meshIndex*/, const Xform& /*xform*/, uint32_t /*materialIdx*/) override {
+        ++instanceCount;
+        return static_cast<uint32_t>(instanceCount - 1);
     }
 
     size_t materialCount = 0;
     size_t textureCount = 0;
     size_t meshCount = 0;
-    size_t sphereCount = 0;
+    size_t sphereMeshCount = 0;
+    size_t instanceCount = 0;
 };
 
 std::filesystem::path assetsDir() {
@@ -76,6 +80,10 @@ TEST(SceneLoader, LoadsRealSceneAndProducesExpectedConfig) {
     ASSERT_TRUE(cfg->cameraEv100.has_value());
     EXPECT_FLOAT_EQ(*cfg->cameraEv100, 7.0F);
     EXPECT_GT(scene.meshCount, 0U);
+    // cornell_classic has 1 OBJ (split into N sub-meshes) + 2 boxes; every
+    // registered mesh is placed exactly once, so instances == meshes.
+    EXPECT_EQ(scene.instanceCount, scene.meshCount);
+    EXPECT_GE(scene.instanceCount, 3U);
 }
 
 TEST(SceneLoader, UnknownTonemapperAndWorkingSpaceFallbackToDefaults) {

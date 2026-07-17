@@ -15,10 +15,14 @@
 /// Parsing is owned by Aether (`aether::SceneParser`); see Aether's
 /// SceneParser.hpp for the full TOML format reference (material_libraries,
 /// [render] / [camera] / [tonemap] sections with optional `reference` presets,
-/// and ordered [[geometry]] blocks).  SceneLoader resolves the parsed
-/// `aether::SceneDesc` against the assets directory: it loads the referenced
-/// material libraries and OBJ files, instantiates procedural geometry, and
-/// uploads everything through the renderer's ISceneBuilder.
+/// and the [[mesh]] / [[instance]] instancing model).  SceneLoader resolves the
+/// parsed `aether::SceneDesc` against the assets directory: it loads the
+/// referenced material libraries and OBJ files, instantiates procedural
+/// geometry, and uploads everything through the renderer's ISceneBuilder.
+///
+/// Each declared mesh is imported / uploaded / accelerated **once** (object
+/// space); each [[instance]] then places a mesh with a transform + material.
+/// N instances of one mesh share one BLAS (true GPU instancing).
 ///
 /// Renderer-facing semantics:
 ///   - samples_per_pixel / max_depth        → SceneConfig::spp / maxDepth
@@ -26,7 +30,7 @@
 ///                                            the working color space on load)
 ///   - camera translate / rotate (or rotate_x/y/z) / vertical_field_of_view / ev100
 ///                                          → SceneConfig camera overrides (same TRS
-///                                            shape as a geometry block; forward/up
+///                                            shape as an instance; forward/up
 ///                                            are derived from the rotation quaternion)
 ///   - tonemapper ("aces" | "agx" | "reinhard" | "hable")
 ///                                          → SceneConfig::tonemapper enum value
@@ -36,7 +40,7 @@
 ///       enable_tonemapper_stage   → SceneConfig stage toggle optionals
 ///   - working_color_space ("lin_rec2020_scene" | "lin_rec709_scene")
 ///                                          → SceneConfig::workingColorSpace
-///   - geometry: instance (OBJ), box, sphere with TRS (glTF T × R × S);
+///   - meshes (OBJ / box / sphere) + instances with TRS (glTF T × R × S);
 ///     whether spheres are analytic or tessellated is the renderer's choice.
 class SceneLoader {
   public:

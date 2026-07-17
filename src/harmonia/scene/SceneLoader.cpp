@@ -7,13 +7,14 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 #include <toml++/toml.hpp>
 
+#include "aether/format/ObjImporter.hpp"
 #include "aether/format/SceneParser.hpp"
+#include "aether/types/MeshData.hpp"
 #include "harmonia/core/Logger.hpp"
-#include "harmonia/scene/ISceneImporter.hpp"
 #include "harmonia/scene/MaterialLibrary.hpp"
-#include "harmonia/scene/ObjImporter.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 #include "harmonia/scene/Texture.hpp"
 
@@ -77,126 +78,48 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
     }
 }
 
-// Build a 4×4 TRS matrix from the geometry block's T/R/S fields.
-[[nodiscard]] sm::float4x4 trsMatrix(const aether::GeometryBlock& b) {
-    return sm::translate(sm::float4x4(1.0f), b.translation) * sm::toFloat4x4(b.rotation) *
-           sm::scale(sm::float4x4(1.0f), b.scale);
+// Build an Xform (object→world, glTF T × R × S) from a parsed instance's TRS.
+[[nodiscard]] Xform toXform(const aether::InstanceDesc& inst) {
+    return Xform{.translation = inst.translation, .rotation = inst.rotation, .scale = inst.scale};
 }
 
-// ── Geometry-block uploader ───────────────────────────────────────────────────
-
-[[nodiscard]] bool uploadBlock(const aether::GeometryBlock& blk,
-                               ISceneBuilder& scene,
-                               const DeviceContext& ctx,
-                               const CommandPool& pool,
-                               MaterialLibrary& lib,
-                               const std::filesystem::path& assetsDir,
-                               ColorSpace::WorkingColorSpace workingSpace,
-                               std::unordered_map<std::string, uint32_t>& texCache) {
-
-    // Pre-load textures for all materials referenced in this block.
-    // Must run before ObjImporter/addMaterial so that patched texture indices
-    // are visible when lib.getOrDefault() is called.
-    auto loadMatTextures = [&](const std::string& matName) {
-        if (matName.empty())
-            return;
-        const auto refs = lib.textureRefs(matName);
-        if (!refs)
-            return;
-
-        // Slot order matches GpuMaterial textures: [0-3] base_color, normal, ORM, emission;
-        // [4-6] coat_normal, tangent, coat_tangent (textureIndices2).
-        const std::array<std::pair<uint32_t, const MaterialLibrary::MaterialTextureRef*>, 7> slots{{
-            {0u, &refs->base_color},
-            {1u, &refs->normal},
-            {2u, &refs->orm},
-            {3u, &refs->emission},
-            {4u, &refs->coat_normal},
-            {5u, &refs->tangent},
-            {6u, &refs->coat_tangent},
-        }};
-
-        for (const auto& [slot, ref] : slots) {
-            if (ref->empty())
-                continue;
-
-            const std::string& relPath = ref->path;
-            if (const auto it = texCache.find(relPath); it != texCache.end()) {
-                // Already uploaded — just patch the index.
-                lib.patchTextureIndex(matName, slot, it->second);
-                continue;
-            }
-
-            auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, ref->colorSpace, workingSpace, matName);
-            if (!result) {
-                Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
-                continue;
-            }
-
-            const uint32_t idx = scene.addTexture(std::move(*result));
-            texCache.emplace(relPath, idx);
-            lib.patchTextureIndex(matName, slot, idx);
-            Logger::info("SceneLoader: loaded texture '{}' (slot {}) → index {}", relPath, slot, idx);
-        }
-    };
-
-    loadMatTextures(blk.materialName);
-    for (const auto& [groupName, matName] : blk.groupMaterials)
-        loadMatTextures(matName);
-
-    switch (blk.kind) {
-    case aether::GeometryBlock::Kind::Object: {
-        if (blk.objPath.empty()) {
-            Logger::warn("SceneLoader: empty object path — skipping");
-            return true;
-        }
-        ObjImporter importer;
-        return importer.import(assetsDir / blk.objPath,
-                               scene,
-                               ctx,
-                               pool,
-                               ImportOptions{
-                                   .worldTransform = trsMatrix(blk),
-                                   .library = &lib,
-                                   .overrideMaterial = blk.materialName,
-                                   .groupMaterials = blk.groupMaterials,
-                               });
+// Convert Aether's renderer-agnostic object-space mesh into Harmonia's GpuVertex
+// layout. OBJ vertex tangents are zero (mirrors the previous importer; tangents
+// are derived per-hit in the shaders).
+[[nodiscard]] MeshData toHarmoniaMesh(const aether::MeshData& am) {
+    MeshData out;
+    out.vertices.reserve(am.vertices.size());
+    out.indices = am.indices;
+    for (const aether::Vertex& v : am.vertices) {
+        out.vertices.push_back(GpuVertex{
+            .position = v.position,
+            .tangentX = 0.0f,
+            .normal = v.normal,
+            .tangentY = 0.0f,
+            .uv = v.uv,
+            .tangentZ = 0.0f,
+            .bitangentSign = 1.0f,
+        });
     }
-
-    case aether::GeometryBlock::Kind::Sphere: {
-        if (blk.sphereRadius <= 0.0f) {
-            Logger::warn("SceneLoader: sphere radius ≤ 0 — skipping");
-            return true;
-        }
-        // scale.x used as a uniform radius multiplier (all axes equal for a sphere).
-        // The renderer's Scene::addSphere decides analytic vs tessellated.
-        const float radius = blk.sphereRadius * blk.scale.x;
-        const uint32_t mat = scene.addMaterial(lib.getOrDefault(blk.materialName));
-        return scene.addSphere(ctx, pool, blk.translation, radius, mat) != std::numeric_limits<uint32_t>::max();
-    }
-
-    case aether::GeometryBlock::Kind::Box: {
-        if (blk.boxHalf == sm::float3{0.0f, 0.0f, 0.0f}) {
-            Logger::warn("SceneLoader: box half-extents are zero — skipping");
-            return true;
-        }
-        const uint32_t mat = scene.addMaterial(lib.getOrDefault(blk.materialName));
-        MeshData mesh = ProceduralGeometry::makeBox(blk.boxHalf, trsMatrix(blk));
-        return scene.addMesh(ctx, pool, std::move(mesh), mat, "box") != std::numeric_limits<uint32_t>::max();
-    }
-    }
-    return true; // unreachable
+    return out;
 }
+
+/// One sub-mesh of a declared mesh: its registered mesh index + the OBJ group
+/// name used to resolve per-instance material overrides.
+struct LoadedSubmesh {
+    uint32_t meshIndex;
+    std::string groupName;
+};
 
 } // namespace
 
 // ── SceneLoader::load ─────────────────────────────────────────────────────────
 
 std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem::path& sceneFile,
-                                                          const std::filesystem::path& assetsDir,
-                                                          ISceneBuilder& scene,
-                                                          const DeviceContext& ctx,
-                                                          const CommandPool& pool) {
+                                                           const std::filesystem::path& assetsDir,
+                                                           ISceneBuilder& scene,
+                                                           const DeviceContext& ctx,
+                                                           const CommandPool& pool) {
     // Parsing is owned by Aether — SceneLoader only resolves and uploads.
     const std::optional<aether::SceneDesc> desc = aether::SceneParser::parse(sceneFile);
     if (!desc) {
@@ -210,7 +133,6 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     std::unordered_map<std::string, uint32_t> texCache; // relPath → texture index
 
     // ── Working color space ───────────────────────────────────────────────────
-    // Must be resolved before any asset loads — every conversion targets it.
     if (desc->workingColorSpace) {
         if (const auto ws = ColorSpace::parseWorkingColorSpace(*desc->workingColorSpace))
             cfg.workingColorSpace = *ws;
@@ -246,12 +168,8 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     }
 
     // ── Camera ────────────────────────────────────────────────────────────────
-    // The camera's placement is a plain TRS transform — identical in shape to a
-    // geometry block's (translation + rotation quaternion; scale is parsed by
-    // Aether but has no defined meaning for a camera, so it is ignored here).
-    // Forward/up are derived from the rotation quaternion exactly like a
-    // geometry instance's local axes would be: forward = rotation·(0,0,-1),
-    // up = rotation·(0,1,0).
+    // The camera's placement is a plain TRS transform — identical in shape to an
+    // instance's. Forward/up are derived from the rotation quaternion.
     const aether::CameraDesc& cam = desc->camera;
     if (cam.translation)
         cfg.cameraPos = *cam.translation;
@@ -266,10 +184,146 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     if (cam.ev100)
         cfg.cameraEv100 = *cam.ev100;
 
-    // ── Geometry ──────────────────────────────────────────────────────────────
-    for (const aether::GeometryBlock& blk : desc->geometry) {
-        if (!uploadBlock(blk, scene, ctx, pool, lib, assetsDir, cfg.workingColorSpace, texCache))
-            return std::nullopt;
+    // ── Texture loading (idempotent; cached by relative path) ─────────────────
+    // Must run before the matching addMaterial() so patched bindless indices are
+    // visible when lib.getOrDefault() is called.
+    auto loadMatTextures = [&](const std::string& matName) {
+        if (matName.empty())
+            return;
+        const auto refs = lib.textureRefs(matName);
+        if (!refs)
+            return;
+
+        const std::array<std::pair<uint32_t, const MaterialLibrary::MaterialTextureRef*>, 7> slots{{
+            {0u, &refs->base_color},
+            {1u, &refs->normal},
+            {2u, &refs->orm},
+            {3u, &refs->emission},
+            {4u, &refs->coat_normal},
+            {5u, &refs->tangent},
+            {6u, &refs->coat_tangent},
+        }};
+
+        for (const auto& [slot, ref] : slots) {
+            if (ref->empty())
+                continue;
+
+            const std::string& relPath = ref->path;
+            if (const auto it = texCache.find(relPath); it != texCache.end()) {
+                lib.patchTextureIndex(matName, slot, it->second);
+                continue;
+            }
+
+            auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, ref->colorSpace, cfg.workingColorSpace, matName);
+            if (!result) {
+                Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
+                continue;
+            }
+
+            const uint32_t idx = scene.addTexture(std::move(*result));
+            texCache.emplace(relPath, idx);
+            lib.patchTextureIndex(matName, slot, idx);
+            Logger::info("SceneLoader: loaded texture '{}' (slot {}) → index {}", relPath, slot, idx);
+        }
+    };
+
+    // ── Meshes: import each declared mesh ONCE (object space) ─────────────────
+    // Records, per declared mesh name, the registered sub-mesh indices (+ OBJ
+    // group names for material resolution). Instances reference these.
+    std::unordered_map<std::string, std::vector<LoadedSubmesh>> meshSubmeshes;
+
+    for (const aether::MeshDesc& m : desc->meshes) {
+        std::vector<LoadedSubmesh> subs;
+
+        switch (m.kind) {
+        case aether::MeshDesc::Kind::Object: {
+            if (m.objPath.empty()) {
+                Logger::warn("SceneLoader: mesh '{}' has empty path — skipping", m.name);
+                continue;
+            }
+            auto groups = aether::ObjImporter::parse(assetsDir / m.objPath);
+            if (!groups) {
+                Logger::error("SceneLoader: cannot open mesh '{}'", m.objPath);
+                return std::nullopt;
+            }
+            for (const aether::MeshGroup& g : *groups) {
+                if (g.mesh.empty()) {
+                    continue;
+                }
+                const std::string debugName = m.name + "." + g.name;
+                const uint32_t idx = scene.addMesh(ctx, pool, toHarmoniaMesh(g.mesh), debugName);
+                if (idx == std::numeric_limits<uint32_t>::max()) {
+                    Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
+                    return std::nullopt;
+                }
+                subs.push_back({idx, g.name});
+            }
+            break;
+        }
+        case aether::MeshDesc::Kind::Box: {
+            if (m.boxHalf == sm::float3{0.0f, 0.0f, 0.0f}) {
+                Logger::warn("SceneLoader: box '{}' has zero half-extents — skipping", m.name);
+                continue;
+            }
+            MeshData mesh = ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
+            const uint32_t idx = scene.addMesh(ctx, pool, std::move(mesh), m.name);
+            if (idx == std::numeric_limits<uint32_t>::max()) {
+                Logger::error("SceneLoader: failed to upload box '{}'", m.name);
+                return std::nullopt;
+            }
+            subs.push_back({idx, ""});
+            break;
+        }
+        case aether::MeshDesc::Kind::Sphere: {
+            if (m.sphereRadius <= 0.0f) {
+                Logger::warn("SceneLoader: sphere '{}' has radius ≤ 0 — skipping", m.name);
+                continue;
+            }
+            const uint32_t idx = scene.addSphereMesh(ctx, pool, m.sphereRadius, m.name);
+            if (idx == std::numeric_limits<uint32_t>::max()) {
+                Logger::error("SceneLoader: failed to upload sphere '{}'", m.name);
+                return std::nullopt;
+            }
+            subs.push_back({idx, ""});
+            break;
+        }
+        }
+
+        if (subs.empty()) {
+            Logger::warn("SceneLoader: mesh '{}' produced no geometry — skipping", m.name);
+            continue;
+        }
+        meshSubmeshes.emplace(m.name, std::move(subs));
+    }
+
+    // ── Instances: place a mesh with a transform + material ───────────────────
+    for (const aether::InstanceDesc& inst : desc->instances) {
+        auto it = meshSubmeshes.find(inst.meshName);
+        if (it == meshSubmeshes.end()) {
+            Logger::warn("SceneLoader: instance references unknown mesh '{}' — skipping", inst.meshName);
+            continue;
+        }
+        const Xform xform = toXform(inst);
+
+        for (const LoadedSubmesh& sub : it->second) {
+            // Material priority: per-group override > whole-instance override > default.
+            std::string matName;
+            if (!sub.groupName.empty()) {
+                if (const auto git = inst.groupMaterials.find(sub.groupName); git != inst.groupMaterials.end())
+                    matName = git->second;
+                else if (!inst.materialName.empty())
+                    matName = inst.materialName;
+            } else {
+                matName = inst.materialName;
+            }
+
+            loadMatTextures(matName);
+            const uint32_t matIdx = scene.addMaterial(lib.getOrDefault(matName));
+            if (scene.addInstance(sub.meshIndex, xform, matIdx) == std::numeric_limits<uint32_t>::max()) {
+                Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
+                return std::nullopt;
+            }
+        }
     }
 
     Logger::info("SceneLoader: loaded '{}'", sceneFile.filename().string());

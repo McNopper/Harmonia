@@ -15,6 +15,12 @@ uint32_t SceneBase::addTexture(Texture&& texture) {
     return idx;
 }
 
+uint32_t SceneBase::addInstance(uint32_t meshIndex, const Xform& xform, uint32_t materialIdx) {
+    const uint32_t idx = static_cast<uint32_t>(m_instances.size());
+    m_instances.push_back(InstanceRecord{.meshIndex = meshIndex, .xform = xform, .materialIndex = materialIdx});
+    return idx;
+}
+
 uint32_t SceneBase::addLight(std::unique_ptr<Light> light) {
     const uint32_t index = static_cast<uint32_t>(m_lights.size());
     m_lights.push_back(std::move(light));

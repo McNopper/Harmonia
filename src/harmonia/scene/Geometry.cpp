@@ -120,17 +120,15 @@ VkTransformMatrixKHR Xform::toVkTransform() const noexcept {
 }
 
 std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(const DeviceContext& ctx,
-                                                                            const CommandPool& pool,
-                                                                            MeshData&& data,
-                                                                            uint32_t materialIndex,
-                                                                            std::string_view debugName) {
+                                                                             const CommandPool& pool,
+                                                                             MeshData&& data,
+                                                                             std::string_view debugName) {
     auto mesh = Mesh::create(ctx, pool, data, debugName);
     if (!mesh) {
         return std::unexpected(mesh.error());
     }
 
     auto triangleMesh = std::make_unique<TriangleMesh>();
-    triangleMesh->materialIndex = materialIndex;
     triangleMesh->m_data = std::move(data);
     triangleMesh->m_mesh = std::move(*mesh);
     triangleMesh->m_debugName = debugName.empty() ? "triangle_mesh" : std::string(debugName);
@@ -173,10 +171,11 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& po
     return buildSingleBlas(ctx, pool, m_debugName, geometry, rangeInfo, m_accelerationStructure, m_blas);
 }
 
-VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(uint32_t instanceIndex) const noexcept {
+VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(uint32_t instanceCustomIndex,
+                                                              const Xform& xform) const noexcept {
     return VkAccelerationStructureInstanceKHR{
         .transform = xform.toVkTransform(),
-        .instanceCustomIndex = instanceIndex,
+        .instanceCustomIndex = instanceCustomIndex,
         .mask = 0xFF,
         .instanceShaderBindingTableRecordOffset = 0,
         .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
@@ -205,16 +204,16 @@ const MeshData& TriangleMesh::data() const noexcept {
 }
 
 std::expected<std::unique_ptr<Sphere>, VkResult> Sphere::create(const DeviceContext& ctx,
-                                                                const CommandPool& pool,
-                                                                sm::float3 center,
-                                                                float radius,
-                                                                uint32_t materialIndex,
-                                                                std::string_view debugName) {
+                                                                 const CommandPool& pool,
+                                                                 float radius,
+                                                                 std::string_view debugName) {
     if (radius <= 0.0f) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    const auto aabb = ProceduralGeometry::makeSphereAabb(center, radius);
+    // Object-space AABB centred at the origin; placement (translation/scale) is
+    // the instance transform's job via the TLAS.
+    const auto aabb = ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, radius);
     const VkAabbPositionsKHR vkAabb{
         .minX = aabb.min.x,
         .minY = aabb.min.y,
@@ -235,8 +234,6 @@ std::expected<std::unique_ptr<Sphere>, VkResult> Sphere::create(const DeviceCont
     }
 
     auto sphere = std::make_unique<Sphere>();
-    sphere->materialIndex = materialIndex;
-    sphere->m_center = center;
     sphere->m_radius = radius;
     sphere->m_aabbBuffer = std::move(*aabbBuffer);
     sphere->m_debugName = debugName.empty() ? "sphere" : std::string(debugName);
@@ -271,19 +268,16 @@ VkResult Sphere::buildBlas(const DeviceContext& ctx, const CommandPool& pool) {
     return buildSingleBlas(ctx, pool, m_debugName, geometry, rangeInfo, m_accelerationStructure, m_blas);
 }
 
-VkAccelerationStructureInstanceKHR Sphere::makeInstance(uint32_t instanceIndex) const noexcept {
+VkAccelerationStructureInstanceKHR Sphere::makeInstance(uint32_t instanceCustomIndex,
+                                                        const Xform& xform) const noexcept {
     return VkAccelerationStructureInstanceKHR{
         .transform = xform.toVkTransform(),
-        .instanceCustomIndex = instanceIndex,
+        .instanceCustomIndex = instanceCustomIndex,
         .mask = 0xFF,
         .instanceShaderBindingTableRecordOffset = 1,
         .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
         .accelerationStructureReference = m_accelerationStructure.deviceAddress(),
     };
-}
-
-sm::float3 Sphere::center() const noexcept {
-    return m_center;
 }
 
 float Sphere::radius() const noexcept {

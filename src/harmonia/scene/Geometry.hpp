@@ -15,6 +15,11 @@
 #include "harmonia/renderer/AccelerationStructure.hpp"
 #include "harmonia/scene/Mesh.hpp"
 
+/// Decomposed object→world transform (glTF T × R × S).
+///
+/// A transform belongs to an *instance*, not a mesh: one mesh can be placed many
+/// times with different transforms (true GPU instancing). `toVkTransform()` packs
+/// it into the 3×4 matrix a TLAS instance carries.
 struct Xform {
     sm::float3 translation = {0.0f, 0.0f, 0.0f};
     sm::quaternion rotation = sm::identity<sm::quaternion>();
@@ -25,15 +30,28 @@ struct Xform {
     [[nodiscard]] VkTransformMatrixKHR toVkTransform() const noexcept;
 };
 
+/// A placed instance: which unique mesh, with which transform and material.
+///
+/// Renderers hold one of these per instance; the referenced `Geometry` (the mesh)
+/// owns the shared BLAS, so N instances of one mesh share one BLAS.
+struct InstanceRecord {
+    uint32_t meshIndex = 0;
+    Xform xform{};
+    uint32_t materialIndex = 0;
+};
+
+/// A unique piece of geometry living in **object space**, owning one BLAS.
+///
+/// Transform and material are per-instance (see `InstanceRecord`), not per-mesh.
+/// `makeInstance` emits a TLAS instance referencing this mesh's BLAS with a
+/// caller-supplied transform, so many instances can reference one shared BLAS.
 class Geometry {
   public:
-    Xform xform;
-    uint32_t materialIndex = 0;
-
     virtual ~Geometry() = default;
 
     virtual VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) = 0;
-    [[nodiscard]] virtual VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceIndex) const noexcept = 0;
+    [[nodiscard]] virtual VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
+                                                                          const Xform& xform) const noexcept = 0;
 
     [[nodiscard]] VkAccelerationStructureKHR blas() const noexcept { return m_blas; }
 
@@ -46,11 +64,11 @@ class TriangleMesh final : public Geometry {
     [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult> create(const DeviceContext& ctx,
                                                                                        const CommandPool& pool,
                                                                                        MeshData&& data,
-                                                                                       uint32_t materialIndex,
                                                                                        std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceIndex) const noexcept override;
+    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
+                                                                  const Xform& xform) const noexcept override;
 
     [[nodiscard]] const Buffer& vertexBuffer() const noexcept;
     [[nodiscard]] const Buffer& indexBuffer() const noexcept;
@@ -67,21 +85,20 @@ class TriangleMesh final : public Geometry {
 
 class Sphere final : public Geometry {
   public:
+    /// Analytic sphere of @p radius centred at the object-space origin. Placement
+    /// is the instance transform's job (translation/scale via the TLAS).
     [[nodiscard]] static std::expected<std::unique_ptr<Sphere>, VkResult> create(const DeviceContext& ctx,
                                                                                  const CommandPool& pool,
-                                                                                 sm::float3 center,
                                                                                  float radius,
-                                                                                 uint32_t materialIndex,
                                                                                  std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceIndex) const noexcept override;
+    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
+                                                                  const Xform& xform) const noexcept override;
 
-    [[nodiscard]] sm::float3 center() const noexcept;
     [[nodiscard]] float radius() const noexcept;
 
   private:
-    sm::float3 m_center{};
     float m_radius = 0.0f;
     Buffer m_aabbBuffer{};
     AccelerationStructure m_accelerationStructure{};
