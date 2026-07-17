@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(harmonia VERSION 0.6.15 LANGUAGES C CXX)
+project(harmonia VERSION 0.6.16 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -28,7 +28,7 @@ add_compile_definitions(VK_NO_PROTOTYPES)
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.6.9
+    GIT_TAG v0.6.16
 )
 FetchContent_MakeAvailable(aether)
 
