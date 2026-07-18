@@ -82,6 +82,3 @@ static const float3 kRec2020Luma = float3(0.2627, 0.6780, 0.0593);
 
 /// TLAS instance mask — all instances visible.
 static const uint kInstanceMaskAll = 0xFFu;
-
-/// Firefly suppression: maximum per-sample luminance after exposure (display units).
-static const float kFireflyClamp = 100.0;

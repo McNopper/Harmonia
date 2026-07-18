@@ -713,7 +713,6 @@ float3 evalReflectionMicrofacetThinFilm(float3 dielectricF0, float3 baseColor, f
 }
 
 // ─── A2: GGX VNDF specular dielectric microfacet BTDF (OpenPBR-correct) ───
-// Replaces the Lambertian-ish evalTransmissionApprox.
 // The eta² non-symmetric radiance factor lives in the PDF Jacobian, NOT here.
 float3 evalTransmissionMicrofacet(float3 color, float depth, float eta, float alphaX, float alphaY, float3 wo, float3 wi)
 {
@@ -766,18 +765,6 @@ float transmissionPdf(float eta, float alphaX, float alphaY, float3 wo, float3 w
     float jacobian = eta * eta * (eta * cos_theta_t + cos_theta_i) * (eta * cos_theta_t + cos_theta_i);
 
     return pdf_h / max(jacobian, 1.0e-5);
-}
-
-// ─── Legacy function for backward compat (only used if transmission is not sampled) ───
-float3 evalTransmissionApprox(float3 color, float depth, float eta, float3 wo, float3 wi)
-{
-    if (wo.z * wi.z >= 0.0) {
-        return 0.0.xxx;
-    }
-
-    float F = fresnelDielectric(abs(wo.z), eta);
-    float3 absorption = exp(-max(depth, 0.001) * (1.0.xxx - saturate3(color)));
-    return absorption * color * (1.0 - F) * kInvPi;
 }
 
 void computeLobeWeights(

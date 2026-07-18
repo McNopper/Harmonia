@@ -49,7 +49,7 @@ function(compile_slang_shaders target output_dir)
     # Scan both the local shader root and any extra include dirs.
     set(_support_shaders)
     foreach(_dir "${_shader_root}" ${COMPILE_SLANG_EXTRA_INCLUDE_DIRS})
-        foreach(_support common.slang gpu_types.slang math.slang rng.slang bsdf_shared.slang env.slang env_sample.slang)
+        foreach(_support common.slang gpu_types.slang math.slang rng.slang bsdf.slang bsdf_shared.slang env.slang env_sample.slang)
             if(EXISTS "${_dir}/${_support}")
                 list(APPEND _support_shaders "${_dir}/${_support}")
             endif()
