@@ -40,6 +40,7 @@ interface ITracer {
 /// shading/geometric normals to face `wo` before populating this struct.
 struct SurfaceHit {
     float3   position;
+    float3   shadowPos; ///< shadow/NEE ray origin (shading-normal-smoothed hit point; = position if no terminator fix)
     float3   normal;    ///< shading normal flipped to face wo
     float3   geoNormal; ///< geometric normal flipped to face wo
     float3   T, B;      ///< shading tangent frame
@@ -187,7 +188,7 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
         // offset by geoNormal*kRayEpsilon — without this, surfaces whose geoNormal points
         // toward the light (e.g. a floor below a ceiling light) reach the emitter at exactly
         // tMax, causing a false occlusion (the floor always renders black).
-        float3 shadowOrigin = surf.position + surf.geoNormal * kRayEpsilon;
+        float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
         float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + dot(surf.geoNormal, wi)), 0.0);
         if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
             float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
@@ -228,7 +229,7 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
     sample.wi = wi;
     sample.envPdf = envPdf;
     if (cosI > 0.0 && envPdf > 0.0) {
-        float3 shadowOrigin = surf.position + surf.geoNormal * kRayEpsilon;
+        float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
         if (tracer.traceOccluded(shadowOrigin, wi, kInf)) {
             float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
             float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,

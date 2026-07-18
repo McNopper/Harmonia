@@ -194,7 +194,9 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
         // contributes NO continuous cosine pdf here (mirrors the transmission lobe); only
         // thin-walled subsurface keeps its diffuse cosine pdf.
         float ssCosineWeight = (mat.opacityFlagsPad.w > 0.5) ? subsurfaceWeight : 0.0;
-        pdf += (diffuseWeight + ssCosineWeight + fuzzWeight) * cosinePdf;
+        pdf += (diffuseWeight + ssCosineWeight) * cosinePdf;
+        // Fuzz uses its own LTC sheen pdf (matches the sampleSheenLtc sampler).
+        pdf += fuzzWeight * sheenLtcPdf(woL, wiL, saturate(mat.fuzzRoughPad.x));
         pdf += (specularWeight + metalWeight) * reflectionPdf(woL, wiL, alphaX, alphaY);
     } else {
         // A2: Use the OpenPBR-correct transmission PDF (includes eta² in Jacobian)
@@ -305,8 +307,13 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
 
     float3 wiLocal = 0.0.xxx;
     bool haveCoatDir = false;
-    if (lobe == 0u || lobe == 5u) {
+    if (lobe == 0u) {
         wiLocal = sampleCosineHemisphere(randFloat2(seed));
+    } else if (lobe == 5u) {
+        // Fuzz/sheen: importance-sample its LTC distribution (sampleSheenLtc), not the cosine
+        // hemisphere — cosine-sampling a non-cosine lobe left high variance that under-converged
+        // grazing sheen into dark patches at finite spp.
+        wiLocal = sampleSheenLtc(woL, saturate(mat.fuzzRoughPad.x), randFloat2(seed));
     } else if (lobe == 1u) {
         bool thinWalledSSS = mat.opacityFlagsPad.w > 0.5;
         if (thinWalledSSS) {

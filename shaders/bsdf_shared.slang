@@ -572,6 +572,47 @@ float3 evalSheen(float3 color, float roughness, float3 wo, float3 wi)
     return color * dirAlbedo * brdfCos / max(wi.z, 1.0e-4);
 }
 
+/// Importance-sample the Zeltner LTC sheen lobe — matches `mx_zeltner_sheen_brdf`, so for a
+/// sampled direction f·cos/pdf collapses to color·dirAlbedo (near-zero variance) instead of
+/// the high-variance cosine-hemisphere sample that used to under-converge grazing sheen into
+/// dark patches. Returns a unit direction in the local shading frame (N = +Z).
+/// Method (Heitz 2016, LTC sampling): draw a canonical clamped-cosine direction d, transform
+/// by the FORWARD matrix M (M⁻¹ is the [[aInv,0,bInv],[0,aInv,0],[0,0,1]] form used in
+/// mx_zeltner_sheen_brdf), and map back from the V-N-aligned frame to the local frame.
+float3 sampleSheenLtc(float3 wo, float roughness, float2 xi)
+{
+    float NdotV = clamp(wo.z, 1.0e-4, 1.0);
+    float r = clamp(roughness, 0.01, 1.0);
+    float3 d = sampleCosineHemisphere(xi); // canonical clamped-cosine base distribution Do
+    float aInv = mx_zeltner_sheen_ltc_aInv(NdotV, r);
+    float bInv = mx_zeltner_sheen_ltc_bInv(NdotV, r);
+    float a = 1.0 / max(aInv, 1.0e-6);     // M = (M⁻¹)⁻¹
+    float b = -bInv / max(aInv, 1.0e-6);
+    float3 md = normalize(float3(a * d.x + b * d.z, a * d.y, d.z));
+    // Rebuild the same V-N-aligned frame mx_zeltner_sheen_brdf uses (Xax = wo projected).
+    float3 Xax = float3(wo.x, wo.y, 0.0);
+    float lenSq = dot(Xax, Xax);
+    float3 wi;
+    if (lenSq > 1.0e-8) {
+        Xax *= rsqrt(lenSq);
+        float3 Yax = float3(-Xax.y, Xax.x, 0.0);
+        wi = normalize(Xax * md.x + Yax * md.y + float3(0.0, 0.0, 1.0) * md.z);
+    } else {
+        wi = md; // wo ≈ N: frame degenerate, any orthonormal basis is equivalent.
+    }
+    return wi;
+}
+
+/// Solid-angle pdf of `sampleSheenLtc` — the LTC density, i.e. the uncoloured BRDF·cosine
+/// `mx_zeltner_sheen_brdf` (a normalised density over the hemisphere by LTC construction).
+float sheenLtcPdf(float3 wo, float3 wi, float roughness)
+{
+    if (wo.z <= 0.0 || wi.z <= 0.0) {
+        return 0.0;
+    }
+    return mx_zeltner_sheen_brdf(wo, wi, clamp(roughness, 0.01, 1.0));
+}
+
 float reflectionPdf(float3 wo, float3 wi, float alphaX, float alphaY)
 {
     if (wo.z <= 0.0 || wi.z <= 0.0) {
