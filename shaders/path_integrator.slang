@@ -183,32 +183,29 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
         float areaPdf  = triPdf / area;
         float solidPdf = areaPdf * dist * dist / cosLight;
 
-        // Shadow-terminator handling (Hanika 2021 + Chiang 2019 fallback):
-        // Primary: cast from the Hanika-lifted origin (surf.shadowPos). For
-        // well-tessellated convex regions the lift clears self-occlusion and
-        // the shadow ray tests only scene occlusion — full contribution.
-        // Fallback: if the shadow ray IS blocked AND wi is below the geometric
-        // horizon (cosNgL < 0), the block is likely residual self-occlusion the
-        // lift couldn't clear (concave regions, coarse tessellation). Apply the
-        // Chiang smooth-visibility factor (width = γ = angle between Ns and Ng)
-        // instead of a hard zero — eliminates the dark band without biasing the
-        // cases where the lift already works.
-        float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
-        float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + dot(surf.geoNormal, wi)), 0.0);
+        // Shadow-terminator handling (Chiang et al. 2019, Disney Hyperion): NO
+        // position lift. Above the geometric horizon (cosNgL ≥ 0) a shadow ray
+        // tests scene occlusion normally. In the terminator band (cosNgL < 0 —
+        // the shading normal is lit but the facet is not) the analytic Chiang
+        // factor smoothstep(-sinγ, 0, cosNgL), sinγ = |Ns × Ng|, gives the
+        // self-visibility (no shadow ray — it would self-shadow). Parameter-free
+        // and a NO-OP on flat surfaces (sinγ = 0 → hard step at the horizon).
         float cosNgL = dot(surf.geoNormal, wi);
-        if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
-            float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
-                surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-            return bsdfVal * Le * cosI / solidPdf;
-        }
-        // Lift failed + below geometric horizon: Chiang smooth fallback.
-        if (cosNgL < 0.0) {
-            float sinGamma = length(cross(surf.normal, surf.geoNormal));
-            float selfVis  = smoothstep(-max(sinGamma, 1.0e-6), 0.0, cosNgL);
-            if (selfVis > 0.0) {
+        if (cosNgL >= 0.0) {
+            float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
+            float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + cosNgL), 0.0);
+            if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
                 float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-                return bsdfVal * Le * cosI / solidPdf * selfVis;
+                return bsdfVal * Le * cosI / solidPdf;
+            }
+        } else {
+            float sinGamma = length(cross(surf.normal, surf.geoNormal));
+            float G = smoothstep(-max(sinGamma, 1.0e-6), 0.0, cosNgL);
+            if (G > 0.0) {
+                float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
+                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
+                return bsdfVal * Le * cosI / solidPdf * G;
             }
         }
     }
@@ -245,27 +242,27 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
     sample.wi = wi;
     sample.envPdf = envPdf;
     if (cosI > 0.0 && envPdf > 0.0) {
-        // Shadow-terminator handling — see emissive NEE for full rationale.
-        // Primary: Hanika-lifted shadow ray. Fallback: Chiang smooth visibility
-        // when the lift fails below the geometric horizon.
-        float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
+        // Shadow-terminator handling (Chiang 2019) — see emissive NEE for rationale.
+        // No lift; shadow ray above the geometric horizon, analytic G in the band.
         float cosNgL = dot(surf.geoNormal, wi);
-        if (tracer.traceOccluded(shadowOrigin, wi, kInf)) {
-            float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
-            float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,
-                surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-            float  misW    = envPdf / (envPdf + bsdfPdf); // balance heuristic
-            float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
-                surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-            sample.bsdfPdf = bsdfPdf;
-            sample.misWeight = misW;
-            sample.contribution = bsdfVal * Le * cosI * misW / envPdf;
-            sample.valid = true;
-        } else if (cosNgL < 0.0) {
-            // Chiang smooth fallback for residual self-occlusion.
+        if (cosNgL >= 0.0) {
+            float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
+            if (tracer.traceOccluded(shadowOrigin, wi, kInf)) {
+                float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
+                float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,
+                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
+                float  misW    = envPdf / (envPdf + bsdfPdf); // balance heuristic
+                float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
+                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
+                sample.bsdfPdf = bsdfPdf;
+                sample.misWeight = misW;
+                sample.contribution = bsdfVal * Le * cosI * misW / envPdf;
+                sample.valid = true;
+            }
+        } else {
             float sinGamma = length(cross(surf.normal, surf.geoNormal));
-            float selfVis  = smoothstep(-max(sinGamma, 1.0e-6), 0.0, cosNgL);
-            if (selfVis > 0.0) {
+            float G = smoothstep(-max(sinGamma, 1.0e-6), 0.0, cosNgL);
+            if (G > 0.0) {
                 float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
                 float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
@@ -274,7 +271,7 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
                 sample.bsdfPdf = bsdfPdf;
                 sample.misWeight = misW;
-                sample.contribution = bsdfVal * Le * cosI * misW / envPdf * selfVis;
+                sample.contribution = bsdfVal * Le * cosI * misW / envPdf * G;
                 sample.valid = true;
             }
         }

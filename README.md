@@ -179,6 +179,13 @@ color management, and tonemapping stages are based on:
 |----------|-----------|
 | [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path-integrator estimator, BSDF sampling, MIS, area-light NEE, environment importance sampling |
 | [Veach — "Robust Monte Carlo Methods for Light Transport Simulation" (1997)](http://graphics.stanford.edu/papers/veach_thesis/) | Multiple Importance Sampling (balance heuristic) used in `path_integrator.slang` |
+| [Hanika — "Hacking the Shadow Terminator" (2021)](https://blog.selfshadow.com/2021/hacking-the-shadow-terminator/) | Position-lift terminator fix — evaluated; superseded here by the parameter-free Chiang factor (a lift needs a per-object offset to avoid over-lifting flat surfaces) |
+| [Chiang, Funk, Burley, Hery — "Taming the Shadow Terminator" (SIGGRAPH 2019)](https://blog.selfshadow.com/2019/taming-the-shadow-terminator/) | Smooth geometric-horizon shadowing factor `smoothstep(-sinγ, 0, cosNgL)` used in `path_integrator.slang` NEE — parameter-free, a no-op on flat surfaces, eliminates the dark band on smooth-shaded meshes |
+
+### Denoising
+| Resource | Relevance |
+|----------|-----------|
+| [Schied et al. — "A-SVGF: Fast, Robust Gradient-Domain Reconstruction" (SIGGRAPH 2017)](https://research.nvidia.com/publication/2017-07_A-SVGF) | À-trous wavelet edge-stopping filter + temporal accumulation (shared `denoiser.slang`) |
 
 ### Color science & display standards
 | Resource | Relevance |
