@@ -629,12 +629,11 @@ float reflectionPdf(float3 wo, float3 wi, float alphaX, float alphaY)
     return pdfM / max(4.0 * VoH, 1.0e-5);
 }
 
-/// Directional albedo of the single-scattering GGX reflection BRDF with F=1 (white-furnace
-/// reflectance), via the MaterialX analytic fit (`mx_ggx_dir_albedo_analytic`). With F0=F90=1
-/// the directional albedo is A+B. Used for GGX multiple-scattering energy compensation.
-/// `alpha` is the GGX roughness² (isotropic; pass sqrt(alphaX*alphaY) for anisotropic).
+/// Raw rational-fit coefficients (A = F0 scale, B = F90 scale) for the GGX directional
+/// albedo, via the MaterialX analytic fit (`mx_ggx_dir_albedo_analytic`).
+/// `AB = clamp(r.xy / r.zw, 0, 1)` evaluated in (x = NdotV, y = alpha).
 /// Ref: MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl
-float mx_ggx_dir_albedo(float NdotV, float alpha)
+float2 mx_ggx_dir_albedo_ab(float NdotV, float alpha)
 {
     float x = saturate(NdotV), y = saturate(alpha);
     float x2 = x * x, y2 = y * y;
@@ -647,7 +646,17 @@ float mx_ggx_dir_albedo(float NdotV, float alpha)
              + float4(-26.44,   1.436,-36.11,   54.9   ) * x2 * y
              + float4(19.99,    0.2913,15.86,  300.2   ) * x * y2
              + float4(-5.448,   0.6286,33.37, -285.1   ) * x2 * y2;
-    float2 ab = clamp(r.xy / r.zw, 0.0.xx, 1.0.xx);
+    return clamp(r.xy / r.zw, 0.0.xx, 1.0.xx);
+}
+
+/// Directional albedo of the single-scattering GGX reflection BRDF with F=1 (white-furnace
+/// reflectance), via the MaterialX analytic fit (`mx_ggx_dir_albedo_analytic`). With F0=F90=1
+/// the directional albedo is A+B. Used for GGX multiple-scattering energy compensation.
+/// `alpha` is the GGX roughness² (isotropic; pass sqrt(alphaX*alphaY) for anisotropic).
+/// Ref: MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl
+float mx_ggx_dir_albedo(float NdotV, float alpha)
+{
+    float2 ab = mx_ggx_dir_albedo_ab(NdotV, alpha);
     return saturate(ab.x + ab.y);
 }
 
@@ -662,7 +671,11 @@ float mx_ggx_dir_albedo(float NdotV, float alpha)
 float3 ggxMultiScatterCompensation(float3 F0, float NdotV, float alpha)
 {
     float Ess = mx_ggx_dir_albedo(NdotV, alpha);
-    return 1.0.xxx + F0 * (1.0 / max(Ess, 1.0e-3) - 1.0);
+    // MaterialX mx_ggx_energy_compensation: 1 + Fss*(1-Ess)/Ess, where
+    // Fss = mx_fresnel_average = F0 + (F90-F0)/21 (F90 = 1). The previous bare-F0 form
+    // under-compensates dielectric MS by ~2x (F0=0.04 vs Fss=0.086 at IOR 1.5).
+    float3 Fss = F0 + (1.0.xxx - F0) * (1.0 / 21.0);
+    return 1.0.xxx + Fss * (1.0 - Ess) / max(Ess, 1.0e-3);
 }
 
 /// Multiple-scattering energy-compensation factor for the rough dielectric transmission BTDF.
@@ -721,13 +734,15 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
 // MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl directional-albedo coupling.
 
 /// Directional albedo (reflectance) of a Fresnel-weighted GGX lobe with normal-incidence
-/// reflectance F0. For a dielectric this stays ≈F0 head-on and rises to 1 at grazing (Schlick
-/// directional Fresnel); it is the fraction of energy the layer removes from the substrate. NOT
-/// the F=1 GGX albedo (that would over-darken a dielectric base to black at high roughness).
+/// reflectance f0 and F90 = 1 (dielectric / generalized-Schlick), honoring roughness via the
+/// MaterialX rational fit (`mx_ggx_dir_albedo_analytic`): `F0*A + F90*B`. This is the fraction
+/// of energy the specular layer removes from the substrate (diffuse-under-specular coupling).
+/// The previous Schlick form ignored alpha and under-estimated the rough-layer albedo, leaking
+/// too much energy to the diffuse base (floor too bright). Ref: MaterialX mx_ggx_dir_albedo.
 float fresnelGgxDirAlbedo(float NdotV, float f0, float alpha)
 {
-    float fc = pow(1.0 - saturate(NdotV), 5.0);
-    return saturate(f0 + (1.0 - f0) * fc);
+    float2 ab = mx_ggx_dir_albedo_ab(NdotV, alpha);
+    return saturate(f0 * ab.x + ab.y);   // F0*A + F90*B, F90 = 1
 }
 
 /// Microfacet reflection with the OpenPBR thin-film lobe. The base glossy Fresnel is
@@ -770,7 +785,12 @@ float3 evalTransmissionMicrofacet(float3 color, float depth, float eta, float al
     // Fresnel gate (1 - F) at the interface
     float F = fresnelDielectric(abs(wo.z), eta);
 
-    // GGX VNDF microfacet BTDF: D(h) * G₂ / (4 * |cos_theta_i| * |cos_theta_t|)
+    // GGX VNDF microfacet BTDF eval. NOTE (OpenPBR correctness, deferred A3): this uses the
+    // REFLECTION denom 4*|NoV|*|NoL|, but transmissionPdf() uses the refraction Jacobian
+    // eta²*(eta*|NoL|+|NoV|)², so the throughput weight f*NoL/pdf is off by ~(eta*NoL+NoV)²/(4*VoH)
+    // (~1.56x at normal incidence, eta 1.5). The correct PBRT/Walter form aligns eval+pdf+sampler
+    // on the half-vector denom (VoH+eta*LoH)² — a dedicated transmission fix (with its own render
+    // test) must realign all three at once. Left as-is here to avoid breaking glass blindly.
     float D = GGX_D(h, alphaX, alphaY);
     float G = GGX_G2(wi, wo, alphaX, alphaY);
     float denom = 4.0 * abs(wo.z) * abs(wi.z);
