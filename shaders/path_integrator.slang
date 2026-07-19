@@ -40,7 +40,10 @@ interface ITracer {
 /// shading/geometric normals to face `wo` before populating this struct.
 struct SurfaceHit {
     float3   position;
-    float3   shadowPos; ///< shadow/NEE ray origin (shading-normal-smoothed hit point; = position if no terminator fix)
+    float3   shadowPos; ///< shadow/NEE ray origin hook (== position; kept for renderer-specific
+                        ///< origin schemes — note a smooth-surface origin lift was evaluated and
+                        ///< rejected: its magnitude scales with triangle size, which explodes on
+                        ///< large low-poly faces. Terminator handling is the Chiang factor only.)
     float3   normal;    ///< shading normal flipped to face wo
     float3   geoNormal; ///< geometric normal flipped to face wo
     float3   T, B;      ///< shading tangent frame
@@ -183,29 +186,22 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
         float areaPdf  = triPdf / area;
         float solidPdf = areaPdf * dist * dist / cosLight;
 
-        // Shadow-terminator handling (Chiang et al. 2019, Disney Hyperion): NO
-        // position lift. Above the geometric horizon (cosNgL ≥ 0) a shadow ray
-        // tests scene occlusion normally. In the terminator band (cosNgL < 0 —
-        // the shading normal is lit but the facet is not) the analytic Chiang
-        // factor smoothstep(-sinγ, 0, cosNgL), sinγ = |Ns × Ng|, gives the
-        // self-visibility (no shadow ray — it would self-shadow). Parameter-free
-        // and a NO-OP on flat surfaces (sinγ = 0 → hard step at the horizon).
-        float cosNgL = dot(surf.geoNormal, wi);
-        if (cosNgL >= 0.0) {
+        // Shadow-terminator handling (see bsdf_shared.slang header for the full
+        // rationale + references): the Chiang 2019 factor f attenuates the
+        // contribution — 0 at/below the geometric horizon (no ray needed there,
+        // an opaque facet receives nothing from behind itself), C1 roll-off
+        // above it, exactly 1 on flat shading (Ns == Ng). The visibility ray is
+        // always traced when f > 0, so no light leaks through real occluders.
+        float g;
+        float fTerm = shadowTerminatorFactor(surf.normal, surf.geoNormal, wi, g);
+        if (fTerm > 0.0) {
             float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
+            float  cosNgL       = dot(surf.geoNormal, wi);
             float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + cosNgL), 0.0);
             if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
                 float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-                return bsdfVal * Le * cosI / solidPdf;
-            }
-        } else {
-            float sinGamma = length(cross(surf.normal, surf.geoNormal));
-            float G = smoothstep(-max(sinGamma, 1.0e-6), 0.0, cosNgL);
-            if (G > 0.0) {
-                float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
-                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-                return bsdfVal * Le * cosI / solidPdf * G;
+                return bsdfVal * Le * cosI * fTerm / solidPdf;
             }
         }
     }
@@ -242,10 +238,11 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
     sample.wi = wi;
     sample.envPdf = envPdf;
     if (cosI > 0.0 && envPdf > 0.0) {
-        // Shadow-terminator handling (Chiang 2019) — see emissive NEE for rationale.
-        // No lift; shadow ray above the geometric horizon, analytic G in the band.
-        float cosNgL = dot(surf.geoNormal, wi);
-        if (cosNgL >= 0.0) {
+        // Shadow-terminator handling — same scheme as emissive NEE (Chiang 2019
+        // factor; rationale + references in bsdf_shared.slang).
+        float g;
+        float fTerm = shadowTerminatorFactor(surf.normal, surf.geoNormal, wi, g);
+        if (fTerm > 0.0) {
             float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
             if (tracer.traceOccluded(shadowOrigin, wi, kInf)) {
                 float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
@@ -256,22 +253,7 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
                 sample.bsdfPdf = bsdfPdf;
                 sample.misWeight = misW;
-                sample.contribution = bsdfVal * Le * cosI * misW / envPdf;
-                sample.valid = true;
-            }
-        } else {
-            float sinGamma = length(cross(surf.normal, surf.geoNormal));
-            float G = smoothstep(-max(sinGamma, 1.0e-6), 0.0, cosNgL);
-            if (G > 0.0) {
-                float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
-                float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,
-                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-                float  misW    = envPdf / (envPdf + bsdfPdf);
-                float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
-                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
-                sample.bsdfPdf = bsdfPdf;
-                sample.misWeight = misW;
-                sample.contribution = bsdfVal * Le * cosI * misW / envPdf * G;
+                sample.contribution = bsdfVal * Le * cosI * fTerm * misW / envPdf;
                 sample.valid = true;
             }
         }
@@ -361,9 +343,21 @@ void integrateSurface<T : ITracer>(
 
     // 6) Advance throughput and spawn the continuation ray, offset along the geometric
     //    normal toward the side the new ray travels.
+    //    Shadow-terminator consistency (Chiang 2019, see bsdf_shared.slang): the same
+    //    shadowing that attenuates NEE must attenuate light gathered through BSDF
+    //    sampling — otherwise MIS combines two different integrands and the terminator
+    //    brightness depends on which technique won. The stochastic opacity pass-through
+    //    (step 2) is exempt by construction (it returns earlier, no surface interaction).
+    float gCont;
+    float fCont = shadowTerminatorFactor(surf.normal, surf.geoNormal,
+                                         normalize(bsdfSample.direction), gCont);
+    if (fCont <= 0.0) {
+        state.terminated = true; // sampled direction is self-shadowed by the microstructure
+        return;
+    }
     state.specularBounce = bsdfSample.isDelta;
     state.lastBsdfPdf    = bsdfSample.isDelta ? 1.0e30 : bsdfSample.pdf;
-    state.throughput    *= bsdfSample.weight;
+    state.throughput    *= bsdfSample.weight * fCont;
     state.insideMedium   = bsdfSample.entersMedium;
     state.mediumSigmaT   = bsdfSample.mediumSigmaT;
     state.mediumAlbedo   = bsdfSample.mediumAlbedo;

@@ -910,3 +910,47 @@ void computeLobeWeights(
     }
 }
 
+// -----------------------------------------------------------------------------
+// Shadow-terminator handling - integration-level helper, NOT part of the
+// OpenPBR BSDF (OpenPBR 1.1.1 specifies the material model only; terminator
+// handling is renderer integration).
+//
+// shadowTerminatorFactor - Chiang, Li & Burley, "Taming the Shadow Terminator",
+// SIGGRAPH 2019 Talks (Disney Hyperion's production solution). Models the
+// deviation between the shading normal Ns and the geometric normal Ng as a
+// hidden microstructure and returns the fraction of light incident from wi
+// that is not self-shadowed by it:
+//     g = cos(Ng,wi) / (cos(Ns,wi) * cos(Ng,Ns))
+//     f = 1                  for g >= 1
+//     f = -g^3 + g^2 + g     for 0 < g < 1   (C1 roll-off, f(1)=1, f'(1)=0)
+//     f = 0                  for g <= 0      (at/below the geometric horizon)
+// Properties: strict no-op when Ns == Ng (flat shading => g == 1); zero at the
+// geometric horizon - an opaque facet receives nothing from behind itself, so
+// energy is only ever removed, never invented. For transmission
+// (cos(Ns,wi) < 0) Ng flips so the same formula shadows the underside.
+// Matches Blender Cycles' bump_shadowing_term. Applied by the shared estimator
+// at every NEE site AND on the BSDF-continuation throughput, so all MIS
+// techniques integrate the same shadowed function.
+//
+// The Hanika smooth-surface origin lift (Ray Tracing Gems II ch. 4) was
+// evaluated and intentionally NOT adopted: the lift magnitude scales with the
+// distance to the vertex tangent planes - i.e. with triangle size - which
+// explodes on large low-poly faces (e.g. room-scale quads with authored smooth
+// normals), moving shadow origins by whole scene units. The factor alone
+// already attenuates the false self-intersection zone to f << 1, which is
+// Disney's shipped configuration.
+// -----------------------------------------------------------------------------
+
+/// Chiang 2019 shadow-terminator factor. `g` is also returned for callers that
+/// want the raw ratio (diagnostics).
+float shadowTerminatorFactor(float3 Ns, float3 Ng, float3 wi, out float g)
+{
+    float cosNsI = dot(Ns, wi);
+    float3 NgS   = (cosNsI < 0.0) ? -Ng : Ng;    // transmission: shadow the underside
+    float denom  = cosNsI * dot(NgS, Ns);
+    // Degenerate frames (wi perp Ns, or Ns perp Ng) take the fully-shadowed g->0 limit.
+    g = (abs(denom) > 1.0e-12) ? (dot(NgS, wi) / denom) : 0.0;
+    if (g >= 1.0) { g = 1.0; return 1.0; }
+    if (g <= 0.0) { g = 0.0; return 0.0; }
+    return ((-g + 1.0) * g + 1.0) * g;           // -g^3 + g^2 + g (Horner form)
+}
