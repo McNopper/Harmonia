@@ -768,64 +768,80 @@ float3 evalReflectionMicrofacetThinFilm(float3 dielectricF0, float3 baseColor, f
     return evalReflectionMicrofacetWithFresnel(F, glossyF0, wo, wi, alphaX, alphaY);
 }
 
-// ─── A2: GGX VNDF specular dielectric microfacet BTDF (OpenPBR-correct) ───
-// The eta² non-symmetric radiance factor lives in the PDF Jacobian, NOT here.
+// ─── A3: GGX VNDF dielectric microfacet BTDF (PBRT-v4 DielectricBxDF, Radiance transport) ───
+// The generalized half-vector wm = wi*etap + wo (PBRT-v4), FaceForward to +z, is shared by
+// eval and pdf and matches the VNDF sampler. Transport mode is Radiance (camera paths), so the
+// non-symmetric 1/etap² radiance factor is applied to f here, NOT in the PDF. The previous form
+// used the reflection denom 4*|NoV|*|NoL| and a normal-angle Jacobian, which made the throughput
+// weight f*NoL/pdf wrong by ~(VoH+eta*LoH)²/(4*VoH) (~1.56x at normal incidence, eta 1.5).
+// Ref: PBRT-v4 src/pbrt/bxdfs.cpp DielectricBxDF::f/PDF; Walter et al. 2007.
 float3 evalTransmissionMicrofacet(float3 color, float depth, float eta, float alphaX, float alphaY, float3 wo, float3 wi)
 {
-    // Reject same-side rays and backfacing surfaces
+    // Transmission only: wo, wi must lie in opposite hemispheres.
     if (wo.z * wi.z >= 0.0) {
         return 0.0.xxx;
     }
 
-    // Compute half-vector in refraction geometry (Snell's law)
-    float eta_ratio = wo.z > 0.0 ? (1.0 / eta) : eta;
-    float3 h = normalize(-wo * eta_ratio + wi);
-    if (h.z < 0.0) h = -h;
+    // Generalized half-vector wm = wi*etap + wo (etap = eta entering, 1/eta exiting).
+    const float cosTheta_o = wo.z;
+    const float cosTheta_i = wi.z;
+    const float etap = cosTheta_o > 0.0 ? eta : (1.0 / eta);
+    float3 wm = wi * etap + wo;
+    if (dot(wm, wm) < 1.0e-12) {
+        return 0.0.xxx;
+    }
+    wm = normalize(wm);
+    if (wm.z < 0.0) {
+        wm = -wm;   // FaceForward to +z
+    }
+    // Discard backfacing microfacets.
+    if (dot(wm, wi) * cosTheta_i < 0.0 || dot(wm, wo) * cosTheta_o < 0.0) {
+        return 0.0.xxx;
+    }
 
-    // Fresnel gate (1 - F) at the interface
-    float F = fresnelDielectric(abs(wo.z), eta);
+    const float F = fresnelDielectric(abs(dot(wo, wm)), eta);
+    const float D = GGX_D(wm, alphaX, alphaY);
+    const float G = GGX_G2(wi, wo, alphaX, alphaY);
+    float denom = dot(wi, wm) + dot(wo, wm) / etap;
+    denom = denom * denom * abs(cosTheta_i) * abs(cosTheta_o);
+    float ft = D * (1.0 - F) * G * abs(dot(wi, wm) * dot(wo, wm)) / max(denom, 1.0e-12);
+    ft /= (etap * etap);   // Radiance transport (camera paths)
 
-    // GGX VNDF microfacet BTDF eval. NOTE (OpenPBR correctness, deferred A3): this uses the
-    // REFLECTION denom 4*|NoV|*|NoL|, but transmissionPdf() uses the refraction Jacobian
-    // eta²*(eta*|NoL|+|NoV|)², so the throughput weight f*NoL/pdf is off by ~(eta*NoL+NoV)²/(4*VoH)
-    // (~1.56x at normal incidence, eta 1.5). The correct PBRT/Walter form aligns eval+pdf+sampler
-    // on the half-vector denom (VoH+eta*LoH)² — a dedicated transmission fix (with its own render
-    // test) must realign all three at once. Left as-is here to avoid breaking glass blindly.
-    float D = GGX_D(h, alphaX, alphaY);
-    float G = GGX_G2(wi, wo, alphaX, alphaY);
-    float denom = 4.0 * abs(wo.z) * abs(wi.z);
-    float3 f_specular = (D * G / max(denom, 1.0e-5)) * (1.0 - F);
+    // Rough-dielectric MS energy compensation (Turquin/Kulla-Conty 1/Ess boost).
+    const float msAlpha = sqrt(max(alphaX * alphaY, 1.0e-8));
+    ft *= ggxTransmissionMultiScatterCompensation(abs(wo.z), msAlpha);
 
-    // Multiple-scattering compensation: a rough dielectric BTDF loses energy (1-Ess) to inter-
-    // microfacet shadowing exactly like the reflection lobe (Step 2). Recover it with the same
-    // Turquin/Kulla-Conty 1/Ess boost so rough glass stops darkening. Ref: Turquin 2019.
-    float msAlpha = sqrt(max(alphaX * alphaY, 1.0e-8));
-    f_specular *= ggxTransmissionMultiScatterCompensation(abs(wo.z), msAlpha);
-
-    // Beer–Lambert absorption via transmission_depth + transmission_color
-    float3 absorption = exp(-max(depth, 0.001) * (1.0.xxx - saturate3(color)));
-    return absorption * color * f_specular;
+    // Beer–Lambert absorption via transmission_depth + transmission_color.
+    const float3 absorption = exp(-max(depth, 0.001) * (1.0.xxx - saturate3(color)));
+    return absorption * color * ft;
 }
 
-// Jacobian PDF for the refracted ray, including eta² in the denominator
-// (converts half-vector PDF to ray PDF via refraction Jacobian)
-// Reference: Walter et al. 2007 eq. 23-24; PBR Book 4e Chapter 8.2.
-float transmissionPdf(float eta, float alphaX, float alphaY, float3 wo, float3 wi, float3 h)
+// Solid-angle PDF of the refracted ray, matching evalTransmissionMicrofacet (PBRT-v4
+// DielectricBxDF::PDF): VNDF half-vector pdf times the refraction Jacobian dwm/dwi.
+float transmissionPdf(float eta, float alphaX, float alphaY, float3 wo, float3 wi)
 {
     if (wo.z * wi.z >= 0.0) {
         return 0.0;
     }
+    const float cosTheta_o = wo.z;
+    const float cosTheta_i = wi.z;
+    const float etap = cosTheta_o > 0.0 ? eta : (1.0 / eta);
+    float3 wm = wi * etap + wo;
+    if (dot(wm, wm) < 1.0e-12) {
+        return 0.0;
+    }
+    wm = normalize(wm);
+    if (wm.z < 0.0) {
+        wm = -wm;
+    }
+    if (dot(wm, wi) * cosTheta_i < 0.0 || dot(wm, wo) * cosTheta_o < 0.0) {
+        return 0.0;
+    }
 
-    // VNDF half-vector PDF
-    float pdf_h = GGX_VNDF_PDF(h, wo, alphaX, alphaY);
-
-    // Refraction Jacobian: pdf_ray = pdf_h / |J|
-    // where |J| = eta² * (eta * |cos_theta_t| + |cos_theta_i|)²
-    float cos_theta_i = abs(wo.z);
-    float cos_theta_t = abs(wi.z);
-    float jacobian = eta * eta * (eta * cos_theta_t + cos_theta_i) * (eta * cos_theta_t + cos_theta_i);
-
-    return pdf_h / max(jacobian, 1.0e-5);
+    const float pdf_h = GGX_VNDF_PDF(wm, wo, alphaX, alphaY);
+    const float denom = dot(wi, wm) + dot(wo, wm) / etap;
+    const float dwm_dwi = abs(dot(wi, wm)) / max(denom * denom, 1.0e-12);
+    return pdf_h * dwm_dwi;
 }
 
 void computeLobeWeights(

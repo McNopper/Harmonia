@@ -199,15 +199,12 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
         pdf += fuzzWeight * sheenLtcPdf(woL, wiL, saturate(mat.fuzzRoughPad.x));
         pdf += (specularWeight + metalWeight) * reflectionPdf(woL, wiL, alphaX, alphaY);
     } else {
-        // A2: Use the OpenPBR-correct transmission PDF (includes eta² in Jacobian)
+        // A3: OpenPBR/PBRT-v4 transmission PDF (generalized half-vector + refraction Jacobian).
         if (transmissionWeight > 0.0) {
             float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
-            float eta_ratio = woL.z > 0.0 ? (1.0 / eta) : eta;
-            float3 h = normalize(-woL * eta_ratio + wiL);
-            if (h.z < 0.0) h = -h;
             float transAlphaX = alphaX;
             float transAlphaY = alphaY;
-            pdf += transmissionWeight * transmissionPdf(eta, transAlphaX, transAlphaY, woL, wiL, h);
+            pdf += transmissionWeight * transmissionPdf(eta, transAlphaX, transAlphaY, woL, wiL);
         }
         // Thin-walled diffuse transmission
         pdf += diffuseTransWeight * abs(wiL.z) * kInvPi;
