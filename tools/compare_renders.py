@@ -22,6 +22,13 @@ OPTIONS
     --heatmap PATH      Write a false-color difference PNG (default: <candidate>_diff.png)
     --channel CH        Compare single channel: r, g, b, luminance (default: luminance)
     --no-heatmap        Skip heatmap output
+    --signed            Also report SIGNED mean (cand - ref) per channel + luminance, and write
+                        a diverging heatmap (blue = candidate DARKER, red = candidate BRIGHTER).
+    --signed-heatmap PATH
+                        Diverging heatmap path (default: <candidate>_signed.png with --signed)
+    --mask-box X0,Y0,X1,Y1
+                        Restrict ALL metrics to a normalized [0,1] sub-rectangle
+                        (e.g. --mask-box 0.7,0.3,1.0,0.7 for the right-hand region).
 
 CONTRACT
 --------
@@ -101,20 +108,39 @@ def extract_channel(img: np.ndarray, ch: str) -> np.ndarray:
     sys.exit(f"ERROR: unknown channel '{ch}'. Use r, g, b, or luminance.")
 
 
-def compute_metrics(ref: np.ndarray, cand: np.ndarray) -> dict:
+def compute_metrics(ref: np.ndarray, cand: np.ndarray, mask: np.ndarray | None = None) -> dict:
+    # Optional spatial mask (boolean HxW). When None, all pixels are used.
+    if mask is None:
+        mask = np.ones(ref.shape, dtype=bool)
+    else:
+        # Broadcast a 2D mask to the channel shape.
+        mask = np.broadcast_to(mask[..., None], ref.shape) if ref.ndim == 3 else mask
+
     diff = np.abs(ref - cand)
+    signed = cand - ref
+    sel_ref = ref[mask]
+    sel_diff = diff[mask]
+    sel_signed = signed[mask] if signed.shape == ref.shape else np.asarray(signed)[mask]
     # Scale to [0, 255] range via the "255" convention: treat 1.0 HDR = 255 units.
     # This makes thresholds intuitive (4.0 = 4/255 ≈ 1.6% of SDR white).
-    diff255 = diff * 255.0
+    diff255 = sel_diff * 255.0
     mean_d = float(np.mean(diff255))
     max_d  = float(np.max(diff255))
     p99_d = float(np.percentile(diff255, 99.0))
     p999_d = float(np.percentile(diff255, 99.9))
-    mse    = float(np.mean(diff ** 2))
-    mean_ref = float(np.mean(np.abs(ref)))
-    rel_mean_pct = float((np.mean(diff) / max(mean_ref, 1.0e-8)) * 100.0)
+    mse    = float(np.mean(sel_diff ** 2))
+    mean_ref = float(np.mean(np.abs(sel_ref)))
+    rel_mean_pct = float((np.mean(sel_diff) / max(mean_ref, 1.0e-8)) * 100.0)
     # PSNR relative to peak=1.0 (HDR-scene-referred white)
     psnr   = float("inf") if mse == 0.0 else float(10.0 * np.log10(1.0 / mse))
+
+    # Signed stats (cand - ref), scaled to 1/255 units. Positive = candidate brighter.
+    signed255 = sel_signed * 255.0
+    signed_mean = float(np.mean(signed255))
+    signed_p95 = float(np.percentile(signed255, 95.0))
+    signed_p05 = float(np.percentile(signed255, 5.0))
+    n_pix = int(mask.sum()) if mask.dtype == bool else int(np.asarray(mask).sum())
+
     return {
         "mean_diff": mean_d,
         "max_diff": max_d,
@@ -123,6 +149,10 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray) -> dict:
         "psnr": psnr,
         "mse": mse,
         "rel_mean_pct": rel_mean_pct,
+        "signed_mean": signed_mean,
+        "signed_p95": signed_p95,
+        "signed_p05": signed_p05,
+        "n_pix": n_pix,
     }
 
 
@@ -205,6 +235,32 @@ def save_heatmap(diff_channel: np.ndarray, out_path: Path) -> None:
     print(f"  heatmap -> {out_path}")
 
 
+def save_signed_heatmap(signed_channel: np.ndarray, out_path: Path) -> None:
+    """Diverging heatmap of SIGNED (cand - ref) diff.
+
+    Blue = candidate DARKER, white ≈ equal, red = candidate BRIGHTER.
+    Symmetric around 0, scaled by the 95th percentile of |signed|.
+    """
+    try:
+        import imageio.v3 as iio
+    except ImportError:
+        sys.exit("ERROR: imageio not found.  Run: pip install imageio")
+
+    p95 = float(np.percentile(np.abs(signed_channel), 95))
+    if p95 < 1e-9:
+        p95 = 1.0
+    n = np.clip(signed_channel / p95, -1.0, 1.0)
+    # Blue (negative) -> white (0) -> red (positive).
+    pos = np.clip(n, 0.0, 1.0)          # 0..1 red intensity
+    neg = np.clip(-n, 0.0, 1.0)         # 0..1 blue intensity
+    r = (1.0 - neg) * (1.0 - pos) + pos          # white->red as pos grows
+    g = (1.0 - neg) * (1.0 - pos)                # drops to 0 at either extreme
+    b = (1.0 - pos) * (1.0 - neg) + neg          # white->blue as neg grows
+    heatmap = (np.stack([r, g, b], axis=-1) * 255).astype(np.uint8)
+    iio.imwrite(str(out_path), heatmap)
+    print(f"  signed heatmap -> {out_path}  (blue=cand darker, red=cand brighter)")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -225,6 +281,12 @@ def main() -> int:
     parser.add_argument("--channel",  default="luminance",
                         help="Channel to compare: r, g, b, luminance (default: luminance)")
     parser.add_argument("--no-heatmap", action="store_true", help="Skip heatmap output")
+    parser.add_argument("--signed", action="store_true",
+                        help="Report SIGNED (cand-ref) mean per channel + luminance and write a diverging heatmap")
+    parser.add_argument("--signed-heatmap", type=Path, default=None,
+                        help="Diverging heatmap path (default: <candidate>_signed.png with --signed)")
+    parser.add_argument("--mask-box", default=None,
+                        help="Restrict metrics to a normalized [0,1] box X0,Y0,X1,Y1 (e.g. 0.7,0.3,1.0,0.7)")
     args = parser.parse_args()
 
     if not args.reference.exists():
@@ -242,9 +304,31 @@ def main() -> int:
     if ref.shape != cand.shape:
         sys.exit(f"ERROR: shape mismatch — reference {ref.shape} vs candidate {cand.shape}")
 
+    # Optional normalized spatial mask.
+    mask2d = None
+    if args.mask_box is not None:
+        try:
+            x0, y0, x1, y1 = [float(v) for v in args.mask_box.split(",")]
+        except ValueError:
+            sys.exit("ERROR: --mask-box must be X0,Y0,X1,Y1 in [0,1]")
+        H, W = ref.shape[:2]
+        ix0 = max(0, min(int(x0 * W), W - 1)); ix1 = max(ix0 + 1, min(int(x1 * W), W))
+        iy0 = max(0, min(int(y0 * H), H - 1)); iy1 = max(iy0 + 1, min(int(y1 * H), H))
+        mask2d = np.zeros((H, W), dtype=bool)
+        mask2d[iy0:iy1, ix0:ix1] = True
+        print(f"Mask-box  : [{iy0}:{iy1}, {ix0}:{ix1}]  ({(iy1-iy0)*(ix1-ix0)} px)")
+
     ref_ch  = extract_channel(ref,  args.channel)
     cand_ch = extract_channel(cand, args.channel)
-    metrics = compute_metrics(ref_ch, cand_ch)
+
+    # Per-channel signed means (cand - ref), scaled to 1/255. Positive = candidate brighter.
+    if args.signed:
+        for name, idx in (("R", 0), ("G", 1), ("B", 2)):
+            m = mask2d if mask2d is not None else np.ones(ref.shape[:2], dtype=bool)
+            signed_mean_ch = float(np.mean(cand[..., idx][m] - ref[..., idx][m]) * 255.0)
+            print(f"  signed {name} (cand-ref, 1/255): {signed_mean_ch:+8.4f}")
+
+    metrics = compute_metrics(ref_ch, cand_ch, mask=mask2d)
 
     passed, gate_labels = evaluate_gate(metrics, args)
 
@@ -256,6 +340,10 @@ def main() -> int:
     print(f"  PSNR      : {metrics['psnr']:7.2f} dB")
     print(f"  MSE       : {metrics['mse']:.6f}")
     print(f"  rel_mean% : {metrics['rel_mean_pct']:7.3f} %")
+    if args.signed or mask2d is not None:
+        print(f"  signed    : mean {metrics['signed_mean']:+7.4f}  "
+              f"[p5 {metrics['signed_p05']:+7.3f}, p95 {metrics['signed_p95']:+7.3f}]  (1/255, cand-ref)")
+        print(f"  pixels    : {metrics['n_pix']}")
     print(f"  gate      : {args.gate} ({'; '.join(gate_labels)})")
     print()
     print(f"  RESULT    : {'PASS' if passed else 'FAIL'}")
@@ -264,7 +352,17 @@ def main() -> int:
         heatmap_path = args.heatmap or args.candidate.with_name(
             args.candidate.stem + "_diff.png")
         diff_ch = np.abs(ref_ch - cand_ch)
+        if mask2d is not None:
+            diff_ch = diff_ch * mask2d
         save_heatmap(diff_ch, heatmap_path)
+
+    if args.signed:
+        signed_path = args.signed_heatmap or args.candidate.with_name(
+            args.candidate.stem + "_signed.png")
+        signed_ch = (cand_ch - ref_ch) * 255.0
+        if mask2d is not None:
+            signed_ch = signed_ch * mask2d
+        save_signed_heatmap(signed_ch, signed_path)
 
     return 0 if passed else 1
 
