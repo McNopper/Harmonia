@@ -25,12 +25,27 @@ rasterizer w/ meshlets). GPU-optimized scene upload / instance / meshlet layouts
 renderer-specific, NOT here.
 
 **Material model = OpenPBR Surface** (Academy Software Foundation). The shared OpenPBR BSDF
-(`shaders/bsdf_shared.slang`) — diffuse (Fujii/EON), F82 conductor Fresnel, GGX specular &
-microfacet transmission BTDF with Turquin/Kulla-Conty multiple-scattering compensation, LTC
-sheen, thin-film iridescence (`mx_fresnel_airy`), the coat/fuzz layering algebra, and the
-volumetric-medium primitives for the chromatic subsurface / transmission random walk
-(`sssExtinction`, `transmissionVolumeCoeffs`, Henyey-Greenstein) — is used 1:1 by both
-renderers. OpenPBR's canonical/reference implementation is **MaterialX** (`mx_*` genGLSL nodes);
+(`shaders/bsdf_shared.slang`) — diffuse (Fujii/EON), F82 conductor Fresnel (with the
+`F90 = saturate(50·F0)` vanishing-interface fade, Lagarde/Frostbite — no lobe-weight gates),
+GGX specular & microfacet transmission BTDF with Turquin/Kulla-Conty multiple-scattering
+compensation, LTC sheen, thin-film iridescence (`mx_fresnel_airy`), the coat/fuzz layering
+algebra, and the volumetric-medium primitives for the chromatic subsurface / transmission
+random walk (`sssExtinction`, `transmissionVolumeCoeffs`, Henyey-Greenstein) — is used 1:1 by
+both renderers. Transmission absorption follows **MaterialX tint semantics**: the BTDF is
+tinted by `transmission_color` per crossing at `transmission_depth == 0` and is **white**
+(untinted) at depth > 0, where the color is realized volumetrically by the walk
+(σ_t = −ln(color)/depth) over the actual path length.
+
+**Dielectric sidedness contract (C7):** hit records carry the **raw outward-winding**
+geometric normal (`HitInfo.geoNormal` / `GiHit.geoNormal`) — never pre-flipped to face the
+ray. Shading flips a local copy by wo; the side bit `dot(wo, geoNormal) < 0` becomes
+`SurfaceHit.backface` → the BSDF `exiting` branch (inverted relative IOR: side-correct
+Fresnel/Snell + genuine TIR on exit). `geometry_thin_walled` is **exempt**: a thin film has
+no bulk interior, so its crossings are side-independent (no eta inversion, never TIR).
+Medium walks (Hyperion raygen/miss/closesthit, Theia `runMediumWalk`) apply **exact
+deterministic Beer–Lambert transmittance for pure absorbers** (single-scatter albedo = 0 —
+ratio-tracking degenerate case, zero walk variance); scattering media use the chromatic
+hero-wavelength free-flight estimator. OpenPBR's canonical/reference implementation is **MaterialX** (`mx_*` genGLSL nodes);
 follow OpenPBR parameter naming and cross-check against MaterialX. The shared scene-referred
 estimator is `shaders/path_integrator.slang`; the shared denoiser (`shaders/denoiser.slang`) is
 an à-trous wavelet edge-stopping filter + temporal accumulation.

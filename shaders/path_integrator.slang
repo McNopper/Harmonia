@@ -46,6 +46,10 @@ struct SurfaceHit {
                         ///< large low-poly faces. Terminator handling is the Chiang factor only.)
     float3   normal;    ///< shading normal flipped to face wo
     float3   geoNormal; ///< geometric normal flipped to face wo
+    bool     backface;  ///< C7: ray struck the geometric BACK side (it is inside the
+                        ///< dielectric) — the BSDF inverts its relative IOR so Fresnel/
+                        ///< Snell/TIR take the exit branch. Populated from the RAW
+                        ///< (outward, pre-flip) geometric normal by the renderer.
     float3   T, B;      ///< shading tangent frame
     float3   coatN;
     float3   coatT, coatB;
@@ -200,7 +204,7 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
             float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + cosNgL), 0.0);
             if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
                 float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
-                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
+                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
                 return bsdfVal * Le * cosI * fTerm / solidPdf;
             }
         }
@@ -247,10 +251,10 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
             if (tracer.traceOccluded(shadowOrigin, wi, kInf)) {
                 float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
                 float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,
-                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
+                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
                 float  misW    = envPdf / (envPdf + bsdfPdf); // balance heuristic
                 float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
-                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB);
+                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
                 sample.bsdfPdf = bsdfPdf;
                 sample.misWeight = misW;
                 sample.contribution = bsdfVal * Le * cosI * fTerm * misW / envPdf;
@@ -333,7 +337,7 @@ void integrateSurface<T : ITracer>(
 
     // 5) BSDF continuation sample.
     BSDFSample bsdfSample = sampleBSDF(surf.mat, surf.wo,
-        surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, state.seed);
+        surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface, state.seed);
     if (bsdfSample.pdf <= 0.0 ||
         max(bsdfSample.weight.x, max(bsdfSample.weight.y, bsdfSample.weight.z)) <= 0.0 ||
         !all(isfinite(bsdfSample.weight))) {

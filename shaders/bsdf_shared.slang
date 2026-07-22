@@ -28,20 +28,6 @@ float luminance(float3 c)
     return dot(c, kRec2020Luma);
 }
 
-/// Effective transmitted color including single-scatter albedo (transmission_scatter)
-/// and its anisotropy (transmission_scatter_anisotropy, g).  Energy-bounded: the result
-/// is never brighter than transmission_color, so scattering can only re-tint/attenuate.
-/// scatter = 0 → returns transmission_color unchanged (byte-identical default).
-float3 effectiveTransColor(GpuMaterial mat)
-{
-    float3 transColor = saturate3(mat.transmissionColorWeight.xyz);
-    float3 scatter = saturate3(mat.transmissionScatter.xyz);
-    float g = clamp(mat.transmissionScatter.w, -1.0, 1.0);
-    // Backscatter (g<0) makes the medium milkier; forward (g>0) keeps it clearer.
-    float amount = saturate(luminance(scatter)) * saturate(0.5 * (1.0 - g));
-    return transColor * lerp(1.0.xxx, scatter, amount);
-}
-
 float3 toLocal(float3 v, float3 T, float3 B, float3 N)
 {
     return float3(dot(v, T), dot(v, B), dot(v, N));
@@ -211,14 +197,25 @@ float3 openpbrCoatColorAttenuation(float3 coatColor, float coatWeight)
 ///   F0  = reflectance at normal incidence (base_color for metals)
 ///   F82 = tint at the 82° grazing peak  (specular_color)
 /// Declared here so the thin-film Schlick base below can reuse it.
+///
+/// Grazing limit (C1): plain Schlick pins F90 = 1, which leaves a phantom grazing-white
+/// sheet as F0 → 0. The spec has no such lobe: specular_weight modulates the dielectric
+/// eta toward 1 (openpbrModulatedEta), and the EXACT Fresnel of an eta→1 interface loses
+/// its energy at ALL angles (the grazing spike narrows to measure zero). Emulate that
+/// limit in Schlick space with the standard F90 fade F90 = saturate(50·F0) (Lagarde &
+/// de Rousiers, "Moving Frostbite to PBR", §4.4; also adopted by Filament/glTF): an exact
+/// no-op for every physical F0 (≥0.02 — all metals and the IOR-1.5 dielectric 0.04), it
+/// only removes the phantom term in the vanishing-interface regime, letting the dielectric
+/// lobe vanish smoothly WITHOUT any lobe-weight gate in computeLobeWeights.
 float3 mx_fresnel_F82(float3 F0, float3 F82, float cosTheta)
 {
     const float muBar = 1.0 / 7.0;
     const float denom = muBar * pow(1.0 - muBar, 6.0); // μ̄(1-μ̄)^6
     float mu = saturate(cosTheta);
-    float3 fSchlickBar = F0 + (1.0 - F0) * pow(1.0 - muBar, 5.0); // F_Schlick(μ̄)
+    float3 F90 = saturate3(50.0 * F0);                            // vanishing-interface fade
+    float3 fSchlickBar = F0 + (F90 - F0) * pow(1.0 - muBar, 5.0); // F_Schlick(μ̄)
     float3 a = fSchlickBar * (1.0 - F82) / denom;                 // [F_Schlick(μ̄) - F(μ̄)] / denom
-    float3 fSchlick = F0 + (1.0 - F0) * pow(1.0 - mu, 5.0);
+    float3 fSchlick = F0 + (F90 - F0) * pow(1.0 - mu, 5.0);
     return saturate3(fSchlick - a * mu * pow(1.0 - mu, 6.0));
 }
 
@@ -734,15 +731,19 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
 // MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl directional-albedo coupling.
 
 /// Directional albedo (reflectance) of a Fresnel-weighted GGX lobe with normal-incidence
-/// reflectance f0 and F90 = 1 (dielectric / generalized-Schlick), honoring roughness via the
-/// MaterialX rational fit (`mx_ggx_dir_albedo_analytic`): `F0*A + F90*B`. This is the fraction
-/// of energy the specular layer removes from the substrate (diffuse-under-specular coupling).
+/// reflectance f0, honoring roughness via the MaterialX rational fit
+/// (`mx_ggx_dir_albedo_analytic`): `F0*A + F90*B`. This is the fraction of energy the
+/// specular layer removes from the substrate (diffuse-under-specular coupling).
 /// The previous Schlick form ignored alpha and under-estimated the rough-layer albedo, leaking
 /// too much energy to the diffuse base (floor too bright). Ref: MaterialX mx_ggx_dir_albedo.
+/// F90 = saturate(50·f0), matching mx_fresnel_F82's vanishing-interface fade (C1): as
+/// specular_weight→0 the modulated eta→1, f0→0, and the layer must stop removing energy
+/// from the substrate at ALL angles — with a pinned F90=1 the B term kept darkening the
+/// diffuse base under a nonexistent specular layer.
 float fresnelGgxDirAlbedo(float NdotV, float f0, float alpha)
 {
     float2 ab = mx_ggx_dir_albedo_ab(NdotV, alpha);
-    return saturate(f0 * ab.x + ab.y);   // F0*A + F90*B, F90 = 1
+    return saturate(f0 * ab.x + saturate(50.0 * f0) * ab.y);   // F0*A + F90*B
 }
 
 /// Microfacet reflection with the OpenPBR thin-film lobe. The base glossy Fresnel is
@@ -811,9 +812,16 @@ float3 evalTransmissionMicrofacet(float3 color, float depth, float eta, float al
     const float msAlpha = sqrt(max(alphaX * alphaY, 1.0e-8));
     ft *= ggxTransmissionMultiScatterCompensation(abs(wo.z), msAlpha);
 
-    // Beer–Lambert absorption via transmission_depth + transmission_color.
-    const float3 absorption = exp(-max(depth, 0.001) * (1.0.xxx - saturate3(color)));
-    return absorption * color * ft;
+    // C5 — MaterialX dielectric_bsdf tint semantics (open_pbr_surface.mtlx): with
+    // transmission_depth == 0 the BTDF itself is tinted by transmission_color at each
+    // interface crossing; with depth > 0 the interface is UNTINTED (white) and the color
+    // is realized volumetrically by the interior `dielectric_volume` VDF
+    // (σ_t = -ln(transmission_color)/depth, see transmissionVolumeCoeffs) over the ACTUAL
+    // traveled path — applied by the renderers' shared random walk. The previous
+    // exp(-depth·(1-color))·color factor was neither: it double-counted the tint per
+    // crossing AND used a fixed path length, over-darkening glass at depth > 0.
+    const float3 tint = depth > 1.0e-4 ? 1.0.xxx : saturate3(color);
+    return tint * ft;
 }
 
 // Solid-angle PDF of the refracted ray, matching evalTransmissionMicrofacet (PBRT-v4
@@ -877,12 +885,12 @@ void computeLobeWeights(
     // dielectric lobe weight — so the dielectric reflection carries the full base allocation and its
     // brightness is governed by the scaled Fresnel. For the METAL base, the spec applies
     // specular_weight directly as the generalized-Schlick BSDF weight (metal_bsdf weight=specular_weight).
-    // At specular_weight=0 the spec's modulated eta → 1 (no dielectric interface → zero reflection at
-    // ALL angles); our generalized-Schlick Fresnel keeps a grazing term when F0=0, so gate the
-    // dielectric lobe to vanish as specular_weight→0. This is a no-op at the default specular_weight=1.
+    // At specular_weight=0 the modulated eta → 1 (no interface → zero reflection at ALL angles);
+    // the Fresnel itself now honors that limit (mx_fresnel_F82 / fresnelGgxDirAlbedo fade
+    // F90 = saturate(50·F0), exact-Fresnel vanishing-interface behavior), so NO lobe-weight
+    // gate is needed here (the former SYN7 smoothstep hack is gone — C1).
     float specularParam = saturate(mat.specularColorWeight.w);
-    float dielectricPresence = smoothstep(0.0, 0.03, specularParam);
-    specularWeight = opaqueBase * (1.0 - metalness) * dielectricPresence;
+    specularWeight = opaqueBase * (1.0 - metalness);
     metalWeight = baseWeight * metalness * specularParam;
     transmissionWeight = baseWeight * transmission;
 

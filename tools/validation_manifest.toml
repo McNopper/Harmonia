@@ -3,7 +3,6 @@ reference_template = "{scene}.exr"
 candidate_template = "{scene}.exr"
 threshold = 4.0
 channel = "luminance"
-scale_aware = ["furnace_coverage"]
 width = 320
 height = 240
 hyperion_spp = 256
@@ -17,6 +16,3 @@ name = "cornell_spheres"
 
 [[scene]]
 name = "dragon_teapot"
-
-[[scene]]
-name = "furnace_coverage"

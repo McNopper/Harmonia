@@ -3,11 +3,21 @@
 // layer primitives live in bsdf_shared.slang. Bulk subsurface is a delta medium-entry
 // sampled here and walked by the renderer's volumetric loop — it deliberately has NO
 // local eval/pdf term (that would double-count the walk's radiance).
+//
+// Interface sidedness (C7): the renderers pre-flip the shading/geometric frames to face
+// wo, which erases which side of the dielectric interface the ray is on — the PBRT-style
+// side selection `cosTheta_o > 0 ? eta : 1/eta` then always took the ENTRY branch, so
+// interior exits refracted with the air→glass ratio (wrong bend, no TIR, wrong Fresnel).
+// Callers now pass `exiting` (= the ray struck the geometric backside, i.e. it is inside
+// the dielectric); the relative IOR is inverted up front and every downstream use
+// (Fresnel branch, Snell ratio, the BTDF's etap and 1/etap² radiance factor) becomes
+// side-correct, including genuine total internal reflection on exit. Reflection lobes
+// are unaffected: iorToF0 is invariant under eta → 1/eta.
 import common;
 import math;
 __exported import bsdf_shared;
 
-float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 B, float3 cN, float3 cT, float3 cB)
+float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 B, float3 cN, float3 cT, float3 cB, bool exiting = false)
 {
     float3 Ns;
     float3 Ts;
@@ -21,7 +31,10 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
 
     float3 baseColor = saturate3(mat.baseColorWeight.xyz);
     float3 specColor = saturate3(mat.specularColorWeight.xyz);
-    float3 transColor = effectiveTransColor(mat);
+    // C5/MaterialX: the BTDF tint at depth==0 is the RAW transmission_color — the spec's
+    // VDF gating means transmission_scatter has NO effect when there is no interior volume
+    // (the old effectiveTransColor scatter re-tint was a pre-walk heuristic, now removed).
+    float3 transColor = saturate3(mat.transmissionColorWeight.xyz);
     float3 subsurfaceColor = saturate3(mat.subsurfaceColorWeight.xyz);
     float3 coatColor = saturate3(mat.coatColorWeight.xyz);
     float3 fuzzColor = saturate3(mat.fuzzColorWeight.xyz);
@@ -36,6 +49,14 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     // through the coat medium (specular_ior/coat_ior, TIR-safe). Uncoated + specular_weight=1
     // → eta = specular_ior unchanged. (Metal takes specular_weight as its lobe weight instead.)
     float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), coatEta, saturate(mat.coatColorWeight.w));
+    // C7 thin-wall exception: geometry_thin_walled collapses the film to a single surface —
+    // there is NO bulk interior (a hollow shell's inside is air), so every crossing is a full
+    // air→film→air transmission: side-independent, never TIR-capable. Inverting eta on the
+    // mesh back side would wrongly enable TIR at the back film and trap rays inside the shell.
+    const bool thinWalledMat = mat.opacityFlagsPad.w > 0.5;
+    if (exiting && !thinWalledMat) {
+        eta = 1.0 / eta; // C7: interior side — exit branch (Fresnel/etap side-correct, TIR-capable)
+    }
     float diffuseRough = saturate(mat.baseMetalnessDiffRough.y);
     float coatDark = saturate(mat.coatRoughAnisoIorDark.w);
 
@@ -141,7 +162,7 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     return max(result, 0.0.xxx);
 }
 
-float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 B, float3 cN, float3 cT, float3 cB)
+float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 B, float3 cN, float3 cT, float3 cB, bool exiting = false)
 {
     float3 Ns;
     float3 Ts;
@@ -202,6 +223,9 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
         // A3: OpenPBR/PBRT-v4 transmission PDF (generalized half-vector + refraction Jacobian).
         if (transmissionWeight > 0.0) {
             float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
+            if (exiting && mat.opacityFlagsPad.w <= 0.5) { // thin-walled: side-independent (no bulk)
+                eta = 1.0 / eta; // C7: side-correct etap so pdf matches evalTransmissionMicrofacet
+            }
             float transAlphaX = alphaX;
             float transAlphaY = alphaY;
             pdf += transmissionWeight * transmissionPdf(eta, transAlphaX, transAlphaY, woL, wiL);
@@ -226,7 +250,7 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
     return pdf / sum;
 }
 
-BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, float3 cN, float3 cT, float3 cB, inout RngState seed)
+BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, float3 cN, float3 cT, float3 cB, bool exiting, inout RngState seed)
 {
     float3 Ns;
     float3 Ts;
@@ -261,7 +285,13 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     bool glassMode;
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
-    float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
+    // C7: etaS is the material's relative IOR (>1, spec convention — used for medium/walk
+    // parameters and dispersion); eta is the side-corrected IOR for THIS hit (inverted when
+    // the ray is inside the dielectric), driving every Fresnel branch and Snell ratio below.
+    // geometry_thin_walled is exempt: the film has no bulk interior (a hollow shell holds air),
+    // so its crossings are side-independent full air→film→air transmissions, never TIR.
+    float etaS = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
+    float eta = (exiting && mat.opacityFlagsPad.w <= 0.5) ? (1.0 / etaS) : etaS;
     float baseRough = mat.specularRoughAnisoIor.x;
     float baseAniso = mat.specularRoughAnisoIor.y;
     float coatRough = mat.coatRoughAnisoIorDark.x;
@@ -335,7 +365,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.isDelta = true;
                 return sample;
             }
-            float etaRatioSS = woL.z > 0.0 ? (1.0 / eta) : eta;
+            float etaRatioSS = 1.0 / eta; // frames face wo; side handled by eta (C7)
             float3 mSS = float3(0.0, 0.0, woL.z > 0.0 ? 1.0 : -1.0);
             float3 wiEnter = refract(-woL, mSS, etaRatioSS);
             if (all(abs(wiEnter) < 1.0e-6.xxx)) {
@@ -357,7 +387,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             sample.mediumSigmaT = sssExtinction(radius, saturate3(mat.subsurfaceRadiusScale.xyz));
             sample.mediumAlbedo = saturate3(mat.subsurfaceColorWeight.xyz);
             sample.mediumG = clamp(mat.opacityFlagsPad.z, -0.95, 0.95);
-            sample.mediumEta = eta;
+            sample.mediumEta = etaS; // walk boundary handler expects the medium's IOR (>1)
             return sample;
         }
     } else if (lobe == 6u) {
@@ -407,10 +437,12 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         if (thinWalled) {
             // Thin sheet: light passes straight through without refractive bend.
             // Chosen with probability (1-F); the (1-F) transmittance cancels.
+            // C5: a thin wall has NO interior volume — transmission_depth cannot act, so the
+            // sheet's BTDF is tinted by transmission_color once per crossing (MaterialX
+            // dielectric_bsdf tint), with no Beer-Lambert factor.
             float3 wiThin = -woL;
             sample.direction = normalize(toWorld(wiThin, Ts, Bs, Ns));
-            float3 absorption = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
-            sample.weight = effectiveTransColor(mat) * absorption * invPLobe;
+            sample.weight = saturate3(mat.transmissionColorWeight.xyz) * invPLobe;
             sample.pdf = 1.0;
             sample.isDelta = true;
             return sample;
@@ -420,12 +452,13 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         if (dispScale > 0.0) {
             // Chromatic dispersion: pick a hero channel and refract with a per-channel IOR
             // derived from the Abbe number (OpenPBR transmission_dispersion_abbe_number).
+            // etaC is built from the MATERIAL IOR etaS (>1), then side-corrected (C7).
             float abbe = max(mat.transmissionParams.w, 1.0);
             uint ch = min(uint(randFloat(seed) * 3.0), 2u);
-            float spread = dispScale * (eta - 1.0) / abbe;
-            float etaC = eta + spread * (float(ch) - 1.0);
-            etaC = max(etaC, 1.001);
-            float etaRatioC = woL.z > 0.0 ? (1.0 / etaC) : etaC;
+            float spread = dispScale * (etaS - 1.0) / abbe;
+            float etaC = max(etaS + spread * (float(ch) - 1.0), 1.001);
+            float etaCEff = exiting ? (1.0 / etaC) : etaC;
+            float etaRatioC = 1.0 / etaCEff;
             float3 m = sampleGGX_VNDF(float3(woL.x, woL.y, abs(woL.z)), alphaX, alphaY, randFloat2(seed));
             if (dot(woL, m) < 0.0) {
                 m = -m;
@@ -437,10 +470,29 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             }
             sample.direction = normalize(toWorld(wiDisp, Ts, Bs, Ns));
             float3 channelMask = (ch == 0u) ? float3(3.0, 0.0, 0.0) : ((ch == 1u) ? float3(0.0, 3.0, 0.0) : float3(0.0, 0.0, 3.0));
-            float3 absorption = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
-            sample.weight = effectiveTransColor(mat) * absorption * channelMask * invPLobe;
             sample.pdf = 1.0;
             sample.isDelta = true;
+            // C5: TIR never crosses the interface — no transmission tint at all. A crossing
+            // with depth>0 enters the interior VDF medium (untinted interface, color realized
+            // by the walk's Beer-Lambert over the actual path); depth==0 tints per crossing.
+            if (tir) {
+                sample.weight = channelMask * invPLobe;
+                return sample;
+            }
+            if (mat.transmissionParams.x > 1.0e-4) {
+                float3 volSigmaT;
+                float3 volAlbedo;
+                transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
+                                         mat.transmissionParams.x, volSigmaT, volAlbedo);
+                sample.weight = channelMask * invPLobe;
+                sample.entersMedium = true;
+                sample.mediumSigmaT = volSigmaT;
+                sample.mediumAlbedo = volAlbedo;
+                sample.mediumG = clamp(mat.transmissionScatter.w, -0.95, 0.95);
+                sample.mediumEta = etaC; // material-side IOR (>1) for the walk boundary
+                return sample;
+            }
+            sample.weight = saturate3(mat.transmissionColorWeight.xyz) * channelMask * invPLobe;
             return sample;
         }
 
@@ -450,15 +502,15 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         // handle effectively-smooth roughness as an exact Snell-refraction delta lobe.
         const float kSmoothDielectricRough = 0.05;
         if (baseRough < kSmoothDielectricRough) {
-            float etaRatioD = woL.z > 0.0 ? (1.0 / eta) : eta;
+            float etaRatioD = 1.0 / eta; // frames face wo; side handled by eta (C7) — TIR-capable on exit
             float3 mD = float3(0.0, 0.0, woL.z > 0.0 ? 1.0 : -1.0);
             float3 wiRefract = refract(-woL, mD, etaRatioD);
             if (all(abs(wiRefract) < 1.0e-6.xxx)) {
                 // Total internal reflection -> specular reflect (still a delta event).
+                // C5: a TIR ray never crosses the interface, so no transmission tint applies.
                 wiRefract = reflect(-woL, mD);
                 sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
-                float3 absorptionR = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
-                sample.weight = effectiveTransColor(mat) * absorptionR * invPLobe;
+                sample.weight = invPLobe.xxx;
                 sample.pdf = 1.0;
                 sample.isDelta = true;
                 return sample;
@@ -466,14 +518,16 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
             sample.pdf = 1.0;
             sample.isDelta = true;
-            // G6: when transmission_scatter is significant AND transmission_depth>0, enter a REAL
-            // chromatic volumetric medium using the spec `dielectric_volume` VDF coefficients
-            // (σ_t = -ln(transmission_color)/depth, σ_s = transmission_scatter/depth). The walk's
-            // hero-wavelength estimator now applies per-channel Beer-Lambert absorption over the
-            // ACTUAL path length, so we no longer pre-apply a fixed per-entry tint (that was a
-            // double-count). Weight is just the lobe-selection reciprocal.
-            float scatterLum = luminance(saturate3(mat.transmissionScatter.xyz));
-            if (scatterLum > 1.0e-3 && mat.transmissionParams.x > 1.0e-4) {
+            // C5/G6: transmission_depth > 0 → the interior is a REAL medium per the spec
+            // `dielectric_volume` VDF (σ_t = -ln(transmission_color)/depth,
+            // σ_s = transmission_scatter/depth). The interface BTDF is untinted (white);
+            // the walk's hero-wavelength estimator applies per-channel Beer-Lambert over the
+            // ACTUAL path length — pure absorption (scatter=0 → albedo=0) runs as analog
+            // absorption, still exactly unbiased. With depth == 0 there is no interior
+            // volume: the BTDF is tinted by transmission_color per crossing (MaterialX
+            // dielectric_bsdf tint). The old exp(-depth·(1-color))·color per-entry factor
+            // double-counted the tint and ignored the traveled distance.
+            if (mat.transmissionParams.x > 1.0e-4) {
                 float3 volSigmaT;
                 float3 volAlbedo;
                 transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
@@ -483,15 +537,14 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.mediumSigmaT = volSigmaT;
                 sample.mediumAlbedo = volAlbedo;
                 sample.mediumG = clamp(mat.transmissionScatter.w, -0.95, 0.95);
-                sample.mediumEta = eta;
+                sample.mediumEta = etaS; // walk boundary handler expects the medium's IOR (>1)
                 return sample;
             }
-            float3 absorptionD = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
-            sample.weight = effectiveTransColor(mat) * absorptionD * invPLobe;
+            sample.weight = saturate3(mat.transmissionColorWeight.xyz) * invPLobe;
             return sample;
         }
 
-        float etaRatio = woL.z > 0.0 ? (1.0 / eta) : eta;
+        float etaRatio = 1.0 / eta; // frames face wo; side handled by eta (C7)
         float3 m = sampleGGX_VNDF(float3(woL.x, woL.y, abs(woL.z)), alphaX, alphaY, randFloat2(seed));
         if (dot(woL, m) < 0.0) {
             m = -m;
@@ -500,6 +553,21 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         if (all(abs(wiLocal) < 1.0e-6.xxx)) {
             wiLocal = reflect(-woL, m);
             sample.isDelta = true;
+        } else if (mat.transmissionParams.x > 1.0e-4) {
+            // C5: a rough refraction crossing into a depth>0 interior enters the same
+            // `dielectric_volume` VDF medium as the smooth path; the microfacet BTDF used for
+            // the generic weight below is untinted there (evalTransmissionMicrofacet, white at
+            // depth>0), so the color comes exclusively from the walk's Beer-Lambert transport.
+            // (Interior boundary exits then use the walk's smooth Fresnel/TIR convention.)
+            float3 volSigmaT;
+            float3 volAlbedo;
+            transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
+                                     mat.transmissionParams.x, volSigmaT, volAlbedo);
+            sample.entersMedium = true;
+            sample.mediumSigmaT = volSigmaT;
+            sample.mediumAlbedo = volAlbedo;
+            sample.mediumG = clamp(mat.transmissionScatter.w, -0.95, 0.95);
+            sample.mediumEta = etaS; // walk boundary handler expects the medium's IOR (>1)
         }
     }
 
@@ -517,16 +585,18 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         sample.weight = 0.0.xxx;
         return sample;
     }
-    sample.pdf = pdfBSDF(mat, wo, sample.direction, N, T, B, cN, cT, cB);
+    sample.pdf = pdfBSDF(mat, wo, sample.direction, N, T, B, cN, cT, cB, exiting);
     if (!isfinite(sample.pdf) || sample.pdf <= 0.0) {
         sample.weight = 0.0.xxx;
         sample.pdf = 0.0;
         return sample;
     }
 
-    // Transmission absorption is already folded into evalTransmissionMicrofacet(), so it
-    // must NOT be re-applied here for the generic (non-delta) refraction path.
-    float3 f = evalBSDF(mat, wo, sample.direction, N, T, B, cN, cT, cB);
+    // C5: the generic (non-delta) refraction weight comes from evalBSDF, whose transmission
+    // BTDF carries the MaterialX tint semantics (transmission_color per crossing at depth==0,
+    // white at depth>0). Interior Beer-Lambert at depth>0 is applied by the medium walk over
+    // the actual path length (entersMedium set above) — never re-applied here.
+    float3 f = evalBSDF(mat, wo, sample.direction, N, T, B, cN, cT, cB, exiting);
     float cosTheta = abs(dot(sample.direction, Ns));
     sample.weight = f * (cosTheta / sample.pdf);
     sample.weight = all(isfinite(sample.weight)) ? max(sample.weight, 0.0.xxx) : 0.0.xxx;

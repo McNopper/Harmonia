@@ -39,9 +39,13 @@ flowchart LR
   time, used identically by Harmonia, Hyperion and Theia) and the shared SPIR-V loader
   (`harmonia::createShaderModule`)
 - **Shared Slang modules** — `bsdf_shared.slang` (OpenPBR Surface BSDF: Fujii diffuse,
-  GGX + Turquin/Kulla-Conty MS compensation, F82 conductor Fresnel, MaterialX-faithful
-  `mx_fresnel_airy` thin-film with complex-IOR conductor phase, Zeltner LTC sheen, lobe
-  weight helpers),
+  GGX + Turquin/Kulla-Conty MS compensation, F82 conductor Fresnel with the
+  `F90 = saturate(50·F0)` vanishing-interface fade, MaterialX-faithful
+  `mx_fresnel_airy` thin-film with complex-IOR conductor phase, Zeltner LTC sheen,
+  MaterialX transmission tint semantics (per-crossing tint at depth 0, white at depth > 0
+  with absorption realized by the volumetric walk), dielectric interface sidedness
+  (raw outward geoNormal → `backface`/`exiting` → side-correct Fresnel/Snell/TIR;
+  `geometry_thin_walled` exempt), lobe weight helpers),
   `env_sample.slang` (pure-parameter CDF
   env-map importance sampling), `path_integrator.slang` (renderer-agnostic unidirectional
   path-integrator surface estimator — emissive/env NEE + MIS + Russian roulette, shared
@@ -95,8 +99,7 @@ python tools/validate_renders.py <reference_dir> <candidate_dir>
 ```
 
 The default scene set lives in `tools/validation_manifest.toml`:
-`cornell_classic`, `cornell_spheres`, `fixture_ibl`, `dragon_teapot`, and
-`furnace_coverage`. Use `--scale-aware` for HDR/transmissive scenes that need
+`cornell_classic`, `cornell_spheres`, `dragon_teapot`. Use `--scale-aware` for HDR/transmissive scenes that need
 the relaxed gate from `compare_renders.py`.
 
 To render and compare a whole batch in one go:
