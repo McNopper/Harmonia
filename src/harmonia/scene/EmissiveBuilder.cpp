@@ -78,4 +78,33 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
     return result;
 }
 
+std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower) {
+    std::vector<float> cdf;
+    cdf.reserve(emissivePower.size());
+
+    double totalPower = 0.0;
+    for (const float p : emissivePower) {
+        totalPower += static_cast<double>(p);
+    }
+    if (totalPower > 0.0) {
+        double running = 0.0;
+        for (const float p : emissivePower) {
+            running += static_cast<double>(p);
+            cdf.push_back(static_cast<float>(running / totalPower));
+        }
+        if (!cdf.empty()) {
+            cdf.back() = 1.0F; // guard against rounding leaving cdf[N-1] < 1
+        }
+    } else {
+        const auto count = static_cast<uint32_t>(emissivePower.size());
+        for (uint32_t i = 0; i < count; ++i) {
+            cdf.push_back(static_cast<float>(i + 1) / static_cast<float>(count));
+        }
+    }
+    if (cdf.empty()) {
+        cdf.push_back(1.0F); // sentinel — keeps the binding valid when there are no emitters
+    }
+    return cdf;
+}
+
 } // namespace harmonia

@@ -56,6 +56,7 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/core/ShaderModule.cpp
     src/harmonia/core/Timer.cpp
     src/harmonia/renderer/AccelerationStructure.cpp
+    src/harmonia/renderer/TlasBuilder.cpp
     src/harmonia/renderer/Camera.cpp
     src/harmonia/renderer/Descriptors.cpp
     src/harmonia/renderer/Pipeline.cpp

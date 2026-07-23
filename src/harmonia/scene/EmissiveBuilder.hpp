@@ -27,8 +27,8 @@ struct EmissiveData {
 /// renderer).  Iterates the instance list: for each instance whose mesh is a
 /// triangle mesh with an emissive material, the mesh's object-space triangles are
 /// transformed by the instance's transform into world space.  The result's
-/// `triangles` array is ready for direct GPU upload; callers still build the CDF
-/// from `power` themselves (the CDF upload is renderer-side).
+/// `triangles` array is ready for direct GPU upload; pair it with
+/// `buildEmissiveCdf(power)` for the NEE selection CDF.
 ///
 /// @param meshes      Unique scene meshes (TriangleMesh / Sphere / …).
 /// @param instances   Instance placements (mesh index + transform + material).
@@ -39,5 +39,12 @@ struct EmissiveData {
     const std::vector<InstanceRecord>&            instances,
     const std::vector<Material>&                  materials,
     const std::vector<GpuMaterial>&               gpuMaterials);
+
+/// Build a power-proportional selection CDF for emissive-triangle NEE:
+/// cdf[i] = (Σ_{j≤i} power_j) / totalPower, so cdf[N-1] == 1. Falls back to a uniform
+/// CDF when all emitters have zero power (degenerate/black emitters). Always returns
+/// at least one entry (a 1.0 sentinel) so the GPU binding stays valid with no emitters.
+/// Shared so the NEE sampling CDF cannot drift between renderers.
+[[nodiscard]] std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower);
 
 } // namespace harmonia

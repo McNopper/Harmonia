@@ -11,6 +11,7 @@ add_executable(harmonia_unit_tests
     unit/test_rng.cpp
     unit/test_env_sampling_contract.cpp
     unit/test_procedural_geometry.cpp
+    unit/test_emissive.cpp
 )
 
 target_link_libraries(harmonia_unit_tests

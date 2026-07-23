@@ -71,11 +71,18 @@ static const float kHalfPi   = 1.57079632679; ///< π/2
 /// Ray-tracing epsilon for surface self-intersection avoidance.
 static const float kRayEpsilon = 0.001;
 
+/// Epsilon for volumetric random-walk segments (much smaller than kRayEpsilon: dense media have
+/// free-flight distances below kRayEpsilon). Shared by both renderers' medium walk.
+static const float kMediumEpsilon = 1.0e-5;
+
 /// Effective infinity for ray TMax / hit-distance comparisons.
 static const float kInf = 1.0e30;
 
 /// Minimum path depth before Russian Roulette path termination is applied.
 static const uint kRRMinDepth = 3u;
+
+/// Sentinel: a material texture slot holds no texture (matches the host-side `kNoTexture`).
+static const uint kNoTexture = 0xFFFFFFFFu;
 
 /// Rec.2020 luminance coefficients (ITU-R BT.2020).
 static const float3 kRec2020Luma = float3(0.2627, 0.6780, 0.0593);

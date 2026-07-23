@@ -27,4 +27,36 @@ uint32_t SceneBase::addLight(std::unique_ptr<Light> light) {
     return index;
 }
 
+uint32_t SceneBase::addMesh(const DeviceContext& ctx,
+                            const CommandPool& pool,
+                            MeshData&& data,
+                            std::string_view name) {
+    const uint32_t meshIndex = static_cast<uint32_t>(m_meshes.size());
+    const std::string debugName =
+        name.empty() ? std::string{"mesh."} + std::to_string(meshIndex) : std::string{name};
+
+    auto mesh = TriangleMesh::create(ctx, pool, std::move(data), debugName);
+    if (!mesh) {
+        return std::numeric_limits<uint32_t>::max();
+    }
+    m_meshes.push_back(std::move(*mesh));
+    return meshIndex;
+}
+
+VkResult SceneBase::build(const DeviceContext& ctx, const CommandPool& pool) {
+    if (m_instances.empty()) {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    if (const VkResult result = buildSceneBuffers(ctx, pool); result != VK_SUCCESS) {
+        return result;
+    }
+    // One BLAS per unique mesh; N TLAS instances reference a shared BLAS.
+    for (auto& mesh : m_meshes) {
+        if (const VkResult result = mesh->buildBlas(ctx, pool); result != VK_SUCCESS) {
+            return result;
+        }
+    }
+    return buildTlas(ctx, pool);
+}
+
 } // namespace harmonia

@@ -6,6 +6,12 @@ float sqr(float x)
     return x * x;
 }
 
+/// Largest component of a float3.
+float maxComp(float3 v)
+{
+    return max(v.x, max(v.y, v.z));
+}
+
 float safeSqrt(float x)
 {
     return sqrt(max(x, 0.0));
