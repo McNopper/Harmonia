@@ -69,8 +69,7 @@ static const float3x3 kRec709ToP3 = float3x3(
 //
 // Colour matrices derived from the ACES specification S-2014-003 published by
 // the Academy of Motion Picture Arts and Sciences (AMPAS).  The RRT+ODT
-// analytic fit is by Stephen Hill, published in the SIGGRAPH 2016 course
-// "HDR Theory and Practice":
+// analytic fit is by Stephen Hill (the BakingLab ACES.hlsl):
 //   https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
 // The rational polynomial coefficients are a mathematical description of the
 // tone curve; no copyrightable expression is reproduced.

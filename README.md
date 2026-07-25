@@ -174,7 +174,7 @@ color management, and tonemapping stages are based on:
 | Resource | Relevance |
 |----------|-----------|
 | [Henyey & Greenstein — "Diffuse Radiation in the Galaxy" (1941)](https://articles.adsabs.harvard.edu/pdf/1941ApJ....93...70H) | Henyey-Greenstein phase function for the subsurface / transmission random walk |
-| [Wilkie, Nawaz, Droske, Weidlich & Hanika — "Hero Wavelength Spectral Sampling" (EGSR 2014)](https://cgg.mff.cuni.cz/~wilkie/Website/EGSR_14_files/WNDWH14.pdf) | Hero-wavelength spectral-MIS estimator used for chromatic (per-channel) subsurface / transmission media |
+| [Wilkie, Nawaz, Droske, Weidlich & Hanika — "Hero Wavelength Spectral Sampling" (EGSR 2014)](https://cgg.mff.cuni.cz/publications/hero-wavelength-spectral-sampling/) | Hero-wavelength spectral-MIS estimator used for chromatic (per-channel) subsurface / transmission media |
 | [Novák, Georgiev, Hanika & Jarosz — "Monte Carlo Methods for Volumetric Light Transport Simulation" (Eurographics STAR 2018)](https://cs.dartmouth.edu/~wjarosz/publications/novak18monte.html) | Free-flight distance sampling, collision estimators, and transmittance for the medium walk |
 
 ### Light transport
@@ -182,13 +182,13 @@ color management, and tonemapping stages are based on:
 |----------|-----------|
 | [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path-integrator estimator, BSDF sampling, MIS, area-light NEE, environment importance sampling |
 | [Veach — "Robust Monte Carlo Methods for Light Transport Simulation" (1997)](http://graphics.stanford.edu/papers/veach_thesis/) | Multiple Importance Sampling (balance heuristic) used in `path_integrator.slang` |
-| [Hanika — "Hacking the Shadow Terminator" (2021)](https://blog.selfshadow.com/2021/hacking-the-shadow-terminator/) | Position-lift terminator fix — evaluated; superseded here by the parameter-free Chiang factor (a lift needs a per-object offset to avoid over-lifting flat surfaces) |
-| [Chiang, Funk, Burley, Hery — "Taming the Shadow Terminator" (SIGGRAPH 2019)](https://blog.selfshadow.com/2019/taming-the-shadow-terminator/) | Smooth geometric-horizon shadowing factor `smoothstep(-sinγ, 0, cosNgL)` used in `path_integrator.slang` NEE — parameter-free, a no-op on flat surfaces, eliminates the dark band on smooth-shaded meshes |
+| [Hanika — "Hacking the Shadow Terminator" (Ray Tracing Gems II, Ch. 4, 2021)](https://jo.dreggn.org/2021_terminator.pdf) | Position-lift terminator fix — evaluated; superseded here by the parameter-free Chiang factor (a lift needs a per-object offset to avoid over-lifting flat surfaces) |
+| [Chiang, Li & Burley — "Taming the Shadow Terminator" (SIGGRAPH 2019 Talks)](https://disneyanimation.com/publications/taming-the-shadow-terminator/) | Smooth geometric-horizon shadowing factor `smoothstep(-sinγ, 0, cosNgL)` used in `path_integrator.slang` NEE — parameter-free, a no-op on flat surfaces, eliminates the dark band on smooth-shaded meshes |
 
 ### Denoising
 | Resource | Relevance |
 |----------|-----------|
-| [Schied et al. — "A-SVGF: Fast, Robust Gradient-Domain Reconstruction" (SIGGRAPH 2017)](https://research.nvidia.com/publication/2017-07_A-SVGF) | À-trous wavelet edge-stopping filter + temporal accumulation (shared `denoiser.slang`) |
+| [Schied et al. — "Spatiotemporal Variance-Guided Filtering" (HPG 2017)](https://doi.org/10.1145/3105762.3105770) | À-trous wavelet edge-stopping filter + temporal accumulation (shared `denoiser.slang`) |
 
 ### Color science & display standards
 | Resource | Relevance |

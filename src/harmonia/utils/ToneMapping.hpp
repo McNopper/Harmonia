@@ -9,8 +9,8 @@
 // References:
 //   ACES colour matrices — AMPAS ACES specification S-2014-003
 //     https://docs.acescentral.com/specifications/acescg/
-//   ACES RRT+ODT analytic fit — Stephen Hill, SIGGRAPH 2016
-//     "HDR Theory and Practice" course notes
+//   ACES RRT+ODT analytic fit — Stephen Hill (BakingLab ACES.hlsl)
+//     https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
 //   Hable/Uncharted-2 filmic — John Hable, GDC 2010
 //   Reinhard et al. — SIGGRAPH 2002, "Photographic Tone Reproduction for Digital Images"
 

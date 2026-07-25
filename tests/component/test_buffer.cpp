@@ -1,9 +1,9 @@
 // Component tests: Buffer lifecycle, upload, readback.
 //
 // These tests specifically target:
-//   - Regression: Buffer::destroy() must NOT call vmaUnmapMemory on persistently-mapped
-//     allocations (VMA_ALLOCATION_CREATE_MAPPED_BIT). The bug caused a VMA assertion in
-//     Debug and silent memory corruption in Release.
+//   - Buffer::destroy() must NOT call vmaUnmapMemory on persistently-mapped allocations
+//     (VMA_ALLOCATION_CREATE_MAPPED_BIT): doing so triggers a VMA assertion in Debug and
+//     silent memory corruption in Release (vmaDestroyBuffer handles persistent maps itself).
 //   - Host-mapped round-trip: upload bytes, read back via mappedData(), verify.
 //   - Device-local staging upload: upload via staging path, copy back, verify data.
 //   - Device address: buffers with SHADER_DEVICE_ADDRESS must return a non-zero address.
@@ -41,13 +41,12 @@ readbackBuffer(const DeviceContext& ctx, CommandPool& pool, const Buffer& src, V
 }
 } // namespace
 
-// Regression: Buffer::destroy() previously called vmaUnmapMemory() on allocations that
-// were created with VMA_ALLOCATION_CREATE_MAPPED_BIT (persistent map). VMA asserts in
-// Debug and corrupts memory in Release when you explicitly unmap a persistent allocation.
-// Fix: removed the vmaUnmapMemory call — vmaDestroyBuffer handles it automatically.
+// Buffer::destroy() must not explicitly unmap a persistent (VMA_ALLOCATION_CREATE_MAPPED_BIT)
+// allocation: VMA asserts in Debug and corrupts memory in Release on an explicit unmap of a
+// persistent map. vmaDestroyBuffer handles it automatically, so no vmaUnmapMemory call is needed.
 TEST_F(VulkanFixture, Buffer_DestroyMappedBufferDoesNotCrash) {
     // Create and destroy several host-visible mapped buffers.
-    // If the regression reappears the VMA abort() fires here in Debug.
+    // A stray vmaUnmapMemory call triggers the VMA abort() here in Debug.
     for (int i = 0; i < 8; ++i) {
         auto buf = Buffer::create(deviceCtx(),
                                   256,
