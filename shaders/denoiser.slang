@@ -136,7 +136,17 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
         // gentle gradients while sharp geometry edges stay rejected.
         const float normalSigma = 20.0f + gDenoiser.strength * 72.0f;
         const float depthSigma = (16.0f + gDenoiser.strength * 64.0f) / float(stepSize);
-        const float lumaSigma = (1.5f + (1.0f - gDenoiser.strength) * 8.0f) / float(stepSize);
+        float lumaSigma = (1.5f + (1.0f - gDenoiser.strength) * 8.0f) / float(stepSize);
+
+        // GI2.7: M-aware denoising. The HDR alpha channel carries the ReSTIR reservoir's
+        // effective sample count M (written by Theia's GI compute stage). High-M pixels
+        // are well-sampled → tighter luma edge stops (less over-smoothing of genuine
+        // detail). Low-M pixels are noisy → looser stops (more aggressive denoising).
+        // The sqrt scaling follows the standard error-monotonicity of MC integration
+        // (error ~ 1/sqrt(M)). Ref: Ouyang et al., "RTXDI" (I3D 2021), M-aware filtering.
+        const float centerM = max(center.w, 0.0f);
+        const float mScale = saturate(sqrt(centerM / 32.0f));  // normalize to M_ref = 32
+        lumaSigma *= max(mScale, 0.3f);  // floor at 30% so low-M pixels still get filtered
 
         float4 sum = 0.0f.xxxx;
         float totalWeight = 0.0f;
