@@ -3,15 +3,20 @@
 
 #include <volk/volk.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
+#include "harmonia/renderer/AccelerationStructure.hpp"
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/Light.hpp"
@@ -26,8 +31,9 @@ namespace harmonia {
 /// Provides concrete, identical implementations of the operations that do not
 /// depend on the GPU layout (addMaterial / addTexture / addLight / addInstance /
 /// addMesh / build) and owns the corresponding storage vectors.  Renderer-specific
-/// work (addSphereMesh, buildSceneBuffers, buildTlas) is deferred to the derived
-/// class via the protected virtual hooks below.
+/// work (addSphereMesh, buildSceneBuffers) is deferred to the derived class via the
+/// protected virtual hooks below; the TLAS build skeleton is shared, with only the
+/// per-instance visibility mask diverging (instanceMask).
 ///
 /// Storage follows the mesh/instance split: `m_meshes` holds unique geometry
 /// (each owning one BLAS) and `m_instances` holds the placements (mesh index +
@@ -77,15 +83,24 @@ class SceneBase : public ISceneBuilder {
     /// meshlets + per-instance visibility masks.
     virtual VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) = 0;
 
-    /// Renderer-specific TLAS build. Diverges: Theia stamps per-instance visibility
-    /// masks; Hyperion uses the default mask.
-    virtual VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool) = 0;
+    VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool);
+
+    virtual std::uint32_t instanceMask(std::size_t instanceIndex) const;
+
+    [[nodiscard]] static std::expected<Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
+                                                                             const CommandPool& pool,
+                                                                             std::span<const std::byte> data,
+                                                                             std::string_view debugName,
+                                                                             VkBufferUsageFlags usage);
 
     std::vector<Material> m_materials;
     std::vector<std::unique_ptr<Geometry>> m_meshes; ///< unique meshes (one BLAS each)
     std::vector<InstanceRecord> m_instances;         ///< placements referencing m_meshes
     std::vector<std::unique_ptr<Light>> m_lights;
     std::vector<Texture> m_textures;
+
+    AccelerationStructure m_tlas{};
+    VkDeviceAddress m_tlasAddress{};
 };
 
 } // namespace harmonia

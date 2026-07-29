@@ -1,7 +1,12 @@
 #include "harmonia/scene/SceneBase.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <vector>
+
+#include "harmonia/GpuTypes.hpp"
+#include "harmonia/renderer/TlasBuilder.hpp"
 
 namespace harmonia {
 
@@ -55,6 +60,28 @@ VkResult SceneBase::build(const DeviceContext& ctx, const CommandPool& pool) {
         }
     }
     return buildTlas(ctx, pool);
+}
+
+std::uint32_t SceneBase::instanceMask(std::size_t /*instanceIndex*/) const {
+    return kInstanceMaskAll;
+}
+
+std::expected<Buffer, VkResult> SceneBase::uploadStorageBuffer(const DeviceContext& ctx,
+                                                               const CommandPool& pool,
+                                                               std::span<const std::byte> data,
+                                                               std::string_view debugName,
+                                                               VkBufferUsageFlags usage) {
+    return Buffer::upload(ctx, pool, data, usage, debugName);
+}
+
+VkResult SceneBase::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
+    std::vector<VkAccelerationStructureInstanceKHR> instances(m_instances.size());
+    for (std::size_t i = 0; i < m_instances.size(); ++i) {
+        const InstanceRecord& inst = m_instances[i];
+        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<std::uint32_t>(i), inst.xform);
+        instances[i].mask = instanceMask(i);
+    }
+    return harmonia::buildTlas(ctx, pool, instances, m_tlas, m_tlasAddress);
 }
 
 } // namespace harmonia
