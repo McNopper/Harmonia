@@ -1,6 +1,7 @@
 #ifndef HARMONIA_SCENE_PROCEDURALGEOMETRY_HPP
 #define HARMONIA_SCENE_PROCEDURALGEOMETRY_HPP
 
+#include <cstdint>
 #include <slang-math/slang-math.hpp>
 
 #include "harmonia/scene/Mesh.hpp"

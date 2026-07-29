@@ -3,12 +3,14 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cstdint>
 #include <utility>
 
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
+#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 
 namespace harmonia {
 

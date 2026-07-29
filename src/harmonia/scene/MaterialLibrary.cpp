@@ -1,11 +1,13 @@
 #include "harmonia/scene/MaterialLibrary.hpp"
 
 #include <algorithm>
+#include <cstdint>
 
 #include "aether/format/MaterialLibrary.hpp"
 #include "aether/types/MaterialDesc.hpp"
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/scene/MaterialLibrary.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 namespace {

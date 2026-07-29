@@ -1,6 +1,7 @@
 #include "harmonia/scene/SceneLoader.hpp"
 
 #include <array>
+#include <cstdint>
 #include <limits>
 #include <slang-math/slang-math.hpp>
 #include <string>
@@ -15,6 +16,7 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/MaterialLibrary.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
+#include "harmonia/scene/SceneLoader.hpp"
 #include "harmonia/scene/Texture.hpp"
 
 namespace {

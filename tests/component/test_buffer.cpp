@@ -11,6 +11,7 @@
 #include <volk/volk.h>
 
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <gtest/gtest.h>
 

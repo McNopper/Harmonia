@@ -1,6 +1,9 @@
 #include "harmonia/core/Queue.hpp"
 
+#include <cstdint>
 #include <vector>
+
+#include "harmonia/core/Queue.hpp"
 
 Queue::Queue(VkQueue queue, std::uint32_t family) noexcept : m_queue(queue), m_family(family) {}
 

@@ -1,8 +1,11 @@
 #include "harmonia/vulkan_init/PhysicalDevice.hpp"
 
 #include <array>
+#include <cstdint>
 #include <string_view>
 #include <vector>
+
+#include "harmonia/vulkan_init/PhysicalDevice.hpp"
 
 namespace {
 constexpr std::array kRequiredExtensions{

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <limits>
 #include <slang-math/slang-math.hpp>

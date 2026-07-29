@@ -1,6 +1,7 @@
 #ifndef HARMONIA_CORE_IMAGE_HPP
 #define HARMONIA_CORE_IMAGE_HPP
 
+#include <cstdint>
 #include <expected>
 #include <string_view>
 

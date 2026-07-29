@@ -1,10 +1,12 @@
 #include "harmonia/core/Buffer.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <span>
 #include <string>
 
+#include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Logger.hpp"
 

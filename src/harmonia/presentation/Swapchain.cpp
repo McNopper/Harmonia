@@ -1,8 +1,11 @@
 #include "harmonia/presentation/Swapchain.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <utility>
 #include <vector>
+
+#include "harmonia/presentation/Swapchain.hpp"
 
 namespace {
 [[nodiscard]] VkExtent2D clampExtent(const VkSurfaceCapabilitiesKHR& capabilities, VkExtent2D requested) noexcept {

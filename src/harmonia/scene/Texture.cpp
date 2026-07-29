@@ -5,12 +5,14 @@
 #include <OpenImageIO/imageio.h>
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/scene/Texture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 namespace {

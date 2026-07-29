@@ -3,7 +3,10 @@
 #include <volk/volk.h>
 
 #include <array>
+#include <cstdint>
 #include <utility>
+
+#include "harmonia/renderer/Descriptors.hpp"
 
 Descriptors::~Descriptors() noexcept {
     reset();

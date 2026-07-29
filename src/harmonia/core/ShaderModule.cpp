@@ -1,8 +1,10 @@
 #include "harmonia/core/ShaderModule.hpp"
 
+#include <cstdint>
 #include <fstream>
 
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/core/ShaderModule.hpp"
 
 namespace harmonia {
 

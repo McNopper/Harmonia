@@ -3,6 +3,7 @@
 
 #include <volk/volk.h>
 
+#include <cstdint>
 #include <span>
 
 class Queue {

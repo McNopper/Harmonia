@@ -1,5 +1,9 @@
 #include "harmonia/core/CommandPool.hpp"
 
+#include <cstdint>
+
+#include "harmonia/core/CommandPool.hpp"
+
 namespace {
 [[nodiscard]] VkResult createFence(VkDevice device, VkFence* fence) noexcept {
     const VkFenceCreateInfo fenceInfo{

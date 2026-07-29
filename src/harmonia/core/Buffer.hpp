@@ -2,6 +2,7 @@
 #define HARMONIA_CORE_BUFFER_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <span>
 #include <string_view>

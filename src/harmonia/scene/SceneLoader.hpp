@@ -1,6 +1,7 @@
 #ifndef HARMONIA_SCENE_SCENELOADER_HPP
 #define HARMONIA_SCENE_SCENELOADER_HPP
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <slang-math/slang-math.hpp>

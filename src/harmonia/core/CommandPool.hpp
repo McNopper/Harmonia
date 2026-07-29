@@ -1,6 +1,7 @@
 #ifndef HARMONIA_CORE_COMMANDPOOL_HPP
 #define HARMONIA_CORE_COMMANDPOOL_HPP
 
+#include <cstdint>
 #include <expected>
 
 #include "harmonia/DeviceContext.hpp"

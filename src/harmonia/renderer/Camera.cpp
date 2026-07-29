@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <slang-math/slang-math.hpp>
 #include <utility>
+
+#include "harmonia/renderer/Camera.hpp"
 
 float Camera::PhysicalCamera::ev100() const noexcept {
     // EV100 = log2(N² × t_inv × 100 / ISO)

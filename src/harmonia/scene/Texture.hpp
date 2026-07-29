@@ -4,6 +4,7 @@
 #include <volk/volk.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <span>

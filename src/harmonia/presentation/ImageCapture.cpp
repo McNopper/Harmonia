@@ -2,11 +2,13 @@
 
 #include <OpenImageIO/imageio.h>
 #include <cmath>
+#include <cstdint>
 #include <slang-math/slang-math.hpp>
 #include <vector>
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/presentation/ImageCapture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/ToneMapping.hpp"
 

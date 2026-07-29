@@ -2,6 +2,7 @@
 #define HARMONIA_SCENE_MATERIAL_HPP
 
 #include <algorithm>
+#include <cstdint>
 #include <slang-math/slang-math.hpp>
 
 #include "harmonia/GpuTypes.hpp"

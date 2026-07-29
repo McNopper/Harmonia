@@ -2,6 +2,7 @@
 #define HARMONIA_RENDERER_CAMERA_HPP
 
 #include <cmath>
+#include <cstdint>
 #include <slang-math/slang-math.hpp>
 #include <utility>
 

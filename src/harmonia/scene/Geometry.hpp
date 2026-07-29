@@ -3,6 +3,7 @@
 
 #include <volk/volk.h>
 
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <slang-math/slang-math.hpp>

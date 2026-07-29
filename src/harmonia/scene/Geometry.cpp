@@ -5,12 +5,14 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <slang-math/slang-math.hpp>
 #include <span>
 #include <string>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
+#include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
 namespace {

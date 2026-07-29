@@ -3,10 +3,13 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include <array>
+#include <cstdint>
 #include <string_view>
 #include <utility>
 #include <vector>
 #include <vma/vk_mem_alloc.h>
+
+#include "harmonia/vulkan_init/Context.hpp"
 
 namespace {
 [[nodiscard]] bool validationEnabled(bool requested) noexcept {

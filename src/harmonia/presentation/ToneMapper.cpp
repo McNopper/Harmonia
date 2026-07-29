@@ -1,11 +1,13 @@
 #include "harmonia/presentation/ToneMapper.hpp"
 
 #include <array>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/ShaderModule.hpp"
+#include "harmonia/presentation/ToneMapper.hpp"
 
 using harmonia::createShaderModule;
 

@@ -1,6 +1,9 @@
 #include "harmonia/scene/SceneBase.hpp"
 
+#include <cstdint>
 #include <utility>
+
+#include "harmonia/scene/SceneBase.hpp"
 
 namespace harmonia {
 

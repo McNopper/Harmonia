@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <bit>
 #include <charconv>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <limits>
@@ -11,6 +12,7 @@
 #include <string_view>
 #include <utility>
 
+#include "harmonia/app/App.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/pipeline/AccumulationPass.hpp"

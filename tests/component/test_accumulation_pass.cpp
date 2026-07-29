@@ -3,6 +3,7 @@
 #include <volk/volk.h>
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <slang-math/slang-math.hpp>

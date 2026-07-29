@@ -1,6 +1,7 @@
 #ifndef HARMONIA_SCENE_MATERIALLIBRARY_HPP
 #define HARMONIA_SCENE_MATERIALLIBRARY_HPP
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>

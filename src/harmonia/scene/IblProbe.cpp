@@ -3,10 +3,12 @@
 #include <OpenImageIO/imageio.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <utility>
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/scene/IblProbe.hpp"
 
 IblProbe::IblProbe(IblProbe&& other) noexcept
     : m_image(std::move(other.m_image)),

@@ -2,7 +2,10 @@
 
 #include <bit>
 #include <cmath>
+#include <cstdint>
 #include <numbers>
+
+#include "harmonia/scene/Light.hpp"
 
 namespace {
 
