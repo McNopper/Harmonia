@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_PRESENTATION_TONEMAPPER_HPP
+#define HARMONIA_PRESENTATION_TONEMAPPER_HPP
 
 #include <volk/volk.h>
 
@@ -62,3 +63,4 @@ class ToneMapper {
     VkDescriptorSetLayout m_setLayout{}; ///< Push descriptor set layout (must outlive all CBs using it).
     VkFormat m_attachmentFormat{VK_FORMAT_UNDEFINED};
 };
+#endif // HARMONIA_PRESENTATION_TONEMAPPER_HPP

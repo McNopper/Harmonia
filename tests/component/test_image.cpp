@@ -7,10 +7,9 @@
 
 #include <volk/volk.h>
 
-#include <slang-math/slang-math.hpp>
-
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <slang-math/slang-math.hpp>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"

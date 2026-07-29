@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_VULKAN_INIT_PHYSICALDEVICE_HPP
+#define HARMONIA_VULKAN_INIT_PHYSICALDEVICE_HPP
 
 #include <volk/volk.h>
 
@@ -26,3 +27,4 @@ class PhysicalDevice {
     [[nodiscard]] static bool hasRayTracingMaintenance1Support(VkPhysicalDevice device);
     [[nodiscard]] static bool hasDgcSupport(VkPhysicalDevice device);
 };
+#endif // HARMONIA_VULKAN_INIT_PHYSICALDEVICE_HPP

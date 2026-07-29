@@ -1,11 +1,12 @@
-#pragma once
+#ifndef HARMONIA_PIPELINE_PASSCONTEXT_HPP
+#define HARMONIA_PIPELINE_PASSCONTEXT_HPP
 
 #include <volk/volk.h>
 
 #include <cstdint>
 
-#include "harmonia/utils/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 
 class Image; // forward — avoids pulling in the full header
 
@@ -18,8 +19,8 @@ struct PassContext {
     uint32_t rngSeed = 0x12345678U;
     bool deterministicReplay = false;
     VkExtent2D extent = {};
-    bool fixedView = false;                 ///< true for deterministic offscreen accumulation mode
-    uint64_t accumulationResetToken = 0U;   ///< explicit reset key for progressive accumulation history
+    bool fixedView = false;               ///< true for deterministic offscreen accumulation mode
+    uint64_t accumulationResetToken = 0U; ///< explicit reset key for progressive accumulation history
     /// Separate reset key for temporal denoiser history. Changes only on scene/resize/config
     /// changes — NOT on camera movement. This allows the A-SVGF denoiser to reproject its
     /// temporal history across camera motion via motion vectors (SVGF/A-SVGF design intent),
@@ -50,3 +51,4 @@ struct PassContext {
     uint32_t tonemapper = 0;
     ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
 };
+#endif // HARMONIA_PIPELINE_PASSCONTEXT_HPP

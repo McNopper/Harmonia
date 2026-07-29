@@ -22,13 +22,13 @@ struct alignas(16) DenoiserPushConstants {
     uint32_t historyFirstUse = 1U;
     uint32_t iterations = 1U;
     uint32_t passIndex = 0U;
-    uint32_t hasMotionVectors = 0U;  ///< 1 when ctx.motionVectorView is populated
+    uint32_t hasMotionVectors = 0U; ///< 1 when ctx.motionVectorView is populated
     // ── A-SVGF (A2) ───────────────────────────────────────────────────────────
-    uint32_t computeGradient = 0U;      ///< temporal pass computes gradient + variance
-    uint32_t gradientFilterMode = 0U;   ///< 1 = this dispatch is the gradient à-trous blur pass
-    uint32_t gradientFilterPass = 0U;   ///< gradient à-trous pass index (tap spacing)
-    uint32_t hasGradientVariance = 0U;  ///< gGradientVariance holds valid gradient/variance
-    float gradientAlpha = 0.2F;         ///< temporal blend factor for the gradient
+    uint32_t computeGradient = 0U;     ///< temporal pass computes gradient + variance
+    uint32_t gradientFilterMode = 0U;  ///< 1 = this dispatch is the gradient à-trous blur pass
+    uint32_t gradientFilterPass = 0U;  ///< gradient à-trous pass index (tap spacing)
+    uint32_t hasGradientVariance = 0U; ///< gGradientVariance holds valid gradient/variance
+    float gradientAlpha = 0.2F;        ///< temporal blend factor for the gradient
 };
 
 [[nodiscard]] float clamp01(float value) noexcept {
@@ -42,9 +42,9 @@ struct alignas(16) DenoiserPushConstants {
 } // namespace
 
 std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const DeviceContext& ctx,
-                                                                          VkExtent2D extent,
-                                                                          const std::filesystem::path& computeSpvPath,
-                                                                          const Settings& settings) {
+                                                                         VkExtent2D extent,
+                                                                         const std::filesystem::path& computeSpvPath,
+                                                                         const Settings& settings) {
     if (!ctx.isValid() || extent.width == 0U || extent.height == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -144,7 +144,8 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         .pushConstantRangeCount = 1U,
         .pPushConstantRanges = &pushRange,
     };
-    if (const VkResult result = vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pass.m_pipelineLayout);
+    if (const VkResult result =
+            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pass.m_pipelineLayout);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
@@ -214,8 +215,10 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
                      reinterpret_cast<uint64_t>(pass.m_pipelineLayout),
                      "harmonia.denoiser.pipelineLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(pass.m_pipeline), "harmonia.denoiser.pipeline");
-    ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<uint64_t>(pass.m_guideSampler), "harmonia.denoiser.sampler");
+    ctx.setDebugName(
+        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(pass.m_pipeline), "harmonia.denoiser.pipeline");
+    ctx.setDebugName(
+        VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<uint64_t>(pass.m_guideSampler), "harmonia.denoiser.sampler");
     return pass;
 }
 
@@ -309,7 +312,8 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
         imageBarrier(ctx.denoised->handle(),
@@ -399,10 +403,8 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     const uint32_t groupsX = (ctx.extent.width + (kGroupSize - 1U)) / kGroupSize;
     const uint32_t groupsY = (ctx.extent.height + (kGroupSize - 1U)) / kGroupSize;
 
-    const VkImageView normalCandidate =
-        ctx.gNormalView != VK_NULL_HANDLE ? ctx.gNormalView : ctx.transparentNormalView;
-    const VkImageView depthCandidate =
-        ctx.gDepthView != VK_NULL_HANDLE ? ctx.gDepthView : ctx.transparentDepthView;
+    const VkImageView normalCandidate = ctx.gNormalView != VK_NULL_HANDLE ? ctx.gNormalView : ctx.transparentNormalView;
+    const VkImageView depthCandidate = ctx.gDepthView != VK_NULL_HANDLE ? ctx.gDepthView : ctx.transparentDepthView;
     const bool hasNormalGuide = normalCandidate != VK_NULL_HANDLE;
     const bool hasDepthGuide = depthCandidate != VK_NULL_HANDLE;
     const VkImageView fallbackGuideView = ctx.hdrBuffer->view();
@@ -567,11 +569,11 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
             .historyFirstUse = m_historyFirstUse ? 1U : 0U,
             .iterations = iterations,
             .passIndex = passIndex,
-            .hasMotionVectors = 0U,  // spatial passes never read motion vectors
-            .computeGradient = 0U,   // gradient is computed in the temporal pass only
+            .hasMotionVectors = 0U, // spatial passes never read motion vectors
+            .computeGradient = 0U,  // gradient is computed in the temporal pass only
             .gradientFilterMode = 0U,
             .gradientFilterPass = 0U,
-            .hasGradientVariance = hasGradientVariance ? 1U : 0U,  // variance-guided luma edge stopping
+            .hasGradientVariance = hasGradientVariance ? 1U : 0U, // variance-guided luma edge stopping
             .gradientAlpha = m_settings.gradientAlpha,
         };
         vkCmdPushDescriptorSet(ctx.cmd,
@@ -798,10 +800,10 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
             .iterations = iterations,
             .passIndex = iterations,
             .hasMotionVectors = hasMotionVectors ? 1U : 0U,
-            .computeGradient = useGradient ? 1U : 0U,  // temporal pass writes gradient + variance
+            .computeGradient = useGradient ? 1U : 0U, // temporal pass writes gradient + variance
             .gradientFilterMode = 0U,
             .gradientFilterPass = 0U,
-            .hasGradientVariance = 0U,  // temporal pass writes, does not read, the variance
+            .hasGradientVariance = 0U, // temporal pass writes, does not read, the variance
             .gradientAlpha = m_settings.gradientAlpha,
         };
         vkCmdPushDescriptorSet(ctx.cmd,
@@ -824,7 +826,7 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     // the gradient to zero, so the blur is skipped and only the carry copy runs.
     if (useGradient && applyHistory) {
         if (!m_historyFirstUse) {
-            constexpr uint32_t kGradientFilterPasses = 2U;  // even → final result lands in m_gradientImage
+            constexpr uint32_t kGradientFilterPasses = 2U; // even → final result lands in m_gradientImage
             for (uint32_t gp = 0U; gp < kGradientFilterPasses; ++gp) {
                 const bool srcIsGradient = (gp % 2U) == 0U;
                 const VkImageView gradSrcView = srcIsGradient ? m_gradientImage.view() : m_prevGradientImage.view();
@@ -904,7 +906,8 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                                        0U,
                                        static_cast<uint32_t>(gradWrites.size()),
                                        gradWrites.data());
-                vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0U, sizeof(gradPush), &gradPush);
+                vkCmdPushConstants(
+                    ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0U, sizeof(gradPush), &gradPush);
                 vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1U);
             }
         }
@@ -969,16 +972,16 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
         imageBarrier(ctx.denoised->handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
         imageBarrier(m_workImage.handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
@@ -1025,16 +1028,18 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
                                  VK_IMAGE_ASPECT_COLOR_BIT,
                                  "harmonia.denoiser.history");
     if (!history) {
-        Logger::error("SceneDenoiserPass history image creation failed: VkResult {}", static_cast<int>(history.error()));
+        Logger::error("SceneDenoiserPass history image creation failed: VkResult {}",
+                      static_cast<int>(history.error()));
         return false;
     }
 
-    auto work = Image::create(*m_ctx,
-                              extent,
-                              VK_FORMAT_R32G32B32A32_SFLOAT,
-                              VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                              VK_IMAGE_ASPECT_COLOR_BIT,
-                              "harmonia.denoiser.work");
+    auto work =
+        Image::create(*m_ctx,
+                      extent,
+                      VK_FORMAT_R32G32B32A32_SFLOAT,
+                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                      VK_IMAGE_ASPECT_COLOR_BIT,
+                      "harmonia.denoiser.work");
     if (!work) {
         Logger::error("SceneDenoiserPass work image creation failed: VkResult {}", static_cast<int>(work.error()));
         return false;
@@ -1050,7 +1055,8 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
                                  VK_IMAGE_ASPECT_COLOR_BIT,
                                  "harmonia.denoiser.dummyMotionVec");
     if (!dummyMv) {
-        Logger::error("SceneDenoiserPass dummy motion vector image creation failed: VkResult {}", static_cast<int>(dummyMv.error()));
+        Logger::error("SceneDenoiserPass dummy motion vector image creation failed: VkResult {}",
+                      static_cast<int>(dummyMv.error()));
         return false;
     }
 
@@ -1070,17 +1076,20 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                   "harmonia.denoiser.gradient");
         if (!grad) {
-            Logger::error("SceneDenoiserPass gradient image creation failed: VkResult {}", static_cast<int>(grad.error()));
+            Logger::error("SceneDenoiserPass gradient image creation failed: VkResult {}",
+                          static_cast<int>(grad.error()));
             return false;
         }
         auto prevGrad = Image::create(*m_ctx,
                                       extent,
                                       VK_FORMAT_R32G32_SFLOAT,
-                                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                       VK_IMAGE_ASPECT_COLOR_BIT,
                                       "harmonia.denoiser.prevGradient");
         if (!prevGrad) {
-            Logger::error("SceneDenoiserPass prev-gradient image creation failed: VkResult {}", static_cast<int>(prevGrad.error()));
+            Logger::error("SceneDenoiserPass prev-gradient image creation failed: VkResult {}",
+                          static_cast<int>(prevGrad.error()));
             return false;
         }
         gradient = std::move(*grad);
@@ -1096,7 +1105,8 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
                                    VK_IMAGE_ASPECT_COLOR_BIT,
                                    "harmonia.denoiser.dummyGradient");
     if (!dummyGrad) {
-        Logger::error("SceneDenoiserPass dummy gradient image creation failed: VkResult {}", static_cast<int>(dummyGrad.error()));
+        Logger::error("SceneDenoiserPass dummy gradient image creation failed: VkResult {}",
+                      static_cast<int>(dummyGrad.error()));
         return false;
     }
 

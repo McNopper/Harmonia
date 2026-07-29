@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_SCENE_MATERIALLIBRARY_HPP
+#define HARMONIA_SCENE_MATERIALLIBRARY_HPP
 
 #include <filesystem>
 #include <optional>
@@ -69,3 +70,4 @@ class MaterialLibrary {
     std::unordered_map<std::string, Material> m_materials;
     std::unordered_map<std::string, MaterialTextureRefs> m_textureRefs;
 };
+#endif // HARMONIA_SCENE_MATERIALLIBRARY_HPP

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_VULKAN_INIT_DEBUGUTILS_HPP
+#define HARMONIA_VULKAN_INIT_DEBUGUTILS_HPP
 
 #include <volk/volk.h>
 
@@ -26,3 +27,4 @@ class DebugUtils {
     VkInstance m_instance{};
     VkDebugUtilsMessengerEXT m_messenger{};
 };
+#endif // HARMONIA_VULKAN_INIT_DEBUGUTILS_HPP

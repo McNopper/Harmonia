@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_RENDERER_DESCRIPTORS_HPP
+#define HARMONIA_RENDERER_DESCRIPTORS_HPP
 
 #include <volk/volk.h>
 
@@ -54,3 +55,4 @@ class Descriptors {
     VkDescriptorSet m_set1{VK_NULL_HANDLE};
     VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
 };
+#endif // HARMONIA_RENDERER_DESCRIPTORS_HPP

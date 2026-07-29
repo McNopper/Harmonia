@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_TIMER_HPP
+#define HARMONIA_CORE_TIMER_HPP
 
 #include <chrono>
 #include <string>
@@ -32,3 +33,4 @@ class ScopedTimer {
     std::string m_label;
     Timer m_timer;
 };
+#endif // HARMONIA_CORE_TIMER_HPP

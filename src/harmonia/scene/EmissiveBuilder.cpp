@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-
 #include <slang-math/slang-math.hpp>
 
 #include "harmonia/scene/Geometry.hpp"
@@ -12,9 +11,9 @@
 namespace harmonia {
 
 EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& meshes,
-                                const std::vector<InstanceRecord>&            instances,
-                                const std::vector<Material>&                  materials,
-                                const std::vector<GpuMaterial>&               gpuMaterials) {
+                               const std::vector<InstanceRecord>& instances,
+                               const std::vector<Material>& materials,
+                               const std::vector<GpuMaterial>& gpuMaterials) {
     EmissiveData result;
 
     for (const InstanceRecord& inst : instances) {
@@ -32,7 +31,7 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
         if (mesh == nullptr) {
             continue; // spheres not supported for NEE yet
         }
-        const auto& verts  = mesh->data().vertices;
+        const auto& verts = mesh->data().vertices;
         const auto& idxBuf = mesh->data().indices;
         if (verts.empty() || idxBuf.empty()) {
             continue;
@@ -40,8 +39,8 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
 
         // The mesh lives in object space; the instance transform places it.
         const sm::float4x4 xformMat = inst.xform.matrix();
-        const sm::float3 emission   = static_cast<sm::float3>(gpuMat.emissionColorLum) *
-                                      gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
+        const sm::float3 emission = static_cast<sm::float3>(gpuMat.emissionColorLum) *
+                                    gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
 
         const uint32_t triCount = static_cast<uint32_t>(idxBuf.size() / 3);
         for (uint32_t t = 0; t < triCount; ++t) {
@@ -56,7 +55,7 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
             const sm::float3 edge1 = wv1 - wv0;
             const sm::float3 edge2 = wv2 - wv0;
             const sm::float3 cross = sm::cross(edge1, edge2);
-            const float area       = 0.5F * sm::length(cross);
+            const float area = 0.5F * sm::length(cross);
 
             if (area <= 1.0e-6F) {
                 continue; // skip degenerate triangles
@@ -64,10 +63,10 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
             const sm::float3 normal = cross / (2.0F * area); // normalize: cross/|cross|
 
             result.triangles.push_back(GpuEmissiveTriangle{
-                .v0_area        = sm::float4(wv0,    area),
-                .edge1_emitR    = sm::float4(edge1,  emission.r),
-                .edge2_emitG    = sm::float4(edge2,  emission.g),
-                .normal_emitB   = sm::float4(normal, emission.b),
+                .v0_area = sm::float4(wv0, area),
+                .edge1_emitR = sm::float4(edge1, emission.r),
+                .edge2_emitG = sm::float4(edge2, emission.g),
+                .normal_emitB = sm::float4(normal, emission.b),
             });
             // Power for power-proportional NEE selection: area × luminance(Le) (Rec.2020).
             const float lumLe = 0.2627F * emission.r + 0.6780F * emission.g + 0.0593F * emission.b;

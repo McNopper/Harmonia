@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_SCENE_TEXTURE_HPP
+#define HARMONIA_SCENE_TEXTURE_HPP
 
 #include <volk/volk.h>
 
@@ -85,3 +86,4 @@ class Texture {
     uint32_t m_height{};
     uint32_t m_mipLevels{1};
 };
+#endif // HARMONIA_SCENE_TEXTURE_HPP

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_SCENE_EMISSIVEBUILDER_HPP
+#define HARMONIA_SCENE_EMISSIVEBUILDER_HPP
 
 #include <cstdint>
 #include <memory>
@@ -34,11 +35,10 @@ struct EmissiveData {
 /// @param instances   Instance placements (mesh index + transform + material).
 /// @param materials   Host material list for emissive-as-light-source checks.
 /// @param gpuMaterials GPU material list for emission colour/luminance lookup.
-[[nodiscard]] EmissiveData buildEmissiveData(
-    const std::vector<std::unique_ptr<Geometry>>& meshes,
-    const std::vector<InstanceRecord>&            instances,
-    const std::vector<Material>&                  materials,
-    const std::vector<GpuMaterial>&               gpuMaterials);
+[[nodiscard]] EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& meshes,
+                                             const std::vector<InstanceRecord>& instances,
+                                             const std::vector<Material>& materials,
+                                             const std::vector<GpuMaterial>& gpuMaterials);
 
 /// Build a power-proportional selection CDF for emissive-triangle NEE:
 /// cdf[i] = (Σ_{j≤i} power_j) / totalPower, so cdf[N-1] == 1. Falls back to a uniform
@@ -48,3 +48,4 @@ struct EmissiveData {
 [[nodiscard]] std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower);
 
 } // namespace harmonia
+#endif // HARMONIA_SCENE_EMISSIVEBUILDER_HPP

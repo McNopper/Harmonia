@@ -47,17 +47,17 @@ namespace {
     return vkCreateSemaphore(device, &info, nullptr, &semaphore);
 }
 
-    [[nodiscard]] bool parseFloat(std::string_view text, float& value) noexcept {
-        if (text.empty()) {
-            return false;
-        }
-        char* end = nullptr;
-        const std::string owned(text);
-        const float parsed = std::strtof(owned.c_str(), &end);
-        if (end != owned.c_str() + owned.size()) {
-            return false;
-        }
-        value = parsed;
+[[nodiscard]] bool parseFloat(std::string_view text, float& value) noexcept {
+    if (text.empty()) {
+        return false;
+    }
+    char* end = nullptr;
+    const std::string owned(text);
+    const float parsed = std::strtof(owned.c_str(), &end);
+    if (end != owned.c_str() + owned.size()) {
+        return false;
+    }
+    value = parsed;
     return true;
 }
 
@@ -92,8 +92,13 @@ class ToneMapStagePass final : public IRenderPass {
         if (input == nullptr) {
             return;
         }
-        m_toneMapper->record(
-            ctx.cmd, input->view(), ctx.swapchainView, ctx.extent, ctx.colorSpace, ctx.tonemapper, ctx.workingColorSpace);
+        m_toneMapper->record(ctx.cmd,
+                             input->view(),
+                             ctx.swapchainView,
+                             ctx.extent,
+                             ctx.colorSpace,
+                             ctx.tonemapper,
+                             ctx.workingColorSpace);
     }
 
     void onResize(VkExtent2D extent) noexcept override { m_extent = extent; }
@@ -417,14 +422,14 @@ bool App::bootstrap() {
 bool App::createHdrImage() {
     // Usage covers both renderer families: storage writes (ray/compute) and
     // color-attachment + sampled reads (raster), plus read-back for capture.
-    auto hdrImage = Image::create(m_context.deviceContext(),
-                                  m_swapchain.extent(),
-                                  VK_FORMAT_R32G32B32A32_SFLOAT,
-                                  VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
-                                      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                  VK_IMAGE_ASPECT_COLOR_BIT,
-                                  "harmonia.hdr");
+    auto hdrImage =
+        Image::create(m_context.deviceContext(),
+                      m_swapchain.extent(),
+                      VK_FORMAT_R32G32B32A32_SFLOAT,
+                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                      VK_IMAGE_ASPECT_COLOR_BIT,
+                      "harmonia.hdr");
     if (!hdrImage) {
         Logger::error("HDR image creation failed: VkResult {}", static_cast<int>(hdrImage.error()));
         return false;
@@ -440,13 +445,13 @@ bool App::createDenoisedImage() {
     }
 
     // Scene-output buffer for the shared denoiser stage.
-    auto denoisedImage = Image::create(m_context.deviceContext(),
-                                       m_swapchain.extent(),
-                                       VK_FORMAT_R32G32B32A32_SFLOAT,
-                                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                       VK_IMAGE_ASPECT_COLOR_BIT,
-                                       "harmonia.denoised");
+    auto denoisedImage =
+        Image::create(m_context.deviceContext(),
+                      m_swapchain.extent(),
+                      VK_FORMAT_R32G32B32A32_SFLOAT,
+                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                      VK_IMAGE_ASPECT_COLOR_BIT,
+                      "harmonia.denoised");
     if (!denoisedImage) {
         Logger::warn("Denoised image creation failed: VkResult {} — disabling denoiser stage",
                      static_cast<int>(denoisedImage.error()));
@@ -620,7 +625,6 @@ uint64_t App::denoiserResetToken() const noexcept {
     return token;
 }
 
-
 std::filesystem::path App::resolveScenePath(const std::filesystem::path& sceneFile) const {
     // Absolute/existing path is used as-is; otherwise the bare name (with an
     // optional ".scene.toml" extension) is looked up in the assets directory —
@@ -662,7 +666,8 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
                  m_config.stages.accumulation,
                  m_config.stages.denoiser,
                  m_config.stages.tonemapper);
-    Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}, gradient={}, gradient_alpha={:.3f}",
+    Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}, gradient={}, "
+                 "gradient_alpha={:.3f}",
                  m_config.denoiser.strength,
                  m_config.denoiser.iterations,
                  m_config.denoiser.useHistory,
@@ -937,7 +942,8 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
             .baseArrayLayer = 0,
             .layerCount = 1,
         };
-        vkCmdClearColorImage(frame.displayCmd, m_swapchain.image(imageIndex), VK_IMAGE_LAYOUT_GENERAL, &clear, 1, &range);
+        vkCmdClearColorImage(
+            frame.displayCmd, m_swapchain.image(imageIndex), VK_IMAGE_LAYOUT_GENERAL, &clear, 1, &range);
         swapchainInGeneral = true;
     }
 
@@ -948,12 +954,12 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
         }
         const std::array displayPreBarriers{
             imageBarrier(m_swapchain.image(imageIndex),
-                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                        VK_IMAGE_LAYOUT_GENERAL,
-                        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                        VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                        VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
         pipelineBarrier(frame.displayCmd, displayPreBarriers);
         swapchainInGeneral = true;
@@ -972,7 +978,8 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
         imageBarrier(m_swapchain.image(imageIndex),
                      swapchainInGeneral ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                     swapchainInGeneral ? VK_PIPELINE_STAGE_2_TRANSFER_BIT : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                     swapchainInGeneral ? VK_PIPELINE_STAGE_2_TRANSFER_BIT
+                                        : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                      swapchainInGeneral ? VK_ACCESS_2_TRANSFER_WRITE_BIT : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_NONE,
                      0),
@@ -1226,7 +1233,8 @@ bool App::tonemapToCaptureImage() {
 
 bool App::saveExr(const std::filesystem::path& path) {
     vkDeviceWaitIdle(m_context.deviceContext().device);
-    return ImageCapture::saveExr(m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
+    return ImageCapture::saveExr(
+        m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
 }
 
 void App::handleResize(uint32_t w, uint32_t h) {

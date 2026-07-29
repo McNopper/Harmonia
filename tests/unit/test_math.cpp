@@ -1,5 +1,3 @@
-#include <slang-math/slang-math.hpp>
-
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -8,6 +6,7 @@
 #include <limits>
 #include <numbers>
 #include <random>
+#include <slang-math/slang-math.hpp>
 #include <unordered_set>
 #include <vector>
 
@@ -30,7 +29,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
     const sm::float3 up = std::abs(n.z) < 0.999F ? sm::float3(0.0F, 0.0F, 1.0F) : sm::float3(0.0F, 1.0F, 0.0F);
     const sm::float3 t = sm::normalize(sm::cross(up, n));
     const sm::float3 b = sm::cross(n, t);
-    return sm::float3x3(t, b, n);  // rows: t=row0, b=row1, n=row2
+    return sm::float3x3(t, b, n); // rows: t=row0, b=row1, n=row2
 }
 
 [[nodiscard]] sm::float3 fresnelSchlick(sm::float3 f0, float cosTheta) noexcept {
@@ -40,21 +39,24 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
 }
 
 [[nodiscard]] float ggxD(float nDotH, float alpha) noexcept {
-    if (nDotH <= 0.0F) return 0.0F;
+    if (nDotH <= 0.0F)
+        return 0.0F;
     const float alpha2 = alpha * alpha;
     const float denom = (nDotH * nDotH) * (alpha2 - 1.0F) + 1.0F;
     return alpha2 / (Math::kPi * denom * denom);
 }
 
 [[nodiscard]] float smithLambdaGgx(float nDotV, float alpha) noexcept {
-    if (nDotV <= 0.0F) return std::numeric_limits<float>::infinity();
+    if (nDotV <= 0.0F)
+        return std::numeric_limits<float>::infinity();
     const float cos2 = nDotV * nDotV;
     const float tan2 = (1.0F - cos2) / cos2;
     return 0.5F * (-1.0F + std::sqrt(1.0F + (alpha * alpha * tan2)));
 }
 
 [[nodiscard]] float smithG1(float nDotV, float alpha) noexcept {
-    if (nDotV <= 0.0F) return 0.0F;
+    if (nDotV <= 0.0F)
+        return 0.0F;
     return 1.0F / (1.0F + smithLambdaGgx(nDotV, alpha));
 }
 
@@ -67,7 +69,8 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
 [[nodiscard]] sm::float3 sampleGgxVndf(sm::float3 v, float alpha, sm::float2 u) noexcept {
     const sm::float3 vh = sm::normalize(sm::float3(alpha * v.x, alpha * v.y, v.z));
     const float lensq = (vh.x * vh.x) + (vh.y * vh.y);
-    const sm::float3 t1 = lensq > 0.0F ? sm::float3(-vh.y, vh.x, 0.0F) / std::sqrt(lensq) : sm::float3(1.0F, 0.0F, 0.0F);
+    const sm::float3 t1 =
+        lensq > 0.0F ? sm::float3(-vh.y, vh.x, 0.0F) / std::sqrt(lensq) : sm::float3(1.0F, 0.0F, 0.0F);
     const sm::float3 t2 = sm::cross(vh, t1);
 
     const float r = std::sqrt(u.x);
@@ -86,7 +89,8 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
     const float nDotV = std::max(v.z, 0.0F);
     const float nDotM = std::max(m.z, 0.0F);
     const float vDotM = std::max(sm::dot(v, m), 0.0F);
-    if (nDotV <= 0.0F || nDotM <= 0.0F || vDotM <= 0.0F) return 0.0F;
+    if (nDotV <= 0.0F || nDotM <= 0.0F || vDotM <= 0.0F)
+        return 0.0F;
     return ggxD(nDotM, alpha) * smithG1(nDotV, alpha) * vDotM / nDotV;
 }
 
@@ -115,9 +119,9 @@ TEST(Math, BuildTbnIsOrthonormalAndStable) {
 
     for (const sm::float3 n : normals) {
         const sm::float3x3 tbn = buildTbn(n);
-        const sm::float3 t = tbn[0];  // row 0 = tangent
-        const sm::float3 b = tbn[1];  // row 1 = bitangent
-        const sm::float3 z = tbn[2];  // row 2 = normal
+        const sm::float3 t = tbn[0]; // row 0 = tangent
+        const sm::float3 b = tbn[1]; // row 1 = bitangent
+        const sm::float3 z = tbn[2]; // row 2 = normal
 
         EXPECT_NEAR(sm::length(t), 1.0F, kEpsilon);
         EXPECT_NEAR(sm::length(b), 1.0F, kEpsilon);

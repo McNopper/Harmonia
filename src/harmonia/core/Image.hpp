@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_IMAGE_HPP
+#define HARMONIA_CORE_IMAGE_HPP
 
 #include <expected>
 #include <string_view>
@@ -52,3 +53,4 @@ class Image {
     VkImageAspectFlags m_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     uint32_t m_mipLevels = 1U;
 };
+#endif // HARMONIA_CORE_IMAGE_HPP

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_APP_APP_HPP
+#define HARMONIA_APP_APP_HPP
 
 #include <volk/volk.h>
 
@@ -14,8 +15,8 @@
 #include <string_view>
 #include <vector>
 
-#include "harmonia/app/IRenderer.hpp"
 #include "harmonia/app/GreenScreenRenderer.hpp"
+#include "harmonia/app/IRenderer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
@@ -181,7 +182,9 @@ class App {
     /// Number of frames to record for an offscreen capture (--output) before
     /// the image is saved (samples for an accumulating path tracer, warmup
     /// frames for a real-time renderer).
-    [[nodiscard]] virtual uint32_t offscreenFrameCount() const noexcept { return std::max(m_config.offscreenFrames, 1U); }
+    [[nodiscard]] virtual uint32_t offscreenFrameCount() const noexcept {
+        return std::max(m_config.offscreenFrames, 1U);
+    }
 
     // ── Services for subclasses ─────────────────────────────────────────────
 
@@ -310,3 +313,4 @@ class App {
 };
 
 } // namespace harmonia
+#endif // HARMONIA_APP_APP_HPP

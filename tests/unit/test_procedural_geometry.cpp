@@ -1,10 +1,9 @@
-#include <slang-math/slang-math.hpp>
-
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/scene/ProceduralGeometry.hpp"
 #include "harmonia/utils/Math.hpp"
@@ -89,4 +88,3 @@ TEST(ProceduralGeometry, MakeSphereAabbWithOffsetMatchesExpectedBounds) {
     EXPECT_NEAR(aabb.max.y, 2.5F, kEpsilon);
     EXPECT_NEAR(aabb.max.z, 3.5F, kEpsilon);
 }
-

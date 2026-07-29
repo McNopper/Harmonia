@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_BARRIER_HPP
+#define HARMONIA_CORE_BARRIER_HPP
 
 #include <volk/volk.h>
 
@@ -54,3 +55,4 @@ inline void pipelineBarrier(VkCommandBuffer cmd, std::span<const VkImageMemoryBa
 }
 
 } // namespace harmonia
+#endif // HARMONIA_CORE_BARRIER_HPP

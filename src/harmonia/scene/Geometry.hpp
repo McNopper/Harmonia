@@ -1,11 +1,11 @@
-#pragma once
+#ifndef HARMONIA_SCENE_GEOMETRY_HPP
+#define HARMONIA_SCENE_GEOMETRY_HPP
 
 #include <volk/volk.h>
 
-#include <slang-math/slang-math.hpp>
-
 #include <expected>
 #include <memory>
+#include <slang-math/slang-math.hpp>
 #include <string>
 #include <string_view>
 
@@ -61,10 +61,8 @@ class Geometry {
 
 class TriangleMesh final : public Geometry {
   public:
-    [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult> create(const DeviceContext& ctx,
-                                                                                       const CommandPool& pool,
-                                                                                       MeshData&& data,
-                                                                                       std::string_view debugName = "");
+    [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult>
+    create(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
@@ -87,10 +85,8 @@ class Sphere final : public Geometry {
   public:
     /// Analytic sphere of @p radius centred at the object-space origin. Placement
     /// is the instance transform's job (translation/scale via the TLAS).
-    [[nodiscard]] static std::expected<std::unique_ptr<Sphere>, VkResult> create(const DeviceContext& ctx,
-                                                                                 const CommandPool& pool,
-                                                                                 float radius,
-                                                                                 std::string_view debugName = "");
+    [[nodiscard]] static std::expected<std::unique_ptr<Sphere>, VkResult>
+    create(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
@@ -104,3 +100,4 @@ class Sphere final : public Geometry {
     AccelerationStructure m_accelerationStructure{};
     std::string m_debugName{};
 };
+#endif // HARMONIA_SCENE_GEOMETRY_HPP

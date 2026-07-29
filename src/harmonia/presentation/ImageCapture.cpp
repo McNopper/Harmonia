@@ -1,9 +1,8 @@
 #include "harmonia/presentation/ImageCapture.hpp"
 
-#include <slang-math/slang-math.hpp>
-
 #include <OpenImageIO/imageio.h>
 #include <cmath>
+#include <slang-math/slang-math.hpp>
 #include <vector>
 
 #include "harmonia/core/Buffer.hpp"

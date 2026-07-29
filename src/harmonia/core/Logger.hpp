@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_LOGGER_HPP
+#define HARMONIA_CORE_LOGGER_HPP
 
 #include <format>
 #include <string>
@@ -33,3 +34,4 @@ class Logger {
 
     static void log(Level level, std::string message);
 };
+#endif // HARMONIA_CORE_LOGGER_HPP

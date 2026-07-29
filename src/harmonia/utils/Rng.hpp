@@ -1,8 +1,8 @@
-#pragma once
-
-#include <slang-math/slang-math.hpp>
+#ifndef HARMONIA_UTILS_RNG_HPP
+#define HARMONIA_UTILS_RNG_HPP
 
 #include <cstdint>
+#include <slang-math/slang-math.hpp>
 
 namespace Rng {
 
@@ -19,10 +19,8 @@ namespace Rng {
     return wangHash(seed ^ (value + 0x9e3779b9U + (seed << 6U) + (seed >> 2U)));
 }
 
-[[nodiscard]] inline uint32_t composeSeed(sm::uint2 pixel,
-                                          uint32_t frameSampleIndex,
-                                          uint32_t bounceIndex,
-                                          uint32_t baseSeed) noexcept {
+[[nodiscard]] inline uint32_t
+composeSeed(sm::uint2 pixel, uint32_t frameSampleIndex, uint32_t bounceIndex, uint32_t baseSeed) noexcept {
     uint32_t seed = wangHash(baseSeed);
     seed = hashCombine(seed, pixel.x);
     seed = hashCombine(seed, pixel.y);
@@ -41,3 +39,4 @@ namespace Rng {
 }
 
 } // namespace Rng
+#endif // HARMONIA_UTILS_RNG_HPP

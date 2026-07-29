@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_DEVICECONTEXT_HPP
+#define HARMONIA_DEVICECONTEXT_HPP
 
 #include <volk/volk.h>
 
@@ -44,3 +45,4 @@ struct DeviceContext {
         static_cast<void>(vkSetDebugUtilsObjectNameEXT(device, &info));
     }
 };
+#endif // HARMONIA_DEVICECONTEXT_HPP

@@ -77,8 +77,7 @@ namespace {
     functions.vkGetDeviceImageMemoryRequirements = vkGetDeviceImageMemoryRequirements;
 
     const VmaAllocatorCreateInfo createInfo{
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT
-               | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT,
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT,
         .physicalDevice = ctx.physicalDevice,
         .device = ctx.device,
         .preferredLargeHeapBlockSize = 0,
@@ -134,9 +133,8 @@ namespace {
     supportedFeatures.pNext = &features11Supported;
     vkGetPhysicalDeviceFeatures2(info.device, &supportedFeatures);
 
-    const bool indirectRt2Supported =
-        rtMaintenance1FeaturesSupported.rayTracingMaintenance1 == VK_TRUE &&
-        rtMaintenance1FeaturesSupported.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
+    const bool indirectRt2Supported = rtMaintenance1FeaturesSupported.rayTracingMaintenance1 == VK_TRUE &&
+                                      rtMaintenance1FeaturesSupported.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
     const bool dgcSupported = info.dgcSupported && dgcFeaturesSupported.deviceGeneratedCommands == VK_TRUE;
 
     if (features12Supported.bufferDeviceAddress != VK_TRUE || features12Supported.descriptorIndexing != VK_TRUE ||
@@ -312,7 +310,7 @@ namespace {
     }
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = dgcSupported     ? static_cast<const void*>(&dgcFeatures)
+        .pNext = dgcSupported          ? static_cast<const void*>(&dgcFeatures)
                  : meshShaderSupported ? static_cast<const void*>(&meshFeatures)
                                        : static_cast<const void*>(&features2),
         .flags = 0,

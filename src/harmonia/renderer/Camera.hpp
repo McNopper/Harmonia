@@ -1,8 +1,8 @@
-#pragma once
-
-#include <slang-math/slang-math.hpp>
+#ifndef HARMONIA_RENDERER_CAMERA_HPP
+#define HARMONIA_RENDERER_CAMERA_HPP
 
 #include <cmath>
+#include <slang-math/slang-math.hpp>
 #include <utility>
 
 #include "harmonia/GpuTypes.hpp"
@@ -66,3 +66,4 @@ class Camera {
 
     Params m_params;
 };
+#endif // HARMONIA_RENDERER_CAMERA_HPP

@@ -1,8 +1,8 @@
-#pragma once
-
-#include <slang-math/slang-math.hpp>
+#ifndef HARMONIA_SCENE_ISCENEBUILDER_HPP
+#define HARMONIA_SCENE_ISCENEBUILDER_HPP
 
 #include <cstdint>
+#include <slang-math/slang-math.hpp>
 #include <string_view>
 
 #include "harmonia/DeviceContext.hpp"
@@ -38,21 +38,16 @@ class ISceneBuilder {
 
     /// Register a unique triangle mesh (object space). Returns its mesh index,
     /// or uint32_max on failure.
-    [[nodiscard]] virtual uint32_t addMesh(const DeviceContext& ctx,
-                                            const CommandPool& pool,
-                                            MeshData&& data,
-                                            std::string_view name) = 0;
+    [[nodiscard]] virtual uint32_t
+    addMesh(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view name) = 0;
 
     /// Register a unique sphere mesh of @p radius (object space, centred at the
     /// origin). Returns its mesh index, or uint32_max on failure.
-    [[nodiscard]] virtual uint32_t addSphereMesh(const DeviceContext& ctx,
-                                                  const CommandPool& pool,
-                                                  float radius,
-                                                  std::string_view name) = 0;
+    [[nodiscard]] virtual uint32_t
+    addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name) = 0;
 
     /// Place an instance of mesh @p meshIndex with @p xform and @p materialIdx.
     /// Returns the instance index, or uint32_max on failure.
-    [[nodiscard]] virtual uint32_t addInstance(uint32_t meshIndex,
-                                                const Xform& xform,
-                                                uint32_t materialIdx) = 0;
+    [[nodiscard]] virtual uint32_t addInstance(uint32_t meshIndex, const Xform& xform, uint32_t materialIdx) = 0;
 };
+#endif // HARMONIA_SCENE_ISCENEBUILDER_HPP

@@ -1,10 +1,10 @@
-#pragma once
-
-#include <slang-math/slang-math.hpp>
+#ifndef HARMONIA_UTILS_MATH_HPP
+#define HARMONIA_UTILS_MATH_HPP
 
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/utils/ColorSpace.hpp"
 
@@ -41,3 +41,4 @@ inline constexpr float kInv2Pi = 1.0F / k2Pi;
            std::isinf(v.z);
 }
 } // namespace Math
+#endif // HARMONIA_UTILS_MATH_HPP

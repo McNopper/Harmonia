@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_UTILS_TONEMAPPING_HPP
+#define HARMONIA_UTILS_TONEMAPPING_HPP
 
 // CPU-side tone mapping functions mirroring shaders/tonemap.slang.
 // Used for unit testing and offline processing; keeps shader and CPU logic in sync.
@@ -14,10 +15,9 @@
 //   Hable/Uncharted-2 filmic — John Hable, GDC 2010
 //   Reinhard et al. — SIGGRAPH 2002, "Photographic Tone Reproduction for Digital Images"
 
-#include <slang-math/slang-math.hpp>
-
 #include <algorithm>
 #include <cmath>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/utils/ColorSpace.hpp"
 
@@ -55,8 +55,8 @@ inline constexpr sm::float3x3 kAP1ToP3 = sm::float3x3(
 /// ACES RRT+ODT rational-polynomial approximation.
 /// Input/output: ACEScg AP1 linear.
 [[nodiscard]] inline sm::float3 acesRrtOdtFit(sm::float3 v) noexcept {
-    const sm::float3 a = v * (v + sm::float3{0.0245786f, 0.0245786f, 0.0245786f}) -
-                         sm::float3{0.000090537f, 0.000090537f, 0.000090537f};
+    const sm::float3 a =
+        v * (v + sm::float3{0.0245786f, 0.0245786f, 0.0245786f}) - sm::float3{0.000090537f, 0.000090537f, 0.000090537f};
     const sm::float3 b = v * (0.983729f * v + sm::float3{0.4329510f, 0.4329510f, 0.4329510f}) +
                          sm::float3{0.238081f, 0.238081f, 0.238081f};
     return a / b;
@@ -109,3 +109,4 @@ inline constexpr sm::float3x3 kAP1ToP3 = sm::float3x3(
 }
 
 } // namespace ToneMapping
+#endif // HARMONIA_UTILS_TONEMAPPING_HPP

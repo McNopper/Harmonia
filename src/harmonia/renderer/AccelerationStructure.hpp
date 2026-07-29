@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_RENDERER_ACCELERATIONSTRUCTURE_HPP
+#define HARMONIA_RENDERER_ACCELERATIONSTRUCTURE_HPP
 
 #include <volk/volk.h>
 
@@ -36,3 +37,4 @@ class AccelerationStructure {
     VkAccelerationStructureKHR m_handle{VK_NULL_HANDLE};
     VkDeviceAddress m_deviceAddress{};
 };
+#endif // HARMONIA_RENDERER_ACCELERATIONSTRUCTURE_HPP

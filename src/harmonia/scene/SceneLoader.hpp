@@ -1,9 +1,9 @@
-#pragma once
-
-#include <slang-math/slang-math.hpp>
+#ifndef HARMONIA_SCENE_SCENELOADER_HPP
+#define HARMONIA_SCENE_SCENELOADER_HPP
 
 #include <filesystem>
 #include <optional>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
@@ -74,3 +74,4 @@ class SceneLoader {
                                                          const DeviceContext& ctx,
                                                          const CommandPool& pool);
 };
+#endif // HARMONIA_SCENE_SCENELOADER_HPP

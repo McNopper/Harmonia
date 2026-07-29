@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_BUFFER_HPP
+#define HARMONIA_CORE_BUFFER_HPP
 
 #include <cstddef>
 #include <expected>
@@ -57,3 +58,4 @@ class Buffer {
     uint32_t m_queueFamily = 0;
     void* m_mapped = nullptr;
 };
+#endif // HARMONIA_CORE_BUFFER_HPP

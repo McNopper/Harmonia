@@ -1,11 +1,11 @@
-#pragma once
+#ifndef HARMONIA_GPUTYPES_HPP
+#define HARMONIA_GPUTYPES_HPP
 
 #include <volk/volk.h>
 
 #include <cstdint>
-#include <type_traits>
-
 #include <slang-math/slang-math.hpp>
+#include <type_traits>
 
 /// Tone mapper selection (matches PushConstants::tonemapper and tonemap.slang switch).
 /// Applied only for SDR and Display P3 output; HDR paths (HDR10/HLG/scRGB) use their
@@ -32,7 +32,7 @@ struct GpuVertex {
     sm::float3 normal;
     float tangentY = 0.0f; ///< Tangent vector Y component (world space)
     sm::float2 uv;
-    float tangentZ      = 0.0f; ///< Tangent vector Z component (world space)
+    float tangentZ = 0.0f;      ///< Tangent vector Z component (world space)
     float bitangentSign = 0.0f; ///< ±1 handedness of the bitangent (B = sign × (N × T))
 };
 
@@ -56,9 +56,9 @@ struct GpuMaterial {
     sm::float4 fuzzRoughPad;
     sm::float4
         emissionColorLum; ///< xyz = emission_color (linear Rec.2020), w = emission_luminance in cd/m² (OpenPBR spec)
-    sm::float4 opacityFlagsPad;  ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w =
-                                 ///< geometry_thin_walled
-    sm::uint4 textureIndices2; ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
+    sm::float4 opacityFlagsPad; ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w =
+                                ///< geometry_thin_walled
+    sm::uint4 textureIndices2;  ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
 };
 
 // GpuInstance is renderer-specific (path-tracer index layout vs rasterizer meshlet
@@ -86,39 +86,39 @@ struct GpuLight {
     sm::float3 direction;
     float range = 0.0f; ///< attenuation cutoff; 0 = infinite
     sm::float3 color;
-    float intensity  = 0.0f; ///< radiometric (see above)
-    float halfWidth  = 0.0f; ///< rect half-width  / spot unused
+    float intensity = 0.0f;  ///< radiometric (see above)
+    float halfWidth = 0.0f;  ///< rect half-width  / spot unused
     float halfHeight = 0.0f; ///< rect half-height / spot unused
-    float cosInner   = 0.0f; ///< spot inner cone cos(angle)
-    float cosOuter   = 0.0f; ///< spot outer cone cos(angle)
+    float cosInner = 0.0f;   ///< spot inner cone cos(angle)
+    float cosOuter = 0.0f;   ///< spot outer cone cos(angle)
 };
 
 struct CameraData {
     sm::float4x4 invView;
     sm::float4x4 invProj;
     sm::float4 position;
-    float    lensRadius    = 0.0f;
-    float    focusDistance = 0.0f;
-    uint32_t frameIndex    = 0;
-    uint32_t maxDepth      = 0;
-    float    exposure      = 0.0f; ///< pre-computed from EV100: 1 / (1.2 * 2^EV100)
-    float    _padCam[3]    = {};
+    float lensRadius = 0.0f;
+    float focusDistance = 0.0f;
+    uint32_t frameIndex = 0;
+    uint32_t maxDepth = 0;
+    float exposure = 0.0f; ///< pre-computed from EV100: 1 / (1.2 * 2^EV100)
+    float _padCam[3] = {};
 };
 
 struct PushConstants {
-    uint32_t frameIndex              = 0;
-    uint32_t maxDepth                = 0;
-    uint32_t rngSeed                 = 0;
-    float    envLuminanceScale       = 0.0f;
-    uint32_t lightCount              = 0; ///< number of active GpuLights in the light buffer
-    uint32_t outputColorSpace        = 0; ///< OutputColorSpace enum value (used by tonemap pass)
-    uint32_t samplesPerPixel         = 0; ///< samples per pixel this dispatch
-    uint32_t hasEnvMap               = 0; ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
-    uint32_t emissiveTriangleCount   = 0; ///< number of emissive triangles for NEE area sampling (0 = disabled)
-    uint32_t envImportanceWidth      = 0; ///< CDF grid width for env importance sampling (0 = disabled)
-    uint32_t envImportanceHeight     = 0; ///< CDF grid height for env importance sampling
-    uint32_t tonemapper              = 0; ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
-    uint32_t workingColorSpace       = 0; ///< ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
+    uint32_t frameIndex = 0;
+    uint32_t maxDepth = 0;
+    uint32_t rngSeed = 0;
+    float envLuminanceScale = 0.0f;
+    uint32_t lightCount = 0;            ///< number of active GpuLights in the light buffer
+    uint32_t outputColorSpace = 0;      ///< OutputColorSpace enum value (used by tonemap pass)
+    uint32_t samplesPerPixel = 0;       ///< samples per pixel this dispatch
+    uint32_t hasEnvMap = 0;             ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
+    uint32_t emissiveTriangleCount = 0; ///< number of emissive triangles for NEE area sampling (0 = disabled)
+    uint32_t envImportanceWidth = 0;    ///< CDF grid width for env importance sampling (0 = disabled)
+    uint32_t envImportanceHeight = 0;   ///< CDF grid height for env importance sampling
+    uint32_t tonemapper = 0;            ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
+    uint32_t workingColorSpace = 0;     ///< ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.
@@ -142,3 +142,4 @@ static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 64);
 static_assert(sizeof(CameraData) == 176);
 static_assert(sizeof(PushConstants) == 52);
+#endif // HARMONIA_GPUTYPES_HPP

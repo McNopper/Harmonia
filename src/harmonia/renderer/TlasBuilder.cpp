@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <utility>
-
 #include <vma/vk_mem_alloc.h>
 
 #include "harmonia/core/Buffer.hpp"

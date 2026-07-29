@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_UTILS_OUTPUTCOLORSPACE_HPP
+#define HARMONIA_UTILS_OUTPUTCOLORSPACE_HPP
 
 #include <cstdint>
 
@@ -22,3 +23,4 @@ enum class OutputColorSpace : uint32_t {
     eSDRLinear = 4, ///< Linear BT.709, clamped [0, 1]
     eSDR = 5,       ///< sRGB / BT.709, gamma-encoded — always available fallback
 };
+#endif // HARMONIA_UTILS_OUTPUTCOLORSPACE_HPP

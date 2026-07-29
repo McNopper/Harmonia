@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_SCENE_PROCEDURALGEOMETRY_HPP
+#define HARMONIA_SCENE_PROCEDURALGEOMETRY_HPP
 
 #include <slang-math/slang-math.hpp>
 
@@ -19,3 +20,4 @@ struct SphereAabb {
 
 [[nodiscard]] SphereAabb makeSphereAabb(sm::float3 center, float radius) noexcept;
 } // namespace ProceduralGeometry
+#endif // HARMONIA_SCENE_PROCEDURALGEOMETRY_HPP

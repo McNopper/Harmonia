@@ -1,14 +1,13 @@
 #include "harmonia/scene/SceneLoader.hpp"
 
-#include <slang-math/slang-math.hpp>
-
 #include <array>
 #include <limits>
+#include <slang-math/slang-math.hpp>
 #include <string>
+#include <toml++/toml.hpp>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <toml++/toml.hpp>
 
 #include "aether/format/ObjImporter.hpp"
 #include "aether/format/SceneParser.hpp"
@@ -116,10 +115,10 @@ struct LoadedSubmesh {
 // ── SceneLoader::load ─────────────────────────────────────────────────────────
 
 std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem::path& sceneFile,
-                                                           const std::filesystem::path& assetsDir,
-                                                           ISceneBuilder& scene,
-                                                           const DeviceContext& ctx,
-                                                           const CommandPool& pool) {
+                                                          const std::filesystem::path& assetsDir,
+                                                          ISceneBuilder& scene,
+                                                          const DeviceContext& ctx,
+                                                          const CommandPool& pool) {
     // Parsing is owned by Aether — SceneLoader only resolves and uploads.
     const std::optional<aether::SceneDesc> desc = aether::SceneParser::parse(sceneFile);
     if (!desc) {
@@ -214,7 +213,8 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
                 continue;
             }
 
-            auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, ref->colorSpace, cfg.workingColorSpace, matName);
+            auto result =
+                Texture::loadFromFile(ctx, pool, assetsDir / relPath, ref->colorSpace, cfg.workingColorSpace, matName);
             if (!result) {
                 Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
                 continue;

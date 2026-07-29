@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_PIPELINE_IRENDERPASS_HPP
+#define HARMONIA_PIPELINE_IRENDERPASS_HPP
 
 #include <volk/volk.h>
 
@@ -19,3 +20,4 @@ class IRenderPass {
     /// Debug name for logging and profiling.
     [[nodiscard]] virtual const char* name() const noexcept = 0;
 };
+#endif // HARMONIA_PIPELINE_IRENDERPASS_HPP

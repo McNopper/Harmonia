@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_UTILS_COLORSPACE_HPP
+#define HARMONIA_UTILS_COLORSPACE_HPP
 
 // Hyperion ColorSpace utility — the working color space is linear Rec.2020 by
 // default; scenes may select linear Rec.709 instead (WorkingColorSpace below).
@@ -9,11 +10,10 @@
 //
 // Luminance coefficients (BT.2020):  Kr=0.2627  Kg=0.6780  Kb=0.0593
 
-#include <slang-math/slang-math.hpp>
-
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <slang-math/slang-math.hpp>
 #include <string_view>
 
 namespace ColorSpace {
@@ -111,3 +111,4 @@ inline constexpr float kPeakLuminanceSDRNits = 100.0f;     // sRGB / Rec.709
 }
 
 } // namespace ColorSpace
+#endif // HARMONIA_UTILS_COLORSPACE_HPP

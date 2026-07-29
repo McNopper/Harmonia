@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_COMMANDPOOL_HPP
+#define HARMONIA_CORE_COMMANDPOOL_HPP
 
 #include <expected>
 
@@ -30,3 +31,4 @@ class CommandPool {
     VkCommandPool m_pool = VK_NULL_HANDLE;
     VkQueue m_queue = VK_NULL_HANDLE;
 };
+#endif // HARMONIA_CORE_COMMANDPOOL_HPP

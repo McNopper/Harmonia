@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_SCENE_MESH_HPP
+#define HARMONIA_SCENE_MESH_HPP
 
 #include <volk/volk.h>
 
@@ -40,3 +41,4 @@ class Mesh {
     uint32_t m_vertexCount{};
     uint32_t m_indexCount{};
 };
+#endif // HARMONIA_SCENE_MESH_HPP

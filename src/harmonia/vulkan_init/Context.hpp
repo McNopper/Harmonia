@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_VULKAN_INIT_CONTEXT_HPP
+#define HARMONIA_VULKAN_INIT_CONTEXT_HPP
 
 #include <volk/volk.h>
 
@@ -44,3 +45,4 @@ class Context {
     DeviceContext m_deviceContext{};
     bool m_validationEnabled = false;
 };
+#endif // HARMONIA_VULKAN_INIT_CONTEXT_HPP

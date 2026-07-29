@@ -1,9 +1,8 @@
 #include "harmonia/renderer/Camera.hpp"
 
-#include <slang-math/slang-math.hpp>
-
 #include <algorithm>
 #include <cmath>
+#include <slang-math/slang-math.hpp>
 #include <utility>
 
 float Camera::PhysicalCamera::ev100() const noexcept {
@@ -52,9 +51,9 @@ void Camera::setPhysicalCamera(const PhysicalCamera& physical) noexcept {
 
 CameraData Camera::getCameraData(uint32_t frameIndex, uint32_t maxDepth) const noexcept {
     const float aspect = std::max(m_params.aspectRatio, 0.001f);
-    const float fovY   = sm::radians(m_params.vfovDeg);
-    const float zNear  = std::max(m_params.nearPlane, 0.001f);
-    const float zFar   = std::max(m_params.farPlane, zNear + 0.001f);
+    const float fovY = sm::radians(m_params.vfovDeg);
+    const float zNear = std::max(m_params.nearPlane, 0.001f);
+    const float zFar = std::max(m_params.farPlane, zNear + 0.001f);
 
     return CameraData{
         .invView = sm::inverseLookAt(m_params.position, m_params.target, m_params.up),
@@ -76,7 +75,7 @@ sm::float4x4 Camera::viewMatrix() const noexcept {
 
 sm::float4x4 Camera::projectionMatrix() const noexcept {
     return sm::perspective(sm::radians(m_params.vfovDeg),
-                                std::max(m_params.aspectRatio, 0.001f),
-                                std::max(m_params.nearPlane, 0.001f),
-                                std::max(m_params.farPlane, m_params.nearPlane + 0.001f));
+                           std::max(m_params.aspectRatio, 0.001f),
+                           std::max(m_params.nearPlane, 0.001f),
+                           std::max(m_params.farPlane, m_params.nearPlane + 0.001f));
 }

@@ -70,8 +70,7 @@ namespace {
     g.textureIndices2 = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
 
     // Thin film
-    g.thinFilmParams =
-        sm::float4{p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f), p.thin_film_weight, 0.0f};
+    g.thinFilmParams = sm::float4{p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f), p.thin_film_weight, 0.0f};
 
     // Coat
     g.coatColorWeight = sm::float4(cc(p.coat_color), p.coat_weight);
@@ -89,8 +88,10 @@ namespace {
 
     // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
     const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
-    g.opacityFlagsPad = sm::float4{
-        std::clamp(p.geometry_opacity, 0.0f, 1.0f), flags, p.subsurface_scatter_anisotropy, p.geometry_thin_walled ? 1.0f : 0.0f};
+    g.opacityFlagsPad = sm::float4{std::clamp(p.geometry_opacity, 0.0f, 1.0f),
+                                   flags,
+                                   p.subsurface_scatter_anisotropy,
+                                   p.geometry_thin_walled ? 1.0f : 0.0f};
 
     return Material::fromGpu(g, p.emission_as_light_source);
 }

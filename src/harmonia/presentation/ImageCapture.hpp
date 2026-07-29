@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_PRESENTATION_IMAGECAPTURE_HPP
+#define HARMONIA_PRESENTATION_IMAGECAPTURE_HPP
 
 #include <filesystem>
 
@@ -47,3 +48,4 @@ bool saveSdrPng(const DeviceContext& ctx,
                 bool swapRB);
 
 } // namespace ImageCapture
+#endif // HARMONIA_PRESENTATION_IMAGECAPTURE_HPP

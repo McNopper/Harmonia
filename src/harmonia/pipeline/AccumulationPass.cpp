@@ -17,9 +17,8 @@ struct alignas(4) AccumulationPushConstants {
 };
 } // namespace
 
-std::expected<AccumulationPass, VkResult> AccumulationPass::create(const DeviceContext& ctx,
-                                                                   VkExtent2D extent,
-                                                                   const std::filesystem::path& computeSpvPath) {
+std::expected<AccumulationPass, VkResult>
+AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std::filesystem::path& computeSpvPath) {
     if (!ctx.isValid() || extent.width == 0U || extent.height == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -70,7 +69,8 @@ std::expected<AccumulationPass, VkResult> AccumulationPass::create(const DeviceC
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushRange,
     };
-    if (const VkResult result = vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pass.m_pipelineLayout);
+    if (const VkResult result =
+            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pass.m_pipelineLayout);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
@@ -163,7 +163,8 @@ AccumulationPass::~AccumulationPass() noexcept {
 
 void AccumulationPass::record(const PassContext& ctx) noexcept {
     if (m_ctx == nullptr || m_pipeline == VK_NULL_HANDLE || m_pipelineLayout == VK_NULL_HANDLE ||
-        m_setLayout == VK_NULL_HANDLE || ctx.cmd == VK_NULL_HANDLE || ctx.hdrBuffer == nullptr || !m_historyImage.isValid()) {
+        m_setLayout == VK_NULL_HANDLE || ctx.cmd == VK_NULL_HANDLE || ctx.hdrBuffer == nullptr ||
+        !m_historyImage.isValid()) {
         return;
     }
 
@@ -191,7 +192,8 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
         imageBarrier(m_historyImage.handle(),
@@ -247,7 +249,12 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
     };
 
     vkCmdBindPipeline(ctx.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
-    vkCmdPushDescriptorSet(ctx.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineLayout, 0, static_cast<uint32_t>(writes.size()), writes.data());
+    vkCmdPushDescriptorSet(ctx.cmd,
+                           VK_PIPELINE_BIND_POINT_COMPUTE,
+                           m_pipelineLayout,
+                           0,
+                           static_cast<uint32_t>(writes.size()),
+                           writes.data());
     vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
 
     constexpr uint32_t kGroupSize = 8U;
@@ -314,8 +321,8 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
     };
     pipelineBarrier(ctx.cmd, restoreBarriers);
 

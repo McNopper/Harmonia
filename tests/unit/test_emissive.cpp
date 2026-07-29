@@ -1,7 +1,6 @@
-#include <gtest/gtest.h>
-
 #include <cmath>
 #include <cstdint>
+#include <gtest/gtest.h>
 #include <vector>
 
 #include "harmonia/scene/EmissiveBuilder.hpp"
@@ -88,7 +87,9 @@ TEST(EmissiveCdf, SamplingMatchesPowerDistribution) {
     for (uint32_t s = 0; s < steps; ++s) {
         const float u = (static_cast<float>(s) + 0.5F) / static_cast<float>(steps); // stratified in (0,1)
         uint32_t idx = 0u;
-        while (idx + 1u < cdf.size() && u > cdf[idx]) { ++idx; }
+        while (idx + 1u < cdf.size() && u > cdf[idx]) {
+            ++idx;
+        }
         ++hits[idx];
     }
     for (size_t i = 0; i < cdf.size(); ++i) {

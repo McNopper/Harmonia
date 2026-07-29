@@ -1,12 +1,12 @@
-#pragma once
+#ifndef HARMONIA_SCENE_LIGHT_HPP
+#define HARMONIA_SCENE_LIGHT_HPP
 
 #include <bit>
 #include <cstdint>
 #include <memory>
 #include <numbers>
-#include <string>
-
 #include <slang-math/slang-math.hpp>
+#include <string>
 
 #include "harmonia/GpuTypes.hpp"
 
@@ -98,3 +98,4 @@ class SkyLight final : public Light {
     LightType lightType() const noexcept override { return LightType::Sky; }
     GpuLight toGpu() const noexcept override;
 };
+#endif // HARMONIA_SCENE_LIGHT_HPP

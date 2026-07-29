@@ -27,13 +27,9 @@ uint32_t SceneBase::addLight(std::unique_ptr<Light> light) {
     return index;
 }
 
-uint32_t SceneBase::addMesh(const DeviceContext& ctx,
-                            const CommandPool& pool,
-                            MeshData&& data,
-                            std::string_view name) {
+uint32_t SceneBase::addMesh(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view name) {
     const uint32_t meshIndex = static_cast<uint32_t>(m_meshes.size());
-    const std::string debugName =
-        name.empty() ? std::string{"mesh."} + std::to_string(meshIndex) : std::string{name};
+    const std::string debugName = name.empty() ? std::string{"mesh."} + std::to_string(meshIndex) : std::string{name};
 
     auto mesh = TriangleMesh::create(ctx, pool, std::move(data), debugName);
     if (!mesh) {

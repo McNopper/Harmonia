@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_RENDERER_TLASBUILDER_HPP
+#define HARMONIA_RENDERER_TLASBUILDER_HPP
 
 #include <volk/volk.h>
 
@@ -28,3 +29,4 @@ namespace harmonia {
                                  VkDeviceAddress& outAddress);
 
 } // namespace harmonia
+#endif // HARMONIA_RENDERER_TLASBUILDER_HPP

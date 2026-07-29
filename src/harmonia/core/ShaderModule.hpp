@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_SHADERMODULE_HPP
+#define HARMONIA_CORE_SHADERMODULE_HPP
 
 #include <volk/volk.h>
 
@@ -21,3 +22,4 @@ namespace harmonia {
                                                                          const std::filesystem::path& path);
 
 } // namespace harmonia
+#endif // HARMONIA_CORE_SHADERMODULE_HPP

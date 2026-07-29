@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_PIPELINE_ACCUMULATIONPASS_HPP
+#define HARMONIA_PIPELINE_ACCUMULATIONPASS_HPP
 
 #include <volk/volk.h>
 
@@ -20,9 +21,8 @@ namespace harmonia {
 /// HDR image for downstream stages.
 class AccumulationPass final : public IRenderPass {
   public:
-    [[nodiscard]] static std::expected<AccumulationPass, VkResult> create(const DeviceContext& ctx,
-                                                                          VkExtent2D extent,
-                                                                          const std::filesystem::path& computeSpvPath);
+    [[nodiscard]] static std::expected<AccumulationPass, VkResult>
+    create(const DeviceContext& ctx, VkExtent2D extent, const std::filesystem::path& computeSpvPath);
 
     AccumulationPass() = default;
     AccumulationPass(const AccumulationPass&) = delete;
@@ -53,3 +53,4 @@ class AccumulationPass final : public IRenderPass {
 };
 
 } // namespace harmonia
+#endif // HARMONIA_PIPELINE_ACCUMULATIONPASS_HPP

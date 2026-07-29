@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_APP_IRENDERER_HPP
+#define HARMONIA_APP_IRENDERER_HPP
 
 #include <volk/volk.h>
 
@@ -74,3 +75,4 @@ class IRenderer {
 };
 
 } // namespace harmonia
+#endif // HARMONIA_APP_IRENDERER_HPP

@@ -1,8 +1,8 @@
-#pragma once
-
-#include <slang-math/slang-math.hpp>
+#ifndef HARMONIA_SCENE_MATERIAL_HPP
+#define HARMONIA_SCENE_MATERIAL_HPP
 
 #include <algorithm>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/GpuTypes.hpp"
 
@@ -91,8 +91,7 @@ class Material {
     Material& subsurface(float w, sm::float3 color, sm::float3 radius, float scale = 1.0f) {
         m_gpu.subsurfaceColorWeight =
             sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), std::clamp(w, 0.0f, 1.0f));
-        m_gpu.subsurfaceRadiusScale =
-            sm::float4(sm::max(radius, sm::float3{0.0f, 0.0f, 0.0f}), std::max(scale, 0.0f));
+        m_gpu.subsurfaceRadiusScale = sm::float4(sm::max(radius, sm::float3{0.0f, 0.0f, 0.0f}), std::max(scale, 0.0f));
         return *this;
     }
 
@@ -141,3 +140,4 @@ class Material {
     GpuMaterial m_gpu{};
     bool m_emissiveAsLightSource = true;
 };
+#endif // HARMONIA_SCENE_MATERIAL_HPP

@@ -2,11 +2,10 @@
 
 #include <volk/volk.h>
 
-#include <slang-math/slang-math.hpp>
-#include <gtest/gtest.h>
-
 #include <array>
 #include <filesystem>
+#include <gtest/gtest.h>
+#include <slang-math/slang-math.hpp>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
@@ -27,7 +26,8 @@ namespace {
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_READ_BIT);
     const VkBufferImageCopy region{
@@ -45,7 +45,8 @@ namespace {
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_READ_BIT,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
     EXPECT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 
     const auto* pixels = static_cast<const sm::float4*>(readback.mappedData());
@@ -56,14 +57,16 @@ namespace {
 
 TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
     constexpr VkExtent2D kExtent{8U, 8U};
-    constexpr VkDeviceSize kReadbackBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
+    constexpr VkDeviceSize kReadbackBytes =
+        static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
 
-    auto hdr = Image::create(deviceCtx(),
-                             kExtent,
-                             VK_FORMAT_R32G32B32A32_SFLOAT,
-                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT,
-                             "test.accum.hdr");
+    auto hdr =
+        Image::create(deviceCtx(),
+                      kExtent,
+                      VK_FORMAT_R32G32B32A32_SFLOAT,
+                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                      VK_IMAGE_ASPECT_COLOR_BIT,
+                      "test.accum.hdr");
     ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
 
     auto readback = Buffer::create(deviceCtx(),
@@ -94,8 +97,9 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
                         firstFrame ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                         firstFrame ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                        firstFrame ? 0U : (VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
-                                           VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
+                        firstFrame ? 0U
+                                   : (VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+                                      VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                         VK_ACCESS_2_TRANSFER_WRITE_BIT);
         firstFrame = false;
@@ -114,7 +118,8 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                        VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+                        VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+                            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
         const PassContext passContext{
             .cmd = *cmd,
@@ -150,14 +155,16 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
 
 TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
     constexpr VkExtent2D kExtent{8U, 8U};
-    constexpr VkDeviceSize kReadbackBytes = static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
+    constexpr VkDeviceSize kReadbackBytes =
+        static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
 
-    auto hdr = Image::create(deviceCtx(),
-                             kExtent,
-                             VK_FORMAT_R32G32B32A32_SFLOAT,
-                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT,
-                             "test.accum.reset.hdr");
+    auto hdr =
+        Image::create(deviceCtx(),
+                      kExtent,
+                      VK_FORMAT_R32G32B32A32_SFLOAT,
+                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                      VK_IMAGE_ASPECT_COLOR_BIT,
+                      "test.accum.reset.hdr");
     ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
 
     auto readback = Buffer::create(deviceCtx(),
@@ -188,8 +195,9 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
                         firstFrame ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                         firstFrame ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                        firstFrame ? 0U : (VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
-                                           VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
+                        firstFrame ? 0U
+                                   : (VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+                                      VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                         VK_ACCESS_2_TRANSFER_WRITE_BIT);
         firstFrame = false;
@@ -208,7 +216,8 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                        VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+                        VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+                            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
         const PassContext passContext{
             .cmd = *cmd,

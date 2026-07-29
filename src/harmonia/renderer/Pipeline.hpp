@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_RENDERER_PIPELINE_HPP
+#define HARMONIA_RENDERER_PIPELINE_HPP
 
 #include <volk/volk.h>
 
@@ -42,3 +43,4 @@ class Pipeline {
     const DeviceContext* m_ctx{};
     VkPipeline m_rtPipeline{VK_NULL_HANDLE};
 };
+#endif // HARMONIA_RENDERER_PIPELINE_HPP

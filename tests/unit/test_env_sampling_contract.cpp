@@ -1,10 +1,8 @@
-#include <gtest/gtest.h>
-
-#include <slang-math/slang-math.hpp>
-
 #include <algorithm>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <limits>
+#include <slang-math/slang-math.hpp>
 #include <vector>
 
 #include "harmonia/utils/Rng.hpp"
@@ -33,8 +31,16 @@ float sampleAndEvalPdf(uint32_t& rngState) {
     constexpr uint32_t H = 2U;
     const std::vector<float> marginal{0.0F, 0.5F, 1.0F};
     const std::vector<float> conditional{
-        0.0F, 0.25F, 0.5F, 0.75F, 1.0F,
-        0.0F, 0.25F, 0.5F, 0.75F, 1.0F,
+        0.0F,
+        0.25F,
+        0.5F,
+        0.75F,
+        1.0F,
+        0.0F,
+        0.25F,
+        0.5F,
+        0.75F,
+        1.0F,
     };
 
     const sm::float2 xi = Rng::nextFloat2(rngState);

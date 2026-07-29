@@ -1,6 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <cstdint>
+#include <gtest/gtest.h>
 #include <unordered_set>
 
 #include "harmonia/utils/Rng.hpp"

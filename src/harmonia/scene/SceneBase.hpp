@@ -1,16 +1,17 @@
-#pragma once
-
-#include <memory>
-#include <vector>
-#include <cstdint>
-#include <limits>
-#include <string>
-#include <string_view>
+#ifndef HARMONIA_SCENE_SCENEBASE_HPP
+#define HARMONIA_SCENE_SCENEBASE_HPP
 
 #include <volk/volk.h>
 
-#include "harmonia/core/CommandPool.hpp"
+#include <cstdint>
+#include <limits>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/CommandPool.hpp"
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/Light.hpp"
@@ -47,10 +48,8 @@ class SceneBase : public ISceneBuilder {
 
     /// Registers a unique triangle mesh (object space). Shared because it is
     /// identical across renderers (a plain TriangleMesh upload).
-    [[nodiscard]] uint32_t addMesh(const DeviceContext& ctx,
-                                   const CommandPool& pool,
-                                   MeshData&& data,
-                                   std::string_view name = "") override;
+    [[nodiscard]] uint32_t
+    addMesh(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view name = "") override;
 
     // ── Additional scene population ─────────────────────────────────────────
 
@@ -81,11 +80,12 @@ class SceneBase : public ISceneBuilder {
     /// masks; Hyperion uses the default mask.
     virtual VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool) = 0;
 
-    std::vector<Material>                  m_materials;
-    std::vector<std::unique_ptr<Geometry>> m_meshes;   ///< unique meshes (one BLAS each)
-    std::vector<InstanceRecord>            m_instances; ///< placements referencing m_meshes
-    std::vector<std::unique_ptr<Light>>    m_lights;
-    std::vector<Texture>                   m_textures;
+    std::vector<Material> m_materials;
+    std::vector<std::unique_ptr<Geometry>> m_meshes; ///< unique meshes (one BLAS each)
+    std::vector<InstanceRecord> m_instances;         ///< placements referencing m_meshes
+    std::vector<std::unique_ptr<Light>> m_lights;
+    std::vector<Texture> m_textures;
 };
 
 } // namespace harmonia
+#endif // HARMONIA_SCENE_SCENEBASE_HPP

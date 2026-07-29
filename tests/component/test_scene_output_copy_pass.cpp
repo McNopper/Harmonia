@@ -2,13 +2,12 @@
 
 #include <volk/volk.h>
 
-#include <slang-math/slang-math.hpp>
-#include <gtest/gtest.h>
-
 #include <array>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <gtest/gtest.h>
+#include <slang-math/slang-math.hpp>
 #include <vector>
 
 #include "fixtures/VulkanTestFixture.hpp"
@@ -19,7 +18,8 @@
 
 namespace {
 
-[[nodiscard]] std::vector<sm::float4> readRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image) {
+[[nodiscard]] std::vector<sm::float4>
+readRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image) {
     const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(sm::float4);
     auto readback = Buffer::create(deviceCtx,
@@ -70,7 +70,10 @@ namespace {
     return pixels;
 }
 
-void uploadRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image, const std::vector<sm::float4>& pixels) {
+void uploadRgbaImage(const DeviceContext& deviceCtx,
+                     CommandPool& commandPool,
+                     Image& image,
+                     const std::vector<sm::float4>& pixels) {
     const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(sm::float4);
     auto staging = Buffer::create(deviceCtx,
@@ -105,13 +108,17 @@ void uploadRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, I
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT);
+                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT);
     ASSERT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 }
 
-void uploadDepthImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& image, const std::vector<float>& pixels) {
-    const VkDeviceSize byteSize = static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(float);
+void uploadDepthImage(const DeviceContext& deviceCtx,
+                      CommandPool& commandPool,
+                      Image& image,
+                      const std::vector<float>& pixels) {
+    const VkDeviceSize byteSize =
+        static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(float);
     auto staging = Buffer::create(deviceCtx,
                                   byteSize,
                                   VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -144,8 +151,8 @@ void uploadDepthImage(const DeviceContext& deviceCtx, CommandPool& commandPool, 
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT);
+                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT);
     ASSERT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 }
 
@@ -169,12 +176,13 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
                              "test.sceneoutput.hdr");
     ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
 
-    auto denoised = Image::create(deviceCtx(),
-                                  kExtent,
-                                  VK_FORMAT_R32G32B32A32_SFLOAT,
-                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                  VK_IMAGE_ASPECT_COLOR_BIT,
-                                  "test.sceneoutput.denoised");
+    auto denoised =
+        Image::create(deviceCtx(),
+                      kExtent,
+                      VK_FORMAT_R32G32B32A32_SFLOAT,
+                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                      VK_IMAGE_ASPECT_COLOR_BIT,
+                      "test.sceneoutput.denoised");
     ASSERT_TRUE(denoised.has_value()) << static_cast<int>(denoised.error());
 
     auto gNormal = Image::create(deviceCtx(),
@@ -214,16 +222,15 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
     uploadRgbaImage(deviceCtx(), commandPool(), *gNormal, normalPixels);
     uploadDepthImage(deviceCtx(), commandPool(), *gDepth, depthPixels);
 
-    auto pass = harmonia::SceneOutputCopyPass::create(
-        deviceCtx(),
-        kExtent,
-        std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv",
-        harmonia::SceneOutputCopyPass::Settings{
-            .strength = 0.75F,
-            .iterations = 3U,
-            .useHistory = false,
-            .historyBlend = 0.1F,
-        });
+    auto pass = harmonia::SceneOutputCopyPass::create(deviceCtx(),
+                                                      kExtent,
+                                                      std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv",
+                                                      harmonia::SceneOutputCopyPass::Settings{
+                                                          .strength = 0.75F,
+                                                          .iterations = 3U,
+                                                          .useHistory = false,
+                                                          .historyBlend = 0.1F,
+                                                      });
     ASSERT_TRUE(pass.has_value()) << static_cast<int>(pass.error());
     pass->onResize(kExtent);
 

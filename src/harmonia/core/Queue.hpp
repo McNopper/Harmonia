@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_CORE_QUEUE_HPP
+#define HARMONIA_CORE_QUEUE_HPP
 
 #include <volk/volk.h>
 
@@ -20,3 +21,4 @@ class Queue {
     VkQueue m_queue = VK_NULL_HANDLE;
     uint32_t m_family = 0;
 };
+#endif // HARMONIA_CORE_QUEUE_HPP

@@ -1,15 +1,16 @@
+#include "harmonia/scene/Geometry.hpp"
+
 #include <volk/volk.h>
-#include <slang-math/slang-math.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <slang-math/slang-math.hpp>
 #include <span>
 #include <string>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
-#include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
 namespace {
@@ -103,7 +104,8 @@ namespace {
 } // namespace
 
 sm::float4x4 Xform::matrix() const noexcept {
-    return sm::translate(sm::float4x4(1.0f), translation) * sm::toFloat4x4(rotation) * sm::scale(sm::float4x4(1.0f), scale);
+    return sm::translate(sm::float4x4(1.0f), translation) * sm::toFloat4x4(rotation) *
+           sm::scale(sm::float4x4(1.0f), scale);
 }
 
 sm::float4x4 Xform::inverseMatrix() const noexcept {
@@ -119,10 +121,8 @@ VkTransformMatrixKHR Xform::toVkTransform() const noexcept {
     }};
 }
 
-std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(const DeviceContext& ctx,
-                                                                             const CommandPool& pool,
-                                                                             MeshData&& data,
-                                                                             std::string_view debugName) {
+std::expected<std::unique_ptr<TriangleMesh>, VkResult>
+TriangleMesh::create(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view debugName) {
     auto mesh = Mesh::create(ctx, pool, data, debugName);
     if (!mesh) {
         return std::unexpected(mesh.error());
@@ -203,10 +203,8 @@ const MeshData& TriangleMesh::data() const noexcept {
     return m_data;
 }
 
-std::expected<std::unique_ptr<Sphere>, VkResult> Sphere::create(const DeviceContext& ctx,
-                                                                 const CommandPool& pool,
-                                                                 float radius,
-                                                                 std::string_view debugName) {
+std::expected<std::unique_ptr<Sphere>, VkResult>
+Sphere::create(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view debugName) {
     if (radius <= 0.0f) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }

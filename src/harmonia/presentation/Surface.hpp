@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_PRESENTATION_SURFACE_HPP
+#define HARMONIA_PRESENTATION_SURFACE_HPP
 
 #include <volk/volk.h>
 
@@ -25,3 +26,4 @@ class Surface {
     VkInstance m_instance{};
     VkSurfaceKHR m_surface{};
 };
+#endif // HARMONIA_PRESENTATION_SURFACE_HPP

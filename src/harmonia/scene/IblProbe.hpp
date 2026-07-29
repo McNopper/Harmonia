@@ -1,11 +1,11 @@
-#pragma once
+#ifndef HARMONIA_SCENE_IBLPROBE_HPP
+#define HARMONIA_SCENE_IBLPROBE_HPP
 
 #include <volk/volk.h>
 
-#include <slang-math/slang-math.hpp>
-
 #include <expected>
 #include <filesystem>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
@@ -76,3 +76,4 @@ class IblProbe {
     sm::float3 m_sunDirection{0.0f, 1.0f, 0.0f}; ///< world-space direction towards the dominant light
     float m_sunStrength{0.0f};                   ///< [0,1] concentration of the dominant light
 };
+#endif // HARMONIA_SCENE_IBLPROBE_HPP

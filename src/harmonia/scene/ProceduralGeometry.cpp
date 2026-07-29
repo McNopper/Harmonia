@@ -1,10 +1,9 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
-#include <slang-math/slang-math.hpp>
-
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <slang-math/slang-math.hpp>
 
 namespace ProceduralGeometry {
 MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform) {
@@ -129,4 +128,3 @@ SphereAabb makeSphereAabb(sm::float3 center, float radius) noexcept {
     };
 }
 } // namespace ProceduralGeometry
-

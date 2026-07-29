@@ -1,8 +1,7 @@
 
-#include <slang-math/slang-math.hpp>
-
 #include <array>
 #include <gtest/gtest.h>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/utils/ColorSpace.hpp"
 

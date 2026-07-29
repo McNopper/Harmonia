@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_UTILS_HASH_HPP
+#define HARMONIA_UTILS_HASH_HPP
 
 #include <bit>
 #include <cstddef>
@@ -69,3 +70,4 @@ struct VertexEqual {
         return std::memcmp(&a, &b, sizeof(GpuVertex)) == 0;
     }
 };
+#endif // HARMONIA_UTILS_HASH_HPP

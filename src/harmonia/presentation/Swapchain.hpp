@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_PRESENTATION_SWAPCHAIN_HPP
+#define HARMONIA_PRESENTATION_SWAPCHAIN_HPP
 
 #include <volk/volk.h>
 
@@ -53,3 +54,4 @@ class Swapchain {
     std::vector<VkImage> m_images;
     std::vector<VkImageView> m_views;
 };
+#endif // HARMONIA_PRESENTATION_SWAPCHAIN_HPP

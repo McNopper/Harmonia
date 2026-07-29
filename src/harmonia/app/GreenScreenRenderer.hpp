@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HARMONIA_APP_GREENSCREENRENDERER_HPP
+#define HARMONIA_APP_GREENSCREENRENDERER_HPP
 
 #include <volk/volk.h>
 
@@ -26,3 +27,4 @@ class GreenScreenRenderer final : public IRenderer {
 };
 
 } // namespace harmonia
+#endif // HARMONIA_APP_GREENSCREENRENDERER_HPP

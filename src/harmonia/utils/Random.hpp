@@ -1,8 +1,8 @@
-#pragma once
-
-#include <slang-math/slang-math.hpp>
+#ifndef HARMONIA_UTILS_RANDOM_HPP
+#define HARMONIA_UTILS_RANDOM_HPP
 
 #include <cstdint>
+#include <slang-math/slang-math.hpp>
 
 struct Pcg32 {
     uint64_t state = 0U;
@@ -52,3 +52,4 @@ struct Pcg32 {
 [[nodiscard]] inline sm::float2 halton2D(uint32_t index) noexcept {
     return sm::float2{halton(index, 2U), halton(index, 3U)};
 }
+#endif // HARMONIA_UTILS_RANDOM_HPP

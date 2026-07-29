@@ -1,8 +1,7 @@
-#include <slang-math/slang-math.hpp>
-
 #include <array>
 #include <cmath>
 #include <gtest/gtest.h>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/ToneMapping.hpp"
@@ -13,7 +12,10 @@ constexpr float kEpsHi = 1.0e-3F;
 } // namespace
 
 TEST(PqOetf, ReferenceNitValues) {
-    struct Case { float nits; float expected; };
+    struct Case {
+        float nits;
+        float expected;
+    };
     const std::array<Case, 5> cases{{
         {1.0f, 0.149946f},
         {100.0f, 0.508078f},
