@@ -16,7 +16,7 @@
 class Context {
   public:
     struct Config {
-        std::string appName = "Hyperion";
+        std::string appName = "harmonia";
         std::uint32_t appVersion = VK_MAKE_VERSION(1, 0, 0);
         bool enableValidation = true;
         SDL_Window* window = nullptr;

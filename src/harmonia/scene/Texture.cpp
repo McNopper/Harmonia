@@ -12,7 +12,6 @@
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
-#include "harmonia/scene/Texture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 namespace {

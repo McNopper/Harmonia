@@ -3,8 +3,6 @@
 #include <cstdint>
 #include <string>
 
-#include "harmonia/core/Image.hpp"
-
 std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
                                              VkExtent2D extent,
                                              VkFormat format,

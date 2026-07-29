@@ -228,9 +228,7 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/core/CommandPool.cpp
     src/harmonia/core/Image.cpp
     src/harmonia/core/Logger.cpp
-    src/harmonia/core/Queue.cpp
     src/harmonia/core/ShaderModule.cpp
-    src/harmonia/core/Timer.cpp
     src/harmonia/renderer/AccelerationStructure.cpp
     src/harmonia/renderer/TlasBuilder.cpp
     src/harmonia/renderer/Camera.cpp
@@ -250,7 +248,6 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/presentation/ImageCapture.cpp
     src/harmonia/pipeline/AccumulationPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPass.cpp
-    src/harmonia/presentation/Surface.cpp
     src/harmonia/presentation/Swapchain.cpp
     src/harmonia/presentation/ToneMapper.cpp
     src/harmonia/vulkan_init/Context.cpp

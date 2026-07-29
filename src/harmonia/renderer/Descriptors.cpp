@@ -6,8 +6,6 @@
 #include <cstdint>
 #include <utility>
 
-#include "harmonia/renderer/Descriptors.hpp"
-
 Descriptors::~Descriptors() noexcept {
     reset();
 }
@@ -158,15 +156,15 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
 
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
                      reinterpret_cast<std::uint64_t>(descriptors.m_set0Layout),
-                     "hyperion.set0.push");
+                     "harmonia.set0.push");
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
                      reinterpret_cast<std::uint64_t>(descriptors.m_set1Layout),
-                     "hyperion.set1.scene");
+                     "harmonia.set1.scene");
     ctx.setDebugName(
-        VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<std::uint64_t>(descriptors.m_pool), "hyperion.scene.pool");
+        VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<std::uint64_t>(descriptors.m_pool), "harmonia.scene.pool");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
                      reinterpret_cast<std::uint64_t>(descriptors.m_pipelineLayout),
-                     "hyperion.pipelineLayout");
+                     "harmonia.pipelineLayout");
 
     return descriptors;
 }

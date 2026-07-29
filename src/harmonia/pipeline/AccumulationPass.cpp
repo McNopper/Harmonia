@@ -8,7 +8,6 @@
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/ShaderModule.hpp"
-#include "harmonia/pipeline/AccumulationPass.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
 
 namespace harmonia {

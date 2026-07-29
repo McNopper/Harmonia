@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 
-#include "harmonia/scene/EmissiveBuilder.hpp"
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/Mesh.hpp"
 

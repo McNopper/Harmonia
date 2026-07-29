@@ -4,8 +4,6 @@
 #include <string>
 #include <utility>
 
-#include "harmonia/renderer/AccelerationStructure.hpp"
-
 AccelerationStructure::~AccelerationStructure() noexcept {
     reset();
 }

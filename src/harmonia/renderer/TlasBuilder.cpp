@@ -7,7 +7,6 @@
 #include <vma/vk_mem_alloc.h>
 
 #include "harmonia/core/Buffer.hpp"
-#include "harmonia/renderer/TlasBuilder.hpp"
 
 namespace harmonia {
 

@@ -10,7 +10,6 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
-#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 
 namespace harmonia {
 

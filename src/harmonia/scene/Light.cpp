@@ -5,8 +5,6 @@
 #include <cstdint>
 #include <numbers>
 
-#include "harmonia/scene/Light.hpp"
-
 namespace {
 
 /// Luminous efficacy of radiation (lm/W).

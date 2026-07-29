@@ -7,7 +7,6 @@
 
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/ShaderModule.hpp"
-#include "harmonia/presentation/ToneMapper.hpp"
 
 using harmonia::createShaderModule;
 

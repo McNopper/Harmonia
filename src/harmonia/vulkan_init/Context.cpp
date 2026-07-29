@@ -9,8 +9,6 @@
 #include <vector>
 #include <vma/vk_mem_alloc.h>
 
-#include "harmonia/vulkan_init/Context.hpp"
-
 namespace {
 [[nodiscard]] bool validationEnabled(bool requested) noexcept {
     return requested;
@@ -402,7 +400,7 @@ std::expected<Context, VkResult> Context::create(const Config& config) {
         .pNext = nullptr,
         .pApplicationName = config.appName.c_str(),
         .applicationVersion = config.appVersion,
-        .pEngineName = "Hyperion",
+        .pEngineName = "harmonia",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
         .apiVersion = VK_API_VERSION_1_4,
     };

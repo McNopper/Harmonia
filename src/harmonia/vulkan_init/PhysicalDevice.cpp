@@ -5,8 +5,6 @@
 #include <string_view>
 #include <vector>
 
-#include "harmonia/vulkan_init/PhysicalDevice.hpp"
-
 namespace {
 constexpr std::array kRequiredExtensions{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,

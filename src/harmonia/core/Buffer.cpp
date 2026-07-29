@@ -6,7 +6,6 @@
 #include <span>
 #include <string>
 
-#include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Logger.hpp"
 

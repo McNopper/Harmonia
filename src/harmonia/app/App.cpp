@@ -12,7 +12,6 @@
 #include <string_view>
 #include <utility>
 
-#include "harmonia/app/App.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/pipeline/AccumulationPass.hpp"

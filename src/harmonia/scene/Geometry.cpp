@@ -12,7 +12,6 @@
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
-#include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
 namespace {

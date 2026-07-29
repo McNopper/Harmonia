@@ -16,7 +16,6 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/MaterialLibrary.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
-#include "harmonia/scene/SceneLoader.hpp"
 #include "harmonia/scene/Texture.hpp"
 
 namespace {

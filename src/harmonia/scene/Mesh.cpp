@@ -9,8 +9,6 @@
 #include <string>
 #include <vma/vk_mem_alloc.h>
 
-#include "harmonia/scene/Mesh.hpp"
-
 std::expected<Mesh, VkResult>
 Mesh::create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshData& data, std::string_view debugName) {
     if (data.vertices.empty() || data.indices.empty()) {
