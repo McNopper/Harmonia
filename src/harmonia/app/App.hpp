@@ -57,7 +57,7 @@ class App {
         };
         struct DenoiserOptions {
             float strength = 0.45F;
-            uint32_t iterations = 2U;
+            std::uint32_t iterations = 2U;
             bool useHistory = true;
             float historyBlend = 0.15F;
             bool useGradient = true;    ///< A-SVGF adaptive temporal filtering (gradient-driven)
@@ -65,8 +65,8 @@ class App {
         };
 
         std::string title = "Harmonia";
-        uint32_t width = 1920;
-        uint32_t height = 1080;
+        std::uint32_t width = 1920;
+        std::uint32_t height = 1080;
         bool validation = true;
         /// Allow interactive window resizing. Renderers whose passes cannot
         /// recreate their targets yet should keep this off.
@@ -76,13 +76,13 @@ class App {
         std::filesystem::path outputFile; ///< non-empty: offscreen render (EXR + PNG), then exit
         /// Number of scene-referred frames to render before saving in offscreen mode.
         /// For stochastic pipelines, increase this to improve convergence.
-        uint32_t offscreenFrames = 4;
+        std::uint32_t offscreenFrames = 4;
         /// Presentation-only indirect ambient boost (scene-referred linear units).
         /// Kept at 0.0 for parity fixtures; non-zero values are for interactive
         /// quality tuning only.
         float indirectAmbient = 0.0f;
         /// IBL diffuse irradiance atlas width; height is width / 2 (2:1 lat-long).
-        uint32_t iblDiffuseResolution = 256;
+        std::uint32_t iblDiffuseResolution = 256;
         /// Optional post-tonemap display-referred overlay renderer.
         bool displayOverlay = false;
         /// Config-driven stage toggles (scene/render preset overrides may update
@@ -93,7 +93,7 @@ class App {
         /// Enables replayable frame/sample RNG sequencing for stochastic stages.
         bool deterministicReplay = false;
         /// Base seed used by renderer RNG composition (pixel + frame/sample + bounce).
-        uint32_t rngSeed = 0x12345678U;
+        std::uint32_t rngSeed = 0x12345678U;
         /// Optional stochastic debug path switch for renderer-side visualization/tests.
         bool rngDebug = false;
         /// Enable the ray-query global-illumination compute stage (Theia only).
@@ -124,7 +124,7 @@ class App {
 
     /// Parse a decimal uint32 from @p text into @p value.
     /// Returns false on invalid input or overflow.
-    [[nodiscard]] static bool parseUint32(std::string_view text, uint32_t& value) noexcept;
+    [[nodiscard]] static bool parseUint32(std::string_view text, std::uint32_t& value) noexcept;
 
   protected:
     // ── Hooks (renderer injection) ──────────────────────────────────────────
@@ -182,7 +182,7 @@ class App {
     /// Number of frames to record for an offscreen capture (--output) before
     /// the image is saved (samples for an accumulating path tracer, warmup
     /// frames for a real-time renderer).
-    [[nodiscard]] virtual uint32_t offscreenFrameCount() const noexcept {
+    [[nodiscard]] virtual std::uint32_t offscreenFrameCount() const noexcept {
         return std::max(m_config.offscreenFrames, 1U);
     }
 
@@ -212,8 +212,8 @@ class App {
     [[nodiscard]] Image& hdrImage() noexcept { return m_hdrImage; }
     [[nodiscard]] const std::optional<IblProbe>& iblProbe() const noexcept { return m_iblProbe; }
     [[nodiscard]] ColorSpace::WorkingColorSpace workingColorSpace() const noexcept { return m_workingColorSpace; }
-    [[nodiscard]] uint32_t tonemapper() const noexcept { return m_tonemapper; }
-    [[nodiscard]] uint32_t frameIndex() const noexcept { return m_frameIndex; }
+    [[nodiscard]] std::uint32_t tonemapper() const noexcept { return m_tonemapper; }
+    [[nodiscard]] std::uint32_t frameIndex() const noexcept { return m_frameIndex; }
 
     /// Resolve + load a scene file (full path or bare name). Reusable at
     /// runtime for scene switching.
@@ -237,7 +237,7 @@ class App {
         VkCommandBuffer renderCmd{};  ///< scene-referred renderer recording
         VkCommandBuffer displayCmd{}; ///< tonemap recording (interactive only)
         VkSemaphore imageAvailable{};
-        uint64_t completionValue{}; ///< highest timeline value signalled for this slot
+        std::uint64_t completionValue{}; ///< highest timeline value signalled for this slot
     };
 
     [[nodiscard]] bool bootstrap();
@@ -246,10 +246,10 @@ class App {
     [[nodiscard]] int renderOffscreen();
     /// Record + submit the renderer into the HDR image; returns the timeline
     /// value signalled on completion and advances the frame slot.
-    uint64_t renderSceneReferred();
+    std::uint64_t renderSceneReferred();
     /// Acquire, tonemap, present the given completed scene-referred frame.
-    void presentFrame(uint32_t slot, uint64_t renderValue);
-    void handleResize(uint32_t w, uint32_t h);
+    void presentFrame(std::uint32_t slot, std::uint64_t renderValue);
+    void handleResize(std::uint32_t w, std::uint32_t h);
     [[nodiscard]] bool createHdrImage();
     [[nodiscard]] bool createDenoisedImage();
     [[nodiscard]] bool createToneMapper();
@@ -266,12 +266,12 @@ class App {
     [[nodiscard]] const Image& sceneOutputImage() const noexcept;
     [[nodiscard]] VkPipelineStageFlags2 sceneOutputStageMask() noexcept;
     [[nodiscard]] VkAccessFlags2 sceneOutputAccessMask() noexcept;
-    [[nodiscard]] uint64_t accumulationResetToken() const noexcept;
+    [[nodiscard]] std::uint64_t accumulationResetToken() const noexcept;
     /// Reset token for the A-SVGF temporal denoiser. Changes only on scene/resize/config
     /// changes — NOT on camera movement — so the denoiser can reproject history via motion
     /// vectors across camera motion (A-SVGF / SVGF design). AccumulationPass uses the
     /// separate accumulationResetToken which does change on camera movement.
-    [[nodiscard]] uint64_t denoiserResetToken() const noexcept;
+    [[nodiscard]] std::uint64_t denoiserResetToken() const noexcept;
 
     Config m_config{};
     Config::StagePipeline m_defaultStages{};
@@ -292,21 +292,21 @@ class App {
     std::optional<IblProbe> m_iblProbe;
 
     ColorSpace::WorkingColorSpace m_workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
-    uint32_t m_tonemapper = 0;
+    std::uint32_t m_tonemapper = 0;
 
     std::array<FrameResources, 2> m_frames{};
     /// One binary semaphore per swapchain image: signalled by the display
     /// submit, consumed by vkQueuePresentKHR (indexed by imageIndex).
     std::vector<VkSemaphore> m_renderComplete;
     VkSemaphore m_timelineSemaphore{};
-    uint64_t m_nextTimelineValue = 1;
-    uint64_t m_sceneEpoch = 1;
-    uint64_t m_extentEpoch = 1;
-    uint64_t m_stageEpoch = 1;
-    uint64_t m_accumViewEpoch = 0;
+    std::uint64_t m_nextTimelineValue = 1;
+    std::uint64_t m_sceneEpoch = 1;
+    std::uint64_t m_extentEpoch = 1;
+    std::uint64_t m_stageEpoch = 1;
+    std::uint64_t m_accumViewEpoch = 0;
     bool m_interactiveAccumulation = false;
-    uint32_t m_currentFrame = 0;
-    uint32_t m_frameIndex = 0;
+    std::uint32_t m_currentFrame = 0;
+    std::uint32_t m_frameIndex = 0;
     std::vector<VkImageLayout> m_swapchainLayouts;
     bool m_displayOverlayLogged = false;
     bool m_running = false;

@@ -12,11 +12,11 @@ namespace {
 constexpr float kPi = 3.14159265359F;
 [[maybe_unused]] constexpr float kInvPi = 0.31830988618F;
 
-uint32_t sampleCdf1D(const std::vector<float>& cdf, uint32_t base, uint32_t n, float r) {
-    uint32_t lo = 0U;
-    uint32_t hi = n - 1U;
+std::uint32_t sampleCdf1D(const std::vector<float>& cdf, std::uint32_t base, std::uint32_t n, float r) {
+    std::uint32_t lo = 0U;
+    std::uint32_t hi = n - 1U;
     while (lo < hi) {
-        const uint32_t mid = (lo + hi) >> 1U;
+        const std::uint32_t mid = (lo + hi) >> 1U;
         if (cdf[base + mid + 1U] <= r) {
             lo = mid + 1U;
         } else {
@@ -26,9 +26,9 @@ uint32_t sampleCdf1D(const std::vector<float>& cdf, uint32_t base, uint32_t n, f
     return lo;
 }
 
-float sampleAndEvalPdf(uint32_t& rngState) {
-    constexpr uint32_t W = 4U;
-    constexpr uint32_t H = 2U;
+float sampleAndEvalPdf(std::uint32_t& rngState) {
+    constexpr std::uint32_t W = 4U;
+    constexpr std::uint32_t H = 2U;
     const std::vector<float> marginal{0.0F, 0.5F, 1.0F};
     const std::vector<float> conditional{
         0.0F,
@@ -44,8 +44,8 @@ float sampleAndEvalPdf(uint32_t& rngState) {
     };
 
     const sm::float2 xi = Rng::nextFloat2(rngState);
-    const uint32_t row = sampleCdf1D(marginal, 0U, H, xi.x);
-    const uint32_t col = sampleCdf1D(conditional, row * (W + 1U), W, xi.y);
+    const std::uint32_t row = sampleCdf1D(marginal, 0U, H, xi.x);
+    const std::uint32_t col = sampleCdf1D(conditional, row * (W + 1U), W, xi.y);
 
     const float rowLo = marginal[row];
     const float rowHi = marginal[row + 1U];
@@ -68,8 +68,8 @@ float balanceHeuristic(float pA, float pB) {
 } // namespace
 
 TEST(EnvSamplingContract, DeterministicReplayKeepsPdfSequenceStable) {
-    uint32_t s0 = Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
-    uint32_t s1 = Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
+    std::uint32_t s0 = Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
+    std::uint32_t s1 = Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
     for (int i = 0; i < 16; ++i) {
         const float p0 = sampleAndEvalPdf(s0);
         const float p1 = sampleAndEvalPdf(s1);

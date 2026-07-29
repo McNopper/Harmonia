@@ -26,7 +26,7 @@ constexpr std::array kRequiredExtensions{
 } // namespace
 
 std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance instance, VkSurfaceKHR surface) {
-    uint32_t deviceCount = 0;
+    std::uint32_t deviceCount = 0;
     VkResult result = vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
@@ -50,7 +50,7 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
             continue;
         }
 
-        uint32_t queueFamilyCount = 0;
+        std::uint32_t queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
         if (queueFamilyCount == 0U) {
             continue;
@@ -59,8 +59,8 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-        uint32_t graphicsFamily = VK_QUEUE_FAMILY_IGNORED;
-        for (uint32_t i = 0; i < queueFamilyCount; ++i) {
+        std::uint32_t graphicsFamily = VK_QUEUE_FAMILY_IGNORED;
+        for (std::uint32_t i = 0; i < queueFamilyCount; ++i) {
             if ((queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0U) {
                 continue;
             }
@@ -137,7 +137,7 @@ bool PhysicalDevice::hasRayTracingSupport(VkPhysicalDevice device) {
 }
 
 bool PhysicalDevice::hasSerSupport(VkPhysicalDevice device) {
-    uint32_t extensionCount = 0;
+    std::uint32_t extensionCount = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
     if (result != VK_SUCCESS || extensionCount == 0U) {
         return false;
@@ -171,7 +171,7 @@ bool PhysicalDevice::hasSerSupport(VkPhysicalDevice device) {
 }
 
 bool PhysicalDevice::hasRayTracingMaintenance1Support(VkPhysicalDevice device) {
-    uint32_t extensionCount = 0;
+    std::uint32_t extensionCount = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
     if (result != VK_SUCCESS || extensionCount == 0U) {
         return false;
@@ -206,7 +206,7 @@ bool PhysicalDevice::hasRayTracingMaintenance1Support(VkPhysicalDevice device) {
 }
 
 bool PhysicalDevice::hasRequiredExtensions(VkPhysicalDevice device) {
-    uint32_t extensionCount = 0;
+    std::uint32_t extensionCount = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
     if (result != VK_SUCCESS || extensionCount == 0U) {
         return false;
@@ -234,7 +234,7 @@ bool PhysicalDevice::hasRequiredExtensions(VkPhysicalDevice device) {
 }
 
 bool PhysicalDevice::hasDgcSupport(VkPhysicalDevice device) {
-    uint32_t extensionCount = 0;
+    std::uint32_t extensionCount = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
     if (result != VK_SUCCESS || extensionCount == 0U) {
         return false;

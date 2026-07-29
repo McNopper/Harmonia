@@ -32,22 +32,23 @@ class ISceneBuilder {
   public:
     virtual ~ISceneBuilder() = default;
 
-    [[nodiscard]] virtual uint32_t addMaterial(Material&& mat) = 0;
+    [[nodiscard]] virtual std::uint32_t addMaterial(Material&& mat) = 0;
 
-    [[nodiscard]] virtual uint32_t addTexture(Texture&& texture) = 0;
+    [[nodiscard]] virtual std::uint32_t addTexture(Texture&& texture) = 0;
 
     /// Register a unique triangle mesh (object space). Returns its mesh index,
     /// or uint32_max on failure.
-    [[nodiscard]] virtual uint32_t
+    [[nodiscard]] virtual std::uint32_t
     addMesh(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view name) = 0;
 
     /// Register a unique sphere mesh of @p radius (object space, centred at the
     /// origin). Returns its mesh index, or uint32_max on failure.
-    [[nodiscard]] virtual uint32_t
+    [[nodiscard]] virtual std::uint32_t
     addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name) = 0;
 
     /// Place an instance of mesh @p meshIndex with @p xform and @p materialIdx.
     /// Returns the instance index, or uint32_max on failure.
-    [[nodiscard]] virtual uint32_t addInstance(uint32_t meshIndex, const Xform& xform, uint32_t materialIdx) = 0;
+    [[nodiscard]] virtual std::uint32_t
+    addInstance(std::uint32_t meshIndex, const Xform& xform, std::uint32_t materialIdx) = 0;
 };
 #endif // HARMONIA_SCENE_ISCENEBUILDER_HPP

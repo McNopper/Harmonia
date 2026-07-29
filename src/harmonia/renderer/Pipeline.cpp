@@ -34,7 +34,7 @@ Pipeline& Pipeline::operator=(Pipeline&& other) noexcept {
 std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
                                                    const Descriptors& descriptors,
                                                    const ShaderPaths& paths,
-                                                   uint32_t maxRayRecursion) {
+                                                   std::uint32_t maxRayRecursion) {
     std::array<VkShaderModule, 6> modules{};
     const std::array shaderPaths{
         paths.raygen,
@@ -45,7 +45,7 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
         paths.shadowMiss,
     };
 
-    for (size_t i = 0; i < shaderPaths.size(); ++i) {
+    for (std::size_t i = 0; i < shaderPaths.size(); ++i) {
         auto module = harmonia::createShaderModule(ctx.device, shaderPaths[i]);
         if (!module) {
             for (VkShaderModule created : modules) {
@@ -156,9 +156,9 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
         .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
         .pNext = nullptr,
         .flags = 0,
-        .stageCount = static_cast<uint32_t>(rtStages.size()),
+        .stageCount = static_cast<std::uint32_t>(rtStages.size()),
         .pStages = rtStages.data(),
-        .groupCount = static_cast<uint32_t>(groups.size()),
+        .groupCount = static_cast<std::uint32_t>(groups.size()),
         .pGroups = groups.data(),
         .maxPipelineRayRecursionDepth = maxRayRecursion,
         .pLibraryInfo = nullptr,
@@ -181,7 +181,8 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
         return std::unexpected(result);
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(pipeline.m_rtPipeline), "hyperion.rtPipeline");
+    ctx.setDebugName(
+        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(pipeline.m_rtPipeline), "hyperion.rtPipeline");
 
     for (VkShaderModule module : modules) {
         vkDestroyShaderModule(ctx.device, module, nullptr);

@@ -13,48 +13,49 @@ namespace {
 
 class RecordingSceneBuilder final : public ISceneBuilder {
   public:
-    uint32_t addMaterial(Material&& /*mat*/) override {
+    std::uint32_t addMaterial(Material&& /*mat*/) override {
         ++materialCount;
-        return static_cast<uint32_t>(materialCount - 1);
+        return static_cast<std::uint32_t>(materialCount - 1);
     }
 
-    uint32_t addTexture(Texture&& /*texture*/) override {
+    std::uint32_t addTexture(Texture&& /*texture*/) override {
         ++textureCount;
-        return static_cast<uint32_t>(textureCount - 1);
+        return static_cast<std::uint32_t>(textureCount - 1);
     }
 
-    uint32_t addMesh(const DeviceContext& /*ctx*/,
-                     const CommandPool& /*pool*/,
-                     MeshData&& data,
-                     std::string_view /*name*/) override {
+    std::uint32_t addMesh(const DeviceContext& /*ctx*/,
+                          const CommandPool& /*pool*/,
+                          MeshData&& data,
+                          std::string_view /*name*/) override {
         if (data.vertices.empty() || data.indices.empty()) {
-            return std::numeric_limits<uint32_t>::max();
+            return std::numeric_limits<std::uint32_t>::max();
         }
         ++meshCount;
-        return static_cast<uint32_t>(meshCount - 1);
+        return static_cast<std::uint32_t>(meshCount - 1);
     }
 
-    uint32_t addSphereMesh(const DeviceContext& /*ctx*/,
-                           const CommandPool& /*pool*/,
-                           float radius,
-                           std::string_view /*name*/) override {
+    std::uint32_t addSphereMesh(const DeviceContext& /*ctx*/,
+                                const CommandPool& /*pool*/,
+                                float radius,
+                                std::string_view /*name*/) override {
         if (radius <= 0.0F) {
-            return std::numeric_limits<uint32_t>::max();
+            return std::numeric_limits<std::uint32_t>::max();
         }
         ++sphereMeshCount;
-        return static_cast<uint32_t>(meshCount + sphereMeshCount - 1);
+        return static_cast<std::uint32_t>(meshCount + sphereMeshCount - 1);
     }
 
-    uint32_t addInstance(uint32_t /*meshIndex*/, const Xform& /*xform*/, uint32_t /*materialIdx*/) override {
+    std::uint32_t
+    addInstance(std::uint32_t /*meshIndex*/, const Xform& /*xform*/, std::uint32_t /*materialIdx*/) override {
         ++instanceCount;
-        return static_cast<uint32_t>(instanceCount - 1);
+        return static_cast<std::uint32_t>(instanceCount - 1);
     }
 
-    size_t materialCount = 0;
-    size_t textureCount = 0;
-    size_t meshCount = 0;
-    size_t sphereMeshCount = 0;
-    size_t instanceCount = 0;
+    std::size_t materialCount = 0;
+    std::size_t textureCount = 0;
+    std::size_t meshCount = 0;
+    std::size_t sphereMeshCount = 0;
+    std::size_t instanceCount = 0;
 };
 
 std::filesystem::path assetsDir() {

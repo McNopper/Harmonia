@@ -19,7 +19,7 @@
 
 namespace {
 // Copy device-local buffer to a host-visible readback buffer and return the bytes.
-[[nodiscard]] std::vector<uint8_t>
+[[nodiscard]] std::vector<std::uint8_t>
 readbackBuffer(const DeviceContext& ctx, CommandPool& pool, const Buffer& src, VkDeviceSize size) {
     auto readback =
         Buffer::create(ctx, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.readback");
@@ -35,7 +35,7 @@ readbackBuffer(const DeviceContext& ctx, CommandPool& pool, const Buffer& src, V
     if (pool.endOneShot(*cmd) != VK_SUCCESS) {
         return {};
     }
-    std::vector<uint8_t> result(static_cast<size_t>(size));
+    std::vector<std::uint8_t> result(static_cast<std::size_t>(size));
     std::memcpy(result.data(), readback->mappedData(), result.size());
     return result;
 }
@@ -63,9 +63,9 @@ TEST_F(VulkanFixture, Buffer_DestroyMappedBufferDoesNotCrash) {
 
 // Upload a known byte pattern to a host-visible buffer, verify via mappedData().
 TEST_F(VulkanFixture, Buffer_HostMappedRoundTrip) {
-    constexpr size_t kCount = 64;
-    std::array<uint8_t, kCount> pattern{};
-    for (uint8_t i = 0; i < kCount; ++i) {
+    constexpr std::size_t kCount = 64;
+    std::array<std::uint8_t, kCount> pattern{};
+    for (std::uint8_t i = 0; i < kCount; ++i) {
         pattern[i] = i;
     }
 
@@ -79,8 +79,8 @@ TEST_F(VulkanFixture, Buffer_HostMappedRoundTrip) {
 
     buf->uploadData(pattern.data(), kCount);
 
-    const auto* got = static_cast<const uint8_t*>(buf->mappedData());
-    for (size_t i = 0; i < kCount; ++i) {
+    const auto* got = static_cast<const std::uint8_t*>(buf->mappedData());
+    for (std::size_t i = 0; i < kCount; ++i) {
         EXPECT_EQ(got[i], pattern[i]) << "mismatch at byte " << i;
     }
 }
@@ -104,11 +104,11 @@ TEST_F(VulkanFixture, Buffer_DeviceLocalStagingUploadRoundTrip) {
     buf->uploadData(kData.data(), kSize);
 
     const auto raw = readbackBuffer(deviceCtx(), commandPool(), *buf, kSize);
-    ASSERT_EQ(raw.size(), static_cast<size_t>(kSize));
+    ASSERT_EQ(raw.size(), static_cast<std::size_t>(kSize));
 
     std::array<float, 16> got{};
     std::memcpy(got.data(), raw.data(), kSize);
-    for (size_t i = 0; i < kData.size(); ++i) {
+    for (std::size_t i = 0; i < kData.size(); ++i) {
         EXPECT_FLOAT_EQ(got[i], kData[i]) << "mismatch at element " << i;
     }
 }

@@ -61,8 +61,8 @@ Texture& Texture::operator=(Texture&& other) noexcept {
 std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
                                                  const CommandPool& cmdPool,
                                                  std::span<const std::byte> pixels,
-                                                 uint32_t width,
-                                                 uint32_t height,
+                                                 std::uint32_t width,
+                                                 std::uint32_t height,
                                                  std::string_view name) {
     if (width == 0 || height == 0 || pixels.empty()) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -163,7 +163,7 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
 
     if (!name.empty()) {
         ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER,
-                         reinterpret_cast<uint64_t>(texture.m_sampler),
+                         reinterpret_cast<std::uint64_t>(texture.m_sampler),
                          std::string(name).append(".sampler").c_str());
     }
 
@@ -198,7 +198,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     // Pre-fill with 0xFF so any missing channels default to opaque/white.
     // OIIO fills channels beyond spec.nchannels with 0, which would make
     // RGB-only images fully transparent (alpha=0) on the GPU.
-    std::vector<uint8_t> raw(pixelCount * 4, 0xFF);
+    std::vector<std::uint8_t> raw(pixelCount * 4, 0xFF);
     const std::int32_t nchans = std::min(spec.nchannels, 4);
     // xstride=4: always advance 4 bytes per pixel in our RGBA buffer so the
     // pre-filled alpha byte is not overwritten for 3-channel source images.
@@ -208,7 +208,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     }
     inp->close();
 
-    std::vector<uint8_t> converted(pixelCount * 4);
+    std::vector<std::uint8_t> converted(pixelCount * 4);
 
     // A texture needs CPU conversion when it is color data whose encoding or
     // primaries differ from the (linear) working color space.
@@ -224,11 +224,11 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     } else {
         const bool toRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
         // Convert each pixel: decode transfer function, then primaries → working space.
-        for (size_t i = 0; i < pixelCount; ++i) {
+        for (std::size_t i = 0; i < pixelCount; ++i) {
             const float r = static_cast<float>(raw[i * 4 + 0]) / 255.0f;
             const float g = static_cast<float>(raw[i * 4 + 1]) / 255.0f;
             const float b = static_cast<float>(raw[i * 4 + 2]) / 255.0f;
-            const uint8_t a = raw[i * 4 + 3];
+            const std::uint8_t a = raw[i * 4 + 3];
 
             sm::float3 linear{r, g, b};
             switch (colorSpace) {
@@ -249,19 +249,19 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                 break;
             }
 
-            converted[i * 4 + 0] = static_cast<uint8_t>(std::lround(std::clamp(linear.r, 0.0f, 1.0f) * 255.0f));
-            converted[i * 4 + 1] = static_cast<uint8_t>(std::lround(std::clamp(linear.g, 0.0f, 1.0f) * 255.0f));
-            converted[i * 4 + 2] = static_cast<uint8_t>(std::lround(std::clamp(linear.b, 0.0f, 1.0f) * 255.0f));
+            converted[i * 4 + 0] = static_cast<std::uint8_t>(std::lround(std::clamp(linear.r, 0.0f, 1.0f) * 255.0f));
+            converted[i * 4 + 1] = static_cast<std::uint8_t>(std::lround(std::clamp(linear.g, 0.0f, 1.0f) * 255.0f));
+            converted[i * 4 + 2] = static_cast<std::uint8_t>(std::lround(std::clamp(linear.b, 0.0f, 1.0f) * 255.0f));
             converted[i * 4 + 3] = a;
         }
     }
 
-    const auto bytes = std::as_bytes(std::span<const uint8_t>(converted));
+    const auto bytes = std::as_bytes(std::span<const std::uint8_t>(converted));
     return create(ctx,
                   cmdPool,
                   bytes,
-                  static_cast<uint32_t>(w),
-                  static_cast<uint32_t>(h),
+                  static_cast<std::uint32_t>(w),
+                  static_cast<std::uint32_t>(h),
                   name.empty() ? path.filename().string() : std::string(name));
 }
 

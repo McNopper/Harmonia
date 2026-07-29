@@ -5,21 +5,21 @@
 #include <slang-math/slang-math.hpp>
 
 struct Pcg32 {
-    uint64_t state = 0U;
-    uint64_t inc = 0U;
+    std::uint64_t state = 0U;
+    std::uint64_t inc = 0U;
 
-    explicit Pcg32(uint64_t seed, uint64_t seq = 1U) noexcept : state(0U), inc((seq << 1U) | 1U) {
+    explicit Pcg32(std::uint64_t seed, std::uint64_t seq = 1U) noexcept : state(0U), inc((seq << 1U) | 1U) {
         static_cast<void>(next());
         state += seed;
         static_cast<void>(next());
     }
 
-    [[nodiscard]] uint32_t next() noexcept {
-        const uint64_t oldState = state;
+    [[nodiscard]] std::uint32_t next() noexcept {
+        const std::uint64_t oldState = state;
         state = (oldState * 6364136223846793005ULL) + inc;
 
-        const uint32_t xorshifted = static_cast<uint32_t>(((oldState >> 18U) ^ oldState) >> 27U);
-        const uint32_t rot = static_cast<uint32_t>(oldState >> 59U);
+        const std::uint32_t xorshifted = static_cast<std::uint32_t>(((oldState >> 18U) ^ oldState) >> 27U);
+        const std::uint32_t rot = static_cast<std::uint32_t>(oldState >> 59U);
         return (xorshifted >> rot) | (xorshifted << ((32U - rot) & 31U));
     }
 
@@ -31,14 +31,14 @@ struct Pcg32 {
     [[nodiscard]] sm::float2 nextVec2() noexcept { return sm::float2{nextFloat(), nextFloat()}; }
 };
 
-[[nodiscard]] inline float halton(uint32_t index, uint32_t base) noexcept {
+[[nodiscard]] inline float halton(std::uint32_t index, std::uint32_t base) noexcept {
     if (base < 2U) {
         return 0.0F;
     }
 
     float result = 0.0F;
     float fraction = 1.0F / static_cast<float>(base);
-    uint32_t current = index;
+    std::uint32_t current = index;
 
     while (current > 0U) {
         result += fraction * static_cast<float>(current % base);
@@ -49,7 +49,7 @@ struct Pcg32 {
     return result;
 }
 
-[[nodiscard]] inline sm::float2 halton2D(uint32_t index) noexcept {
+[[nodiscard]] inline sm::float2 halton2D(std::uint32_t index) noexcept {
     return sm::float2{halton(index, 2U), halton(index, 3U)};
 }
 #endif // HARMONIA_UTILS_RANDOM_HPP

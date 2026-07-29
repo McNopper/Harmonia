@@ -24,17 +24,17 @@ class Swapchain {
     Swapchain& operator=(Swapchain&& other) noexcept;
     ~Swapchain();
 
-    VkResult acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outIndex);
-    VkResult present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore);
+    VkResult acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t& outIndex);
+    VkResult present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore);
     VkResult recreate(VkExtent2D newExtent);
 
     [[nodiscard]] VkSwapchainKHR handle() const noexcept;
     [[nodiscard]] VkFormat format() const noexcept;
     [[nodiscard]] VkColorSpaceKHR colorSpace() const noexcept;
     [[nodiscard]] VkExtent2D extent() const noexcept;
-    [[nodiscard]] uint32_t imageCount() const noexcept;
-    [[nodiscard]] VkImage image(uint32_t i) const noexcept;
-    [[nodiscard]] VkImageView imageView(uint32_t i) const noexcept;
+    [[nodiscard]] std::uint32_t imageCount() const noexcept;
+    [[nodiscard]] VkImage image(std::uint32_t i) const noexcept;
+    [[nodiscard]] VkImageView imageView(std::uint32_t i) const noexcept;
 
     /// Returns the OutputColorSpace that was negotiated with the display.
     /// Use this to drive the ToneMapper each frame.

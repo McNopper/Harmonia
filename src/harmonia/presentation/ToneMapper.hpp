@@ -49,7 +49,7 @@ class ToneMapper {
                 VkImageView swapchainView,
                 VkExtent2D extent,
                 OutputColorSpace colorSpace,
-                uint32_t tonemapper,
+                std::uint32_t tonemapper,
                 ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
 
     [[nodiscard]] bool isValid() const noexcept { return m_pipeline != VK_NULL_HANDLE; }

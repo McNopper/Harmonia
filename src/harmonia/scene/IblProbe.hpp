@@ -49,8 +49,8 @@ class IblProbe {
     /// CDF buffers for 2D env importance sampling (valid when cdfWidth() > 0).
     [[nodiscard]] const Buffer& marginalCdfBuffer() const noexcept { return m_marginalCdf; }
     [[nodiscard]] const Buffer& conditionalCdfBuffer() const noexcept { return m_conditionalCdf; }
-    [[nodiscard]] uint32_t cdfWidth() const noexcept { return m_cdfWidth; }
-    [[nodiscard]] uint32_t cdfHeight() const noexcept { return m_cdfHeight; }
+    [[nodiscard]] std::uint32_t cdfWidth() const noexcept { return m_cdfWidth; }
+    [[nodiscard]] std::uint32_t cdfHeight() const noexcept { return m_cdfHeight; }
 
     /// Dominant ("sun") direction extracted from the brightest region of the panorama,
     /// expressed as a normalised world-space direction pointing *towards* the light.
@@ -70,8 +70,8 @@ class IblProbe {
 
     Buffer m_marginalCdf{};    ///< (H+1) floats: normalised marginal CDF over rows
     Buffer m_conditionalCdf{}; ///< H*(W+1) floats: normalised conditional CDF per row
-    uint32_t m_cdfWidth{0};
-    uint32_t m_cdfHeight{0};
+    std::uint32_t m_cdfWidth{0};
+    std::uint32_t m_cdfHeight{0};
 
     sm::float3 m_sunDirection{0.0f, 1.0f, 0.0f}; ///< world-space direction towards the dominant light
     float m_sunStrength{0.0f};                   ///< [0,1] concentration of the dominant light

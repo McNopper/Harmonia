@@ -42,8 +42,8 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
         const sm::float3 emission = static_cast<sm::float3>(gpuMat.emissionColorLum) *
                                     gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
 
-        const uint32_t triCount = static_cast<uint32_t>(idxBuf.size() / 3);
-        for (uint32_t t = 0; t < triCount; ++t) {
+        const std::uint32_t triCount = static_cast<std::uint32_t>(idxBuf.size() / 3);
+        for (std::uint32_t t = 0; t < triCount; ++t) {
             const sm::float3 lv0 = verts[idxBuf[t * 3 + 0]].position;
             const sm::float3 lv1 = verts[idxBuf[t * 3 + 1]].position;
             const sm::float3 lv2 = verts[idxBuf[t * 3 + 2]].position;
@@ -95,8 +95,8 @@ std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower) {
             cdf.back() = 1.0F; // guard against rounding leaving cdf[N-1] < 1
         }
     } else {
-        const auto count = static_cast<uint32_t>(emissivePower.size());
-        for (uint32_t i = 0; i < count; ++i) {
+        const auto count = static_cast<std::uint32_t>(emissivePower.size());
+        for (std::uint32_t i = 0; i < count; ++i) {
             cdf.push_back(static_cast<float>(i + 1) / static_cast<float>(count));
         }
     }

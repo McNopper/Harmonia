@@ -15,7 +15,7 @@
 ///   eDisplayP3 — B8G8R8A8_UNORM     + VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT
 ///   eSDRLinear — R16G16B16A16_SFLOAT + VK_COLOR_SPACE_BT709_LINEAR_EXT
 ///   eSDR       — B8G8R8A8_UNORM     + VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-enum class OutputColorSpace : uint32_t {
+enum class OutputColorSpace : std::uint32_t {
     eHDR10 = 0,     ///< ST.2084 PQ OETF, Rec.2020 primaries, 10 000 nit absolute reference
     eHLG = 1,       ///< BT.2100 HLG OETF, Rec.2020 primaries, relative (1 000 nit peak)
     eScRGB = 2,     ///< Extended linear scRGB, Rec.709 primaries, no OETF (Windows HDR)

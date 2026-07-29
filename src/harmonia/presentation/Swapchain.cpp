@@ -25,8 +25,8 @@ namespace {
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-[[nodiscard]] uint32_t chooseImageCount(const VkSurfaceCapabilitiesKHR& capabilities) noexcept {
-    uint32_t desired = std::max(2U, capabilities.minImageCount + 1U);
+[[nodiscard]] std::uint32_t chooseImageCount(const VkSurfaceCapabilitiesKHR& capabilities) noexcept {
+    std::uint32_t desired = std::max(2U, capabilities.minImageCount + 1U);
     if (capabilities.maxImageCount > 0U) {
         desired = std::min(desired, capabilities.maxImageCount);
     }
@@ -55,7 +55,7 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         return std::unexpected(result);
     }
 
-    uint32_t formatCount = 0;
+    std::uint32_t formatCount = 0;
     result = vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, surface, &formatCount, nullptr);
     if (result != VK_SUCCESS || formatCount == 0U) {
         return std::unexpected(result == VK_SUCCESS ? VK_ERROR_FORMAT_NOT_SUPPORTED : result);
@@ -66,7 +66,7 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         return std::unexpected(result);
     }
 
-    uint32_t presentModeCount = 0;
+    std::uint32_t presentModeCount = 0;
     result = vkGetPhysicalDeviceSurfacePresentModesKHR(ctx.physicalDevice, surface, &presentModeCount, nullptr);
     if (result != VK_SUCCESS || presentModeCount == 0U) {
         return std::unexpected(result == VK_SUCCESS ? VK_ERROR_INITIALIZATION_FAILED : result);
@@ -139,7 +139,7 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         return std::unexpected(result);
     }
 
-    uint32_t imageCount = 0;
+    std::uint32_t imageCount = 0;
     result = vkGetSwapchainImagesKHR(ctx.device, swapchain.m_swapchain, &imageCount, nullptr);
     if (result != VK_SUCCESS || imageCount == 0U) {
         return std::unexpected(result == VK_SUCCESS ? VK_ERROR_INITIALIZATION_FAILED : result);
@@ -151,7 +151,7 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     }
 
     swapchain.m_views.reserve(imageCount);
-    for (uint32_t i = 0; i < imageCount; ++i) {
+    for (std::uint32_t i = 0; i < imageCount; ++i) {
         const VkImageViewCreateInfo viewInfo{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .pNext = nullptr,
@@ -230,14 +230,14 @@ Swapchain::~Swapchain() {
     destroy();
 }
 
-VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outIndex) {
+VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t& outIndex) {
     if (m_ctx == nullptr || m_swapchain == VK_NULL_HANDLE) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
     return vkAcquireNextImageKHR(m_ctx->device, m_swapchain, UINT64_MAX, signalSemaphore, VK_NULL_HANDLE, &outIndex);
 }
 
-VkResult Swapchain::present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore) {
+VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore) {
     const VkPresentInfoKHR presentInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .pNext = nullptr,
@@ -300,15 +300,15 @@ VkExtent2D Swapchain::extent() const noexcept {
     return m_extent;
 }
 
-uint32_t Swapchain::imageCount() const noexcept {
-    return static_cast<uint32_t>(m_images.size());
+std::uint32_t Swapchain::imageCount() const noexcept {
+    return static_cast<std::uint32_t>(m_images.size());
 }
 
-VkImage Swapchain::image(uint32_t i) const noexcept {
+VkImage Swapchain::image(std::uint32_t i) const noexcept {
     return i < m_images.size() ? m_images[i] : VK_NULL_HANDLE;
 }
 
-VkImageView Swapchain::imageView(uint32_t i) const noexcept {
+VkImageView Swapchain::imageView(std::uint32_t i) const noexcept {
     return i < m_views.size() ? m_views[i] : VK_NULL_HANDLE;
 }
 

@@ -14,7 +14,7 @@ struct DeviceContext {
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VmaAllocator allocator = VK_NULL_HANDLE;
     VkQueue graphicsQueue = VK_NULL_HANDLE;
-    uint32_t graphicsFamily = 0;
+    std::uint32_t graphicsFamily = 0;
     bool positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is enabled.
     bool serSupported = false;           ///< VK_EXT_ray_tracing_invocation_reorder is enabled.
     bool indirectRt2Supported = false;   ///< VK_KHR_ray_tracing_maintenance1 rayTracingPipelineTraceRaysIndirect2.
@@ -23,12 +23,12 @@ struct DeviceContext {
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
     /// VK_NULL_HANDLE when the device has no dedicated compute queue family.
     VkQueue asyncComputeQueue = VK_NULL_HANDLE;
-    uint32_t asyncComputeQueueFamily = UINT32_MAX;
+    std::uint32_t asyncComputeQueueFamily = UINT32_MAX;
 
     [[nodiscard]] bool isValid() const noexcept { return device != VK_NULL_HANDLE; }
     [[nodiscard]] bool hasAsyncCompute() const noexcept { return asyncComputeQueue != VK_NULL_HANDLE; }
 
-    void setDebugName(VkObjectType type, uint64_t handle, const char* name) const noexcept {
+    void setDebugName(VkObjectType type, std::uint64_t handle, const char* name) const noexcept {
         if (device == VK_NULL_HANDLE || handle == 0U || name == nullptr || name[0] == '\0' ||
             vkSetDebugUtilsObjectNameEXT == nullptr) {
             return;

@@ -94,7 +94,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
     return ggxD(nDotM, alpha) * smithG1(nDotV, alpha) * vDotM / nDotV;
 }
 
-[[nodiscard]] uint32_t wangHash(uint32_t seed) noexcept {
+[[nodiscard]] std::uint32_t wangHash(std::uint32_t seed) noexcept {
     seed = (seed ^ 61U) ^ (seed >> 16U);
     seed *= 9U;
     seed ^= seed >> 4U;
@@ -103,7 +103,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
     return seed;
 }
 
-[[nodiscard]] float randFloat(uint32_t& state) noexcept {
+[[nodiscard]] float randFloat(std::uint32_t& state) noexcept {
     state = wangHash(state);
     return static_cast<float>(state) * (1.0F / 4294967296.0F);
 }
@@ -231,17 +231,17 @@ TEST(Math, SampleGgxVndfProducesNormalizedPdf) {
 }
 
 TEST(Math, WangHashSeparatesConsecutiveSeeds) {
-    std::unordered_set<uint32_t> values;
+    std::unordered_set<std::uint32_t> values;
     values.reserve(1000);
 
-    for (uint32_t seed = 0; seed < 1000U; ++seed) {
-        const uint32_t hash = wangHash(seed);
+    for (std::uint32_t seed = 0; seed < 1000U; ++seed) {
+        const std::uint32_t hash = wangHash(seed);
         EXPECT_TRUE(values.insert(hash).second) << "Duplicate hash for seed " << seed;
     }
 }
 
 TEST(Math, RandFloatStaysWithinUnitInterval) {
-    uint32_t state = 1U;
+    std::uint32_t state = 1U;
     for (int i = 0; i < 10000; ++i) {
         const float value = randFloat(state);
         EXPECT_GE(value, 0.0F);

@@ -18,12 +18,12 @@ namespace harmonia {
 /// Defined outside SceneOutputCopyPass to avoid CWG2664 (Clang 22+ C++23 restriction on nested-struct
 /// NSDMIs in default arguments / data-member initializers of the enclosing class).
 struct SceneOutputCopyPassSettings {
-    float strength = 0.45F;     ///< spatial denoiser strength [0, 1]
-    uint32_t iterations = 2U;   ///< bilateral passes [1, 8]
-    bool useHistory = true;     ///< enable temporal blending in fixed-view mode
-    float historyBlend = 0.15F; ///< temporal blend factor [0, 1]
-    bool useGradient = true;    ///< A-SVGF: gradient-driven adaptive history + variance-guided spatial filter
-    float gradientAlpha = 0.2F; ///< A-SVGF: temporal blend factor for the gradient [0, 1]
+    float strength = 0.45F;        ///< spatial denoiser strength [0, 1]
+    std::uint32_t iterations = 2U; ///< bilateral passes [1, 8]
+    bool useHistory = true;        ///< enable temporal blending in fixed-view mode
+    float historyBlend = 0.15F;    ///< temporal blend factor [0, 1]
+    bool useGradient = true;       ///< A-SVGF: gradient-driven adaptive history + variance-guided spatial filter
+    float gradientAlpha = 0.2F;    ///< A-SVGF: temporal blend factor for the gradient [0, 1]
 };
 
 /// Shared denoiser stage operating on scene-referred HDR output before tone mapping.
@@ -59,7 +59,7 @@ class SceneOutputCopyPass final : public IRenderPass {
 
   private:
     [[nodiscard]] bool createWorkImages(VkExtent2D extent) noexcept;
-    void resetHistory(uint64_t resetToken) noexcept;
+    void resetHistory(std::uint64_t resetToken) noexcept;
     void destroy() noexcept;
 
     const DeviceContext* m_ctx = nullptr;
@@ -76,7 +76,7 @@ class SceneOutputCopyPass final : public IRenderPass {
     Image m_dummyGradient{};      ///< 1×1 R32G32F fallback bound to bindings 6/7 when useGradient is off
     Settings m_settings;          // Default-initialized (uses NSDMIs from SceneOutputCopyPassSettings)
     VkExtent2D m_extent{};
-    uint64_t m_lastResetToken = 0U;
+    std::uint64_t m_lastResetToken = 0U;
     bool m_firstUse = true;
     bool m_historyFirstUse = true;
 };

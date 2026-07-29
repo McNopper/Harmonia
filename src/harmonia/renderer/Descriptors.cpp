@@ -46,7 +46,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
-        .bindingCount = static_cast<uint32_t>(set0Bindings.size()),
+        .bindingCount = static_cast<std::uint32_t>(set0Bindings.size()),
         .pBindings = set0Bindings.data(),
     };
 
@@ -80,14 +80,14 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     const VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
         .pNext = nullptr,
-        .bindingCount = static_cast<uint32_t>(bindingFlags.size()),
+        .bindingCount = static_cast<std::uint32_t>(bindingFlags.size()),
         .pBindingFlags = bindingFlags.data(),
     };
     const VkDescriptorSetLayoutCreateInfo set1Info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = &bindingFlagsInfo,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-        .bindingCount = static_cast<uint32_t>(set1Bindings.size()),
+        .bindingCount = static_cast<std::uint32_t>(set1Bindings.size()),
         .pBindings = set1Bindings.data(),
     };
 
@@ -112,7 +112,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         .pNext = nullptr,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
         .maxSets = 1,
-        .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+        .poolSizeCount = static_cast<std::uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data(),
     };
     if (const VkResult result = vkCreateDescriptorPool(ctx.device, &poolInfo, nullptr, &descriptors.m_pool);
@@ -142,7 +142,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .setLayoutCount = static_cast<uint32_t>(layouts.size()),
+        .setLayoutCount = static_cast<std::uint32_t>(layouts.size()),
         .pSetLayouts = layouts.data(),
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushConstantRange,
@@ -154,15 +154,15 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     }
 
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<uint64_t>(descriptors.m_set0Layout),
+                     reinterpret_cast<std::uint64_t>(descriptors.m_set0Layout),
                      "hyperion.set0.push");
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<uint64_t>(descriptors.m_set1Layout),
+                     reinterpret_cast<std::uint64_t>(descriptors.m_set1Layout),
                      "hyperion.set1.scene");
     ctx.setDebugName(
-        VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<uint64_t>(descriptors.m_pool), "hyperion.scene.pool");
+        VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<std::uint64_t>(descriptors.m_pool), "hyperion.scene.pool");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<uint64_t>(descriptors.m_pipelineLayout),
+                     reinterpret_cast<std::uint64_t>(descriptors.m_pipelineLayout),
                      "hyperion.pipelineLayout");
 
     return descriptors;
@@ -258,10 +258,10 @@ VkResult Descriptors::updateSceneSet(const DeviceContext& ctx,
                              &bufferInfos[6],
                              nullptr},
     };
-    vkUpdateDescriptorSets(ctx.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    vkUpdateDescriptorSets(ctx.device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
 
     // Bind each scene texture to binding 4 (bindless combined image sampler array).
-    for (uint32_t i = 0; i < static_cast<uint32_t>(textures.size()); ++i) {
+    for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(textures.size()); ++i) {
         const VkDescriptorImageInfo imageInfo{
             .sampler = textures[i].sampler(),
             .imageView = textures[i].image().view(),
@@ -332,7 +332,7 @@ VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer mar
                              &conditionalInfo,
                              nullptr},
     };
-    vkUpdateDescriptorSets(ctx.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    vkUpdateDescriptorSets(ctx.device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
     return VK_SUCCESS;
 }
 

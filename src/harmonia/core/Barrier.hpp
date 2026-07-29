@@ -48,7 +48,7 @@ inline void pipelineBarrier(VkCommandBuffer cmd, std::span<const VkImageMemoryBa
         .pMemoryBarriers = nullptr,
         .bufferMemoryBarrierCount = 0,
         .pBufferMemoryBarriers = nullptr,
-        .imageMemoryBarrierCount = static_cast<uint32_t>(imageBarriers.size()),
+        .imageMemoryBarrierCount = static_cast<std::uint32_t>(imageBarriers.size()),
         .pImageMemoryBarriers = imageBarriers.data(),
     };
     vkCmdPipelineBarrier2(cmd, &dependencyInfo);

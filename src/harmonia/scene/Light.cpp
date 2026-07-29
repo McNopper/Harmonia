@@ -12,7 +12,7 @@ inline constexpr float kLumEfficacy = 683.0f;
 /// Pack a LightType enum value into the float slot of GpuLight.
 /// (Matches the asuint() read in the shader.)
 inline float packType(LightType t) noexcept {
-    const uint32_t u = static_cast<uint32_t>(t);
+    const std::uint32_t u = static_cast<std::uint32_t>(t);
     return std::bit_cast<float>(u);
 }
 

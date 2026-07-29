@@ -65,8 +65,8 @@ readRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& i
                          VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
     EXPECT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 
-    std::vector<sm::float4> pixels(static_cast<size_t>(image.extent().width) * image.extent().height);
-    std::memcpy(pixels.data(), readback->mappedData(), static_cast<size_t>(byteSize));
+    std::vector<sm::float4> pixels(static_cast<std::size_t>(image.extent().width) * image.extent().height);
+    std::memcpy(pixels.data(), readback->mappedData(), static_cast<std::size_t>(byteSize));
     return pixels;
 }
 
@@ -201,12 +201,12 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
                                 "test.sceneoutput.gdepth");
     ASSERT_TRUE(gDepth.has_value()) << static_cast<int>(gDepth.error());
 
-    std::vector<sm::float4> hdrPixels(static_cast<size_t>(kExtent.width) * kExtent.height);
-    std::vector<sm::float4> normalPixels(static_cast<size_t>(kExtent.width) * kExtent.height);
-    std::vector<float> depthPixels(static_cast<size_t>(kExtent.width) * kExtent.height);
-    for (uint32_t y = 0; y < kExtent.height; ++y) {
-        for (uint32_t x = 0; x < kExtent.width; ++x) {
-            const size_t idx = static_cast<size_t>(y) * kExtent.width + x;
+    std::vector<sm::float4> hdrPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    std::vector<sm::float4> normalPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    std::vector<float> depthPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+        for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+            const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
             const bool left = x < (kExtent.width / 2U);
             const float base = left ? 0.30F : 1.40F;
             const int pattern = static_cast<int>((x * 17U + y * 29U) % 9U) - 4;
@@ -263,15 +263,15 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
     float leftVarOut = 0.0F;
     float edgeIn = 0.0F;
     float edgeOut = 0.0F;
-    const uint32_t half = kExtent.width / 2U;
-    for (uint32_t y = 0; y < kExtent.height; ++y) {
-        for (uint32_t x = 0; x < half; ++x) {
-            const size_t idx = static_cast<size_t>(y) * kExtent.width + x;
+    const std::uint32_t half = kExtent.width / 2U;
+    for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+        for (std::uint32_t x = 0; x < half; ++x) {
+            const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
             leftMeanIn += luminance(hdrPixels[idx]);
             leftMeanOut += luminance(denoisedPixels[idx]);
         }
-        const size_t leftIdx = static_cast<size_t>(y) * kExtent.width + (half - 1U);
-        const size_t rightIdx = static_cast<size_t>(y) * kExtent.width + half;
+        const std::size_t leftIdx = static_cast<std::size_t>(y) * kExtent.width + (half - 1U);
+        const std::size_t rightIdx = static_cast<std::size_t>(y) * kExtent.width + half;
         edgeIn += std::abs(luminance(hdrPixels[rightIdx]) - luminance(hdrPixels[leftIdx]));
         edgeOut += std::abs(luminance(denoisedPixels[rightIdx]) - luminance(denoisedPixels[leftIdx]));
     }
@@ -281,9 +281,9 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
     edgeIn /= static_cast<float>(kExtent.height);
     edgeOut /= static_cast<float>(kExtent.height);
 
-    for (uint32_t y = 0; y < kExtent.height; ++y) {
-        for (uint32_t x = 0; x < half; ++x) {
-            const size_t idx = static_cast<size_t>(y) * kExtent.width + x;
+    for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+        for (std::uint32_t x = 0; x < half; ++x) {
+            const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
             const float in = luminance(hdrPixels[idx]) - leftMeanIn;
             const float out = luminance(denoisedPixels[idx]) - leftMeanOut;
             leftVarIn += in * in;

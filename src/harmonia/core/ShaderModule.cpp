@@ -6,7 +6,7 @@
 
 namespace harmonia {
 
-std::expected<std::vector<uint32_t>, VkResult> readSpirv(const std::filesystem::path& path) {
+std::expected<std::vector<std::uint32_t>, VkResult> readSpirv(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) {
         Logger::error("Failed to open SPIR-V file: {}", path.string());
@@ -14,12 +14,12 @@ std::expected<std::vector<uint32_t>, VkResult> readSpirv(const std::filesystem::
     }
 
     const auto size = file.tellg();
-    if (size <= 0 || (static_cast<size_t>(size) % sizeof(uint32_t)) != 0U) {
+    if (size <= 0 || (static_cast<std::size_t>(size) % sizeof(std::uint32_t)) != 0U) {
         Logger::error("Invalid SPIR-V file size for: {}", path.string());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    std::vector<uint32_t> code(static_cast<size_t>(size) / sizeof(uint32_t));
+    std::vector<std::uint32_t> code(static_cast<std::size_t>(size) / sizeof(std::uint32_t));
     file.seekg(0, std::ios::beg);
     file.read(reinterpret_cast<char*>(code.data()), size);
     if (!file) {
@@ -40,7 +40,7 @@ std::expected<VkShaderModule, VkResult> createShaderModule(VkDevice device, cons
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .codeSize = code->size() * sizeof(uint32_t),
+        .codeSize = code->size() * sizeof(std::uint32_t),
         .pCode = code->data(),
     };
 

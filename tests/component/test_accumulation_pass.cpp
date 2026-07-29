@@ -90,7 +90,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
 
     bool firstFrame = true;
     sm::float4 expected{};
-    for (size_t frame = 0; frame < colors.size(); ++frame) {
+    for (std::size_t frame = 0; frame < colors.size(); ++frame) {
         auto cmd = commandPool().beginOneShot();
         ASSERT_TRUE(cmd.has_value()) << static_cast<int>(cmd.error());
         hdr->transition(*cmd,
@@ -123,7 +123,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
 
         const PassContext passContext{
             .cmd = *cmd,
-            .frameIndex = static_cast<uint32_t>(frame),
+            .frameIndex = static_cast<std::uint32_t>(frame),
             .extent = kExtent,
             .fixedView = true,
             .accumulationResetToken = 1U,
@@ -185,10 +185,10 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
         VkClearColorValue{.float32 = {0.6F, 0.2F, 0.9F, 1.0F}},
         VkClearColorValue{.float32 = {0.9F, 0.1F, 0.2F, 1.0F}},
     };
-    const std::array<uint64_t, 3> resetTokens{1U, 1U, 2U};
+    const std::array<std::uint64_t, 3> resetTokens{1U, 1U, 2U};
 
     bool firstFrame = true;
-    for (size_t frame = 0; frame < colors.size(); ++frame) {
+    for (std::size_t frame = 0; frame < colors.size(); ++frame) {
         auto cmd = commandPool().beginOneShot();
         ASSERT_TRUE(cmd.has_value()) << static_cast<int>(cmd.error());
         hdr->transition(*cmd,
@@ -221,7 +221,7 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
 
         const PassContext passContext{
             .cmd = *cmd,
-            .frameIndex = static_cast<uint32_t>(frame),
+            .frameIndex = static_cast<std::uint32_t>(frame),
             .extent = kExtent,
             .fixedView = true,
             .accumulationResetToken = resetTokens[frame],

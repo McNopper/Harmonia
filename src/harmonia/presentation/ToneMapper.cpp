@@ -187,7 +187,7 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
+        .dynamicStateCount = static_cast<std::uint32_t>(dynamicStates.size()),
         .pDynamicStates = dynamicStates.data(),
     };
 
@@ -205,7 +205,7 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = &renderingInfo,
         .flags = 0,
-        .stageCount = static_cast<uint32_t>(stages.size()),
+        .stageCount = static_cast<std::uint32_t>(stages.size()),
         .pStages = stages.data(),
         .pVertexInputState = &vertexInput,
         .pInputAssemblyState = &inputAssembly,
@@ -241,12 +241,12 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
     }
 
     ctx.setDebugName(
-        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(mapper.m_pipeline), "harmonia.tonemapPipeline");
+        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(mapper.m_pipeline), "harmonia.tonemapPipeline");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<uint64_t>(mapper.m_pipelineLayout),
+                     reinterpret_cast<std::uint64_t>(mapper.m_pipelineLayout),
                      "harmonia.tonemapPipelineLayout");
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<uint64_t>(mapper.m_setLayout),
+                     reinterpret_cast<std::uint64_t>(mapper.m_setLayout),
                      "harmonia.tonemapSetLayout");
     return mapper;
 }
@@ -305,22 +305,22 @@ void ToneMapper::record(VkCommandBuffer cmd,
     };
     vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &hdrWrite);
 
-    const uint32_t cs = static_cast<uint32_t>(colorSpace);
+    const std::uint32_t cs = static_cast<std::uint32_t>(colorSpace);
     vkCmdPushConstants(cmd,
                        m_pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT,
                        offsetof(PushConstants, outputColorSpace),
-                       sizeof(uint32_t),
+                       sizeof(std::uint32_t),
                        &cs);
 
     // Working color space of the HDR input — the shader up-converts a Rec.709
     // working space to Rec.2020 before its output transforms.
-    const uint32_t ws = static_cast<uint32_t>(workingSpace);
+    const std::uint32_t ws = static_cast<std::uint32_t>(workingSpace);
     vkCmdPushConstants(cmd,
                        m_pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT,
                        offsetof(PushConstants, workingColorSpace),
-                       sizeof(uint32_t),
+                       sizeof(std::uint32_t),
                        &ws);
 
     const VkRenderingAttachmentInfo colorAttachment{
@@ -373,7 +373,7 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkImageView swapchainView,
                         VkExtent2D extent,
                         OutputColorSpace colorSpace,
-                        uint32_t tonemapper,
+                        std::uint32_t tonemapper,
                         ColorSpace::WorkingColorSpace workingSpace) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
@@ -386,7 +386,7 @@ void ToneMapper::record(VkCommandBuffer cmd,
                        m_pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT,
                        offsetof(PushConstants, tonemapper),
-                       sizeof(uint32_t),
+                       sizeof(std::uint32_t),
                        &tonemapper);
 
     record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace);

@@ -100,7 +100,7 @@ std::expected<Buffer, VkResult> Buffer::create(const DeviceContext& ctx,
 
     if (!debugName.empty()) {
         const std::string name(debugName);
-        ctx.setDebugName(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<uint64_t>(buffer.m_buffer), name.c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(buffer.m_buffer), name.c_str());
     }
 
     return buffer;
@@ -221,7 +221,7 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
 
     if (m_mapped != nullptr) {
         auto* const dst = static_cast<unsigned char*>(m_mapped) + offset;
-        std::memcpy(dst, data, static_cast<size_t>(size));
+        std::memcpy(dst, data, static_cast<std::size_t>(size));
         static_cast<void>(vmaFlushAllocation(m_allocator, m_allocation, offset, size));
         return;
     }
@@ -262,7 +262,7 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
         return;
     }
 
-    std::memcpy(stagingAllocationInfo.pMappedData, data, static_cast<size_t>(size));
+    std::memcpy(stagingAllocationInfo.pMappedData, data, static_cast<std::size_t>(size));
     static_cast<void>(vmaFlushAllocation(m_allocator, stagingAllocation, 0U, size));
 
     VkCommandPool commandPool = VK_NULL_HANDLE;

@@ -55,7 +55,7 @@ class Buffer {
     VkDevice m_device = VK_NULL_HANDLE;
     VkQueue m_queue = VK_NULL_HANDLE;
     VkDeviceSize m_size = 0;
-    uint32_t m_queueFamily = 0;
+    std::uint32_t m_queueFamily = 0;
     void* m_mapped = nullptr;
 };
 #endif // HARMONIA_CORE_BUFFER_HPP

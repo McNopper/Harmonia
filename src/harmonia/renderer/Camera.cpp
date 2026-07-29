@@ -49,7 +49,7 @@ void Camera::setPhysicalCamera(const PhysicalCamera& physical) noexcept {
     m_params.physical = physical;
 }
 
-CameraData Camera::getCameraData(uint32_t frameIndex, uint32_t maxDepth) const noexcept {
+CameraData Camera::getCameraData(std::uint32_t frameIndex, std::uint32_t maxDepth) const noexcept {
     const float aspect = std::max(m_params.aspectRatio, 0.001f);
     const float fovY = sm::radians(m_params.vfovDeg);
     const float zNear = std::max(m_params.nearPlane, 0.001f);

@@ -61,10 +61,10 @@ class MaterialLibrary {
     /// Patch the texture index for slot in the stored material.
     /// Call this after the texture has been uploaded to the GPU so that
     /// subsequent getOrDefault() calls return the correct bindless index.
-    void patchTextureIndex(const std::string& name, uint32_t slot, uint32_t idx);
+    void patchTextureIndex(const std::string& name, std::uint32_t slot, std::uint32_t idx);
 
     [[nodiscard]] bool empty() const noexcept { return m_materials.empty(); }
-    [[nodiscard]] size_t size() const noexcept { return m_materials.size(); }
+    [[nodiscard]] std::size_t size() const noexcept { return m_materials.size(); }
 
   private:
     std::unordered_map<std::string, Material> m_materials;

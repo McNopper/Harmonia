@@ -16,26 +16,26 @@ namespace {
 struct alignas(16) DenoiserPushConstants {
     float strength = 0.45F;
     float historyBlend = 0.15F;
-    uint32_t hasNormalGuide = 0U;
-    uint32_t hasDepthGuide = 0U;
-    uint32_t applyHistory = 0U;
-    uint32_t historyFirstUse = 1U;
-    uint32_t iterations = 1U;
-    uint32_t passIndex = 0U;
-    uint32_t hasMotionVectors = 0U; ///< 1 when ctx.motionVectorView is populated
+    std::uint32_t hasNormalGuide = 0U;
+    std::uint32_t hasDepthGuide = 0U;
+    std::uint32_t applyHistory = 0U;
+    std::uint32_t historyFirstUse = 1U;
+    std::uint32_t iterations = 1U;
+    std::uint32_t passIndex = 0U;
+    std::uint32_t hasMotionVectors = 0U; ///< 1 when ctx.motionVectorView is populated
     // ── A-SVGF (A2) ───────────────────────────────────────────────────────────
-    uint32_t computeGradient = 0U;     ///< temporal pass computes gradient + variance
-    uint32_t gradientFilterMode = 0U;  ///< 1 = this dispatch is the gradient à-trous blur pass
-    uint32_t gradientFilterPass = 0U;  ///< gradient à-trous pass index (tap spacing)
-    uint32_t hasGradientVariance = 0U; ///< gGradientVariance holds valid gradient/variance
-    float gradientAlpha = 0.2F;        ///< temporal blend factor for the gradient
+    std::uint32_t computeGradient = 0U;     ///< temporal pass computes gradient + variance
+    std::uint32_t gradientFilterMode = 0U;  ///< 1 = this dispatch is the gradient à-trous blur pass
+    std::uint32_t gradientFilterPass = 0U;  ///< gradient à-trous pass index (tap spacing)
+    std::uint32_t hasGradientVariance = 0U; ///< gGradientVariance holds valid gradient/variance
+    float gradientAlpha = 0.2F;             ///< temporal blend factor for the gradient
 };
 
 [[nodiscard]] float clamp01(float value) noexcept {
     return std::clamp(value, 0.0F, 1.0F);
 }
 
-[[nodiscard]] uint32_t clampIterations(uint32_t iterations) noexcept {
+[[nodiscard]] std::uint32_t clampIterations(std::uint32_t iterations) noexcept {
     return std::clamp(iterations, 1U, 8U);
 }
 
@@ -116,7 +116,7 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
-        .bindingCount = static_cast<uint32_t>(bindings.size()),
+        .bindingCount = static_cast<std::uint32_t>(bindings.size()),
         .pBindings = bindings.data(),
     };
 
@@ -210,15 +210,15 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
     }
 
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<uint64_t>(pass.m_setLayout),
+                     reinterpret_cast<std::uint64_t>(pass.m_setLayout),
                      "harmonia.denoiser.setLayout");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<uint64_t>(pass.m_pipelineLayout),
+                     reinterpret_cast<std::uint64_t>(pass.m_pipelineLayout),
                      "harmonia.denoiser.pipelineLayout");
     ctx.setDebugName(
-        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(pass.m_pipeline), "harmonia.denoiser.pipeline");
+        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(pass.m_pipeline), "harmonia.denoiser.pipeline");
     ctx.setDebugName(
-        VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<uint64_t>(pass.m_guideSampler), "harmonia.denoiser.sampler");
+        VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<std::uint64_t>(pass.m_guideSampler), "harmonia.denoiser.sampler");
     return pass;
 }
 
@@ -399,9 +399,9 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     const bool hasGradientVariance = useGradient && applyHistory && !m_historyFirstUse;
 
     vkCmdBindPipeline(ctx.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
-    constexpr uint32_t kGroupSize = 8U;
-    const uint32_t groupsX = (ctx.extent.width + (kGroupSize - 1U)) / kGroupSize;
-    const uint32_t groupsY = (ctx.extent.height + (kGroupSize - 1U)) / kGroupSize;
+    constexpr std::uint32_t kGroupSize = 8U;
+    const std::uint32_t groupsX = (ctx.extent.width + (kGroupSize - 1U)) / kGroupSize;
+    const std::uint32_t groupsY = (ctx.extent.height + (kGroupSize - 1U)) / kGroupSize;
 
     const VkImageView normalCandidate = ctx.gNormalView != VK_NULL_HANDLE ? ctx.gNormalView : ctx.transparentNormalView;
     const VkImageView depthCandidate = ctx.gDepthView != VK_NULL_HANDLE ? ctx.gDepthView : ctx.transparentDepthView;
@@ -411,12 +411,12 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     const VkImageView normalGuideView = hasNormalGuide ? normalCandidate : fallbackGuideView;
     const VkImageView depthGuideView = hasDepthGuide ? depthCandidate : fallbackGuideView;
 
-    const uint32_t iterations = clampIterations(m_settings.iterations);
+    const std::uint32_t iterations = clampIterations(m_settings.iterations);
     VkImage currentSource = ctx.hdrBuffer->handle();
     VkImageView currentSourceView = ctx.hdrBuffer->view();
     VkImage finalSource = currentSource;
 
-    for (uint32_t passIndex = 0U; passIndex < iterations; ++passIndex) {
+    for (std::uint32_t passIndex = 0U; passIndex < iterations; ++passIndex) {
         const bool writeToDenoised = ((passIndex & 1U) == 0U);
         const VkImageView dstView = writeToDenoised ? ctx.denoised->view() : m_workImage.view();
         finalSource = writeToDenoised ? ctx.denoised->handle() : m_workImage.handle();
@@ -580,7 +580,7 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                                VK_PIPELINE_BIND_POINT_COMPUTE,
                                m_pipelineLayout,
                                0U,
-                               static_cast<uint32_t>(writes.size()),
+                               static_cast<std::uint32_t>(writes.size()),
                                writes.data());
         vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0U, sizeof(push), &push);
         vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1U);
@@ -810,7 +810,7 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                                VK_PIPELINE_BIND_POINT_COMPUTE,
                                m_pipelineLayout,
                                0U,
-                               static_cast<uint32_t>(historyWrites.size()),
+                               static_cast<std::uint32_t>(historyWrites.size()),
                                historyWrites.data());
         vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0U, sizeof(push), &push);
         vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1U);
@@ -826,8 +826,8 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     // the gradient to zero, so the blur is skipped and only the carry copy runs.
     if (useGradient && applyHistory) {
         if (!m_historyFirstUse) {
-            constexpr uint32_t kGradientFilterPasses = 2U; // even → final result lands in m_gradientImage
-            for (uint32_t gp = 0U; gp < kGradientFilterPasses; ++gp) {
+            constexpr std::uint32_t kGradientFilterPasses = 2U; // even → final result lands in m_gradientImage
+            for (std::uint32_t gp = 0U; gp < kGradientFilterPasses; ++gp) {
                 const bool srcIsGradient = (gp % 2U) == 0U;
                 const VkImageView gradSrcView = srcIsGradient ? m_gradientImage.view() : m_prevGradientImage.view();
                 const VkImageView gradDstView = srcIsGradient ? m_prevGradientImage.view() : m_gradientImage.view();
@@ -904,7 +904,7 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
                                        VK_PIPELINE_BIND_POINT_COMPUTE,
                                        m_pipelineLayout,
                                        0U,
-                                       static_cast<uint32_t>(gradWrites.size()),
+                                       static_cast<std::uint32_t>(gradWrites.size()),
                                        gradWrites.data());
                 vkCmdPushConstants(
                     ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0U, sizeof(gradPush), &gradPush);
@@ -1119,7 +1119,7 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
     return true;
 }
 
-void SceneOutputCopyPass::resetHistory(uint64_t resetToken) noexcept {
+void SceneOutputCopyPass::resetHistory(std::uint64_t resetToken) noexcept {
     m_lastResetToken = resetToken;
     m_historyFirstUse = true;
 }

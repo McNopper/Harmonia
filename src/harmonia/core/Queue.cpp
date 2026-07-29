@@ -2,7 +2,7 @@
 
 #include <vector>
 
-Queue::Queue(VkQueue queue, uint32_t family) noexcept : m_queue(queue), m_family(family) {}
+Queue::Queue(VkQueue queue, std::uint32_t family) noexcept : m_queue(queue), m_family(family) {}
 
 VkResult Queue::submit(std::span<const VkCommandBuffer> cmds,
                        std::span<const VkSemaphoreSubmitInfo> waits,
@@ -28,11 +28,11 @@ VkResult Queue::submit(std::span<const VkCommandBuffer> cmds,
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
         .pNext = nullptr,
         .flags = 0U,
-        .waitSemaphoreInfoCount = static_cast<uint32_t>(waits.size()),
+        .waitSemaphoreInfoCount = static_cast<std::uint32_t>(waits.size()),
         .pWaitSemaphoreInfos = waits.data(),
-        .commandBufferInfoCount = static_cast<uint32_t>(commandInfos.size()),
+        .commandBufferInfoCount = static_cast<std::uint32_t>(commandInfos.size()),
         .pCommandBufferInfos = commandInfos.data(),
-        .signalSemaphoreInfoCount = static_cast<uint32_t>(signals.size()),
+        .signalSemaphoreInfoCount = static_cast<std::uint32_t>(signals.size()),
         .pSignalSemaphoreInfos = signals.data(),
     };
 
@@ -43,6 +43,6 @@ VkQueue Queue::handle() const noexcept {
     return m_queue;
 }
 
-uint32_t Queue::family() const noexcept {
+std::uint32_t Queue::family() const noexcept {
     return m_family;
 }

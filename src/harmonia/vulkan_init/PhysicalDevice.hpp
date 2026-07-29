@@ -9,7 +9,7 @@ struct PhysicalDeviceInfo {
     VkPhysicalDevice device{};
     VkPhysicalDeviceProperties2 properties{};
     VkPhysicalDeviceMemoryProperties memProperties{};
-    uint32_t graphicsFamily{};
+    std::uint32_t graphicsFamily{};
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps{};
     bool serSupported = false;         ///< VK_EXT_ray_tracing_invocation_reorder is available.
     bool indirectRt2Supported = false; ///< rayTracingPipelineTraceRaysIndirect2 available.

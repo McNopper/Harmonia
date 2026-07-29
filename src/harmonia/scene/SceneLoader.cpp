@@ -106,7 +106,7 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
 /// One sub-mesh of a declared mesh: its registered mesh index + the OBJ group
 /// name used to resolve per-instance material overrides.
 struct LoadedSubmesh {
-    uint32_t meshIndex{};
+    std::uint32_t meshIndex{};
     std::string groupName;
 };
 
@@ -129,7 +129,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
     SceneConfig cfg{};
     parseRenderStageToggles(sceneFile, cfg);
     MaterialLibrary lib;
-    std::unordered_map<std::string, uint32_t> texCache; // relPath → texture index
+    std::unordered_map<std::string, std::uint32_t> texCache; // relPath → texture index
 
     // ── Working color space ───────────────────────────────────────────────────
     if (desc->workingColorSpace) {
@@ -193,7 +193,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
         if (!refs)
             return;
 
-        const std::array<std::pair<uint32_t, const MaterialLibrary::MaterialTextureRef*>, 7> slots{{
+        const std::array<std::pair<std::uint32_t, const MaterialLibrary::MaterialTextureRef*>, 7> slots{{
             {0u, &refs->base_color},
             {1u, &refs->normal},
             {2u, &refs->orm},
@@ -220,7 +220,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
                 continue;
             }
 
-            const uint32_t idx = scene.addTexture(std::move(*result));
+            const std::uint32_t idx = scene.addTexture(std::move(*result));
             texCache.emplace(relPath, idx);
             lib.patchTextureIndex(matName, slot, idx);
             Logger::info("SceneLoader: loaded texture '{}' (slot {}) → index {}", relPath, slot, idx);
@@ -251,8 +251,8 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
                     continue;
                 }
                 const std::string debugName = m.name + "." + g.name;
-                const uint32_t idx = scene.addMesh(ctx, pool, toHarmoniaMesh(g.mesh), debugName);
-                if (idx == std::numeric_limits<uint32_t>::max()) {
+                const std::uint32_t idx = scene.addMesh(ctx, pool, toHarmoniaMesh(g.mesh), debugName);
+                if (idx == std::numeric_limits<std::uint32_t>::max()) {
                     Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
                     return std::nullopt;
                 }
@@ -266,8 +266,8 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
                 continue;
             }
             MeshData mesh = ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
-            const uint32_t idx = scene.addMesh(ctx, pool, std::move(mesh), m.name);
-            if (idx == std::numeric_limits<uint32_t>::max()) {
+            const std::uint32_t idx = scene.addMesh(ctx, pool, std::move(mesh), m.name);
+            if (idx == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to upload box '{}'", m.name);
                 return std::nullopt;
             }
@@ -279,8 +279,8 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
                 Logger::warn("SceneLoader: sphere '{}' has radius ≤ 0 — skipping", m.name);
                 continue;
             }
-            const uint32_t idx = scene.addSphereMesh(ctx, pool, m.sphereRadius, m.name);
-            if (idx == std::numeric_limits<uint32_t>::max()) {
+            const std::uint32_t idx = scene.addSphereMesh(ctx, pool, m.sphereRadius, m.name);
+            if (idx == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to upload sphere '{}'", m.name);
                 return std::nullopt;
             }
@@ -318,8 +318,8 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             }
 
             loadMatTextures(matName);
-            const uint32_t matIdx = scene.addMaterial(lib.getOrDefault(matName));
-            if (scene.addInstance(sub.meshIndex, xform, matIdx) == std::numeric_limits<uint32_t>::max()) {
+            const std::uint32_t matIdx = scene.addMaterial(lib.getOrDefault(matName));
+            if (scene.addInstance(sub.meshIndex, xform, matIdx) == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
                 return std::nullopt;
             }

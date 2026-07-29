@@ -7,7 +7,8 @@
 
 class CommandPool {
   public:
-    [[nodiscard]] static std::expected<CommandPool, VkResult> create(const DeviceContext& ctx, uint32_t queueFamily);
+    [[nodiscard]] static std::expected<CommandPool, VkResult> create(const DeviceContext& ctx,
+                                                                     std::uint32_t queueFamily);
 
     CommandPool() = default;
     CommandPool(const CommandPool&) = delete;

@@ -77,15 +77,15 @@ namespace {
     int height = 0;
     SDL_GetWindowSizeInPixels(window, &width, &height);
     return VkExtent2D{
-        .width = static_cast<uint32_t>(std::max(width, 1)),
-        .height = static_cast<uint32_t>(std::max(height, 1)),
+        .width = static_cast<std::uint32_t>(std::max(width, 1)),
+        .height = static_cast<std::uint32_t>(std::max(height, 1)),
     };
 }
 
-constexpr uint64_t kHashSeed = 1469598103934665603ULL;
-constexpr uint64_t kHashPrime = 1099511628211ULL;
+constexpr std::uint64_t kHashSeed = 1469598103934665603ULL;
+constexpr std::uint64_t kHashPrime = 1099511628211ULL;
 
-void hashCombineU64(uint64_t& hash, uint64_t value) noexcept {
+void hashCombineU64(std::uint64_t& hash, std::uint64_t value) noexcept {
     hash ^= value;
     hash *= kHashPrime;
 }
@@ -124,7 +124,7 @@ class ToneMapStagePass final : public IRenderPass {
         return "none";
     }
     std::ostringstream out;
-    for (size_t i = 0; i < stages.size(); ++i) {
+    for (std::size_t i = 0; i < stages.size(); ++i) {
         if (i > 0) {
             out << " -> ";
         }
@@ -135,15 +135,15 @@ class ToneMapStagePass final : public IRenderPass {
 
 } // namespace
 
-bool App::parseUint32(std::string_view text, uint32_t& value) noexcept {
-    uint64_t parsed = 0;
+bool App::parseUint32(std::string_view text, std::uint32_t& value) noexcept {
+    std::uint64_t parsed = 0;
     const auto begin = text.data();
     const auto end = begin + text.size();
     const auto [ptr, ec] = std::from_chars(begin, end, parsed);
-    if (ec != std::errc{} || ptr != end || parsed > std::numeric_limits<uint32_t>::max()) {
+    if (ec != std::errc{} || ptr != end || parsed > std::numeric_limits<std::uint32_t>::max()) {
         return false;
     }
-    value = static_cast<uint32_t>(parsed);
+    value = static_cast<std::uint32_t>(parsed);
     return true;
 }
 
@@ -175,19 +175,19 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     }
     if (arg == "--width") {
         if (const char* v = next("--width")) {
-            config.width = static_cast<uint32_t>(parseClampedInt(v));
+            config.width = static_cast<std::uint32_t>(parseClampedInt(v));
         }
         return true;
     }
     if (arg == "--height") {
         if (const char* v = next("--height")) {
-            config.height = static_cast<uint32_t>(parseClampedInt(v));
+            config.height = static_cast<std::uint32_t>(parseClampedInt(v));
         }
         return true;
     }
     if (arg == "--offscreen-frames") {
         if (const char* v = next("--offscreen-frames")) {
-            uint32_t frames = 0U;
+            std::uint32_t frames = 0U;
             if (!App::parseUint32(v, frames)) {
                 Logger::error("Invalid value for --offscreen-frames: {}", v);
             } else {
@@ -212,7 +212,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     }
     if (arg == "--ibl-diffuse-resolution") {
         if (const char* v = next("--ibl-diffuse-resolution")) {
-            config.iblDiffuseResolution = static_cast<uint32_t>(parseClampedInt(v));
+            config.iblDiffuseResolution = static_cast<std::uint32_t>(parseClampedInt(v));
         }
         return true;
     }
@@ -238,7 +238,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     }
     if (arg == "--rng-seed") {
         if (const char* v = next("--rng-seed")) {
-            uint32_t seed = 0U;
+            std::uint32_t seed = 0U;
             if (!App::parseUint32(v, seed)) {
                 Logger::error("Invalid value for --rng-seed: {}", v);
             } else {
@@ -260,7 +260,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     }
     if (arg == "--denoiser-iterations") {
         if (const char* v = next("--denoiser-iterations")) {
-            uint32_t iterations = 0U;
+            std::uint32_t iterations = 0U;
             if (!App::parseUint32(v, iterations)) {
                 Logger::error("Invalid value for --denoiser-iterations: {}", v);
             } else {
@@ -587,51 +587,51 @@ VkImageView App::denoiserGradientImageView() const noexcept {
     return VK_NULL_HANDLE;
 }
 
-uint64_t App::accumulationResetToken() const noexcept {
-    uint64_t token = kHashSeed;
+std::uint64_t App::accumulationResetToken() const noexcept {
+    std::uint64_t token = kHashSeed;
     hashCombineU64(token, m_sceneEpoch);
     hashCombineU64(token, m_extentEpoch);
     hashCombineU64(token, m_stageEpoch);
-    hashCombineU64(token, static_cast<uint64_t>(m_workingColorSpace));
-    hashCombineU64(token, static_cast<uint64_t>(m_tonemapper));
+    hashCombineU64(token, static_cast<std::uint64_t>(m_workingColorSpace));
+    hashCombineU64(token, static_cast<std::uint64_t>(m_tonemapper));
     hashCombineU64(token, m_config.stages.accumulation ? 1ULL : 0ULL);
     hashCombineU64(token, m_config.stages.denoiser ? 1ULL : 0ULL);
     hashCombineU64(token, m_config.stages.tonemapper ? 1ULL : 0ULL);
-    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.strength));
+    hashCombineU64(token, std::bit_cast<std::uint32_t>(m_config.denoiser.strength));
     hashCombineU64(token, m_config.denoiser.iterations);
     hashCombineU64(token, m_config.denoiser.useHistory ? 1ULL : 0ULL);
-    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.historyBlend));
+    hashCombineU64(token, std::bit_cast<std::uint32_t>(m_config.denoiser.historyBlend));
     hashCombineU64(token, m_config.denoiser.useGradient ? 1ULL : 0ULL);
-    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.gradientAlpha));
+    hashCombineU64(token, std::bit_cast<std::uint32_t>(m_config.denoiser.gradientAlpha));
     // While accumulating (offscreen capture or interactive progressive mode) the
     // token must stay constant across frames so history builds up; it changes
     // only when the view/scene changes (m_accumViewEpoch, bumped by
     // resetAccumulation()). When interactive accumulation is OFF, fold in the
     // per-frame index so every interactive frame is a fresh, non-accumulated sample.
     if (m_config.outputFile.empty() && !m_interactiveAccumulation) {
-        hashCombineU64(token, static_cast<uint64_t>(m_frameIndex));
+        hashCombineU64(token, static_cast<std::uint64_t>(m_frameIndex));
     } else {
         hashCombineU64(token, m_accumViewEpoch);
     }
     return token;
 }
 
-uint64_t App::denoiserResetToken() const noexcept {
+std::uint64_t App::denoiserResetToken() const noexcept {
     // Hashes only scene/extent/config changes — NOT m_accumViewEpoch (camera movement).
     // This keeps the A-SVGF denoiser's temporal history intact across camera motion so
     // it can reproject via motion vectors (A-SVGF / SVGF design: Schied et al. 2017/2018).
-    uint64_t token = kHashSeed;
+    std::uint64_t token = kHashSeed;
     hashCombineU64(token, m_sceneEpoch);
     hashCombineU64(token, m_extentEpoch);
     hashCombineU64(token, m_stageEpoch);
-    hashCombineU64(token, static_cast<uint64_t>(m_workingColorSpace));
+    hashCombineU64(token, static_cast<std::uint64_t>(m_workingColorSpace));
     hashCombineU64(token, m_config.stages.denoiser ? 1ULL : 0ULL);
-    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.strength));
+    hashCombineU64(token, std::bit_cast<std::uint32_t>(m_config.denoiser.strength));
     hashCombineU64(token, m_config.denoiser.iterations);
     hashCombineU64(token, m_config.denoiser.useHistory ? 1ULL : 0ULL);
-    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.historyBlend));
+    hashCombineU64(token, std::bit_cast<std::uint32_t>(m_config.denoiser.historyBlend));
     hashCombineU64(token, m_config.denoiser.useGradient ? 1ULL : 0ULL);
-    hashCombineU64(token, std::bit_cast<uint32_t>(m_config.denoiser.gradientAlpha));
+    hashCombineU64(token, std::bit_cast<std::uint32_t>(m_config.denoiser.gradientAlpha));
     return token;
 }
 
@@ -739,7 +739,7 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
     return true;
 }
 
-uint64_t App::renderSceneReferred() {
+std::uint64_t App::renderSceneReferred() {
     FrameResources& frame = m_frames[m_currentFrame];
 
     // Wait for the previous use of this frame slot to complete.
@@ -815,7 +815,7 @@ uint64_t App::renderSceneReferred() {
         return frame.completionValue;
     }
 
-    const uint64_t signalValue = m_nextTimelineValue++;
+    const std::uint64_t signalValue = m_nextTimelineValue++;
     const VkCommandBufferSubmitInfo cmdInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
         .pNext = nullptr,
@@ -838,7 +838,7 @@ uint64_t App::renderSceneReferred() {
         .stageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
         .deviceIndex = 0,
     };
-    const uint32_t waitCount = (asyncWaitSem != VK_NULL_HANDLE) ? 1U : 0U;
+    const std::uint32_t waitCount = (asyncWaitSem != VK_NULL_HANDLE) ? 1U : 0U;
     const VkSubmitInfo2 submitInfo{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
         .pNext = nullptr,
@@ -857,14 +857,14 @@ uint64_t App::renderSceneReferred() {
 
     frame.completionValue = signalValue;
     ++m_frameIndex;
-    m_currentFrame = (m_currentFrame + 1U) % static_cast<uint32_t>(m_frames.size());
+    m_currentFrame = (m_currentFrame + 1U) % static_cast<std::uint32_t>(m_frames.size());
     return signalValue;
 }
 
-void App::presentFrame(uint32_t slot, uint64_t renderValue) {
+void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     FrameResources& frame = m_frames[slot];
 
-    uint32_t imageIndex = 0;
+    std::uint32_t imageIndex = 0;
     VkResult result = m_swapchain.acquireNextImage(frame.imageAvailable, imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         const VkExtent2D extent = windowPixelExtent(m_window);
@@ -1001,7 +1001,7 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
         return;
     }
 
-    const uint64_t displayValue = m_nextTimelineValue++;
+    const std::uint64_t displayValue = m_nextTimelineValue++;
     const VkPipelineStageFlags2 sceneReadyWaitStage =
         hasTonemapStage() ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_2_TRANSFER_BIT;
     const VkPipelineStageFlags2 imageAcquireWaitStage =
@@ -1052,11 +1052,11 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
         .pNext = nullptr,
         .flags = 0,
-        .waitSemaphoreInfoCount = static_cast<uint32_t>(waitInfos.size()),
+        .waitSemaphoreInfoCount = static_cast<std::uint32_t>(waitInfos.size()),
         .pWaitSemaphoreInfos = waitInfos.data(),
         .commandBufferInfoCount = 1,
         .pCommandBufferInfos = &displayCmdInfo,
-        .signalSemaphoreInfoCount = static_cast<uint32_t>(signalInfos.size()),
+        .signalSemaphoreInfoCount = static_cast<std::uint32_t>(signalInfos.size()),
         .pSignalSemaphoreInfos = signalInfos.data(),
     };
     result = vkQueueSubmit2(m_context.deviceContext().graphicsQueue, 1, &displaySubmit, VK_NULL_HANDLE);
@@ -1083,7 +1083,7 @@ void App::presentFrame(uint32_t slot, uint64_t renderValue) {
 
 int App::mainLoop() {
     Logger::info("Interactive render loop");
-    uint64_t lastTick = SDL_GetTicksNS();
+    std::uint64_t lastTick = SDL_GetTicksNS();
 
     while (m_running) {
         SDL_Event event{};
@@ -1099,7 +1099,7 @@ int App::mainLoop() {
             }
         }
 
-        const uint64_t now = SDL_GetTicksNS();
+        const std::uint64_t now = SDL_GetTicksNS();
         const float dtSeconds = static_cast<float>(now - lastTick) * 1e-9F;
         lastTick = now;
         onUpdate(dtSeconds);
@@ -1109,8 +1109,8 @@ int App::mainLoop() {
         }
 
         // Save the frame slot before renderSceneReferred advances it.
-        const uint32_t slot = m_currentFrame;
-        const uint64_t renderValue = renderSceneReferred();
+        const std::uint32_t slot = m_currentFrame;
+        const std::uint64_t renderValue = renderSceneReferred();
         presentFrame(slot, renderValue);
     }
 
@@ -1119,9 +1119,9 @@ int App::mainLoop() {
 }
 
 int App::renderOffscreen() {
-    const uint32_t frameCount = offscreenFrameCount();
+    const std::uint32_t frameCount = offscreenFrameCount();
     Logger::info("Offscreen render: {} frame(s) -> {}", frameCount, m_config.outputFile.string());
-    for (uint32_t i = 0; i < frameCount; ++i) {
+    for (std::uint32_t i = 0; i < frameCount; ++i) {
         renderSceneReferred();
     }
     vkDeviceWaitIdle(m_context.deviceContext().device);
@@ -1245,7 +1245,7 @@ bool App::saveExr(const std::filesystem::path& path) {
         m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
 }
 
-void App::handleResize(uint32_t w, uint32_t h) {
+void App::handleResize(std::uint32_t w, std::uint32_t h) {
     if (w == 0U || h == 0U || m_context.deviceContext().device == VK_NULL_HANDLE) {
         return;
     }

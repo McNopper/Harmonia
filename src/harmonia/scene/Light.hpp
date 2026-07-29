@@ -11,7 +11,7 @@
 #include "harmonia/GpuTypes.hpp"
 
 /// Photometric unit for light intensity input.
-enum class IntensityUnit : uint32_t {
+enum class IntensityUnit : std::uint32_t {
     Nit = 0,     ///< cd/m²  — luminance       (RectLight, SkyLight)
     Candela = 1, ///< cd     — radiant intensity (PointLight, SpotLight)
     Lumen = 2,   ///< lm     — luminous flux     (PointLight, SpotLight isotropic)

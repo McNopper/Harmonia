@@ -13,7 +13,7 @@ namespace harmonia {
 
 namespace {
 struct alignas(4) AccumulationPushConstants {
-    uint32_t sampleCount = 0;
+    std::uint32_t sampleCount = 0;
 };
 } // namespace
 
@@ -43,7 +43,7 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
-        .bindingCount = static_cast<uint32_t>(bindings.size()),
+        .bindingCount = static_cast<std::uint32_t>(bindings.size()),
         .pBindings = bindings.data(),
     };
 
@@ -109,12 +109,14 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<uint64_t>(pass.m_setLayout), "harmonia.accum.setLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+                     reinterpret_cast<std::uint64_t>(pass.m_setLayout),
+                     "harmonia.accum.setLayout");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<uint64_t>(pass.m_pipelineLayout),
+                     reinterpret_cast<std::uint64_t>(pass.m_pipelineLayout),
                      "harmonia.accum.pipelineLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(pass.m_pipeline), "harmonia.accum.pipeline");
+    ctx.setDebugName(
+        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(pass.m_pipeline), "harmonia.accum.pipeline");
     return pass;
 }
 
@@ -253,13 +255,13 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                            VK_PIPELINE_BIND_POINT_COMPUTE,
                            m_pipelineLayout,
                            0,
-                           static_cast<uint32_t>(writes.size()),
+                           static_cast<std::uint32_t>(writes.size()),
                            writes.data());
     vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
 
-    constexpr uint32_t kGroupSize = 8U;
-    const uint32_t groupsX = (ctx.extent.width + (kGroupSize - 1U)) / kGroupSize;
-    const uint32_t groupsY = (ctx.extent.height + (kGroupSize - 1U)) / kGroupSize;
+    constexpr std::uint32_t kGroupSize = 8U;
+    const std::uint32_t groupsX = (ctx.extent.width + (kGroupSize - 1U)) / kGroupSize;
+    const std::uint32_t groupsY = (ctx.extent.height + (kGroupSize - 1U)) / kGroupSize;
     vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1);
 
     const std::array postComputeBarriers{
@@ -326,7 +328,7 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
     };
     pipelineBarrier(ctx.cmd, restoreBarriers);
 
-    if (m_sampleCount < std::numeric_limits<uint32_t>::max()) {
+    if (m_sampleCount < std::numeric_limits<std::uint32_t>::max()) {
         ++m_sampleCount;
     }
     m_historyFirstUse = false;
@@ -362,7 +364,7 @@ bool AccumulationPass::createHistoryImage(VkExtent2D extent) noexcept {
     return true;
 }
 
-void AccumulationPass::resetHistory(uint64_t resetToken) noexcept {
+void AccumulationPass::resetHistory(std::uint64_t resetToken) noexcept {
     m_sampleCount = 0;
     m_historyFirstUse = true;
     m_lastResetToken = resetToken;

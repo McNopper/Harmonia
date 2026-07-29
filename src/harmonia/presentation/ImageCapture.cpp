@@ -20,8 +20,8 @@ namespace {
 // scene-output buffer.
 [[nodiscard]] std::expected<Buffer, VkResult>
 readBackHdr(const DeviceContext& ctx, const CommandPool& pool, const Image& hdrImage) {
-    const uint32_t width = hdrImage.extent().width;
-    const uint32_t height = hdrImage.extent().height;
+    const std::uint32_t width = hdrImage.extent().width;
+    const std::uint32_t height = hdrImage.extent().height;
     const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(width) * static_cast<VkDeviceSize>(height) * sizeof(float) * 4U;
 
@@ -88,8 +88,8 @@ bool savePng(const DeviceContext& ctx,
     }
 
     vkDeviceWaitIdle(ctx.device);
-    const uint32_t width = hdrImage.extent().width;
-    const uint32_t height = hdrImage.extent().height;
+    const std::uint32_t width = hdrImage.extent().width;
+    const std::uint32_t height = hdrImage.extent().height;
 
     auto readback = readBackHdr(ctx, pool, hdrImage);
     if (!readback) {
@@ -102,11 +102,11 @@ bool savePng(const DeviceContext& ctx,
     // Rec.2020 input; a Rec.709 working space is up-converted first (exact).
     const bool upConvert = (workingSpace == ColorSpace::WorkingColorSpace::LinRec709);
     const auto* src = static_cast<const float*>(readback->mappedData());
-    std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 3U);
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 3U);
 
-    for (uint32_t y = 0; y < height; ++y) {
-        for (uint32_t x = 0; x < width; ++x) {
-            const size_t srcIdx = (static_cast<size_t>(y) * width + x) * 4U;
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            const std::size_t srcIdx = (static_cast<std::size_t>(y) * width + x) * 4U;
             sm::float3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
             if (upConvert) {
                 hdr = ColorSpace::rec709ToRec2020(hdr);
@@ -114,10 +114,10 @@ bool savePng(const DeviceContext& ctx,
             const sm::float3 sdrLinear = ToneMapping::acesFittedSDR(hdr);
             const sm::float3 sdrGamma = ColorSpace::linearRec709ToSrgb(sdrLinear);
             const sm::float3 clamped = sm::clamp(sdrGamma, sm::float3{0.f, 0.f, 0.f}, sm::float3{1.f, 1.f, 1.f});
-            const size_t dstIdx = (static_cast<size_t>(y) * width + x) * 3U;
-            pixels[dstIdx + 0] = static_cast<uint8_t>(std::lround(clamped.r * 255.f));
-            pixels[dstIdx + 1] = static_cast<uint8_t>(std::lround(clamped.g * 255.f));
-            pixels[dstIdx + 2] = static_cast<uint8_t>(std::lround(clamped.b * 255.f));
+            const std::size_t dstIdx = (static_cast<std::size_t>(y) * width + x) * 3U;
+            pixels[dstIdx + 0] = static_cast<std::uint8_t>(std::lround(clamped.r * 255.f));
+            pixels[dstIdx + 1] = static_cast<std::uint8_t>(std::lround(clamped.g * 255.f));
+            pixels[dstIdx + 2] = static_cast<std::uint8_t>(std::lround(clamped.b * 255.f));
         }
     }
 
@@ -187,8 +187,8 @@ bool saveSdrPng(const DeviceContext& ctx,
     }
     vkDeviceWaitIdle(ctx.device);
 
-    const uint32_t width = sdrImage.extent().width;
-    const uint32_t height = sdrImage.extent().height;
+    const std::uint32_t width = sdrImage.extent().width;
+    const std::uint32_t height = sdrImage.extent().height;
     const VkDeviceSize byteSize = static_cast<VkDeviceSize>(width) * height * 4U; // 8-bit RGBA
 
     auto readback = Buffer::create(
@@ -216,11 +216,11 @@ bool saveSdrPng(const DeviceContext& ctx,
         return false;
     }
 
-    const auto* src = static_cast<const uint8_t*>(readback->mappedData());
-    std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 3U);
-    for (size_t i = 0; i < static_cast<size_t>(width) * height; ++i) {
-        const uint8_t c0 = src[i * 4U + 0];
-        const uint8_t c2 = src[i * 4U + 2];
+    const auto* src = static_cast<const std::uint8_t*>(readback->mappedData());
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 3U);
+    for (std::size_t i = 0; i < static_cast<std::size_t>(width) * height; ++i) {
+        const std::uint8_t c0 = src[i * 4U + 0];
+        const std::uint8_t c2 = src[i * 4U + 2];
         pixels[i * 3U + 0] = swapRB ? c2 : c0;
         pixels[i * 3U + 1] = src[i * 4U + 1];
         pixels[i * 3U + 2] = swapRB ? c0 : c2;

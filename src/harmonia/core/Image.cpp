@@ -8,7 +8,7 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
                                              VkImageUsageFlags usage,
                                              VkImageAspectFlags aspect,
                                              std::string_view debugName,
-                                             uint32_t mipLevels) {
+                                             std::uint32_t mipLevels) {
     if (!ctx.isValid() || ctx.allocator == VK_NULL_HANDLE || extent.width == 0U || extent.height == 0U ||
         mipLevels == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -89,9 +89,9 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
 
     if (!debugName.empty()) {
         const std::string baseName(debugName);
-        ctx.setDebugName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(image.m_image), baseName.c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(image.m_image), baseName.c_str());
         ctx.setDebugName(
-            VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(image.m_view), (baseName + " View").c_str());
+            VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<std::uint64_t>(image.m_view), (baseName + " View").c_str());
     }
 
     return image;
@@ -155,13 +155,13 @@ void Image::transition(VkCommandBuffer cmd,
                        VkAccessFlags2 srcAccess,
                        VkPipelineStageFlags2 dstStage,
                        VkAccessFlags2 dstAccess,
-                       uint32_t baseMipLevel,
-                       uint32_t levelCount) const noexcept {
+                       std::uint32_t baseMipLevel,
+                       std::uint32_t levelCount) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_image == VK_NULL_HANDLE) {
         return;
     }
 
-    const uint32_t resolvedLevelCount = (levelCount == 0U) ? (m_mipLevels - baseMipLevel) : levelCount;
+    const std::uint32_t resolvedLevelCount = (levelCount == 0U) ? (m_mipLevels - baseMipLevel) : levelCount;
     const VkImageMemoryBarrier2 barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
         .pNext = nullptr,

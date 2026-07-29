@@ -20,7 +20,7 @@
 /// Rec.709/Rec.2020 related spaces are supported.
 /// On load, all color data is converted to the scene's (linear) working color
 /// space. Data maps (normal, ORM, roughness) use Data — no conversion applies.
-enum class TextureColorSpace : uint8_t {
+enum class TextureColorSpace : std::uint8_t {
     Data = 0,        ///< "data"              — uninterpreted; no conversion
     SrgbRec709Scene, ///< "srgb_rec709_scene" — sRGB OETF, Rec.709 primaries
     LinRec709Scene,  ///< "lin_rec709_scene"  — linear, Rec.709 primaries
@@ -54,8 +54,8 @@ class Texture {
     [[nodiscard]] static std::expected<Texture, VkResult> create(const DeviceContext& ctx,
                                                                  const CommandPool& cmdPool,
                                                                  std::span<const std::byte> pixels,
-                                                                 uint32_t width,
-                                                                 uint32_t height,
+                                                                 std::uint32_t width,
+                                                                 std::uint32_t height,
                                                                  std::string_view name = "");
 
     /// Load a texture from a file and convert it to the scene's (linear)
@@ -72,9 +72,9 @@ class Texture {
 
     [[nodiscard]] const Image& image() const noexcept { return m_image; }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }
-    [[nodiscard]] uint32_t width() const noexcept { return m_width; }
-    [[nodiscard]] uint32_t height() const noexcept { return m_height; }
-    [[nodiscard]] uint32_t mipLevels() const noexcept { return m_mipLevels; }
+    [[nodiscard]] std::uint32_t width() const noexcept { return m_width; }
+    [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
+    [[nodiscard]] std::uint32_t mipLevels() const noexcept { return m_mipLevels; }
 
   private:
     void reset() noexcept;
@@ -82,8 +82,8 @@ class Texture {
     const DeviceContext* m_ctx{};
     Image m_image{};
     VkSampler m_sampler{VK_NULL_HANDLE};
-    uint32_t m_width{};
-    uint32_t m_height{};
-    uint32_t m_mipLevels{1};
+    std::uint32_t m_width{};
+    std::uint32_t m_height{};
+    std::uint32_t m_mipLevels{1};
 };
 #endif // HARMONIA_SCENE_TEXTURE_HPP

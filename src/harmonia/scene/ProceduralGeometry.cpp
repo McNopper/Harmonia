@@ -38,10 +38,10 @@ MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform) {
     mesh.indices.reserve(36);
 
     for (const Face& face : faces) {
-        const uint32_t baseVertex = static_cast<uint32_t>(mesh.vertices.size());
+        const std::uint32_t baseVertex = static_cast<std::uint32_t>(mesh.vertices.size());
         const sm::float3 transformedNormal = sm::normalize(normalMatrix * face.normal);
 
-        for (size_t i = 0; i < face.positions.size(); ++i) {
+        for (std::size_t i = 0; i < face.positions.size(); ++i) {
             const sm::float4 transformedPosition = transform * sm::float4(face.positions[i], 1.0f);
             mesh.vertices.push_back(GpuVertex{
                 .position = static_cast<sm::float3>(transformedPosition),
@@ -68,20 +68,20 @@ MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform) {
     return mesh;
 }
 
-MeshData makeSphere(sm::float3 center, float radius, uint32_t rings, uint32_t slices) {
+MeshData makeSphere(sm::float3 center, float radius, std::uint32_t rings, std::uint32_t slices) {
     MeshData mesh;
-    mesh.vertices.reserve(static_cast<size_t>(rings + 1) * static_cast<size_t>(slices + 1));
-    mesh.indices.reserve(static_cast<size_t>(rings) * static_cast<size_t>(slices) * 6u);
+    mesh.vertices.reserve(static_cast<std::size_t>(rings + 1) * (slices + 1));
+    mesh.indices.reserve(static_cast<std::size_t>(rings) * slices * 6u);
 
     const float pi = sm::pi<float>();
 
-    for (uint32_t r = 0; r <= rings; ++r) {
+    for (std::uint32_t r = 0; r <= rings; ++r) {
         const float v = static_cast<float>(r) / static_cast<float>(rings);
         const float theta = v * pi; // 0 = north pole, PI = south pole
         const float sinT = std::sin(theta);
         const float cosT = std::cos(theta);
 
-        for (uint32_t s = 0; s <= slices; ++s) {
+        for (std::uint32_t s = 0; s <= slices; ++s) {
             const float u = static_cast<float>(s) / static_cast<float>(slices);
             const float phi = u * 2.0f * pi;
             const float sinP = std::sin(phi);
@@ -106,12 +106,12 @@ MeshData makeSphere(sm::float3 center, float radius, uint32_t rings, uint32_t sl
         }
     }
 
-    for (uint32_t r = 0; r < rings; ++r) {
-        for (uint32_t s = 0; s < slices; ++s) {
-            const uint32_t a = r * (slices + 1) + s;
-            const uint32_t b = a + 1;
-            const uint32_t c = (r + 1) * (slices + 1) + s;
-            const uint32_t d = c + 1;
+    for (std::uint32_t r = 0; r < rings; ++r) {
+        for (std::uint32_t s = 0; s < slices; ++s) {
+            const std::uint32_t a = r * (slices + 1) + s;
+            const std::uint32_t b = a + 1;
+            const std::uint32_t c = (r + 1) * (slices + 1) + s;
+            const std::uint32_t d = c + 1;
             mesh.indices.insert(mesh.indices.end(), {a, b, c, b, d, c});
         }
     }

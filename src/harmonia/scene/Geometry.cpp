@@ -26,7 +26,7 @@ namespace {
         return VK_SUCCESS;
     }
 
-    const uint32_t primitiveCount = rangeInfo.primitiveCount;
+    const std::uint32_t primitiveCount = rangeInfo.primitiveCount;
     VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
     if (ctx.positionFetchSupported) {
         flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR;
@@ -136,8 +136,8 @@ TriangleMesh::create(const DeviceContext& ctx, const CommandPool& pool, MeshData
 }
 
 VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& pool) {
-    const uint32_t primitiveCount = m_mesh.indexCount() / 3;
-    const uint32_t maxVertex = m_mesh.vertexCount() == 0 ? 0U : m_mesh.vertexCount() - 1U;
+    const std::uint32_t primitiveCount = m_mesh.indexCount() / 3;
+    const std::uint32_t maxVertex = m_mesh.vertexCount() == 0 ? 0U : m_mesh.vertexCount() - 1U;
 
     VkAccelerationStructureGeometryKHR geometry{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
@@ -171,7 +171,7 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& po
     return buildSingleBlas(ctx, pool, m_debugName, geometry, rangeInfo, m_accelerationStructure, m_blas);
 }
 
-VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(uint32_t instanceCustomIndex,
+VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(std::uint32_t instanceCustomIndex,
                                                               const Xform& xform) const noexcept {
     return VkAccelerationStructureInstanceKHR{
         .transform = xform.toVkTransform(),
@@ -191,11 +191,11 @@ const Buffer& TriangleMesh::indexBuffer() const noexcept {
     return m_mesh.indexBuffer();
 }
 
-uint32_t TriangleMesh::vertexCount() const noexcept {
+std::uint32_t TriangleMesh::vertexCount() const noexcept {
     return m_mesh.vertexCount();
 }
 
-uint32_t TriangleMesh::indexCount() const noexcept {
+std::uint32_t TriangleMesh::indexCount() const noexcept {
     return m_mesh.indexCount();
 }
 
@@ -266,7 +266,7 @@ VkResult Sphere::buildBlas(const DeviceContext& ctx, const CommandPool& pool) {
     return buildSingleBlas(ctx, pool, m_debugName, geometry, rangeInfo, m_accelerationStructure, m_blas);
 }
 
-VkAccelerationStructureInstanceKHR Sphere::makeInstance(uint32_t instanceCustomIndex,
+VkAccelerationStructureInstanceKHR Sphere::makeInstance(std::uint32_t instanceCustomIndex,
                                                         const Xform& xform) const noexcept {
     return VkAccelerationStructureInstanceKHR{
         .transform = xform.toVkTransform(),

@@ -15,7 +15,7 @@
 
 struct MeshData {
     std::vector<GpuVertex> vertices;
-    std::vector<uint32_t> indices;
+    std::vector<std::uint32_t> indices;
 };
 
 class Mesh {
@@ -32,13 +32,13 @@ class Mesh {
 
     [[nodiscard]] const Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
     [[nodiscard]] const Buffer& indexBuffer() const noexcept { return m_indexBuffer; }
-    [[nodiscard]] uint32_t vertexCount() const noexcept { return m_vertexCount; }
-    [[nodiscard]] uint32_t indexCount() const noexcept { return m_indexCount; }
+    [[nodiscard]] std::uint32_t vertexCount() const noexcept { return m_vertexCount; }
+    [[nodiscard]] std::uint32_t indexCount() const noexcept { return m_indexCount; }
 
   private:
     Buffer m_vertexBuffer{};
     Buffer m_indexBuffer{};
-    uint32_t m_vertexCount{};
-    uint32_t m_indexCount{};
+    std::uint32_t m_vertexCount{};
+    std::uint32_t m_indexCount{};
 };
 #endif // HARMONIA_SCENE_MESH_HPP

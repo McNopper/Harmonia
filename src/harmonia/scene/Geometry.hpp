@@ -35,9 +35,9 @@ struct Xform {
 /// Renderers hold one of these per instance; the referenced `Geometry` (the mesh)
 /// owns the shared BLAS, so N instances of one mesh share one BLAS.
 struct InstanceRecord {
-    uint32_t meshIndex = 0;
+    std::uint32_t meshIndex = 0;
     Xform xform{};
-    uint32_t materialIndex = 0;
+    std::uint32_t materialIndex = 0;
 };
 
 /// A unique piece of geometry living in **object space**, owning one BLAS.
@@ -50,7 +50,7 @@ class Geometry {
     virtual ~Geometry() = default;
 
     virtual VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) = 0;
-    [[nodiscard]] virtual VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
+    [[nodiscard]] virtual VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
                                                                           const Xform& xform) const noexcept = 0;
 
     [[nodiscard]] VkAccelerationStructureKHR blas() const noexcept { return m_blas; }
@@ -65,13 +65,13 @@ class TriangleMesh final : public Geometry {
     create(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
+    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
                                                                   const Xform& xform) const noexcept override;
 
     [[nodiscard]] const Buffer& vertexBuffer() const noexcept;
     [[nodiscard]] const Buffer& indexBuffer() const noexcept;
-    [[nodiscard]] uint32_t vertexCount() const noexcept;
-    [[nodiscard]] uint32_t indexCount() const noexcept;
+    [[nodiscard]] std::uint32_t vertexCount() const noexcept;
+    [[nodiscard]] std::uint32_t indexCount() const noexcept;
     [[nodiscard]] const MeshData& data() const noexcept;
 
   private:
@@ -89,7 +89,7 @@ class Sphere final : public Geometry {
     create(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(uint32_t instanceCustomIndex,
+    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
                                                                   const Xform& xform) const noexcept override;
 
     [[nodiscard]] float radius() const noexcept;

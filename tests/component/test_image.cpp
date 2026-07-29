@@ -38,7 +38,7 @@ TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
 // transition to TRANSFER_SRC, copy to a host buffer, and verify all pixels.
 TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     constexpr VkExtent2D kExtent{8U, 8U};
-    constexpr uint32_t kPixelCount = kExtent.width * kExtent.height;
+    constexpr std::uint32_t kPixelCount = kExtent.width * kExtent.height;
     constexpr VkDeviceSize kReadbackBytes = kPixelCount * sizeof(sm::float4);
 
     // Expected clear value
@@ -103,7 +103,7 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
 
     const auto* pixels = static_cast<const sm::float4*>(readback->mappedData());
-    for (uint32_t i = 0; i < kPixelCount; ++i) {
+    for (std::uint32_t i = 0; i < kPixelCount; ++i) {
         EXPECT_NEAR(pixels[i].r, kClear.float32[0], 1e-5F) << "pixel " << i << " R";
         EXPECT_NEAR(pixels[i].g, kClear.float32[1], 1e-5F) << "pixel " << i << " G";
         EXPECT_NEAR(pixels[i].b, kClear.float32[2], 1e-5F) << "pixel " << i << " B";

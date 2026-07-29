@@ -11,7 +11,7 @@ namespace {
 }
 } // namespace
 
-std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ctx, uint32_t queueFamily) {
+std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ctx, std::uint32_t queueFamily) {
     if (!ctx.isValid() || ctx.graphicsQueue == VK_NULL_HANDLE) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -31,7 +31,8 @@ std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ct
 
     pool.m_device = ctx.device;
     pool.m_queue = ctx.graphicsQueue;
-    ctx.setDebugName(VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<uint64_t>(pool.m_pool), "Hyperion Command Pool");
+    ctx.setDebugName(
+        VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<std::uint64_t>(pool.m_pool), "Hyperion Command Pool");
     return pool;
 }
 

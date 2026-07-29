@@ -14,18 +14,18 @@ class Image; // forward — avoids pulling in the full header
 /// Each pass reads only the fields it needs.
 struct PassContext {
     VkCommandBuffer cmd = VK_NULL_HANDLE;
-    uint32_t frameIndex = 0;
-    uint32_t frameSampleIndex = 0;
-    uint32_t rngSeed = 0x12345678U;
+    std::uint32_t frameIndex = 0;
+    std::uint32_t frameSampleIndex = 0;
+    std::uint32_t rngSeed = 0x12345678U;
     bool deterministicReplay = false;
     VkExtent2D extent = {};
-    bool fixedView = false;               ///< true for deterministic offscreen accumulation mode
-    uint64_t accumulationResetToken = 0U; ///< explicit reset key for progressive accumulation history
+    bool fixedView = false;                    ///< true for deterministic offscreen accumulation mode
+    std::uint64_t accumulationResetToken = 0U; ///< explicit reset key for progressive accumulation history
     /// Separate reset key for temporal denoiser history. Changes only on scene/resize/config
     /// changes — NOT on camera movement. This allows the A-SVGF denoiser to reproject its
     /// temporal history across camera motion via motion vectors (SVGF/A-SVGF design intent),
     /// while AccumulationPass still resets its per-view average on every camera movement.
-    uint64_t denoiserResetToken = 0U;
+    std::uint64_t denoiserResetToken = 0U;
 
     /// Outputs from PathTracer — all in VK_IMAGE_LAYOUT_GENERAL.
     const Image* hdrBuffer = nullptr; ///< accumulated HDR radiance
@@ -48,7 +48,7 @@ struct PassContext {
     /// Swapchain image view for the current frame (only needed by ToneMapper).
     VkImageView swapchainView = VK_NULL_HANDLE;
     OutputColorSpace colorSpace = OutputColorSpace::eSDR;
-    uint32_t tonemapper = 0;
+    std::uint32_t tonemapper = 0;
     ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
 };
 #endif // HARMONIA_PIPELINE_PASSCONTEXT_HPP

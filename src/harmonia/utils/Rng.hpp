@@ -6,7 +6,7 @@
 
 namespace Rng {
 
-[[nodiscard]] inline uint32_t wangHash(uint32_t seed) noexcept {
+[[nodiscard]] inline std::uint32_t wangHash(std::uint32_t seed) noexcept {
     seed = (seed ^ 61U) ^ (seed >> 16U);
     seed *= 9U;
     seed ^= (seed >> 4U);
@@ -15,13 +15,15 @@ namespace Rng {
     return seed;
 }
 
-[[nodiscard]] inline uint32_t hashCombine(uint32_t seed, uint32_t value) noexcept {
+[[nodiscard]] inline std::uint32_t hashCombine(std::uint32_t seed, std::uint32_t value) noexcept {
     return wangHash(seed ^ (value + 0x9e3779b9U + (seed << 6U) + (seed >> 2U)));
 }
 
-[[nodiscard]] inline uint32_t
-composeSeed(sm::uint2 pixel, uint32_t frameSampleIndex, uint32_t bounceIndex, uint32_t baseSeed) noexcept {
-    uint32_t seed = wangHash(baseSeed);
+[[nodiscard]] inline std::uint32_t composeSeed(sm::uint2 pixel,
+                                               std::uint32_t frameSampleIndex,
+                                               std::uint32_t bounceIndex,
+                                               std::uint32_t baseSeed) noexcept {
+    std::uint32_t seed = wangHash(baseSeed);
     seed = hashCombine(seed, pixel.x);
     seed = hashCombine(seed, pixel.y);
     seed = hashCombine(seed, frameSampleIndex);
@@ -29,12 +31,12 @@ composeSeed(sm::uint2 pixel, uint32_t frameSampleIndex, uint32_t bounceIndex, ui
     return seed;
 }
 
-[[nodiscard]] inline float nextFloat(uint32_t& state) noexcept {
+[[nodiscard]] inline float nextFloat(std::uint32_t& state) noexcept {
     state = wangHash(state);
     return static_cast<float>(state & 0x00ffffffU) * (1.0F / 16777216.0F);
 }
 
-[[nodiscard]] inline sm::float2 nextFloat2(uint32_t& state) noexcept {
+[[nodiscard]] inline sm::float2 nextFloat2(std::uint32_t& state) noexcept {
     return sm::float2{nextFloat(state), nextFloat(state)};
 }
 

@@ -18,7 +18,7 @@ void expectValidCdf(const std::vector<float>& cdf) {
         EXPECT_GE(v, 0.0F);
         EXPECT_LE(v, 1.0F + kEpsilon);
     }
-    for (size_t i = 1; i < cdf.size(); ++i) {
+    for (std::size_t i = 1; i < cdf.size(); ++i) {
         EXPECT_GE(cdf[i] + kEpsilon, cdf[i - 1]) << "not non-decreasing at " << i;
     }
 }
@@ -62,7 +62,7 @@ TEST(EmissiveCdf, AllZeroPowersFallBackToUniform) {
     const std::vector<float> cdf = harmonia::buildEmissiveCdf({0.0F, 0.0F, 0.0F, 0.0F});
     ASSERT_EQ(cdf.size(), 4u);
     expectValidCdf(cdf);
-    for (uint32_t i = 0; i < 4u; ++i) {
+    for (std::uint32_t i = 0; i < 4u; ++i) {
         EXPECT_NEAR(cdf[i], static_cast<float>(i + 1) / 4.0F, kEpsilon);
     }
 }
@@ -82,17 +82,17 @@ TEST(EmissiveCdf, SamplingMatchesPowerDistribution) {
     const std::vector<float> cdf = harmonia::buildEmissiveCdf(power);
     const float total = 6.0F;
 
-    const uint32_t steps = 10000u;
-    std::vector<uint32_t> hits(cdf.size(), 0u);
-    for (uint32_t s = 0; s < steps; ++s) {
+    const std::uint32_t steps = 10000u;
+    std::vector<std::uint32_t> hits(cdf.size(), 0u);
+    for (std::uint32_t s = 0; s < steps; ++s) {
         const float u = (static_cast<float>(s) + 0.5F) / static_cast<float>(steps); // stratified in (0,1)
-        uint32_t idx = 0u;
+        std::uint32_t idx = 0u;
         while (idx + 1u < cdf.size() && u > cdf[idx]) {
             ++idx;
         }
         ++hits[idx];
     }
-    for (size_t i = 0; i < cdf.size(); ++i) {
+    for (std::size_t i = 0; i < cdf.size(); ++i) {
         const float expected = power[i] / total;
         const float actual = static_cast<float>(hits[i]) / static_cast<float>(steps);
         EXPECT_NEAR(actual, expected, 1.0e-3F) << "emitter " << i;

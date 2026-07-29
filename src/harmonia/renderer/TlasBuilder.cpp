@@ -38,7 +38,7 @@ VkResult buildTlas(const DeviceContext& ctx,
         .geometry = VkAccelerationStructureGeometryDataKHR{.instances = instancesData},
         .flags = VK_GEOMETRY_OPAQUE_BIT_KHR,
     };
-    const uint32_t primitiveCount = static_cast<uint32_t>(instances.size());
+    const std::uint32_t primitiveCount = static_cast<std::uint32_t>(instances.size());
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
         .pNext = nullptr,

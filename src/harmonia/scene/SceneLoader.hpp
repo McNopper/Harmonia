@@ -50,11 +50,11 @@ class SceneLoader {
         std::optional<sm::float3> cameraUp;
         std::optional<float> cameraVfov;
         std::optional<float> cameraEv100; ///< physical camera EV100 override
-        std::optional<uint32_t> spp;
-        std::optional<uint32_t> maxDepth;
+        std::optional<std::uint32_t> spp;
+        std::optional<std::uint32_t> maxDepth;
         std::optional<float> envUnitNits;                ///< cd/m² per unit EXR value (physical unit multiplier)
         std::optional<std::filesystem::path> envMapFile; ///< equirect EXR IBL path (relative to assetsDir)
-        std::optional<uint32_t> tonemapper;              ///< Tonemapper enum value; std::nullopt → eACES default
+        std::optional<std::uint32_t> tonemapper;         ///< Tonemapper enum value; std::nullopt → eACES default
         std::optional<std::string> postTonemapRenderer;  ///< display-referred renderer token
         std::optional<bool> accumulationStageEnabled;    ///< std::nullopt → App default
         std::optional<bool> denoiserStageEnabled;        ///< std::nullopt → App default

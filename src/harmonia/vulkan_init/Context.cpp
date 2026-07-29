@@ -14,7 +14,7 @@ namespace {
 }
 
 [[nodiscard]] bool hasValidationLayer() {
-    uint32_t layerCount = 0;
+    std::uint32_t layerCount = 0;
     if (vkEnumerateInstanceLayerProperties(&layerCount, nullptr) != VK_SUCCESS) {
         return false;
     }
@@ -248,13 +248,13 @@ namespace {
     dgcFeatures.deviceGeneratedCommands = VK_TRUE;
 
     // Detect a dedicated async compute queue family (COMPUTE without GRAPHICS).
-    uint32_t asyncComputeFamily = UINT32_MAX;
+    std::uint32_t asyncComputeFamily = UINT32_MAX;
     {
-        uint32_t queueFamilyCount = 0;
+        std::uint32_t queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(info.device, &queueFamilyCount, nullptr);
         std::vector<VkQueueFamilyProperties> queueProps(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(info.device, &queueFamilyCount, queueProps.data());
-        for (uint32_t i = 0; i < queueFamilyCount; ++i) {
+        for (std::uint32_t i = 0; i < queueFamilyCount; ++i) {
             const auto& props = queueProps[i];
             if ((props.queueFlags & VK_QUEUE_COMPUTE_BIT) && !(props.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
                 props.queueCount > 0) {
@@ -314,11 +314,11 @@ namespace {
                  : meshShaderSupported ? static_cast<const void*>(&meshFeatures)
                                        : static_cast<const void*>(&features2),
         .flags = 0,
-        .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+        .queueCreateInfoCount = static_cast<std::uint32_t>(queueCreateInfos.size()),
         .pQueueCreateInfos = queueCreateInfos.data(),
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
-        .enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size()),
+        .enabledExtensionCount = static_cast<std::uint32_t>(deviceExtensions.size()),
         .ppEnabledExtensionNames = deviceExtensions.data(),
         .pEnabledFeatures = nullptr,
     };
@@ -360,7 +360,7 @@ std::expected<Context, VkResult> Context::create(const Config& config) {
     // (HDR10, HLG, scRGB, Display P3 …) in a swapchain; without it the validation
     // layer rejects vkCreateSwapchainKHR even if the driver enumerates those formats.
     {
-        uint32_t extCount = 0;
+        std::uint32_t extCount = 0;
         if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr) == VK_SUCCESS && extCount > 0) {
             std::vector<VkExtensionProperties> available(extCount);
             vkEnumerateInstanceExtensionProperties(nullptr, &extCount, available.data());
@@ -408,9 +408,9 @@ std::expected<Context, VkResult> Context::create(const Config& config) {
         .pNext = context.m_validationEnabled ? &debugCreateInfo : nullptr,
         .flags = 0,
         .pApplicationInfo = &appInfo,
-        .enabledLayerCount = static_cast<uint32_t>(layers.size()),
+        .enabledLayerCount = static_cast<std::uint32_t>(layers.size()),
         .ppEnabledLayerNames = layers.empty() ? nullptr : layers.data(),
-        .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+        .enabledExtensionCount = static_cast<std::uint32_t>(extensions.size()),
         .ppEnabledExtensionNames = extensions.data(),
     };
 

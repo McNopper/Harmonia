@@ -24,7 +24,7 @@ namespace ColorSpace {
 // ColorInterop interop ID). Assets are converted into it at load time; the
 // ToneMapper converts from it to the display-referred output space.
 // Values mirror tonemap.slang's workingColorSpace push constant.
-enum class WorkingColorSpace : uint32_t {
+enum class WorkingColorSpace : std::uint32_t {
     LinRec2020 = 0, ///< "lin_rec2020_scene" — default
     LinRec709 = 1,  ///< "lin_rec709_scene"
 };

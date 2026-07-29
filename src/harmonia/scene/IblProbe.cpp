@@ -169,7 +169,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     }
 
     // ── Upload to GPU ────────────────────────────────────────────────────────
-    const VkExtent2D extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+    const VkExtent2D extent{static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
     const VkDeviceSize byteSize = static_cast<VkDeviceSize>(width * height) * 4u * sizeof(float);
 
     auto staging = Buffer::create(
@@ -265,6 +265,11 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     const float kPiCpu = 3.14159265358979f;
     const float srcToGridU = static_cast<float>(kCdfW) / static_cast<float>(width);
     const float srcToGridV = static_cast<float>(kCdfH) / static_cast<float>(height);
+    // Map a CDF grid coordinate to the first source pixel it covers (CDF cell →
+    // source-image pixel), truncating the float grid→pixel ratio to an index.
+    const auto srcPixel = [](std::size_t grid, float srcToGrid) noexcept -> std::size_t {
+        return static_cast<std::size_t>(static_cast<float>(grid) / srcToGrid);
+    };
 
     // Luminance grid: weighted by sin(θ) to account for equirectangular → solid-angle mapping
     std::vector<float> lumGrid(kCdfW * kCdfH);
@@ -277,12 +282,10 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     for (std::size_t v = 0; v < kCdfH; ++v) {
         const float sinTheta = std::sin(kPiCpu * (static_cast<float>(v) + 0.5f) / static_cast<float>(kCdfH));
         for (std::size_t u = 0; u < kCdfW; ++u) {
-            const std::size_t srcX0 = static_cast<std::size_t>(static_cast<float>(u) / srcToGridU);
-            const std::size_t srcX1 =
-                std::max(srcX0 + 1, static_cast<std::size_t>(static_cast<float>(u + 1) / srcToGridU));
-            const std::size_t srcY0 = static_cast<std::size_t>(static_cast<float>(v) / srcToGridV);
-            const std::size_t srcY1 =
-                std::max(srcY0 + 1, static_cast<std::size_t>(static_cast<float>(v + 1) / srcToGridV));
+            const std::size_t srcX0 = srcPixel(u, srcToGridU);
+            const std::size_t srcX1 = std::max(srcX0 + 1, srcPixel(u + 1, srcToGridU));
+            const std::size_t srcY0 = srcPixel(v, srcToGridV);
+            const std::size_t srcY1 = std::max(srcY0 + 1, srcPixel(v + 1, srcToGridV));
             const std::size_t cX1 = std::min(srcX1, width);
             const std::size_t cY1 = std::min(srcY1, height);
 
@@ -400,8 +403,8 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         }
 
         if (probe.m_marginalCdf.isValid() && probe.m_conditionalCdf.isValid()) {
-            probe.m_cdfWidth = static_cast<uint32_t>(kCdfW);
-            probe.m_cdfHeight = static_cast<uint32_t>(kCdfH);
+            probe.m_cdfWidth = static_cast<std::uint32_t>(kCdfW);
+            probe.m_cdfHeight = static_cast<std::uint32_t>(kCdfH);
             Logger::info("IblProbe: built {}×{} importance CDF (total weight {:.2f})", kCdfW, kCdfH, totalWeight);
         }
     } else {

@@ -37,7 +37,7 @@ class AccumulationPass final : public IRenderPass {
 
   private:
     [[nodiscard]] bool createHistoryImage(VkExtent2D extent) noexcept;
-    void resetHistory(uint64_t resetToken) noexcept;
+    void resetHistory(std::uint64_t resetToken) noexcept;
     void destroy() noexcept;
 
     const DeviceContext* m_ctx = nullptr;
@@ -47,8 +47,8 @@ class AccumulationPass final : public IRenderPass {
 
     Image m_historyImage{};
     VkExtent2D m_extent{};
-    uint32_t m_sampleCount = 0;
-    uint64_t m_lastResetToken = 0;
+    std::uint32_t m_sampleCount = 0;
+    std::uint64_t m_lastResetToken = 0;
     bool m_historyFirstUse = true;
 };
 

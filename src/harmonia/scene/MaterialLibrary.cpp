@@ -143,7 +143,7 @@ std::optional<MaterialLibrary::MaterialTextureRefs> MaterialLibrary::textureRefs
     return it != m_textureRefs.end() ? std::optional{it->second} : std::nullopt;
 }
 
-void MaterialLibrary::patchTextureIndex(const std::string& name, uint32_t slot, uint32_t idx) {
+void MaterialLibrary::patchTextureIndex(const std::string& name, std::uint32_t slot, std::uint32_t idx) {
     const auto it = m_materials.find(name);
     if (it != m_materials.end())
         it->second.setTextureIndex(slot, idx);

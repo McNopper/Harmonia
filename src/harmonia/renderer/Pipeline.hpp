@@ -33,7 +33,7 @@ class Pipeline {
     [[nodiscard]] static std::expected<Pipeline, VkResult> create(const DeviceContext& ctx,
                                                                   const Descriptors& descriptors,
                                                                   const ShaderPaths& paths,
-                                                                  uint32_t maxRayRecursion = 8);
+                                                                  std::uint32_t maxRayRecursion = 8);
 
     [[nodiscard]] VkPipeline rtPipeline() const noexcept { return m_rtPipeline; }
 
