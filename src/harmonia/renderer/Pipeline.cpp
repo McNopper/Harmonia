@@ -181,8 +181,7 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
         return std::unexpected(result);
     }
 
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(pipeline.m_rtPipeline), "hyperion.rtPipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pipeline.m_rtPipeline, "hyperion.rtPipeline");
 
     for (VkShaderModule module : modules) {
         vkDestroyShaderModule(ctx.device, module, nullptr);

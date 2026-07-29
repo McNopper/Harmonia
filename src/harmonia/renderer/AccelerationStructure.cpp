@@ -68,9 +68,8 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
     accelerationStructure.m_deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(ctx.device, &addressInfo);
 
     if (!debugName.empty()) {
-        ctx.setDebugName(VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR,
-                         reinterpret_cast<std::uint64_t>(accelerationStructure.m_handle),
-                         std::string(debugName).c_str());
+        ctx.setDebugName(
+            VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, accelerationStructure.m_handle, std::string(debugName).c_str());
     }
 
     return accelerationStructure;

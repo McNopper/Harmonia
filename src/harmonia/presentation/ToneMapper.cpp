@@ -241,14 +241,9 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         return std::unexpected(result);
     }
 
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(mapper.m_pipeline), "harmonia.tonemapPipeline");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(mapper.m_pipelineLayout),
-                     "harmonia.tonemapPipelineLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(mapper.m_setLayout),
-                     "harmonia.tonemapSetLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, mapper.m_pipeline, "harmonia.tonemapPipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mapper.m_pipelineLayout, "harmonia.tonemapPipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mapper.m_setLayout, "harmonia.tonemapSetLayout");
     return mapper;
 }
 

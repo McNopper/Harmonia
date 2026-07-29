@@ -152,9 +152,7 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     }
 
     if (!name.empty()) {
-        ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER,
-                         reinterpret_cast<std::uint64_t>(texture.m_sampler),
-                         std::string(name).append(".sampler").c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, texture.m_sampler, std::string(name).append(".sampler").c_str());
     }
 
     return texture;

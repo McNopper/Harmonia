@@ -90,9 +90,8 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
 
     if (!debugName.empty()) {
         const std::string baseName(debugName);
-        ctx.setDebugName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(image.m_image), baseName.c_str());
-        ctx.setDebugName(
-            VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<std::uint64_t>(image.m_view), (baseName + " View").c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_IMAGE, image.m_image, baseName.c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_IMAGE_VIEW, image.m_view, (baseName + " View").c_str());
     }
 
     return image;

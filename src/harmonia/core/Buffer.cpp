@@ -93,7 +93,7 @@ std::expected<Buffer, VkResult> Buffer::create(const DeviceContext& ctx,
 
     if (!debugName.empty()) {
         const std::string name(debugName);
-        ctx.setDebugName(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(buffer.m_buffer), name.c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_BUFFER, buffer.m_buffer, name.c_str());
     }
 
     return buffer;

@@ -196,16 +196,10 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(pass.m_setLayout),
-                     "harmonia.denoiser.setLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(pass.m_pipelineLayout),
-                     "harmonia.denoiser.pipelineLayout");
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(pass.m_pipeline), "harmonia.denoiser.pipeline");
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<std::uint64_t>(pass.m_guideSampler), "harmonia.denoiser.sampler");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, pass.m_setLayout, "harmonia.denoiser.setLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, pass.m_pipelineLayout, "harmonia.denoiser.pipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pass.m_pipeline, "harmonia.denoiser.pipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, pass.m_guideSampler, "harmonia.denoiser.sampler");
     return pass;
 }
 

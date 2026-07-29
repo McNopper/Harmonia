@@ -110,14 +110,9 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(pass.m_setLayout),
-                     "harmonia.accum.setLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(pass.m_pipelineLayout),
-                     "harmonia.accum.pipelineLayout");
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(pass.m_pipeline), "harmonia.accum.pipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, pass.m_setLayout, "harmonia.accum.setLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, pass.m_pipelineLayout, "harmonia.accum.pipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pass.m_pipeline, "harmonia.accum.pipeline");
     return pass;
 }
 

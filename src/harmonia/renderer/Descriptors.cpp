@@ -154,17 +154,10 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         return std::unexpected(result);
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(descriptors.m_set0Layout),
-                     "harmonia.set0.push");
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(descriptors.m_set1Layout),
-                     "harmonia.set1.scene");
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<std::uint64_t>(descriptors.m_pool), "harmonia.scene.pool");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                     reinterpret_cast<std::uint64_t>(descriptors.m_pipelineLayout),
-                     "harmonia.pipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set0Layout, "harmonia.set0.push");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set1Layout, "harmonia.set1.scene");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, descriptors.m_pool, "harmonia.scene.pool");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, descriptors.m_pipelineLayout, "harmonia.pipelineLayout");
 
     return descriptors;
 }

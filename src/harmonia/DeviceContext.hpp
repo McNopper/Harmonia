@@ -28,7 +28,13 @@ struct DeviceContext {
     [[nodiscard]] bool isValid() const noexcept { return device != VK_NULL_HANDLE; }
     [[nodiscard]] bool hasAsyncCompute() const noexcept { return asyncComputeQueue != VK_NULL_HANDLE; }
 
-    void setDebugName(VkObjectType type, std::uint64_t handle, const char* name) const noexcept {
+    template <typename VkHandle>
+    void setDebugName(VkObjectType type, VkHandle handle, const char* name) const noexcept {
+        setDebugNameImpl(type, reinterpret_cast<std::uint64_t>(handle), name);
+    }
+
+  private:
+    void setDebugNameImpl(VkObjectType type, std::uint64_t handle, const char* name) const noexcept {
         if (device == VK_NULL_HANDLE || handle == 0U || name == nullptr || name[0] == '\0' ||
             vkSetDebugUtilsObjectNameEXT == nullptr) {
             return;

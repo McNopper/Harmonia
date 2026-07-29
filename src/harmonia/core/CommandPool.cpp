@@ -24,8 +24,7 @@ std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ct
 
     pool.m_device = ctx.device;
     pool.m_queue = ctx.graphicsQueue;
-    ctx.setDebugName(
-        VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<std::uint64_t>(pool.m_pool), "harmonia Command Pool");
+    ctx.setDebugName(VK_OBJECT_TYPE_COMMAND_POOL, pool.m_pool, "harmonia Command Pool");
     return pool;
 }
 
