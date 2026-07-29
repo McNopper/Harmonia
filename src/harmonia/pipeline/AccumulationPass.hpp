@@ -29,7 +29,7 @@ class AccumulationPass final : public IRenderPass {
     AccumulationPass& operator=(const AccumulationPass&) = delete;
     AccumulationPass(AccumulationPass&& other) noexcept;
     AccumulationPass& operator=(AccumulationPass&& other) noexcept;
-    ~AccumulationPass() noexcept;
+    ~AccumulationPass() noexcept override;
 
     void record(const PassContext& ctx) noexcept override;
     void onResize(VkExtent2D extent) noexcept override;

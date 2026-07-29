@@ -21,7 +21,7 @@ class Context {
         SDL_Window* window = nullptr;
     };
 
-    [[nodiscard]] static std::expected<Context, VkResult> create(Config config);
+    [[nodiscard]] static std::expected<Context, VkResult> create(const Config& config);
 
     Context() = default;
     Context(const Context&) = delete;

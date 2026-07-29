@@ -5,7 +5,7 @@
 namespace harmonia {
 
 uint32_t SceneBase::addMaterial(Material&& mat) {
-    m_materials.push_back(std::move(mat));
+    m_materials.push_back(mat);
     return static_cast<uint32_t>(m_materials.size() - 1);
 }
 

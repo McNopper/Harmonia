@@ -1,4 +1,5 @@
-#pragma once
+#ifndef TESTS_FIXTURES_VULKANTESTFIXTURE_HPP
+#define TESTS_FIXTURES_VULKANTESTFIXTURE_HPP
 
 // Shared Vulkan test infrastructure for component and module tests.
 //
@@ -66,3 +67,4 @@ class RtFixture : public VulkanFixture {
 
     [[nodiscard]] const PhysicalDeviceInfo& physInfo() const noexcept { return g_vulkanTestCtx->physInfo(); }
 };
+#endif // TESTS_FIXTURES_VULKANTESTFIXTURE_HPP

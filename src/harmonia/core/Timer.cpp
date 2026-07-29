@@ -39,6 +39,7 @@ ScopedTimer::~ScopedTimer() {
 
     try {
         Logger::info("{} took {:.3f} ms", m_label, m_timer.elapsedMs());
-    } catch (...) {
+    } catch (...) { // NOLINT(bugprone-empty-catch)
+        // Destructors must not propagate exceptions (would std::terminate); the timing log is best-effort.
     }
 }

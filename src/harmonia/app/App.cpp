@@ -23,6 +23,16 @@ namespace harmonia {
 
 namespace {
 
+// Parse a base-10 integer from a CLI argument, clamped to >= 1. Reports parse
+// failures (unlike atoi, which silently returns 0) by falling back to 1.
+[[nodiscard]] int parseClampedInt(std::string_view s) noexcept {
+    int value = 0;
+    const auto res = std::from_chars(s.data(), s.data() + s.size(), value);
+    if (res.ec != std::errc{} || res.ptr != s.data() + s.size() || value < 1)
+        return 1;
+    return value;
+}
+
 [[nodiscard]] VkResult createBinarySemaphore(VkDevice device, VkSemaphore& semaphore) {
     const VkSemaphoreCreateInfo info{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -165,13 +175,13 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     }
     if (arg == "--width") {
         if (const char* v = next("--width")) {
-            config.width = static_cast<uint32_t>(std::max(std::atoi(v), 1));
+            config.width = static_cast<uint32_t>(parseClampedInt(v));
         }
         return true;
     }
     if (arg == "--height") {
         if (const char* v = next("--height")) {
-            config.height = static_cast<uint32_t>(std::max(std::atoi(v), 1));
+            config.height = static_cast<uint32_t>(parseClampedInt(v));
         }
         return true;
     }
@@ -202,7 +212,7 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
     }
     if (arg == "--ibl-diffuse-resolution") {
         if (const char* v = next("--ibl-diffuse-resolution")) {
-            config.iblDiffuseResolution = static_cast<uint32_t>(std::max(std::atoi(v), 1));
+            config.iblDiffuseResolution = static_cast<uint32_t>(parseClampedInt(v));
         }
         return true;
     }
@@ -1081,13 +1091,11 @@ int App::mainLoop() {
             if (onEvent(event)) {
                 continue;
             }
-            if (event.type == SDL_EVENT_QUIT) {
+            if (event.type == SDL_EVENT_QUIT || (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
                 m_running = false;
             } else if (event.type == SDL_EVENT_WINDOW_RESIZED || event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
                 const VkExtent2D extent = windowPixelExtent(m_window);
                 handleResize(extent.width, extent.height);
-            } else if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE) {
-                m_running = false;
             }
         }
 

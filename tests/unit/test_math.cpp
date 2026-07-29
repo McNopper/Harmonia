@@ -20,7 +20,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
     const float z = u1;
     const float r = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
     const float phi = Math::k2Pi * u2;
-    return sm::float3(r * std::cos(phi), r * std::sin(phi), z);
+    return {r * std::cos(phi), r * std::sin(phi), z};
 }
 
 // TBN stored row-major: each row is one basis vector (t, b, n).
@@ -29,7 +29,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
     const sm::float3 up = std::abs(n.z) < 0.999F ? sm::float3(0.0F, 0.0F, 1.0F) : sm::float3(0.0F, 1.0F, 0.0F);
     const sm::float3 t = sm::normalize(sm::cross(up, n));
     const sm::float3 b = sm::cross(n, t);
-    return sm::float3x3(t, b, n); // rows: t=row0, b=row1, n=row2
+    return {t, b, n}; // rows: t=row0, b=row1, n=row2
 }
 
 [[nodiscard]] sm::float3 fresnelSchlick(sm::float3 f0, float cosTheta) noexcept {

@@ -225,9 +225,9 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
         const bool toRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
         // Convert each pixel: decode transfer function, then primaries → working space.
         for (size_t i = 0; i < pixelCount; ++i) {
-            const float r = raw[i * 4 + 0] / 255.0f;
-            const float g = raw[i * 4 + 1] / 255.0f;
-            const float b = raw[i * 4 + 2] / 255.0f;
+            const float r = static_cast<float>(raw[i * 4 + 0]) / 255.0f;
+            const float g = static_cast<float>(raw[i * 4 + 1]) / 255.0f;
+            const float b = static_cast<float>(raw[i * 4 + 2]) / 255.0f;
             const uint8_t a = raw[i * 4 + 3];
 
             sm::float3 linear{r, g, b};
@@ -249,9 +249,9 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                 break;
             }
 
-            converted[i * 4 + 0] = static_cast<uint8_t>(std::clamp(linear.r, 0.0f, 1.0f) * 255.0f + 0.5f);
-            converted[i * 4 + 1] = static_cast<uint8_t>(std::clamp(linear.g, 0.0f, 1.0f) * 255.0f + 0.5f);
-            converted[i * 4 + 2] = static_cast<uint8_t>(std::clamp(linear.b, 0.0f, 1.0f) * 255.0f + 0.5f);
+            converted[i * 4 + 0] = static_cast<uint8_t>(std::lround(std::clamp(linear.r, 0.0f, 1.0f) * 255.0f));
+            converted[i * 4 + 1] = static_cast<uint8_t>(std::lround(std::clamp(linear.g, 0.0f, 1.0f) * 255.0f));
+            converted[i * 4 + 2] = static_cast<uint8_t>(std::lround(std::clamp(linear.b, 0.0f, 1.0f) * 255.0f));
             converted[i * 4 + 3] = a;
         }
     }

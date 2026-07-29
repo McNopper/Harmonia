@@ -335,7 +335,7 @@ namespace {
 }
 } // namespace
 
-std::expected<Context, VkResult> Context::create(Config config) {
+std::expected<Context, VkResult> Context::create(const Config& config) {
     if (config.window == nullptr) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }

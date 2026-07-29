@@ -106,7 +106,7 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
 /// One sub-mesh of a declared mesh: its registered mesh index + the OBJ group
 /// name used to resolve per-instance material overrides.
 struct LoadedSubmesh {
-    uint32_t meshIndex;
+    uint32_t meshIndex{};
     std::string groupName;
 };
 

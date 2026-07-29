@@ -98,6 +98,14 @@ if(PROJECT_IS_TOP_LEVEL)
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cxx"
     )
 
+    # Drop single-TU third-party implementation wrappers (stb, VMA) from the
+    # clang-tidy set: they hold no first-party logic (just a #define + the
+    # vendor include) and clang-tidy cannot always resolve the vendored path.
+    list(REMOVE_ITEM PROJECT_CXX_TUS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/harmonia/stb_image_impl.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/harmonia/vma_impl.cpp"
+    )
+
     # ----- clang-tidy -----
     if(ENABLE_CLANG_TIDY AND PROJECT_ANALYSIS_AVAILABLE)
         find_program(CLANG_TIDY_EXE NAMES clang-tidy)

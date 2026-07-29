@@ -124,10 +124,11 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
 
     std::vector<float> raw(static_cast<size_t>(width * height) * 4u);
     for (int i = 0; i < width * height; ++i) {
-        raw[i * 4 + 0] = allChans[static_cast<size_t>(i * nchans + iR)];
-        raw[i * 4 + 1] = allChans[static_cast<size_t>(i * nchans + iG)];
-        raw[i * 4 + 2] = allChans[static_cast<size_t>(i * nchans + iB)];
-        raw[i * 4 + 3] = (iA >= 0) ? allChans[static_cast<size_t>(i * nchans + iA)] : 1.0f;
+        const size_t base = static_cast<size_t>(i) * static_cast<size_t>(nchans);
+        raw[i * 4 + 0] = allChans[base + static_cast<size_t>(iR)];
+        raw[i * 4 + 1] = allChans[base + static_cast<size_t>(iG)];
+        raw[i * 4 + 2] = allChans[base + static_cast<size_t>(iB)];
+        raw[i * 4 + 3] = (iA >= 0) ? allChans[base + static_cast<size_t>(iA)] : 1.0f;
     }
 
     // ── Pick the primaries conversion (source → working space) ───────────────
@@ -305,7 +306,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
                 sunBestU = u;
                 sunBestV = v;
             }
-            lumGrid[static_cast<size_t>(v * kCdfW + u)] = avgLum * sinTheta;
+            lumGrid[static_cast<size_t>(v) * static_cast<size_t>(kCdfW) + static_cast<size_t>(u)] = avgLum * sinTheta;
         }
     }
 
@@ -344,7 +345,8 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         float* rowCdf = conditionalCdf.data() + static_cast<ptrdiff_t>(v * (kCdfW + 1));
         rowCdf[0] = 0.0f;
         for (int u = 0; u < kCdfW; ++u) {
-            rowCdf[u + 1] = rowCdf[u] + lumGrid[static_cast<size_t>(v * kCdfW + u)];
+            rowCdf[u + 1] =
+                rowCdf[u] + lumGrid[static_cast<size_t>(v) * static_cast<size_t>(kCdfW) + static_cast<size_t>(u)];
         }
         rowIntegrals[static_cast<size_t>(v)] = rowCdf[kCdfW];
         if (rowIntegrals[static_cast<size_t>(v)] > 0.0f) {
@@ -365,7 +367,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     std::vector<float> marginalCdf(static_cast<size_t>(kCdfH + 1));
     marginalCdf[0] = 0.0f;
     for (int v = 0; v < kCdfH; ++v) {
-        marginalCdf[static_cast<size_t>(v + 1)] =
+        marginalCdf[static_cast<size_t>(v) + 1] =
             marginalCdf[static_cast<size_t>(v)] + rowIntegrals[static_cast<size_t>(v)];
     }
     const float totalWeight = marginalCdf[static_cast<size_t>(kCdfH)];

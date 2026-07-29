@@ -18,14 +18,14 @@ std::string& logTag() {
 } // namespace
 
 void Logger::setTag(std::string_view tag) {
-    std::lock_guard lock(logMutex());
+    std::scoped_lock lock(logMutex());
     logTag() = std::string(tag);
 }
 
 void Logger::log(Level level, std::string message) {
-    std::lock_guard lock(logMutex());
+    std::scoped_lock lock(logMutex());
 
-    const char* levelString = "UNKNOWN";
+    const char* levelString;
     switch (level) {
     case Level::Info:
         levelString = "INFO";
@@ -35,6 +35,9 @@ void Logger::log(Level level, std::string message) {
         break;
     case Level::Error:
         levelString = "ERROR";
+        break;
+    default:
+        levelString = "UNKNOWN";
         break;
     }
 

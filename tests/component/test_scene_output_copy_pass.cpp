@@ -65,7 +65,7 @@ readRgbaImage(const DeviceContext& deviceCtx, CommandPool& commandPool, Image& i
                          VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
     EXPECT_EQ(commandPool.endOneShot(*cmd), VK_SUCCESS);
 
-    std::vector<sm::float4> pixels(image.extent().width * image.extent().height);
+    std::vector<sm::float4> pixels(static_cast<size_t>(image.extent().width) * image.extent().height);
     std::memcpy(pixels.data(), readback->mappedData(), static_cast<size_t>(byteSize));
     return pixels;
 }
@@ -201,9 +201,9 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
                                 "test.sceneoutput.gdepth");
     ASSERT_TRUE(gDepth.has_value()) << static_cast<int>(gDepth.error());
 
-    std::vector<sm::float4> hdrPixels(kExtent.width * kExtent.height);
-    std::vector<sm::float4> normalPixels(kExtent.width * kExtent.height);
-    std::vector<float> depthPixels(kExtent.width * kExtent.height);
+    std::vector<sm::float4> hdrPixels(static_cast<size_t>(kExtent.width) * kExtent.height);
+    std::vector<sm::float4> normalPixels(static_cast<size_t>(kExtent.width) * kExtent.height);
+    std::vector<float> depthPixels(static_cast<size_t>(kExtent.width) * kExtent.height);
     for (uint32_t y = 0; y < kExtent.height; ++y) {
         for (uint32_t x = 0; x < kExtent.width; ++x) {
             const size_t idx = static_cast<size_t>(y) * kExtent.width + x;

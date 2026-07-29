@@ -43,7 +43,7 @@ class SceneOutputCopyPass final : public IRenderPass {
     SceneOutputCopyPass& operator=(const SceneOutputCopyPass&) = delete;
     SceneOutputCopyPass(SceneOutputCopyPass&& other) noexcept;
     SceneOutputCopyPass& operator=(SceneOutputCopyPass&& other) noexcept;
-    ~SceneOutputCopyPass() noexcept;
+    ~SceneOutputCopyPass() noexcept override;
 
     void record(const PassContext& ctx) noexcept override;
     void onResize(VkExtent2D extent) noexcept override;

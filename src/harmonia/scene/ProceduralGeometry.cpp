@@ -70,8 +70,8 @@ MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform) {
 
 MeshData makeSphere(sm::float3 center, float radius, uint32_t rings, uint32_t slices) {
     MeshData mesh;
-    mesh.vertices.reserve((rings + 1) * (slices + 1));
-    mesh.indices.reserve(rings * slices * 6);
+    mesh.vertices.reserve(static_cast<size_t>(rings + 1) * static_cast<size_t>(slices + 1));
+    mesh.indices.reserve(static_cast<size_t>(rings) * static_cast<size_t>(slices) * 6u);
 
     const float pi = sm::pi<float>();
 
