@@ -115,16 +115,16 @@ struct LoadedSubmesh {
 
 // ── SceneLoader::load ─────────────────────────────────────────────────────────
 
-std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem::path& sceneFile,
-                                                          const std::filesystem::path& assetsDir,
-                                                          ISceneBuilder& scene,
-                                                          const DeviceContext& ctx,
-                                                          const CommandPool& pool) {
+std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::filesystem::path& sceneFile,
+                                                                    const std::filesystem::path& assetsDir,
+                                                                    ISceneBuilder& scene,
+                                                                    const DeviceContext& ctx,
+                                                                    const CommandPool& pool) {
     // Parsing is owned by Aether — SceneLoader only resolves and uploads.
     const std::optional<aether::SceneDesc> desc = aether::SceneParser::parse(sceneFile);
     if (!desc) {
         Logger::error("SceneLoader: cannot open '{}'", sceneFile.string());
-        return std::nullopt;
+        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
     SceneConfig cfg{};
@@ -245,7 +245,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             auto groups = aether::ObjImporter::parse(assetsDir / m.objPath);
             if (!groups) {
                 Logger::error("SceneLoader: cannot open mesh '{}'", m.objPath);
-                return std::nullopt;
+                return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }
             for (const aether::MeshGroup& g : *groups) {
                 if (g.mesh.empty()) {
@@ -255,7 +255,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
                 const std::uint32_t idx = scene.addMesh(ctx, pool, toHarmoniaMesh(g.mesh), debugName);
                 if (idx == std::numeric_limits<std::uint32_t>::max()) {
                     Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
-                    return std::nullopt;
+                    return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
                 }
                 subs.push_back({idx, g.name});
             }
@@ -270,7 +270,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             const std::uint32_t idx = scene.addMesh(ctx, pool, std::move(mesh), m.name);
             if (idx == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to upload box '{}'", m.name);
-                return std::nullopt;
+                return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }
             subs.push_back({idx, ""});
             break;
@@ -283,7 +283,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             const std::uint32_t idx = scene.addSphereMesh(ctx, pool, m.sphereRadius, m.name);
             if (idx == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to upload sphere '{}'", m.name);
-                return std::nullopt;
+                return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }
             subs.push_back({idx, ""});
             break;
@@ -322,7 +322,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             const std::uint32_t matIdx = scene.addMaterial(lib.getOrDefault(matName));
             if (scene.addInstance(sub.meshIndex, xform, matIdx) == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
-                return std::nullopt;
+                return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }
         }
     }

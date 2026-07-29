@@ -1,10 +1,8 @@
 #include "harmonia/renderer/TlasBuilder.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <vma/vk_mem_alloc.h>
 
 #include "harmonia/core/Buffer.hpp"
 
@@ -64,26 +62,13 @@ VkResult buildTlas(const DeviceContext& ctx,
         return tlasAS.error();
     }
 
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR asProps{};
-    asProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
-    VkPhysicalDeviceProperties2 props{};
-    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    props.pNext = &asProps;
-    vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &props);
-
-    auto scratch = Buffer::create(
-        ctx,
-        std::max<VkDeviceSize>(sizeInfo.buildScratchSize + asProps.minAccelerationStructureScratchOffsetAlignment, 16),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-        "scene.tlasScratch");
+    auto scratch = createAccelerationStructureScratch(ctx, sizeInfo, "scene.tlasScratch");
     if (!scratch) {
         return scratch.error();
     }
 
     buildInfo.dstAccelerationStructure = tlasAS->handle();
-    buildInfo.scratchData.deviceAddress =
-        bufferAlignUp(scratch->deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
+    buildInfo.scratchData.deviceAddress = scratch->alignedAddress;
     const VkAccelerationStructureBuildRangeInfoKHR rangeInfo{
         .primitiveCount = primitiveCount,
         .primitiveOffset = 0,

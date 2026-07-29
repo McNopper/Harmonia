@@ -26,6 +26,8 @@ namespace harmonia {
 
 namespace {
 
+constexpr std::uint64_t kWaitForever = UINT64_MAX;
+
 // Parse a base-10 integer from a CLI argument, clamped to >= 1. Reports parse
 // failures (unlike atoi, which silently returns 0) by falling back to 1.
 [[nodiscard]] std::int32_t parseClampedInt(std::string_view s) noexcept {
@@ -789,7 +791,7 @@ std::uint64_t App::renderSceneReferred() {
             .pSemaphores = &m_timelineSemaphore,
             .pValues = &frame.completionValue,
         };
-        vkWaitSemaphores(m_context.deviceContext().device, &waitInfo, UINT64_MAX);
+        vkWaitSemaphores(m_context.deviceContext().device, &waitInfo, kWaitForever);
     }
 
     vkResetCommandBuffer(frame.renderCmd, 0);
@@ -830,8 +832,6 @@ std::uint64_t App::renderSceneReferred() {
         .accumulationResetToken = accumulationResetToken(),
         .denoiserResetToken = denoiserResetToken(),
         .hdrBuffer = &m_hdrImage,
-        .gNormal = nullptr,
-        .gDepth = nullptr,
         .gNormalView = renderer().gNormalView(),
         .gDepthView = renderer().gDepthView(),
         .motionVectorView = renderer().motionVectorView(),
@@ -905,8 +905,6 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
         .deterministicReplay = m_config.deterministicReplay,
         .extent = m_swapchain.extent(),
         .hdrBuffer = &m_hdrImage,
-        .gNormal = nullptr,
-        .gDepth = nullptr,
         .gNormalView = VK_NULL_HANDLE,
         .gDepthView = VK_NULL_HANDLE,
         .denoised = m_sceneOutputUsesDenoised ? &m_denoisedImage : nullptr,

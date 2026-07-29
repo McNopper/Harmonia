@@ -304,9 +304,8 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     const bool hasGradientVariance = useGradient && applyHistory && !m_historyFirstUse;
 
     vkCmdBindPipeline(ctx.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
-    constexpr std::uint32_t kGroupSize = 8U;
-    const std::uint32_t groupsX = (ctx.extent.width + (kGroupSize - 1U)) / kGroupSize;
-    const std::uint32_t groupsY = (ctx.extent.height + (kGroupSize - 1U)) / kGroupSize;
+    const std::uint32_t groupsX = dispatchGroups1D(ctx.extent.width);
+    const std::uint32_t groupsY = dispatchGroups1D(ctx.extent.height);
 
     const VkImageView normalCandidate = ctx.gNormalView != VK_NULL_HANDLE ? ctx.gNormalView : ctx.transparentNormalView;
     const VkImageView depthCandidate = ctx.gDepthView != VK_NULL_HANDLE ? ctx.gDepthView : ctx.transparentDepthView;

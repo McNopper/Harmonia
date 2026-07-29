@@ -33,17 +33,7 @@ std::expected<DebugUtils, VkResult> DebugUtils::create(VkInstance instance) {
         return std::unexpected(VK_ERROR_EXTENSION_NOT_PRESENT);
     }
 
-    const VkDebugUtilsMessengerCreateInfoEXT createInfo{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .pNext = nullptr,
-        .flags = 0,
-        .messageSeverity =
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = &DebugUtils::debugCallback,
-        .pUserData = nullptr,
-    };
+    const VkDebugUtilsMessengerCreateInfoEXT createInfo = messengerCreateInfo();
 
     DebugUtils debugUtils;
     debugUtils.m_instance = instance;
@@ -70,6 +60,20 @@ DebugUtils& DebugUtils::operator=(DebugUtils&& other) noexcept {
 
 DebugUtils::~DebugUtils() {
     destroy();
+}
+
+VkDebugUtilsMessengerCreateInfoEXT DebugUtils::messengerCreateInfo() noexcept {
+    return VkDebugUtilsMessengerCreateInfoEXT{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .pNext = nullptr,
+        .flags = 0,
+        .messageSeverity =
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = &DebugUtils::debugCallback,
+        .pUserData = nullptr,
+    };
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtils::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,

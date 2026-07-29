@@ -1,5 +1,6 @@
 #include "harmonia/renderer/AccelerationStructure.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -82,4 +83,32 @@ void AccelerationStructure::reset() noexcept {
     }
     m_device = VK_NULL_HANDLE;
     m_deviceAddress = 0;
+}
+
+std::expected<AccelerationStructureScratch, VkResult>
+createAccelerationStructureScratch(const DeviceContext& ctx,
+                                   const VkAccelerationStructureBuildSizesInfoKHR& sizes,
+                                   std::string_view debugName) {
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR asProps{};
+    asProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+    VkPhysicalDeviceProperties2 props{};
+    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    props.pNext = &asProps;
+    vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &props);
+
+    auto scratch = Buffer::create(
+        ctx,
+        std::max<VkDeviceSize>(sizes.buildScratchSize + asProps.minAccelerationStructureScratchOffsetAlignment, 16),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        debugName);
+    if (!scratch) {
+        return std::unexpected(scratch.error());
+    }
+
+    AccelerationStructureScratch out;
+    out.buffer = std::move(*scratch);
+    out.alignedAddress =
+        bufferAlignUp(out.buffer.deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
+    return out;
 }

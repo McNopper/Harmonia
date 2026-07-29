@@ -10,6 +10,10 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
 
+namespace {
+constexpr float kRec2020RedPrimariesThreshold = 0.68f;
+} // namespace
+
 IblProbe::IblProbe(IblProbe&& other) noexcept
     : m_image(std::move(other.m_image)),
       m_sampler(std::exchange(other.m_sampler, VK_NULL_HANDLE)),
@@ -122,7 +126,7 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
     if (chromaParam && chromaParam->type() == OIIO::TypeDesc(OIIO::TypeDesc::FLOAT, 8)) {
         const auto* c = static_cast<const float*>(chromaParam->data());
         // Rec.2020 red primary x ≈ 0.708 vs Rec.709 x = 0.640 — coarse threshold.
-        srcRec2020 = (c[0] > 0.68f);
+        srcRec2020 = (c[0] > kRec2020RedPrimariesThreshold);
     }
 
     // ── Read all channels then reorder into RGBA ──────────────────────────────

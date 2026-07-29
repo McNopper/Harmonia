@@ -29,18 +29,11 @@ struct PassContext {
 
     /// Outputs from PathTracer — all in VK_IMAGE_LAYOUT_GENERAL.
     const Image* hdrBuffer = nullptr; ///< accumulated HDR radiance
-    const Image* gNormal = nullptr;   ///< world-space normal G-buffer
-    const Image* gDepth = nullptr;    ///< ray-hit distance G-buffer
     VkImageView gNormalView = VK_NULL_HANDLE;
     VkImageView gDepthView = VK_NULL_HANDLE;
-    VkImageView transparentNormalView = VK_NULL_HANDLE;     ///< D0: first transparent-interface normal
-    VkImageView transparentDepthView = VK_NULL_HANDLE;      ///< D0: first transparent-interface depth
-    VkImageView transparentMaterialIdView = VK_NULL_HANDLE; ///< D0: first transparent-interface material id
-    VkImageView demodulatedAlbedoView = VK_NULL_HANDLE;     ///< D0: denoiser albedo guide
-    VkImageView varianceView = VK_NULL_HANDLE;              ///< D0: per-pixel variance/confidence
-    VkImageView sampleCountView = VK_NULL_HANDLE;           ///< D0: per-pixel accumulated sample count
-    VkImageView motionVectorView = VK_NULL_HANDLE;          ///< D0 future: interactive temporal reprojection
-    VkImageView historyValidityView = VK_NULL_HANDLE;       ///< D0 future: temporal history validity mask
+    VkImageView transparentNormalView = VK_NULL_HANDLE; ///< D0: first transparent-interface normal
+    VkImageView transparentDepthView = VK_NULL_HANDLE;  ///< D0: first transparent-interface depth
+    VkImageView motionVectorView = VK_NULL_HANDLE;      ///< D0 future: interactive temporal reprojection
 
     /// Denoiser output (null if denoiser was not run; ToneMapper falls back to hdrBuffer).
     const Image* denoised = nullptr;
@@ -51,4 +44,11 @@ struct PassContext {
     std::uint32_t tonemapper = 0;
     ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
 };
+
+inline constexpr std::uint32_t kComputeGroupSize = 8U;
+
+[[nodiscard]] constexpr std::uint32_t dispatchGroups1D(std::uint32_t extent,
+                                                       std::uint32_t groupSize = kComputeGroupSize) noexcept {
+    return (extent + (groupSize - 1U)) / groupSize;
+}
 #endif // HARMONIA_PIPELINE_PASSCONTEXT_HPP

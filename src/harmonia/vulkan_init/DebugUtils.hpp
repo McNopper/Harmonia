@@ -9,6 +9,10 @@ class DebugUtils {
   public:
     [[nodiscard]] static std::expected<DebugUtils, VkResult> create(VkInstance instance);
 
+    /// Canonical messenger create-info (severity/type mask + Harmonia callback).
+    /// Shared by instance-creation pNext chaining and post-instance messenger setup.
+    [[nodiscard]] static VkDebugUtilsMessengerCreateInfoEXT messengerCreateInfo() noexcept;
+
     DebugUtils() = default;
     DebugUtils(const DebugUtils&) = delete;
     DebugUtils& operator=(const DebugUtils&) = delete;

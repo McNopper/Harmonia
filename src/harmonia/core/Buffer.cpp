@@ -11,6 +11,9 @@
 #include "harmonia/core/OneShot.hpp"
 
 namespace {
+constexpr std::uint64_t kWaitForever = UINT64_MAX;
+constexpr std::size_t kMinBufferSize = 16;
+
 [[nodiscard]] bool prefersHostAccess(VmaMemoryUsage usage) noexcept {
     switch (usage) {
     case VMA_MEMORY_USAGE_CPU_ONLY:
@@ -104,7 +107,7 @@ std::expected<Buffer, VkResult> Buffer::upload(const DeviceContext& ctx,
                                                std::span<const std::byte> bytes,
                                                VkBufferUsageFlags usage,
                                                std::string_view name) {
-    const VkDeviceSize size = std::max<VkDeviceSize>(bytes.size(), 16);
+    const VkDeviceSize size = std::max<VkDeviceSize>(bytes.size(), kMinBufferSize);
 
     auto deviceBuffer =
         Buffer::create(ctx, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, name);
@@ -309,7 +312,7 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
         result = harmonia::submitOneShot(m_queue, cmd, fence);
     }
     if (result == VK_SUCCESS) {
-        result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, UINT64_MAX);
+        result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, kWaitForever);
     }
 
     if (result != VK_SUCCESS) {

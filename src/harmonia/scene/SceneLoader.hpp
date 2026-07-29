@@ -2,6 +2,7 @@
 #define HARMONIA_SCENE_SCENELOADER_HPP
 
 #include <cstdint>
+#include <expected>
 #include <filesystem>
 #include <optional>
 #include <slang-math/slang-math.hpp>
@@ -68,11 +69,12 @@ class SceneLoader {
     /// Populate @p scene from @p sceneFile.
     /// Asset paths are resolved relative to @p assetsDir.
     /// Returns a SceneConfig with camera / render overrides on success,
-    /// or std::nullopt if the file cannot be opened.
-    [[nodiscard]] static std::optional<SceneConfig> load(const std::filesystem::path& sceneFile,
-                                                         const std::filesystem::path& assetsDir,
-                                                         ISceneBuilder& scene,
-                                                         const DeviceContext& ctx,
-                                                         const CommandPool& pool);
+    /// or VK_ERROR_INITIALIZATION_FAILED if the file cannot be opened or a
+    /// referenced asset fails to load.
+    [[nodiscard]] static std::expected<SceneConfig, VkResult> load(const std::filesystem::path& sceneFile,
+                                                                   const std::filesystem::path& assetsDir,
+                                                                   ISceneBuilder& scene,
+                                                                   const DeviceContext& ctx,
+                                                                   const CommandPool& pool);
 };
 #endif // HARMONIA_SCENE_SCENELOADER_HPP

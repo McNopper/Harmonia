@@ -2,7 +2,6 @@
 
 #include <volk/volk.h>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -10,8 +9,8 @@
 #include <span>
 #include <string>
 #include <utility>
-#include <vma/vk_mem_alloc.h>
 
+#include "harmonia/GpuTypes.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
 namespace {
@@ -59,19 +58,7 @@ namespace {
         return blas.error();
     }
 
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR asProps{};
-    asProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
-    VkPhysicalDeviceProperties2 props{};
-    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    props.pNext = &asProps;
-    vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &props);
-
-    auto scratch = Buffer::create(
-        ctx,
-        std::max<VkDeviceSize>(sizeInfo.buildScratchSize + asProps.minAccelerationStructureScratchOffsetAlignment, 16),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-        std::string(debugName).append(".scratch"));
+    auto scratch = createAccelerationStructureScratch(ctx, sizeInfo, std::string(debugName).append(".scratch"));
     if (!scratch) {
         return scratch.error();
     }
@@ -84,8 +71,7 @@ namespace {
     (void)fallbackPool;
 
     buildInfo.dstAccelerationStructure = blas->handle();
-    buildInfo.scratchData.deviceAddress =
-        bufferAlignUp(scratch->deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
+    buildInfo.scratchData.deviceAddress = scratch->alignedAddress;
 
     const VkAccelerationStructureBuildRangeInfoKHR* rangeInfoPtr = &rangeInfo;
     auto cmd = commandPool.beginOneShot();
@@ -177,7 +163,7 @@ VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(std::uint32_t inst
     return VkAccelerationStructureInstanceKHR{
         .transform = xform.toVkTransform(),
         .instanceCustomIndex = instanceCustomIndex,
-        .mask = 0xFF,
+        .mask = kInstanceMaskAll,
         .instanceShaderBindingTableRecordOffset = 0,
         .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
         .accelerationStructureReference = m_accelerationStructure.deviceAddress(),
@@ -272,7 +258,7 @@ VkAccelerationStructureInstanceKHR Sphere::makeInstance(std::uint32_t instanceCu
     return VkAccelerationStructureInstanceKHR{
         .transform = xform.toVkTransform(),
         .instanceCustomIndex = instanceCustomIndex,
-        .mask = 0xFF,
+        .mask = kInstanceMaskAll,
         .instanceShaderBindingTableRecordOffset = 1,
         .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
         .accelerationStructureReference = m_accelerationStructure.deviceAddress(),

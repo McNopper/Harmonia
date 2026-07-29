@@ -37,4 +37,18 @@ class AccelerationStructure {
     VkAccelerationStructureKHR m_handle{VK_NULL_HANDLE};
     VkDeviceAddress m_deviceAddress{};
 };
+
+/// Scratch buffer for an acceleration-structure build, sized from @p sizes and
+/// aligned to the device's `minAccelerationStructureScratchOffsetAlignment`.
+/// `alignedAddress` is the scratch base address rounded up to that alignment —
+/// assign directly to `VkAccelerationStructureBuildGeometryInfoKHR::scratchData.deviceAddress`.
+struct AccelerationStructureScratch {
+    Buffer buffer;
+    VkDeviceAddress alignedAddress = 0;
+};
+
+[[nodiscard]] std::expected<AccelerationStructureScratch, VkResult>
+createAccelerationStructureScratch(const DeviceContext& ctx,
+                                   const VkAccelerationStructureBuildSizesInfoKHR& sizes,
+                                   std::string_view debugName);
 #endif // HARMONIA_RENDERER_ACCELERATIONSTRUCTURE_HPP

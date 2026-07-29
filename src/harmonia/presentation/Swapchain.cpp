@@ -6,6 +6,8 @@
 #include <vector>
 
 namespace {
+constexpr std::uint64_t kWaitForever = UINT64_MAX;
+
 [[nodiscard]] VkExtent2D clampExtent(const VkSurfaceCapabilitiesKHR& capabilities, VkExtent2D requested) noexcept {
     if (capabilities.currentExtent.width != UINT32_MAX) {
         return capabilities.currentExtent;
@@ -235,7 +237,7 @@ VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t&
     if (m_ctx == nullptr || m_swapchain == VK_NULL_HANDLE) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
-    return vkAcquireNextImageKHR(m_ctx->device, m_swapchain, UINT64_MAX, signalSemaphore, VK_NULL_HANDLE, &outIndex);
+    return vkAcquireNextImageKHR(m_ctx->device, m_swapchain, kWaitForever, signalSemaphore, VK_NULL_HANDLE, &outIndex);
 }
 
 VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore) {

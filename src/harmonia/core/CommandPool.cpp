@@ -4,6 +4,10 @@
 
 #include "harmonia/core/OneShot.hpp"
 
+namespace {
+constexpr std::uint64_t kWaitForever = UINT64_MAX;
+} // namespace
+
 std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ctx, std::uint32_t queueFamily) {
     if (!ctx.isValid() || ctx.graphicsQueue == VK_NULL_HANDLE) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -125,7 +129,7 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
 
     result = harmonia::submitOneShot(m_queue, cmd, fence);
     if (result == VK_SUCCESS) {
-        result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, UINT64_MAX);
+        result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, kWaitForever);
     }
 
     vkDestroyFence(m_device, fence, nullptr);

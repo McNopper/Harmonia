@@ -255,9 +255,8 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                            writes.data());
     vkCmdPushConstants(ctx.cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
 
-    constexpr std::uint32_t kGroupSize = 8U;
-    const std::uint32_t groupsX = (ctx.extent.width + (kGroupSize - 1U)) / kGroupSize;
-    const std::uint32_t groupsY = (ctx.extent.height + (kGroupSize - 1U)) / kGroupSize;
+    const std::uint32_t groupsX = dispatchGroups1D(ctx.extent.width);
+    const std::uint32_t groupsY = dispatchGroups1D(ctx.extent.height);
     vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1);
 
     const std::array postComputeBarriers{
