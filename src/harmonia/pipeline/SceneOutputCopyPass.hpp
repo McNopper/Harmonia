@@ -63,6 +63,48 @@ class SceneOutputCopyPass final : public IRenderPass {
     void resetHistory(std::uint64_t resetToken) noexcept;
     void destroy() noexcept;
 
+    void barrierForComputeRead(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage, bool useGradient) noexcept;
+    [[nodiscard]] VkImage recordSpatialPasses(VkCommandBuffer cmd,
+                                              const Image& hdrBuffer,
+                                              const Image& denoised,
+                                              std::uint32_t iterations,
+                                              std::uint32_t groupsX,
+                                              std::uint32_t groupsY,
+                                              VkImageView normalGuideView,
+                                              VkImageView depthGuideView,
+                                              bool hasNormalGuide,
+                                              bool hasDepthGuide,
+                                              VkImageView motionVecView,
+                                              VkImageView gradientView,
+                                              VkImageView prevGradientView,
+                                              bool hasGradientVariance) noexcept;
+    void recordTemporalHistoryPass(VkCommandBuffer cmd,
+                                   const Image& denoised,
+                                   bool useGradient,
+                                   bool hasMotionVectors,
+                                   std::uint32_t iterations,
+                                   std::uint32_t groupsX,
+                                   std::uint32_t groupsY,
+                                   VkImageView normalGuideView,
+                                   VkImageView depthGuideView,
+                                   bool hasNormalGuide,
+                                   bool hasDepthGuide,
+                                   VkImageView motionVecView,
+                                   VkImageView gradientView,
+                                   VkImageView prevGradientView) noexcept;
+    void recordGradientBlur(VkCommandBuffer cmd,
+                            VkExtent2D extent,
+                            std::uint32_t iterations,
+                            std::uint32_t groupsX,
+                            std::uint32_t groupsY) noexcept;
+    void copyImageRoundTrip(VkCommandBuffer cmd,
+                            VkImage srcImage,
+                            VkImage dstImage,
+                            VkExtent2D extent,
+                            VkAccessFlags2 preSrcAccess,
+                            VkPipelineStageFlags2 restoreStage) noexcept;
+    void restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage) noexcept;
+
     const DeviceContext* m_ctx = nullptr;
     VkPipeline m_pipeline = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;

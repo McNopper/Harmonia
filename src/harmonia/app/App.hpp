@@ -249,6 +249,13 @@ class App {
     std::uint64_t renderSceneReferred();
     /// Acquire, tonemap, present the given completed scene-referred frame.
     void presentFrame(std::uint32_t slot, std::uint64_t renderValue);
+    [[nodiscard]] std::optional<std::uint32_t> acquireFrame(std::uint32_t slot) noexcept;
+    void recordDisplayBarriers(VkCommandBuffer cmd, std::uint32_t imageIndex) noexcept;
+    [[nodiscard]] VkResult
+    submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::uint64_t renderValue) noexcept;
+    void presentAndHandleResize(std::uint32_t imageIndex) noexcept;
+    [[nodiscard]] static bool parseDenoiserArgs(Config& config, int& i, int argc, char* const argv[]);
+    [[nodiscard]] static bool parseRenderQualityArgs(Config& config, int& i, int argc, char* const argv[]);
     void handleResize(std::uint32_t w, std::uint32_t h);
     [[nodiscard]] bool createHdrImage();
     [[nodiscard]] bool createDenoisedImage();

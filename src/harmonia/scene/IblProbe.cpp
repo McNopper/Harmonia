@@ -61,6 +61,26 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
                                                         const CommandPool& pool,
                                                         const std::filesystem::path& path,
                                                         ColorSpace::WorkingColorSpace workingSpace) {
+    auto exr = readEXR(path);
+    if (!exr) {
+        return std::unexpected(exr.error());
+    }
+
+    std::vector<float> rgba32f = convertPrimaries(exr->raw, exr->width, exr->height, exr->srcRec2020, workingSpace);
+
+    IblProbe probe;
+    if (const VkResult result = uploadEnvPanorama(probe, ctx, pool, rgba32f, exr->width, exr->height);
+        result != VK_SUCCESS) {
+        return std::unexpected(result);
+    }
+
+    buildImportanceCdf(probe, ctx, rgba32f, exr->width, exr->height);
+
+    Logger::info("IblProbe: loaded '{}' ({}×{})", path.filename().string(), exr->width, exr->height);
+    return probe;
+}
+
+std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesystem::path& path) {
     // Disable OIIO automatic color management — Harmonia handles all color
     // conversions explicitly. Without this, OIIO may apply an OCIO transform
     // if a color config is active (e.g. chromaticity adaptation on EXR),
@@ -104,7 +124,6 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         // Rec.2020 red primary x ≈ 0.708 vs Rec.709 x = 0.640 — coarse threshold.
         srcRec2020 = (c[0] > 0.68f);
     }
-    const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
 
     // ── Read all channels then reorder into RGBA ──────────────────────────────
     // OIIO preserves the EXR file's channel storage order, which for most
@@ -124,15 +143,27 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     const std::size_t iB = static_cast<std::size_t>(spec.channelindex("B") >= 0 ? spec.channelindex("B") : 2);
     const std::int32_t iA = spec.channelindex("A");
 
-    std::vector<float> raw(width * height * 4u);
+    ExrData data;
+    data.width = width;
+    data.height = height;
+    data.srcRec2020 = srcRec2020;
+    data.raw.resize(width * height * 4u);
     for (std::size_t i = 0; i < width * height; ++i) {
         const std::size_t base = i * nchans;
-        raw[i * 4 + 0] = allChans[base + iR];
-        raw[i * 4 + 1] = allChans[base + iG];
-        raw[i * 4 + 2] = allChans[base + iB];
-        raw[i * 4 + 3] = (iA >= 0) ? allChans[base + static_cast<std::size_t>(iA)] : 1.0f;
+        data.raw[i * 4 + 0] = allChans[base + iR];
+        data.raw[i * 4 + 1] = allChans[base + iG];
+        data.raw[i * 4 + 2] = allChans[base + iB];
+        data.raw[i * 4 + 3] = (iA >= 0) ? allChans[base + static_cast<std::size_t>(iA)] : 1.0f;
     }
 
+    return data;
+}
+
+std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
+                                              std::size_t width,
+                                              std::size_t height,
+                                              bool srcRec2020,
+                                              ColorSpace::WorkingColorSpace workingSpace) {
     // ── Pick the primaries conversion (source → working space) ───────────────
     // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
     struct Mat3 {
@@ -150,6 +181,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
                               -0.1005789f,
                               1.1187297f};
     constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
     const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
 
     // Clamp non-finite values (e.g. half-float inf from overexposed sun disc) to
@@ -169,7 +201,15 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         rgba32f[i * 4 + 2] = m.m20 * r + m.m21 * g + m.m22 * b;
         rgba32f[i * 4 + 3] = safeVal(raw[i * 4 + 3]);
     }
+    return rgba32f;
+}
 
+VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
+                                     const DeviceContext& ctx,
+                                     const CommandPool& pool,
+                                     const std::vector<float>& rgba32f,
+                                     std::size_t width,
+                                     std::size_t height) {
     // ── Upload to GPU ────────────────────────────────────────────────────────
     const VkExtent2D extent{static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
     const VkDeviceSize byteSize = static_cast<VkDeviceSize>(width * height) * 4u * sizeof(float);
@@ -177,7 +217,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     auto staging = Buffer::create(
         ctx, byteSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "ibl.staging");
     if (!staging) {
-        return std::unexpected(staging.error());
+        return staging.error();
     }
     staging->uploadData(rgba32f.data(), byteSize);
 
@@ -188,12 +228,12 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
                                VK_IMAGE_ASPECT_COLOR_BIT,
                                "ibl.env");
     if (!image) {
-        return std::unexpected(image.error());
+        return image.error();
     }
 
     auto cmd = pool.beginOneShot();
     if (!cmd) {
-        return std::unexpected(cmd.error());
+        return cmd.error();
     }
 
     image->transition(*cmd,
@@ -225,7 +265,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
                       VK_ACCESS_2_SHADER_READ_BIT);
 
     if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
-        return std::unexpected(result);
+        return result;
     }
 
     // ── Create sampler (REPEAT on U, CLAMP_TO_EDGE on V to avoid pole artefacts) ──
@@ -234,14 +274,58 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     });
     VkSampler sampler = VK_NULL_HANDLE;
     if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler); result != VK_SUCCESS) {
-        return std::unexpected(result);
+        return result;
     }
 
-    IblProbe probe;
     probe.m_ctx = &ctx;
     probe.m_image = std::move(*image);
     probe.m_sampler = sampler;
+    return VK_SUCCESS;
+}
 
+void IblProbe::extractDominantSun(IblProbe& probe,
+                                  float sunBestAvg,
+                                  std::size_t sunBestU,
+                                  std::size_t sunBestV,
+                                  double sunAvgSum,
+                                  std::size_t sunAvgCount) {
+    static constexpr std::size_t kCdfW = 256;
+    static constexpr std::size_t kCdfH = 128;
+    const float kPiCpu = 3.14159265358979f;
+    // Convert the brightest grid cell into a world-space direction toward the sun.
+    // Inverts the lat-long convention used by the shaders (env.slang):
+    //   u = atan2(z,x)/(2π) + 0.5,  v = acos(y)/π  (v=0 at top, y=+1)
+    sm::float3 domSunDir{0.0f, 1.0f, 0.0f};
+    float domSunStrength = 0.0f;
+    {
+        const float uNorm = (static_cast<float>(sunBestU) + 0.5f) / static_cast<float>(kCdfW);
+        const float vNorm = (static_cast<float>(sunBestV) + 0.5f) / static_cast<float>(kCdfH);
+        const float phi = (uNorm - 0.5f) * 2.0f * kPiCpu;
+        const float theta = vNorm * kPiCpu;
+        const float sinT = std::sin(theta);
+        domSunDir = sm::normalize(sm::float3{sinT * std::cos(phi), std::cos(theta), sinT * std::sin(phi)});
+        // Concentration: ratio of the brightest cell to the mean. Uniform/overcast skies
+        // give a ratio near 1 (no harsh shadows); a clear sun gives a very large ratio.
+        const float meanAvg =
+            (sunAvgCount > 0) ? static_cast<float>(sunAvgSum / static_cast<double>(sunAvgCount)) : 0.0f;
+        const float ratio = (meanAvg > 1e-8f) ? (sunBestAvg / meanAvg) : 0.0f;
+        domSunStrength = std::clamp((ratio - 4.0f) / 16.0f, 0.0f, 1.0f);
+        Logger::info("IblProbe: dominant light dir ({:.2f}, {:.2f}, {:.2f}), strength {:.2f} (peak/mean {:.1f})",
+                     domSunDir.x,
+                     domSunDir.y,
+                     domSunDir.z,
+                     domSunStrength,
+                     ratio);
+    }
+    probe.m_sunDirection = domSunDir;
+    probe.m_sunStrength = domSunStrength;
+}
+
+void IblProbe::buildImportanceCdf(IblProbe& probe,
+                                  const DeviceContext& ctx,
+                                  const std::vector<float>& rgba32f,
+                                  std::size_t width,
+                                  std::size_t height) {
     // ── Build 2D separable CDF for env importance sampling ───────────────────
     // Ref: PBR Book 4th ed §12.5 "Infinite Area Lights" — 2D separable CDF construction
     // Resolution: 256×128 (each cell covers ~16×16 source pixels for a 4K panorama)
@@ -300,33 +384,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         }
     }
 
-    // Convert the brightest grid cell into a world-space direction toward the sun.
-    // Inverts the lat-long convention used by the shaders (env.slang):
-    //   u = atan2(z,x)/(2π) + 0.5,  v = acos(y)/π  (v=0 at top, y=+1)
-    sm::float3 domSunDir{0.0f, 1.0f, 0.0f};
-    float domSunStrength = 0.0f;
-    {
-        const float uNorm = (static_cast<float>(sunBestU) + 0.5f) / static_cast<float>(kCdfW);
-        const float vNorm = (static_cast<float>(sunBestV) + 0.5f) / static_cast<float>(kCdfH);
-        const float phi = (uNorm - 0.5f) * 2.0f * kPiCpu;
-        const float theta = vNorm * kPiCpu;
-        const float sinT = std::sin(theta);
-        domSunDir = sm::normalize(sm::float3{sinT * std::cos(phi), std::cos(theta), sinT * std::sin(phi)});
-        // Concentration: ratio of the brightest cell to the mean. Uniform/overcast skies
-        // give a ratio near 1 (no harsh shadows); a clear sun gives a very large ratio.
-        const float meanAvg =
-            (sunAvgCount > 0) ? static_cast<float>(sunAvgSum / static_cast<double>(sunAvgCount)) : 0.0f;
-        const float ratio = (meanAvg > 1e-8f) ? (sunBestAvg / meanAvg) : 0.0f;
-        domSunStrength = std::clamp((ratio - 4.0f) / 16.0f, 0.0f, 1.0f);
-        Logger::info("IblProbe: dominant light dir ({:.2f}, {:.2f}, {:.2f}), strength {:.2f} (peak/mean {:.1f})",
-                     domSunDir.x,
-                     domSunDir.y,
-                     domSunDir.z,
-                     domSunStrength,
-                     ratio);
-    }
-    probe.m_sunDirection = domSunDir;
-    probe.m_sunStrength = domSunStrength;
+    extractDominantSun(probe, sunBestAvg, sunBestU, sunBestV, sunAvgSum, sunAvgCount);
 
     // Per-row conditional CDFs: conditionalCdf[v*(W+1)..(v+1)*(W+1)] for each row v
     std::vector<float> conditionalCdf(kCdfH * (kCdfW + 1));
@@ -395,7 +453,4 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     } else {
         Logger::warn("IblProbe: env map is completely dark — importance sampling disabled");
     }
-
-    Logger::info("IblProbe: loaded '{}' ({}×{})", path.filename().string(), width, height);
-    return probe;
 }

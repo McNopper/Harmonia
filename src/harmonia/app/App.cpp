@@ -188,17 +188,6 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         }
         return true;
     }
-    if (arg == "--offscreen-frames") {
-        if (const char* v = next("--offscreen-frames")) {
-            std::uint32_t frames = 0U;
-            if (!App::parseUint32(v, frames)) {
-                Logger::error("Invalid value for --offscreen-frames: {}", v);
-            } else {
-                config.offscreenFrames = std::max(frames, 1U);
-            }
-        }
-        return true;
-    }
     if (arg == "--validation") {
         config.validation = true;
         return true;
@@ -207,49 +196,31 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         config.validation = false;
         return true;
     }
-    if (arg == "--indirect-ambient") {
-        if (const char* v = next("--indirect-ambient")) {
-            config.indirectAmbient = std::stof(v);
+
+    if (parseDenoiserArgs(config, i, argc, argv)) {
+        return true;
+    }
+    if (parseRenderQualityArgs(config, i, argc, argv)) {
+        return true;
+    }
+
+    if (!arg.starts_with("-")) {
+        config.sceneFile = std::filesystem::path(arg);
+        return true;
+    }
+    return false;
+}
+
+bool App::parseDenoiserArgs(Config& config, int& i, int argc, char* const argv[]) {
+    const std::string_view arg = argv[i];
+    const auto next = [&](const char* what) -> const char* {
+        if (i + 1 >= argc) {
+            Logger::error("Missing value for {}", what);
+            return nullptr;
         }
-        return true;
-    }
-    if (arg == "--ibl-diffuse-resolution") {
-        if (const char* v = next("--ibl-diffuse-resolution")) {
-            config.iblDiffuseResolution = static_cast<std::uint32_t>(parseClampedInt(v));
-        }
-        return true;
-    }
-    if (arg == "--display-overlay") {
-        config.displayOverlay = true;
-        return true;
-    }
-    if (arg == "--deterministic-replay") {
-        config.deterministicReplay = true;
-        return true;
-    }
-    if (arg == "--rng-debug") {
-        config.rngDebug = true;
-        return true;
-    }
-    if (arg == "--rt-gi") {
-        config.rtGi = true;
-        return true;
-    }
-    if (arg == "--no-rt-gi") {
-        config.rtGi = false;
-        return true;
-    }
-    if (arg == "--rng-seed") {
-        if (const char* v = next("--rng-seed")) {
-            std::uint32_t seed = 0U;
-            if (!App::parseUint32(v, seed)) {
-                Logger::error("Invalid value for --rng-seed: {}", v);
-            } else {
-                config.rngSeed = seed;
-            }
-        }
-        return true;
-    }
+        return argv[++i];
+    };
+
     if (arg == "--denoiser-strength") {
         if (const char* v = next("--denoiser-strength")) {
             float strength = 0.0F;
@@ -310,8 +281,71 @@ bool App::applyCommonArg(Config& config, int& i, int argc, char* const argv[]) {
         }
         return true;
     }
-    if (!arg.starts_with("-")) {
-        config.sceneFile = std::filesystem::path(arg);
+    return false;
+}
+
+bool App::parseRenderQualityArgs(Config& config, int& i, int argc, char* const argv[]) {
+    const std::string_view arg = argv[i];
+    const auto next = [&](const char* what) -> const char* {
+        if (i + 1 >= argc) {
+            Logger::error("Missing value for {}", what);
+            return nullptr;
+        }
+        return argv[++i];
+    };
+
+    if (arg == "--offscreen-frames") {
+        if (const char* v = next("--offscreen-frames")) {
+            std::uint32_t frames = 0U;
+            if (!App::parseUint32(v, frames)) {
+                Logger::error("Invalid value for --offscreen-frames: {}", v);
+            } else {
+                config.offscreenFrames = std::max(frames, 1U);
+            }
+        }
+        return true;
+    }
+    if (arg == "--indirect-ambient") {
+        if (const char* v = next("--indirect-ambient")) {
+            config.indirectAmbient = std::stof(v);
+        }
+        return true;
+    }
+    if (arg == "--ibl-diffuse-resolution") {
+        if (const char* v = next("--ibl-diffuse-resolution")) {
+            config.iblDiffuseResolution = static_cast<std::uint32_t>(parseClampedInt(v));
+        }
+        return true;
+    }
+    if (arg == "--display-overlay") {
+        config.displayOverlay = true;
+        return true;
+    }
+    if (arg == "--deterministic-replay") {
+        config.deterministicReplay = true;
+        return true;
+    }
+    if (arg == "--rng-debug") {
+        config.rngDebug = true;
+        return true;
+    }
+    if (arg == "--rt-gi") {
+        config.rtGi = true;
+        return true;
+    }
+    if (arg == "--no-rt-gi") {
+        config.rtGi = false;
+        return true;
+    }
+    if (arg == "--rng-seed") {
+        if (const char* v = next("--rng-seed")) {
+            std::uint32_t seed = 0U;
+            if (!App::parseUint32(v, seed)) {
+                Logger::error("Invalid value for --rng-seed: {}", v);
+            } else {
+                config.rngSeed = seed;
+            }
+        }
         return true;
     }
     return false;
@@ -854,49 +888,14 @@ std::uint64_t App::renderSceneReferred() {
 }
 
 void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
+    auto imageIndex = acquireFrame(slot);
+    if (!imageIndex) {
+        return;
+    }
+
     FrameResources& frame = m_frames[slot];
 
-    std::uint32_t imageIndex = 0;
-    VkResult result = m_swapchain.acquireNextImage(frame.imageAvailable, imageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        const VkExtent2D extent = windowPixelExtent(m_window);
-        handleResize(extent.width, extent.height);
-        return;
-    }
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        Logger::error("Swapchain acquire failed: VkResult {}", static_cast<int>(result));
-        return;
-    }
-
-    vkResetCommandBuffer(frame.displayCmd, 0);
-    const VkCommandBufferBeginInfo beginInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    };
-    if (vkBeginCommandBuffer(frame.displayCmd, &beginInfo) != VK_SUCCESS) {
-        Logger::error("Failed to begin display command buffer");
-        return;
-    }
-
-    const std::array preToneMapBarriers{
-        imageBarrier(sceneOutputImage().handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     sceneOutputStageMask(),
-                     sceneOutputAccessMask(),
-                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT),
-        imageBarrier(m_swapchain.image(imageIndex),
-                     m_swapchainLayouts[imageIndex],
-                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_NONE,
-                     0,
-                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
-    };
-    pipelineBarrier(frame.displayCmd, preToneMapBarriers);
+    recordDisplayBarriers(frame.displayCmd, *imageIndex);
 
     const PassContext displayPassContext{
         .cmd = frame.displayCmd,
@@ -911,7 +910,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
         .gNormalView = VK_NULL_HANDLE,
         .gDepthView = VK_NULL_HANDLE,
         .denoised = m_sceneOutputUsesDenoised ? &m_denoisedImage : nullptr,
-        .swapchainView = m_swapchain.imageView(imageIndex),
+        .swapchainView = m_swapchain.imageView(*imageIndex),
         .colorSpace = m_swapchain.outputColorSpace(),
         .tonemapper = m_tonemapper,
         .workingColorSpace = m_workingColorSpace,
@@ -925,7 +924,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     bool swapchainInGeneral = false;
     if (!hasTonemapStage() && !m_config.displayOverlay) {
         const std::array toGeneral{
-            imageBarrier(m_swapchain.image(imageIndex),
+            imageBarrier(m_swapchain.image(*imageIndex),
                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                          VK_IMAGE_LAYOUT_GENERAL,
                          VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -945,7 +944,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
             .layerCount = 1,
         };
         vkCmdClearColorImage(
-            frame.displayCmd, m_swapchain.image(imageIndex), VK_IMAGE_LAYOUT_GENERAL, &clear, 1, &range);
+            frame.displayCmd, m_swapchain.image(*imageIndex), VK_IMAGE_LAYOUT_GENERAL, &clear, 1, &range);
         swapchainInGeneral = true;
     }
 
@@ -955,7 +954,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
             m_displayOverlayLogged = true;
         }
         const std::array displayPreBarriers{
-            imageBarrier(m_swapchain.image(imageIndex),
+            imageBarrier(m_swapchain.image(*imageIndex),
                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                          VK_IMAGE_LAYOUT_GENERAL,
                          VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -967,8 +966,8 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
         swapchainInGeneral = true;
 
         const RenderTarget displayTarget{
-            .image = m_swapchain.image(imageIndex),
-            .view = m_swapchain.imageView(imageIndex),
+            .image = m_swapchain.image(*imageIndex),
+            .view = m_swapchain.imageView(*imageIndex),
             .extent = m_swapchain.extent(),
             .colorSpace = m_swapchain.outputColorSpace(),
             .workingColorSpace = m_workingColorSpace,
@@ -977,7 +976,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     }
 
     const std::array presentBarrier{
-        imageBarrier(m_swapchain.image(imageIndex),
+        imageBarrier(m_swapchain.image(*imageIndex),
                      swapchainInGeneral ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                      swapchainInGeneral ? VK_PIPELINE_STAGE_2_TRANSFER_BIT
@@ -988,9 +987,68 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     };
     pipelineBarrier(frame.displayCmd, presentBarrier);
 
+    if (submitDisplay(slot, *imageIndex, renderValue) != VK_SUCCESS) {
+        return;
+    }
+
+    presentAndHandleResize(*imageIndex);
+}
+
+std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
+    FrameResources& frame = m_frames[slot];
+
+    std::uint32_t imageIndex = 0;
+    VkResult result = m_swapchain.acquireNextImage(frame.imageAvailable, imageIndex);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        const VkExtent2D extent = windowPixelExtent(m_window);
+        handleResize(extent.width, extent.height);
+        return std::nullopt;
+    }
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        Logger::error("Swapchain acquire failed: VkResult {}", static_cast<int>(result));
+        return std::nullopt;
+    }
+
+    vkResetCommandBuffer(frame.displayCmd, 0);
+    const VkCommandBufferBeginInfo beginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+    if (vkBeginCommandBuffer(frame.displayCmd, &beginInfo) != VK_SUCCESS) {
+        Logger::error("Failed to begin display command buffer");
+        return std::nullopt;
+    }
+    return imageIndex;
+}
+
+void App::recordDisplayBarriers(VkCommandBuffer cmd, std::uint32_t imageIndex) noexcept {
+    const std::array preToneMapBarriers{
+        imageBarrier(sceneOutputImage().handle(),
+                     VK_IMAGE_LAYOUT_GENERAL,
+                     VK_IMAGE_LAYOUT_GENERAL,
+                     sceneOutputStageMask(),
+                     sceneOutputAccessMask(),
+                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                     VK_ACCESS_2_SHADER_READ_BIT),
+        imageBarrier(m_swapchain.image(imageIndex),
+                     m_swapchainLayouts[imageIndex],
+                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                     VK_PIPELINE_STAGE_2_NONE,
+                     0,
+                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
+    };
+    pipelineBarrier(cmd, preToneMapBarriers);
+}
+
+VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::uint64_t renderValue) noexcept {
+    FrameResources& frame = m_frames[slot];
+
     if (vkEndCommandBuffer(frame.displayCmd) != VK_SUCCESS) {
         Logger::error("Failed to end display command buffer");
-        return;
+        return VK_ERROR_UNKNOWN;
     }
 
     const std::uint64_t displayValue = m_nextTimelineValue++;
@@ -1034,17 +1092,21 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
             .deviceIndex = 0,
         },
     }};
-    result = submitOneShot(
+    const VkResult result = submitOneShot(
         m_context.deviceContext().graphicsQueue, frame.displayCmd, VK_NULL_HANDLE, waitInfos, signalInfos);
     if (result != VK_SUCCESS) {
         Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
-        return;
+        return result;
     }
 
     // This slot must not be reused until display has also completed.
     frame.completionValue = displayValue;
+    return VK_SUCCESS;
+}
 
-    result = m_swapchain.present(m_context.deviceContext().graphicsQueue, imageIndex, m_renderComplete[imageIndex]);
+void App::presentAndHandleResize(std::uint32_t imageIndex) noexcept {
+    const VkResult result =
+        m_swapchain.present(m_context.deviceContext().graphicsQueue, imageIndex, m_renderComplete[imageIndex]);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         m_swapchainLayouts[imageIndex] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         const VkExtent2D extent = windowPixelExtent(m_window);

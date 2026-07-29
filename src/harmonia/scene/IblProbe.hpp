@@ -3,10 +3,12 @@
 
 #include <volk/volk.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <slang-math/slang-math.hpp>
+#include <vector>
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
@@ -63,7 +65,38 @@ class IblProbe {
     [[nodiscard]] float sunStrength() const noexcept { return m_sunStrength; }
 
   private:
+    struct ExrData {
+        std::size_t width = 0;
+        std::size_t height = 0;
+        std::vector<float> raw;
+        bool srcRec2020 = false;
+    };
+
     void reset() noexcept;
+
+    [[nodiscard]] static std::expected<ExrData, VkResult> readEXR(const std::filesystem::path& path);
+    [[nodiscard]] static std::vector<float> convertPrimaries(const std::vector<float>& raw,
+                                                             std::size_t width,
+                                                             std::size_t height,
+                                                             bool srcRec2020,
+                                                             ColorSpace::WorkingColorSpace workingSpace);
+    [[nodiscard]] static VkResult uploadEnvPanorama(IblProbe& probe,
+                                                    const DeviceContext& ctx,
+                                                    const CommandPool& pool,
+                                                    const std::vector<float>& rgba32f,
+                                                    std::size_t width,
+                                                    std::size_t height);
+    static void buildImportanceCdf(IblProbe& probe,
+                                   const DeviceContext& ctx,
+                                   const std::vector<float>& rgba32f,
+                                   std::size_t width,
+                                   std::size_t height);
+    static void extractDominantSun(IblProbe& probe,
+                                   float sunBestAvg,
+                                   std::size_t sunBestU,
+                                   std::size_t sunBestV,
+                                   double sunAvgSum,
+                                   std::size_t sunAvgCount);
 
     Image m_image{};
     VkSampler m_sampler{VK_NULL_HANDLE};

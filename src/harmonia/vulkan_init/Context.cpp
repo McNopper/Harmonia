@@ -93,200 +93,222 @@ namespace {
     return vmaCreateAllocator(&createInfo, &allocator);
 }
 
-[[nodiscard]] VkResult createDevice(const PhysicalDeviceInfo& info, DeviceContext& ctx) {
-    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeaturesSupported{};
-    rayQueryFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-    VkPhysicalDeviceRayTracingMaintenance1FeaturesKHR rtMaintenance1FeaturesSupported{};
-    rtMaintenance1FeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
-    rtMaintenance1FeaturesSupported.pNext = &rayQueryFeaturesSupported;
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeaturesSupported{};
-    rtFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    rtFeaturesSupported.pNext = &rtMaintenance1FeaturesSupported;
-    VkPhysicalDeviceMeshShaderFeaturesEXT meshFeaturesSupported{};
-    meshFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
-    meshFeaturesSupported.pNext = &rtFeaturesSupported;
-    VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT serFeaturesSupported{};
-    serFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
-    serFeaturesSupported.pNext = &meshFeaturesSupported;
-    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeaturesSupported{};
-    positionFetchFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
-    positionFetchFeaturesSupported.pNext = &serFeaturesSupported;
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeaturesSupported{};
-    asFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    asFeaturesSupported.pNext = &positionFetchFeaturesSupported;
-    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgcFeaturesSupported{};
-    dgcFeaturesSupported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
-    dgcFeaturesSupported.pNext = &asFeaturesSupported;
-    VkPhysicalDeviceVulkan14Features features14Supported{};
-    features14Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
-    features14Supported.pNext = &dgcFeaturesSupported;
-    VkPhysicalDeviceVulkan13Features features13Supported{};
-    features13Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    features13Supported.pNext = &features14Supported;
-    VkPhysicalDeviceVulkan12Features features12Supported{};
-    features12Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    features12Supported.pNext = &features13Supported;
-    VkPhysicalDeviceVulkan11Features features11Supported{};
-    features11Supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-    features11Supported.pNext = &features12Supported;
-    VkPhysicalDeviceFeatures2 supportedFeatures{};
-    supportedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    supportedFeatures.pNext = &features11Supported;
-    vkGetPhysicalDeviceFeatures2(info.device, &supportedFeatures);
+// ── Device creation helpers (anonymous-namespace; pure builders) ─────────────
+// createDevice is a free function, so its extracted steps stay free functions
+// here too (no member access needed). The pNext chains require careful lifetime
+// management: the *supported* chain only needs to live during the query call, so
+// querySupportedFeatures may return by value; the *enabled* chain must outlive
+// vkCreateDevice, so buildEnabledFeatures fills storage owned by its caller and
+// returns the chain head pointer.
 
-    const bool indirectRt2Supported = rtMaintenance1FeaturesSupported.rayTracingMaintenance1 == VK_TRUE &&
-                                      rtMaintenance1FeaturesSupported.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
-    const bool dgcSupported = info.dgcSupported && dgcFeaturesSupported.deviceGeneratedCommands == VK_TRUE;
-
-    if (features12Supported.bufferDeviceAddress != VK_TRUE || features12Supported.descriptorIndexing != VK_TRUE ||
-        features12Supported.runtimeDescriptorArray != VK_TRUE ||
-        features12Supported.descriptorBindingPartiallyBound != VK_TRUE ||
-        features12Supported.descriptorBindingStorageBufferUpdateAfterBind != VK_TRUE ||
-        features12Supported.descriptorBindingSampledImageUpdateAfterBind != VK_TRUE ||
-        features12Supported.descriptorBindingStorageImageUpdateAfterBind != VK_TRUE ||
-        features12Supported.timelineSemaphore != VK_TRUE || features13Supported.dynamicRendering != VK_TRUE ||
-        features13Supported.synchronization2 != VK_TRUE || features13Supported.maintenance4 != VK_TRUE ||
-        features14Supported.pushDescriptor != VK_TRUE || features14Supported.maintenance5 != VK_TRUE ||
-        asFeaturesSupported.accelerationStructure != VK_TRUE ||
-        asFeaturesSupported.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||
-        rtFeaturesSupported.rayTracingPipeline != VK_TRUE || rayQueryFeaturesSupported.rayQuery != VK_TRUE ||
-        supportedFeatures.features.fragmentStoresAndAtomics != VK_TRUE ||
-        supportedFeatures.features.independentBlend != VK_TRUE) {
-        return VK_ERROR_FEATURE_NOT_PRESENT;
-    }
-
-    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{};
-    rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-    rayQueryFeatures.rayQuery = VK_TRUE;
-
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeatures{};
-    rtFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    rtFeatures.pNext = &rayQueryFeatures;
-    rtFeatures.rayTracingPipeline = VK_TRUE;
-
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures{};
-    asFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    asFeatures.pNext = &rtFeatures;
-    asFeatures.accelerationStructure = VK_TRUE;
-    asFeatures.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE;
-
-    VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT serFeatures{};
-    serFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
-    serFeatures.pNext = &asFeatures;
-    const bool serSupported = serFeaturesSupported.rayTracingInvocationReorder == VK_TRUE;
-    serFeatures.rayTracingInvocationReorder = serSupported ? VK_TRUE : VK_FALSE;
-
-    VkPhysicalDeviceRayTracingMaintenance1FeaturesKHR rtMaintenance1Features{};
-    rtMaintenance1Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
-    rtMaintenance1Features.pNext = &serFeatures;
-    rtMaintenance1Features.rayTracingMaintenance1 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
-    rtMaintenance1Features.rayTracingPipelineTraceRaysIndirect2 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
-
-    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeatures{};
-    positionFetchFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
-    positionFetchFeatures.pNext = &rtMaintenance1Features;
-    const bool positionFetchSupported = positionFetchFeaturesSupported.rayTracingPositionFetch == VK_TRUE;
-    positionFetchFeatures.rayTracingPositionFetch = positionFetchSupported ? VK_TRUE : VK_FALSE;
-
+struct SupportedFeatures {
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQuery{};
+    VkPhysicalDeviceRayTracingMaintenance1FeaturesKHR rtMaintenance1{};
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt{};
+    VkPhysicalDeviceMeshShaderFeaturesEXT mesh{};
+    VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT ser{};
+    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetch{};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR as{};
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
     VkPhysicalDeviceVulkan14Features features14{};
-    features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
-    features14.pNext = &positionFetchFeatures;
-    features14.pushDescriptor = VK_TRUE;
-    features14.maintenance5 = VK_TRUE;
-
     VkPhysicalDeviceVulkan13Features features13{};
-    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    features13.pNext = &features14;
-    features13.synchronization2 = VK_TRUE;
-    features13.dynamicRendering = VK_TRUE;
-    features13.maintenance4 = VK_TRUE;
-
     VkPhysicalDeviceVulkan12Features features12{};
-    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    features12.pNext = &features13;
-    features12.descriptorIndexing = VK_TRUE;
-    features12.shaderSampledImageArrayNonUniformIndexing =
-        features12Supported.shaderSampledImageArrayNonUniformIndexing;
-    features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-    features12.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
-    features12.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
-    features12.descriptorBindingPartiallyBound = VK_TRUE;
-    features12.runtimeDescriptorArray = VK_TRUE;
-    features12.bufferDeviceAddress = VK_TRUE;
-    features12.timelineSemaphore = VK_TRUE;
-
     VkPhysicalDeviceVulkan11Features features11{};
-    features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-    features11.pNext = &features12;
-    features11.multiview = features11Supported.multiview;
-    features11.shaderDrawParameters = features11Supported.shaderDrawParameters;
-
     VkPhysicalDeviceFeatures2 features2{};
-    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features2.pNext = &features11;
-    features2.features.multiDrawIndirect = supportedFeatures.features.multiDrawIndirect;
-    features2.features.samplerAnisotropy = supportedFeatures.features.samplerAnisotropy;
-    features2.features.shaderInt64 = supportedFeatures.features.shaderInt64;
-    features2.features.fragmentStoresAndAtomics = VK_TRUE;
-    features2.features.independentBlend = VK_TRUE;
+};
+
+[[nodiscard]] SupportedFeatures querySupportedFeatures(VkPhysicalDevice device) {
+    SupportedFeatures s{};
+    s.rayQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+    s.rtMaintenance1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
+    s.rtMaintenance1.pNext = &s.rayQuery;
+    s.rt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    s.rt.pNext = &s.rtMaintenance1;
+    s.mesh.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+    s.mesh.pNext = &s.rt;
+    s.ser.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
+    s.ser.pNext = &s.mesh;
+    s.positionFetch.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
+    s.positionFetch.pNext = &s.ser;
+    s.as.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    s.as.pNext = &s.positionFetch;
+    s.dgc.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
+    s.dgc.pNext = &s.as;
+    s.features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
+    s.features14.pNext = &s.dgc;
+    s.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    s.features13.pNext = &s.features14;
+    s.features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    s.features12.pNext = &s.features13;
+    s.features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    s.features11.pNext = &s.features12;
+    s.features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    s.features2.pNext = &s.features11;
+    vkGetPhysicalDeviceFeatures2(device, &s.features2);
+    return s;
+}
+
+struct EnabledFeatures {
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQuery{};
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt{};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR as{};
+    VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT ser{};
+    VkPhysicalDeviceRayTracingMaintenance1FeaturesKHR rtMaintenance1{};
+    VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetch{};
+    VkPhysicalDeviceVulkan14Features features14{};
+    VkPhysicalDeviceVulkan13Features features13{};
+    VkPhysicalDeviceVulkan12Features features12{};
+    VkPhysicalDeviceVulkan11Features features11{};
+    VkPhysicalDeviceFeatures2 features2{};
+    VkPhysicalDeviceMeshShaderFeaturesEXT mesh{};
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
+};
+
+// Fills @p features (caller-owned so the pNext chain survives vkCreateDevice) and
+// returns the head pointer to thread into VkDeviceCreateInfo::pNext.
+[[nodiscard]] const void* buildEnabledFeatures(EnabledFeatures& features,
+                                               const SupportedFeatures& supported,
+                                               bool serSupported,
+                                               bool indirectRt2Supported,
+                                               bool positionFetchSupported,
+                                               bool meshShaderSupported,
+                                               bool dgcSupported) {
+    features.rayQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+    features.rayQuery.rayQuery = VK_TRUE;
+
+    features.rt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    features.rt.pNext = &features.rayQuery;
+    features.rt.rayTracingPipeline = VK_TRUE;
+
+    features.as.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    features.as.pNext = &features.rt;
+    features.as.accelerationStructure = VK_TRUE;
+    features.as.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE;
+
+    features.ser.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
+    features.ser.pNext = &features.as;
+    features.ser.rayTracingInvocationReorder = serSupported ? VK_TRUE : VK_FALSE;
+
+    features.rtMaintenance1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
+    features.rtMaintenance1.pNext = &features.ser;
+    features.rtMaintenance1.rayTracingMaintenance1 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
+    features.rtMaintenance1.rayTracingPipelineTraceRaysIndirect2 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
+
+    features.positionFetch.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
+    features.positionFetch.pNext = &features.rtMaintenance1;
+    features.positionFetch.rayTracingPositionFetch = positionFetchSupported ? VK_TRUE : VK_FALSE;
+
+    features.features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
+    features.features14.pNext = &features.positionFetch;
+    features.features14.pushDescriptor = VK_TRUE;
+    features.features14.maintenance5 = VK_TRUE;
+
+    features.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    features.features13.pNext = &features.features14;
+    features.features13.synchronization2 = VK_TRUE;
+    features.features13.dynamicRendering = VK_TRUE;
+    features.features13.maintenance4 = VK_TRUE;
+
+    features.features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    features.features12.pNext = &features.features13;
+    features.features12.descriptorIndexing = VK_TRUE;
+    features.features12.shaderSampledImageArrayNonUniformIndexing =
+        supported.features12.shaderSampledImageArrayNonUniformIndexing;
+    features.features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingPartiallyBound = VK_TRUE;
+    features.features12.runtimeDescriptorArray = VK_TRUE;
+    features.features12.bufferDeviceAddress = VK_TRUE;
+    features.features12.timelineSemaphore = VK_TRUE;
+
+    features.features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    features.features11.pNext = &features.features12;
+    features.features11.multiview = supported.features11.multiview;
+    features.features11.shaderDrawParameters = supported.features11.shaderDrawParameters;
+
+    features.features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features.features2.pNext = &features.features11;
+    features.features2.features.multiDrawIndirect = supported.features2.features.multiDrawIndirect;
+    features.features2.features.samplerAnisotropy = supported.features2.features.samplerAnisotropy;
+    features.features2.features.shaderInt64 = supported.features2.features.shaderInt64;
+    features.features2.features.fragmentStoresAndAtomics = VK_TRUE;
+    features.features2.features.independentBlend = VK_TRUE;
 
     // Mesh/task shaders are optional: required by Theia's rasterizer, unused by Hyperion's
     // path tracer. Enable them only when the device advertises support so the shared device
     // creation works on GPUs without VK_EXT_mesh_shader.
-    const bool meshShaderSupported = meshFeaturesSupported.meshShader == VK_TRUE;
-    VkPhysicalDeviceMeshShaderFeaturesEXT meshFeatures{};
-    meshFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
-    meshFeatures.pNext = &features2;
-    meshFeatures.meshShader = VK_TRUE;
-    meshFeatures.taskShader = meshFeaturesSupported.taskShader;
+    features.mesh.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+    features.mesh.pNext = &features.features2;
+    features.mesh.meshShader = VK_TRUE;
+    features.mesh.taskShader = supported.mesh.taskShader;
 
     // VK_EXT_device_generated_commands: GPU-driven mesh/compute draw commands.
     // Optional: enabled when the device supports it so both Theia and Hyperion can use
     // the same device. Falls back to indirect draw when not available.
-    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgcFeatures{};
-    dgcFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
-    dgcFeatures.pNext = meshShaderSupported ? static_cast<void*>(&meshFeatures) : static_cast<void*>(&features2);
-    dgcFeatures.deviceGeneratedCommands = VK_TRUE;
+    features.dgc.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
+    features.dgc.pNext =
+        meshShaderSupported ? static_cast<void*>(&features.mesh) : static_cast<void*>(&features.features2);
+    features.dgc.deviceGeneratedCommands = VK_TRUE;
 
-    // Detect a dedicated async compute queue family (COMPUTE without GRAPHICS).
+    return dgcSupported          ? static_cast<const void*>(&features.dgc)
+           : meshShaderSupported ? static_cast<const void*>(&features.mesh)
+                                 : static_cast<const void*>(&features.features2);
+}
+
+struct QueueInfos {
+    std::vector<VkDeviceQueueCreateInfo> infos;
     std::uint32_t asyncComputeFamily = UINT32_MAX;
+};
+
+[[nodiscard]] QueueInfos buildQueueCreateInfos(VkPhysicalDevice device, std::uint32_t graphicsFamily) {
+    // static so the create-info pQueuePriorities pointers stay valid after return.
+    static constexpr float queuePriority = 1.0f;
+    static constexpr float asyncQueuePriority = 0.5f;
+
+    QueueInfos result;
+    // Detect a dedicated async compute queue family (COMPUTE without GRAPHICS).
     {
         std::uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(info.device, &queueFamilyCount, nullptr);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
         std::vector<VkQueueFamilyProperties> queueProps(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(info.device, &queueFamilyCount, queueProps.data());
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueProps.data());
         for (std::uint32_t i = 0; i < queueFamilyCount; ++i) {
             const auto& props = queueProps[i];
             if ((props.queueFlags & VK_QUEUE_COMPUTE_BIT) && !(props.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
                 props.queueCount > 0) {
-                asyncComputeFamily = i;
+                result.asyncComputeFamily = i;
                 break;
             }
         }
     }
 
-    constexpr float queuePriority = 1.0f;
-    constexpr float asyncQueuePriority = 0.5f;
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    queueCreateInfos.push_back({
+    result.infos.push_back({
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .queueFamilyIndex = info.graphicsFamily,
+        .queueFamilyIndex = graphicsFamily,
         .queueCount = 1,
         .pQueuePriorities = &queuePriority,
     });
-    if (asyncComputeFamily != UINT32_MAX) {
-        queueCreateInfos.push_back({
+    if (result.asyncComputeFamily != UINT32_MAX) {
+        result.infos.push_back({
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             .pNext = nullptr,
             .flags = 0,
-            .queueFamilyIndex = asyncComputeFamily,
+            .queueFamilyIndex = result.asyncComputeFamily,
             .queueCount = 1,
             .pQueuePriorities = &asyncQueuePriority,
         });
     }
+    return result;
+}
 
+[[nodiscard]] std::vector<const char*> buildExtensionList(bool serSupported,
+                                                          bool indirectRt2Supported,
+                                                          bool positionFetchSupported,
+                                                          bool meshShaderSupported,
+                                                          bool dgcSupported) {
     std::vector<const char*> deviceExtensions{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
@@ -309,14 +331,54 @@ namespace {
     if (dgcSupported) {
         deviceExtensions.push_back(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
     }
+    return deviceExtensions;
+}
+
+[[nodiscard]] VkResult createDevice(const PhysicalDeviceInfo& info, DeviceContext& ctx) {
+    const SupportedFeatures supported = querySupportedFeatures(info.device);
+
+    const bool indirectRt2Supported = supported.rtMaintenance1.rayTracingMaintenance1 == VK_TRUE &&
+                                      supported.rtMaintenance1.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
+    const bool dgcSupported = info.dgcSupported && supported.dgc.deviceGeneratedCommands == VK_TRUE;
+    const bool serSupported = supported.ser.rayTracingInvocationReorder == VK_TRUE;
+    const bool positionFetchSupported = supported.positionFetch.rayTracingPositionFetch == VK_TRUE;
+    const bool meshShaderSupported = supported.mesh.meshShader == VK_TRUE;
+
+    if (supported.features12.bufferDeviceAddress != VK_TRUE || supported.features12.descriptorIndexing != VK_TRUE ||
+        supported.features12.runtimeDescriptorArray != VK_TRUE ||
+        supported.features12.descriptorBindingPartiallyBound != VK_TRUE ||
+        supported.features12.descriptorBindingStorageBufferUpdateAfterBind != VK_TRUE ||
+        supported.features12.descriptorBindingSampledImageUpdateAfterBind != VK_TRUE ||
+        supported.features12.descriptorBindingStorageImageUpdateAfterBind != VK_TRUE ||
+        supported.features12.timelineSemaphore != VK_TRUE || supported.features13.dynamicRendering != VK_TRUE ||
+        supported.features13.synchronization2 != VK_TRUE || supported.features13.maintenance4 != VK_TRUE ||
+        supported.features14.pushDescriptor != VK_TRUE || supported.features14.maintenance5 != VK_TRUE ||
+        supported.as.accelerationStructure != VK_TRUE ||
+        supported.as.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||
+        supported.rt.rayTracingPipeline != VK_TRUE || supported.rayQuery.rayQuery != VK_TRUE ||
+        supported.features2.features.fragmentStoresAndAtomics != VK_TRUE ||
+        supported.features2.features.independentBlend != VK_TRUE) {
+        return VK_ERROR_FEATURE_NOT_PRESENT;
+    }
+
+    EnabledFeatures enabled{};
+    const void* featuresHead = buildEnabledFeatures(enabled,
+                                                    supported,
+                                                    serSupported,
+                                                    indirectRt2Supported,
+                                                    positionFetchSupported,
+                                                    meshShaderSupported,
+                                                    dgcSupported);
+
+    const QueueInfos queues = buildQueueCreateInfos(info.device, info.graphicsFamily);
+    const std::vector<const char*> deviceExtensions = buildExtensionList(
+        serSupported, indirectRt2Supported, positionFetchSupported, meshShaderSupported, dgcSupported);
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = dgcSupported          ? static_cast<const void*>(&dgcFeatures)
-                 : meshShaderSupported ? static_cast<const void*>(&meshFeatures)
-                                       : static_cast<const void*>(&features2),
+        .pNext = featuresHead,
         .flags = 0,
-        .queueCreateInfoCount = static_cast<std::uint32_t>(queueCreateInfos.size()),
-        .pQueueCreateInfos = queueCreateInfos.data(),
+        .queueCreateInfoCount = static_cast<std::uint32_t>(queues.infos.size()),
+        .pQueueCreateInfos = queues.infos.data(),
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
         .enabledExtensionCount = static_cast<std::uint32_t>(deviceExtensions.size()),
@@ -330,7 +392,7 @@ namespace {
         ctx.serSupported = serSupported;
         ctx.indirectRt2Supported = indirectRt2Supported;
         ctx.dgcSupported = dgcSupported;
-        ctx.asyncComputeQueueFamily = asyncComputeFamily;
+        ctx.asyncComputeQueueFamily = queues.asyncComputeFamily;
     }
     return result;
 }
