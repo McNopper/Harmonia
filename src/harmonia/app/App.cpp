@@ -25,8 +25,8 @@ namespace {
 
 // Parse a base-10 integer from a CLI argument, clamped to >= 1. Reports parse
 // failures (unlike atoi, which silently returns 0) by falling back to 1.
-[[nodiscard]] int parseClampedInt(std::string_view s) noexcept {
-    int value = 0;
+[[nodiscard]] std::int32_t parseClampedInt(std::string_view s) noexcept {
+    std::int32_t value = 0;
     const auto res = std::from_chars(s.data(), s.data() + s.size(), value);
     if (res.ec != std::errc{} || res.ptr != s.data() + s.size() || value < 1)
         return 1;

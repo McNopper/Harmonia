@@ -164,11 +164,11 @@ TEST(Math, GgxDIntegratesToOneOverHemisphere) {
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
 
     constexpr float alpha = 0.5F;
-    constexpr int sampleCount = 50000;
+    constexpr std::size_t sampleCount = 50000;
     const float pdf = Math::kInv2Pi;
 
     double estimate = 0.0;
-    for (int i = 0; i < sampleCount; ++i) {
+    for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 h = sampleUniformHemisphere(dist(rng), dist(rng));
         estimate += ggxD(h.z, alpha) * h.z / pdf;
     }
@@ -202,11 +202,11 @@ TEST(Math, SampleGgxVndfProducesNormalizedPdf) {
     std::mt19937 rng(7U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
 
-    constexpr int integralSampleCount = 10000;
+    constexpr std::size_t integralSampleCount = 10000;
     const float hemispherePdf = Math::kInv2Pi;
     double pdfIntegral = 0.0;
     double pdfWeightedMeanCos = 0.0;
-    for (int i = 0; i < integralSampleCount; ++i) {
+    for (std::size_t i = 0; i < integralSampleCount; ++i) {
         const sm::float3 m = sampleUniformHemisphere(dist(rng), dist(rng));
         const float pdf = ggxVndfPdf(v, m, alpha);
         pdfIntegral += pdf / hemispherePdf;
@@ -217,9 +217,9 @@ TEST(Math, SampleGgxVndfProducesNormalizedPdf) {
 
     EXPECT_NEAR(static_cast<float>(pdfIntegral), 1.0F, 2.5e-2F);
 
-    constexpr int sampleCount = 10000;
+    constexpr std::size_t sampleCount = 10000;
     double sampledMeanCos = 0.0;
-    for (int i = 0; i < sampleCount; ++i) {
+    for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 m = sampleGgxVndf(v, alpha, sm::float2(dist(rng), dist(rng)));
         EXPECT_NEAR(sm::length(m), 1.0F, 1.0e-4F);
         EXPECT_GE(m.z, -kEpsilon);

@@ -73,15 +73,15 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     }
 
     const OIIO::ImageSpec& spec = inp->spec();
-    const int width = spec.width;
-    const int height = spec.height;
+    const std::size_t width = static_cast<std::size_t>(spec.width);
+    const std::size_t height = static_cast<std::size_t>(spec.height);
 
     // ── Diagnostic: log channel layout so misloads are immediately visible ────
     {
         std::string chanDesc;
         for (int c = 0; c < spec.nchannels; ++c) {
             const OIIO::TypeDesc ct = spec.channelformat(c);
-            chanDesc += spec.channelnames[static_cast<size_t>(c)];
+            chanDesc += spec.channelnames[static_cast<std::size_t>(c)];
             chanDesc += (ct == OIIO::TypeDesc::HALF) ? "(half)" : (ct == OIIO::TypeDesc::FLOAT) ? "(float)" : "(other)";
             if (c + 1 < spec.nchannels)
                 chanDesc += ", ";
@@ -108,27 +108,27 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     // OIIO preserves the EXR file's channel storage order, which for most
     // panoramas is alphabetical (A, B, G, R).  We must look up each channel by
     // name so that raw[] is always laid out as R,G,B,A regardless of file order.
-    const int nchans = spec.nchannels;
-    std::vector<float> allChans(static_cast<size_t>(width) * static_cast<size_t>(height) * static_cast<size_t>(nchans));
-    if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::FLOAT, allChans.data())) {
+    const std::size_t nchans = static_cast<std::size_t>(spec.nchannels);
+    std::vector<float> allChans(width * height * nchans);
+    if (!inp->read_image(0, 0, 0, spec.nchannels, OIIO::TypeDesc::FLOAT, allChans.data())) {
         Logger::error("IblProbe: read_image failed for '{}': {}", path.string(), inp->geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     inp->close();
 
     // Resolve named channel indices; fall back to positional if unnamed.
-    const int iR = spec.channelindex("R") >= 0 ? spec.channelindex("R") : 0;
-    const int iG = spec.channelindex("G") >= 0 ? spec.channelindex("G") : 1;
-    const int iB = spec.channelindex("B") >= 0 ? spec.channelindex("B") : 2;
-    const int iA = spec.channelindex("A");
+    const std::size_t iR = static_cast<std::size_t>(spec.channelindex("R") >= 0 ? spec.channelindex("R") : 0);
+    const std::size_t iG = static_cast<std::size_t>(spec.channelindex("G") >= 0 ? spec.channelindex("G") : 1);
+    const std::size_t iB = static_cast<std::size_t>(spec.channelindex("B") >= 0 ? spec.channelindex("B") : 2);
+    const std::int32_t iA = spec.channelindex("A");
 
-    std::vector<float> raw(static_cast<size_t>(width * height) * 4u);
-    for (int i = 0; i < width * height; ++i) {
-        const size_t base = static_cast<size_t>(i) * static_cast<size_t>(nchans);
-        raw[i * 4 + 0] = allChans[base + static_cast<size_t>(iR)];
-        raw[i * 4 + 1] = allChans[base + static_cast<size_t>(iG)];
-        raw[i * 4 + 2] = allChans[base + static_cast<size_t>(iB)];
-        raw[i * 4 + 3] = (iA >= 0) ? allChans[base + static_cast<size_t>(iA)] : 1.0f;
+    std::vector<float> raw(width * height * 4u);
+    for (std::size_t i = 0; i < width * height; ++i) {
+        const std::size_t base = i * nchans;
+        raw[i * 4 + 0] = allChans[base + iR];
+        raw[i * 4 + 1] = allChans[base + iG];
+        raw[i * 4 + 2] = allChans[base + iB];
+        raw[i * 4 + 3] = (iA >= 0) ? allChans[base + static_cast<std::size_t>(iA)] : 1.0f;
     }
 
     // ── Pick the primaries conversion (source → working space) ───────────────
@@ -157,8 +157,8 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         return std::isfinite(v) ? std::min(v, kHalfMax) : kHalfMax;
     };
 
-    std::vector<float> rgba32f(static_cast<size_t>(width * height) * 4u);
-    for (int i = 0; i < width * height; ++i) {
+    std::vector<float> rgba32f(width * height * 4u);
+    for (std::size_t i = 0; i < width * height; ++i) {
         const float r = safeVal(raw[i * 4 + 0]);
         const float g = safeVal(raw[i * 4 + 1]);
         const float b = safeVal(raw[i * 4 + 2]);
@@ -260,35 +260,37 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     // ── Build 2D separable CDF for env importance sampling ───────────────────
     // Ref: PBR Book 4th ed §12.5 "Infinite Area Lights" — 2D separable CDF construction
     // Resolution: 256×128 (each cell covers ~16×16 source pixels for a 4K panorama)
-    static constexpr int kCdfW = 256;
-    static constexpr int kCdfH = 128;
+    static constexpr std::size_t kCdfW = 256;
+    static constexpr std::size_t kCdfH = 128;
     const float kPiCpu = 3.14159265358979f;
     const float srcToGridU = static_cast<float>(kCdfW) / static_cast<float>(width);
     const float srcToGridV = static_cast<float>(kCdfH) / static_cast<float>(height);
 
     // Luminance grid: weighted by sin(θ) to account for equirectangular → solid-angle mapping
-    std::vector<float> lumGrid(static_cast<size_t>(kCdfW * kCdfH));
+    std::vector<float> lumGrid(kCdfW * kCdfH);
     // Track the brightest (raw, unweighted) cell to extract a dominant "sun" direction
     // for ray-traced directional shadows, plus the mean to gauge how concentrated it is.
     float sunBestAvg = -1.0f;
-    int sunBestU = 0, sunBestV = 0;
+    std::size_t sunBestU = 0, sunBestV = 0;
     double sunAvgSum = 0.0;
-    int sunAvgCount = 0;
-    for (int v = 0; v < kCdfH; ++v) {
+    std::size_t sunAvgCount = 0;
+    for (std::size_t v = 0; v < kCdfH; ++v) {
         const float sinTheta = std::sin(kPiCpu * (static_cast<float>(v) + 0.5f) / static_cast<float>(kCdfH));
-        for (int u = 0; u < kCdfW; ++u) {
-            const int srcX0 = static_cast<int>(static_cast<float>(u) / srcToGridU);
-            const int srcX1 = std::max(srcX0 + 1, static_cast<int>(static_cast<float>(u + 1) / srcToGridU));
-            const int srcY0 = static_cast<int>(static_cast<float>(v) / srcToGridV);
-            const int srcY1 = std::max(srcY0 + 1, static_cast<int>(static_cast<float>(v + 1) / srcToGridV));
-            const int cX1 = std::min(srcX1, width);
-            const int cY1 = std::min(srcY1, height);
+        for (std::size_t u = 0; u < kCdfW; ++u) {
+            const std::size_t srcX0 = static_cast<std::size_t>(static_cast<float>(u) / srcToGridU);
+            const std::size_t srcX1 =
+                std::max(srcX0 + 1, static_cast<std::size_t>(static_cast<float>(u + 1) / srcToGridU));
+            const std::size_t srcY0 = static_cast<std::size_t>(static_cast<float>(v) / srcToGridV);
+            const std::size_t srcY1 =
+                std::max(srcY0 + 1, static_cast<std::size_t>(static_cast<float>(v + 1) / srcToGridV));
+            const std::size_t cX1 = std::min(srcX1, width);
+            const std::size_t cY1 = std::min(srcY1, height);
 
             float sumLum = 0.0f;
-            int count = 0;
-            for (int sy = srcY0; sy < cY1; ++sy) {
-                for (int sx = srcX0; sx < cX1; ++sx) {
-                    const size_t idx = static_cast<size_t>(sy * width + sx) * 4u;
+            std::size_t count = 0;
+            for (std::size_t sy = srcY0; sy < cY1; ++sy) {
+                for (std::size_t sx = srcX0; sx < cX1; ++sx) {
+                    const std::size_t idx = (sy * width + sx) * 4u;
                     const float r = rgba32f[idx + 0];
                     const float g = rgba32f[idx + 1];
                     const float b = rgba32f[idx + 2];
@@ -306,7 +308,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
                 sunBestU = u;
                 sunBestV = v;
             }
-            lumGrid[static_cast<size_t>(v) * static_cast<size_t>(kCdfW) + static_cast<size_t>(u)] = avgLum * sinTheta;
+            lumGrid[v * kCdfW + u] = avgLum * sinTheta;
         }
     }
 
@@ -339,24 +341,23 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     probe.m_sunStrength = domSunStrength;
 
     // Per-row conditional CDFs: conditionalCdf[v*(W+1)..(v+1)*(W+1)] for each row v
-    std::vector<float> conditionalCdf(static_cast<size_t>(kCdfH * (kCdfW + 1)));
-    std::vector<float> rowIntegrals(static_cast<size_t>(kCdfH), 0.0f);
-    for (int v = 0; v < kCdfH; ++v) {
-        float* rowCdf = conditionalCdf.data() + static_cast<ptrdiff_t>(v * (kCdfW + 1));
+    std::vector<float> conditionalCdf(kCdfH * (kCdfW + 1));
+    std::vector<float> rowIntegrals(kCdfH, 0.0f);
+    for (std::size_t v = 0; v < kCdfH; ++v) {
+        float* rowCdf = conditionalCdf.data() + static_cast<std::ptrdiff_t>(v * (kCdfW + 1));
         rowCdf[0] = 0.0f;
-        for (int u = 0; u < kCdfW; ++u) {
-            rowCdf[u + 1] =
-                rowCdf[u] + lumGrid[static_cast<size_t>(v) * static_cast<size_t>(kCdfW) + static_cast<size_t>(u)];
+        for (std::size_t u = 0; u < kCdfW; ++u) {
+            rowCdf[u + 1] = rowCdf[u] + lumGrid[v * kCdfW + u];
         }
-        rowIntegrals[static_cast<size_t>(v)] = rowCdf[kCdfW];
-        if (rowIntegrals[static_cast<size_t>(v)] > 0.0f) {
-            const float invRow = 1.0f / rowIntegrals[static_cast<size_t>(v)];
-            for (int u = 1; u <= kCdfW; ++u) {
+        rowIntegrals[v] = rowCdf[kCdfW];
+        if (rowIntegrals[v] > 0.0f) {
+            const float invRow = 1.0f / rowIntegrals[v];
+            for (std::size_t u = 1; u <= kCdfW; ++u) {
                 rowCdf[u] *= invRow;
             }
         } else {
             // Degenerate dark row: uniform distribution so binary search returns valid indices
-            for (int u = 1; u <= kCdfW; ++u) {
+            for (std::size_t u = 1; u <= kCdfW; ++u) {
                 rowCdf[u] = static_cast<float>(u) / static_cast<float>(kCdfW);
             }
         }
@@ -364,19 +365,18 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
     }
 
     // Marginal CDF over rows: marginalCdf[H+1]
-    std::vector<float> marginalCdf(static_cast<size_t>(kCdfH + 1));
+    std::vector<float> marginalCdf(kCdfH + 1);
     marginalCdf[0] = 0.0f;
-    for (int v = 0; v < kCdfH; ++v) {
-        marginalCdf[static_cast<size_t>(v) + 1] =
-            marginalCdf[static_cast<size_t>(v)] + rowIntegrals[static_cast<size_t>(v)];
+    for (std::size_t v = 0; v < kCdfH; ++v) {
+        marginalCdf[v + 1] = marginalCdf[v] + rowIntegrals[v];
     }
-    const float totalWeight = marginalCdf[static_cast<size_t>(kCdfH)];
+    const float totalWeight = marginalCdf[kCdfH];
     if (totalWeight > 0.0f) {
         const float invTotal = 1.0f / totalWeight;
-        for (int v = 1; v <= kCdfH; ++v) {
-            marginalCdf[static_cast<size_t>(v)] *= invTotal;
+        for (std::size_t v = 1; v <= kCdfH; ++v) {
+            marginalCdf[v] *= invTotal;
         }
-        marginalCdf[static_cast<size_t>(kCdfH)] = 1.0f;
+        marginalCdf[kCdfH] = 1.0f;
 
         // Upload marginal CDF buffer
         const VkDeviceSize margSize = static_cast<VkDeviceSize>(kCdfH + 1) * sizeof(float);

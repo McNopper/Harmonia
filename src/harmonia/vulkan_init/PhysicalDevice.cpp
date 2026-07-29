@@ -13,14 +13,14 @@ constexpr std::array kRequiredExtensions{
     VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 };
 
-[[nodiscard]] int scoreDevice(VkPhysicalDeviceProperties properties) noexcept {
-    int score = 0;
+[[nodiscard]] std::int32_t scoreDevice(VkPhysicalDeviceProperties properties) noexcept {
+    std::int32_t score = 0;
     if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
         score += 1000;
     } else if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
         score += 250;
     }
-    score += static_cast<int>(properties.limits.maxImageDimension2D);
+    score += static_cast<std::int32_t>(properties.limits.maxImageDimension2D);
     return score;
 }
 } // namespace
@@ -42,7 +42,7 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
     }
 
     bool foundCompatible = false;
-    int bestScore = -1;
+    std::int32_t bestScore = -1;
     PhysicalDeviceInfo bestInfo{};
 
     for (VkPhysicalDevice device : devices) {
@@ -93,7 +93,7 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         info.indirectRt2Supported = hasRayTracingMaintenance1Support(device);
         info.dgcSupported = hasDgcSupport(device);
 
-        const int score = scoreDevice(info.properties.properties) + 500;
+        const std::int32_t score = scoreDevice(info.properties.properties) + 500;
         if (!foundCompatible || score > bestScore) {
             foundCompatible = true;
             bestScore = score;

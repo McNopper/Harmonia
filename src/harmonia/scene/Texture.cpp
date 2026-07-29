@@ -191,15 +191,15 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     const OIIO::ImageSpec& spec = inp->spec();
-    const int w = spec.width;
-    const int h = spec.height;
-    const auto pixelCount = static_cast<size_t>(w) * static_cast<size_t>(h);
+    const std::size_t w = static_cast<std::size_t>(spec.width);
+    const std::size_t h = static_cast<std::size_t>(spec.height);
+    const auto pixelCount = w * h;
 
     // Pre-fill with 0xFF so any missing channels default to opaque/white.
     // OIIO fills channels beyond spec.nchannels with 0, which would make
     // RGB-only images fully transparent (alpha=0) on the GPU.
     std::vector<uint8_t> raw(pixelCount * 4, 0xFF);
-    const int nchans = std::min(spec.nchannels, 4);
+    const std::int32_t nchans = std::min(spec.nchannels, 4);
     // xstride=4: always advance 4 bytes per pixel in our RGBA buffer so the
     // pre-filled alpha byte is not overwritten for 3-channel source images.
     if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::UINT8, raw.data(), static_cast<OIIO::stride_t>(4))) {

@@ -15,8 +15,8 @@
 namespace detail {
 [[nodiscard]] inline uint64_t wyhashFoldedMultiply(uint64_t a, uint64_t b) noexcept {
 #if defined(_MSC_VER) && defined(_M_X64)
-    unsigned __int64 high = 0U;
-    const unsigned __int64 low = _umul128(a, b, &high);
+    std::uint64_t high = 0U;
+    const std::uint64_t low = _umul128(a, b, &high);
     return low ^ high;
 #elif defined(__SIZEOF_INT128__)
     const auto wide = static_cast<unsigned __int128>(a) * static_cast<unsigned __int128>(b);
@@ -39,7 +39,7 @@ namespace detail {
 #endif
 }
 
-[[nodiscard]] inline uint64_t load64(const unsigned char* data) noexcept {
+[[nodiscard]] inline uint64_t load64(const std::uint8_t* data) noexcept {
     uint64_t value = 0U;
     std::memcpy(&value, data, sizeof(value));
     return value;
@@ -53,7 +53,7 @@ struct VertexHash {
         constexpr uint64_t kSecret2 = 0x8EBC6AF09C88C6E3ULL;
         constexpr uint64_t kSecret3 = 0x589965CC75374CC3ULL;
 
-        const auto* bytes = reinterpret_cast<const unsigned char*>(&v);
+        const auto* bytes = reinterpret_cast<const std::uint8_t*>(&v);
         uint64_t seed = kSecret0 ^ sizeof(GpuVertex);
 
         for (size_t offset = 0; offset < sizeof(GpuVertex); offset += sizeof(uint64_t)) {
