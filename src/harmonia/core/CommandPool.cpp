@@ -2,16 +2,7 @@
 
 #include <cstdint>
 
-namespace {
-[[nodiscard]] VkResult createFence(VkDevice device, VkFence* fence) noexcept {
-    const VkFenceCreateInfo fenceInfo{
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0U,
-    };
-    return vkCreateFence(device, &fenceInfo, nullptr, fence);
-}
-} // namespace
+#include "harmonia/core/OneShot.hpp"
 
 std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ctx, std::uint32_t queueFamily) {
     if (!ctx.isValid() || ctx.graphicsQueue == VK_NULL_HANDLE) {
@@ -127,31 +118,13 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
     }
 
     VkFence fence = VK_NULL_HANDLE;
-    VkResult result = createFence(m_device, &fence);
+    VkResult result = harmonia::createFence(m_device, &fence);
     if (result != VK_SUCCESS) {
         free(cmd);
         return result;
     }
 
-    const VkCommandBufferSubmitInfo commandBufferInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .pNext = nullptr,
-        .commandBuffer = cmd,
-        .deviceMask = 0U,
-    };
-    const VkSubmitInfo2 submitInfo{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .pNext = nullptr,
-        .flags = 0U,
-        .waitSemaphoreInfoCount = 0U,
-        .pWaitSemaphoreInfos = nullptr,
-        .commandBufferInfoCount = 1U,
-        .pCommandBufferInfos = &commandBufferInfo,
-        .signalSemaphoreInfoCount = 0U,
-        .pSignalSemaphoreInfos = nullptr,
-    };
-
-    result = vkQueueSubmit2(m_queue, 1U, &submitInfo, fence);
+    result = harmonia::submitOneShot(m_queue, cmd, fence);
     if (result == VK_SUCCESS) {
         result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, UINT64_MAX);
     }

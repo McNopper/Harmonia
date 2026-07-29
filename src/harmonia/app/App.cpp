@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <limits>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -14,6 +15,7 @@
 
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/core/OneShot.hpp"
 #include "harmonia/pipeline/AccumulationPass.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
@@ -817,12 +819,6 @@ std::uint64_t App::renderSceneReferred() {
     }
 
     const std::uint64_t signalValue = m_nextTimelineValue++;
-    const VkCommandBufferSubmitInfo cmdInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .pNext = nullptr,
-        .commandBuffer = stagesCmd,
-        .deviceMask = 0,
-    };
     const VkSemaphoreSubmitInfo timelineSignal{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
         .pNext = nullptr,
@@ -839,19 +835,14 @@ std::uint64_t App::renderSceneReferred() {
         .stageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
         .deviceIndex = 0,
     };
-    const std::uint32_t waitCount = (asyncWaitSem != VK_NULL_HANDLE) ? 1U : 0U;
-    const VkSubmitInfo2 submitInfo{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .pNext = nullptr,
-        .flags = 0,
-        .waitSemaphoreInfoCount = waitCount,
-        .pWaitSemaphoreInfos = waitCount > 0U ? &asyncWait : nullptr,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &cmdInfo,
-        .signalSemaphoreInfoCount = 1,
-        .pSignalSemaphoreInfos = &timelineSignal,
-    };
-    if (vkQueueSubmit2(m_context.deviceContext().graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+    const std::span<const VkSemaphoreSubmitInfo> waitSemaphores =
+        (asyncWaitSem != VK_NULL_HANDLE) ? std::span<const VkSemaphoreSubmitInfo>{&asyncWait, 1}
+                                         : std::span<const VkSemaphoreSubmitInfo>{};
+    if (submitOneShot(m_context.deviceContext().graphicsQueue,
+                      stagesCmd,
+                      VK_NULL_HANDLE,
+                      waitSemaphores,
+                      std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1}) != VK_SUCCESS) {
         Logger::error("Render queue submit failed");
         return frame.completionValue;
     }
@@ -1043,24 +1034,8 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
             .deviceIndex = 0,
         },
     }};
-    const VkCommandBufferSubmitInfo displayCmdInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .pNext = nullptr,
-        .commandBuffer = frame.displayCmd,
-        .deviceMask = 0,
-    };
-    const VkSubmitInfo2 displaySubmit{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .pNext = nullptr,
-        .flags = 0,
-        .waitSemaphoreInfoCount = static_cast<std::uint32_t>(waitInfos.size()),
-        .pWaitSemaphoreInfos = waitInfos.data(),
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &displayCmdInfo,
-        .signalSemaphoreInfoCount = static_cast<std::uint32_t>(signalInfos.size()),
-        .pSignalSemaphoreInfos = signalInfos.data(),
-    };
-    result = vkQueueSubmit2(m_context.deviceContext().graphicsQueue, 1, &displaySubmit, VK_NULL_HANDLE);
+    result = submitOneShot(
+        m_context.deviceContext().graphicsQueue, frame.displayCmd, VK_NULL_HANDLE, waitInfos, signalInfos);
     if (result != VK_SUCCESS) {
         Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
         return;

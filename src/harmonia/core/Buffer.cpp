@@ -8,6 +8,7 @@
 
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/core/OneShot.hpp"
 
 namespace {
 [[nodiscard]] bool prefersHostAccess(VmaMemoryUsage usage) noexcept {
@@ -21,15 +22,6 @@ namespace {
     default:
         return false;
     }
-}
-
-[[nodiscard]] VkResult createFence(VkDevice device, VkFence* fence) noexcept {
-    const VkFenceCreateInfo fenceInfo{
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0U,
-    };
-    return vkCreateFence(device, &fenceInfo, nullptr, fence);
 }
 } // namespace
 
@@ -311,27 +303,10 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
 
     VkFence fence = VK_NULL_HANDLE;
     if (result == VK_SUCCESS) {
-        result = createFence(m_device, &fence);
+        result = harmonia::createFence(m_device, &fence);
     }
     if (result == VK_SUCCESS) {
-        const VkCommandBufferSubmitInfo commandBufferInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-            .pNext = nullptr,
-            .commandBuffer = cmd,
-            .deviceMask = 0U,
-        };
-        const VkSubmitInfo2 submitInfo{
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-            .pNext = nullptr,
-            .flags = 0U,
-            .waitSemaphoreInfoCount = 0U,
-            .pWaitSemaphoreInfos = nullptr,
-            .commandBufferInfoCount = 1U,
-            .pCommandBufferInfos = &commandBufferInfo,
-            .signalSemaphoreInfoCount = 0U,
-            .pSignalSemaphoreInfos = nullptr,
-        };
-        result = vkQueueSubmit2(m_queue, 1U, &submitInfo, fence);
+        result = harmonia::submitOneShot(m_queue, cmd, fence);
     }
     if (result == VK_SUCCESS) {
         result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, UINT64_MAX);
