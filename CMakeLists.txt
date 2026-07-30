@@ -255,6 +255,7 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/vulkan_init/DebugUtils.cpp
     src/harmonia/app/App.cpp
     src/harmonia/app/CliParser.cpp
+    src/harmonia/app/OffscreenCapture.cpp
     src/harmonia/app/GreenScreenRenderer.cpp
     src/harmonia/vma_impl.cpp
 )

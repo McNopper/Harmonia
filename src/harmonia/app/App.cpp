@@ -946,10 +946,18 @@ int App::renderOffscreen() {
     if (!isPng) {
         pngPath.replace_extension(".png");
     }
-    if (tonemapToCaptureImage()) {
+    if (m_toneMapper.isValid() &&
+        m_offscreen.tonemapToCaptureImage(deviceContext(),
+                                          commandPool(),
+                                          m_swapchain.extent(),
+                                          sceneOutputImage(),
+                                          sceneOutputStageMask(),
+                                          sceneOutputAccessMask(),
+                                          m_tonemapper,
+                                          m_workingColorSpace)) {
         // Capture image is VK_FORMAT_R8G8B8A8_UNORM (RGBA) — no channel swap needed.
         ok = ImageCapture::saveSdrPng(
-                 m_context.deviceContext(), m_commandPool, m_displayCaptureImage, pngPath, /*swapRB=*/false) &&
+                 m_context.deviceContext(), m_commandPool, m_offscreen.captureImage(), pngPath, /*swapRB=*/false) &&
              ok;
     } else {
         ok = ImageCapture::savePng(
@@ -957,89 +965,6 @@ int App::renderOffscreen() {
              ok;
     }
     return ok ? 0 : 1;
-}
-
-bool App::tonemapToCaptureImage() {
-    if (m_toneMapper.isValid() == false) {
-        return false;
-    }
-
-    // A PNG is inherently SDR, so we cannot bit-match an HDR10 / scRGB swapchain. Instead we
-    // run the SAME tone mapper (m_tonemapper: AgX/ACES/Reinhard/Hable) the window uses, but
-    // into a fixed 8-bit sRGB target (OutputColorSpace::eSDR). The tone curve is therefore
-    // identical to the interactive window; only the display container differs (sRGB 8-bit
-    // file vs the display's native HDR/SDR swapchain), which is unavoidable and correct.
-    constexpr VkFormat kCaptureFormat = VK_FORMAT_R8G8B8A8_UNORM; // RGBA order -> no channel swap
-
-    if (m_captureToneMapper.isValid() == false) {
-        const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
-        auto toneMapper = ToneMapper::create(
-            m_context.deviceContext(), kCaptureFormat, shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
-        if (!toneMapper) {
-            Logger::error("Capture tone mapper creation failed: VkResult {}", static_cast<int>(toneMapper.error()));
-            return false;
-        }
-        m_captureToneMapper = std::move(*toneMapper);
-    }
-
-    auto img = Image::create(m_context.deviceContext(),
-                             m_swapchain.extent(),
-                             kCaptureFormat,
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                 VK_IMAGE_USAGE_SAMPLED_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT,
-                             "harmonia.displayCapture");
-    if (!img) {
-        Logger::error("Display capture image creation failed: VkResult {}", static_cast<int>(img.error()));
-        return false;
-    }
-    m_displayCaptureImage = std::move(*img);
-
-    auto cmd = m_commandPool.beginOneShot();
-    if (!cmd) {
-        return false;
-    }
-
-    const std::array preBarriers{
-        imageBarrier(sceneOutputImage().handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     sceneOutputStageMask(),
-                     sceneOutputAccessMask(),
-                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT),
-        imageBarrier(m_displayCaptureImage.handle(),
-                     VK_IMAGE_LAYOUT_UNDEFINED,
-                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_NONE,
-                     0,
-                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
-    };
-    pipelineBarrier(*cmd, preBarriers);
-
-    // Mirror ToneMapStagePass input selection: denoised output when present, else raw HDR.
-    const Image& input = sceneOutputImage();
-    m_captureToneMapper.record(*cmd,
-                               input.view(),
-                               m_displayCaptureImage.view(),
-                               m_swapchain.extent(),
-                               OutputColorSpace::eSDR,
-                               m_tonemapper,
-                               m_workingColorSpace);
-
-    const std::array postBarriers{
-        imageBarrier(m_displayCaptureImage.handle(),
-                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_READ_BIT),
-    };
-    pipelineBarrier(*cmd, postBarriers);
-
-    return m_commandPool.endOneShot(*cmd) == VK_SUCCESS;
 }
 
 bool App::saveExr(const std::filesystem::path& path) {
@@ -1140,9 +1065,8 @@ void App::shutdown() noexcept {
     m_sceneOutputUsesDenoised = false;
     m_hdrImage = {};
     m_denoisedImage = {};
-    m_displayCaptureImage = {};
+    m_offscreen = {};
     m_toneMapper = {};
-    m_captureToneMapper = {};
     m_descriptors = {};
     m_swapchain = {};
     m_commandPool = {};

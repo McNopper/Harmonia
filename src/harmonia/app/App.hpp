@@ -17,6 +17,7 @@
 
 #include "harmonia/app/AppConfig.hpp"
 #include "harmonia/app/CliParser.hpp"
+#include "harmonia/app/OffscreenCapture.hpp"
 #include "harmonia/app/GreenScreenRenderer.hpp"
 #include "harmonia/app/IRenderer.hpp"
 #include "harmonia/core/CommandPool.hpp"
@@ -181,8 +182,7 @@ class App {
     [[nodiscard]] bool bootstrap();
     void shutdown() noexcept;
     int mainLoop();
-    [[nodiscard]] int renderOffscreen();
-    /// Record + submit the renderer into the HDR image; returns the timeline
+    [[nodiscard]] int renderOffscreen();    /// Record + submit the renderer into the HDR image; returns the timeline
     /// value signalled on completion and advances the frame slot.
     std::uint64_t renderSceneReferred();
     /// Acquire, tonemap, present the given completed scene-referred frame.
@@ -196,10 +196,6 @@ class App {
     [[nodiscard]] bool createHdrImage();
     [[nodiscard]] bool createDenoisedImage();
     [[nodiscard]] bool createToneMapper();
-    /// Offscreen capture: run the shared GPU display stages (ToneMapper) into the
-    /// display-format capture image so a screenshot matches the interactive window
-    /// exactly (same tonemapper, same math). Returns false on failure.
-    [[nodiscard]] bool tonemapToCaptureImage();
     void rebuildStagePipeline();
     void applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig);
     [[nodiscard]] bool hasTonemapStage() const noexcept;
@@ -224,10 +220,9 @@ class App {
     Swapchain m_swapchain{};
     Descriptors m_descriptors{};
     ToneMapper m_toneMapper{};
-    ToneMapper m_captureToneMapper{}; // offscreen-only: SDR 8-bit pipeline for PNG capture
+    OffscreenCapture m_offscreen; // offscreen-only: SDR capture (ToneMapper + 8-bit image)
     Image m_hdrImage{};
     Image m_denoisedImage{};
-    Image m_displayCaptureImage{}; // offscreen-only: SDR sRGB target for the GPU ToneMapper
     std::vector<std::unique_ptr<IRenderPass>> m_sceneStages;
     std::vector<std::unique_ptr<IRenderPass>> m_displayStages;
     bool m_sceneOutputUsesDenoised = false;
