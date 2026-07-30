@@ -42,6 +42,7 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
         .pool = VK_NULL_HANDLE,
         .pUserData = nullptr,
         .priority = 0.0F,
+        .minAlignment = 0,
     };
 
     Image image;

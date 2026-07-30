@@ -63,6 +63,7 @@ std::expected<Buffer, VkResult> Buffer::create(const DeviceContext& ctx,
         .pool = VK_NULL_HANDLE,
         .pUserData = nullptr,
         .priority = 0.0F,
+        .minAlignment = 0,
     };
 
     Buffer buffer;
@@ -246,6 +247,7 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
         .pool = VK_NULL_HANDLE,
         .pUserData = nullptr,
         .priority = 0.0F,
+        .minAlignment = 0,
     };
 
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
