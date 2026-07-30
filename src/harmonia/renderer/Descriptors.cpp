@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <utility>
 
+namespace harmonia {
+
 std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ctx) {
     constexpr std::uint32_t kBindlessTextureArraySize = 1024U;
     constexpr std::uint32_t kCombinedImageSamplerDescriptorCount = kBindlessTextureArraySize + 1U;
@@ -320,3 +322,5 @@ VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer mar
     vkUpdateDescriptorSets(ctx.device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
     return VK_SUCCESS;
 }
+
+} // namespace harmonia

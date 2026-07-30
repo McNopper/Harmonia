@@ -18,6 +18,8 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 #include "harmonia/scene/Texture.hpp"
 
+namespace harmonia {
+
 namespace {
 
 void applyStageTogglesFromTable(const toml::table& table, SceneLoader::SceneConfig& cfg) {
@@ -330,3 +332,5 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
     Logger::info("SceneLoader: loaded '{}'", sceneFile.filename().string());
     return cfg;
 }
+
+} // namespace harmonia

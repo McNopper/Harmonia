@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <expected>
 
+namespace harmonia {
+
 struct PhysicalDeviceInfo {
     VkPhysicalDevice device{};
     VkPhysicalDeviceProperties2 properties{};
@@ -28,4 +30,7 @@ class PhysicalDevice {
     [[nodiscard]] static bool hasRayTracingMaintenance1Support(VkPhysicalDevice device);
     [[nodiscard]] static bool hasDgcSupport(VkPhysicalDevice device);
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_VULKAN_INIT_PHYSICALDEVICE_HPP

@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <vma/vk_mem_alloc.h>
 
+namespace harmonia {
+
 /// Minimal Vulkan device state shared across modules.
 /// After volkLoadDevice() the codebase calls Vulkan entry points through volk globals,
 /// so no per-context pfn fields are stored here.
@@ -51,4 +53,7 @@ struct DeviceContext {
         static_cast<void>(vkSetDebugUtilsObjectNameEXT(device, &info));
     }
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_DEVICECONTEXT_HPP

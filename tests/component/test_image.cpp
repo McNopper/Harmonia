@@ -1,9 +1,9 @@
-// Component tests: Image creation, layout transition, and pixel readback.
+// Component tests: harmonia::Image creation, layout transition, and pixel readback.
 //
 // These tests verify:
-//   - Image creation/destruction does not leak or crash.
+//   - harmonia::Image creation/destruction does not leak or crash.
 //   - Layout transitions record correctly (UNDEFINED → TRANSFER_DST → TRANSFER_SRC).
-//   - Image data written via vkCmdClearColorImage survives a GPU→CPU copy.
+//   - harmonia::Image data written via vkCmdClearColorImage survives a GPU→CPU copy.
 
 #include <volk/volk.h>
 
@@ -18,7 +18,7 @@
 TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
     constexpr VkExtent2D kExtent{16U, 16U};
 
-    auto img = Image::create(deviceCtx(),
+    auto img = harmonia::Image::create(deviceCtx(),
                              kExtent,
                              VK_FORMAT_R32G32B32A32_SFLOAT,
                              VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -31,7 +31,7 @@ TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
     EXPECT_EQ(img->extent().height, kExtent.height);
     EXPECT_EQ(img->format(), VK_FORMAT_R32G32B32A32_SFLOAT);
     EXPECT_TRUE(img->isValid());
-    // ~Image() must not crash or leak
+    // ~harmonia::Image() must not crash or leak
 }
 
 // Transition image UNDEFINED→TRANSFER_DST, clear with a known color,
@@ -44,7 +44,7 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     // Expected clear value
     constexpr VkClearColorValue kClear{.float32 = {0.5F, 0.25F, 0.125F, 1.0F}};
 
-    auto img = Image::create(deviceCtx(),
+    auto img = harmonia::Image::create(deviceCtx(),
                              kExtent,
                              VK_FORMAT_R32G32B32A32_SFLOAT,
                              VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -52,7 +52,7 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
                              "test.image.clear");
     ASSERT_TRUE(img.has_value()) << static_cast<int>(img.error());
 
-    auto readback = Buffer::create(deviceCtx(),
+    auto readback = harmonia::Buffer::create(deviceCtx(),
                                    kReadbackBytes,
                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,

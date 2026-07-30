@@ -9,6 +9,8 @@
 #include <string>
 #include <vma/vk_mem_alloc.h>
 
+namespace harmonia {
+
 std::expected<Mesh, VkResult>
 Mesh::create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshData& data, std::string_view debugName) {
     if (data.vertices.empty() || data.indices.empty()) {
@@ -48,3 +50,5 @@ Mesh::create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshDat
     mesh.m_indexCount = static_cast<std::uint32_t>(data.indices.size());
     return mesh;
 }
+
+} // namespace harmonia

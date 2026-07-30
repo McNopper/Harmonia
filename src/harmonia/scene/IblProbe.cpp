@@ -10,6 +10,8 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
 
+namespace harmonia {
+
 namespace {
 constexpr float kRec2020RedPrimariesThreshold = 0.68f;
 } // namespace
@@ -410,3 +412,5 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
         Logger::warn("IblProbe: env map is completely dark — importance sampling disabled");
     }
 }
+
+} // namespace harmonia

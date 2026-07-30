@@ -19,7 +19,7 @@ constexpr float kEpsilon = 1.0e-5F;
 } // namespace
 
 TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
-    const MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), sm::float4x4(1.0F));
+    const harmonia::MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), sm::float4x4(1.0F));
 
     EXPECT_TRUE(mesh.vertices.size() == 24U || mesh.vertices.size() == 8U);
     EXPECT_EQ(mesh.indices.size(), 36U);
@@ -33,7 +33,7 @@ TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
         sm::float3(0.0F, 0.0F, -1.0F),
     };
 
-    for (const GpuVertex& vertex : mesh.vertices) {
+    for (const harmonia::GpuVertex& vertex : mesh.vertices) {
         EXPECT_NEAR(sm::length(vertex.normal), 1.0F, kEpsilon);
         EXPECT_TRUE(matchesAnyDirection(vertex.normal, axisDirections));
         EXPECT_GE(vertex.position.x, -1.0F - kEpsilon);
@@ -51,7 +51,7 @@ TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
 
 TEST(ProceduralGeometry, MakeBoxRotationTransformsNormals) {
     const sm::float4x4 rotation = harmonia::Math::makeRotationY(harmonia::Math::kPi * 0.5F);
-    const MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
+    const harmonia::MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
     const sm::float3x3 normalTransform = sm::toFloat3x3(rotation);
 
     const std::array expectedDirections{
@@ -63,7 +63,7 @@ TEST(ProceduralGeometry, MakeBoxRotationTransformsNormals) {
         sm::normalize(normalTransform * sm::float3(0.0F, 0.0F, -1.0F)),
     };
 
-    for (const GpuVertex& vertex : mesh.vertices) {
+    for (const harmonia::GpuVertex& vertex : mesh.vertices) {
         EXPECT_NEAR(sm::length(vertex.normal), 1.0F, kEpsilon);
         EXPECT_TRUE(matchesAnyDirection(vertex.normal, expectedDirections));
     }

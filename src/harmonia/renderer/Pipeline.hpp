@@ -10,6 +10,8 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
+namespace harmonia {
+
 class Descriptors;
 
 class Pipeline {
@@ -42,4 +44,7 @@ class Pipeline {
   private:
     harmonia::UniquePipeline m_rtPipeline;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_RENDERER_PIPELINE_HPP

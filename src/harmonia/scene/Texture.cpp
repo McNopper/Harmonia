@@ -15,6 +15,8 @@
 #include "harmonia/core/Sampler.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
+namespace harmonia {
+
 namespace {
 [[nodiscard]] std::expected<Buffer, VkResult>
 createStagingBuffer(const DeviceContext& ctx, std::span<const std::byte> pixels, std::string_view name) {
@@ -225,3 +227,5 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                   static_cast<std::uint32_t>(h),
                   name.empty() ? path.filename().string() : std::string(name));
 }
+
+} // namespace harmonia

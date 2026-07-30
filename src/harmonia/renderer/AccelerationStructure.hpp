@@ -10,6 +10,8 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
+namespace harmonia {
+
 class AccelerationStructure {
   public:
     AccelerationStructure() = default;
@@ -49,4 +51,7 @@ struct AccelerationStructureScratch {
 createAccelerationStructureScratch(const DeviceContext& ctx,
                                    const VkAccelerationStructureBuildSizesInfoKHR& sizes,
                                    std::string_view debugName);
+
+} // namespace harmonia
+
 #endif // HARMONIA_RENDERER_ACCELERATIONSTRUCTURE_HPP

@@ -12,6 +12,8 @@
 #include "harmonia/scene/Mesh.hpp"
 #include "harmonia/scene/Texture.hpp"
 
+namespace harmonia {
+
 /// Abstract sink used by the scene loader to populate a renderer's Scene without
 /// depending on its concrete GPU layout.
 ///
@@ -51,4 +53,7 @@ class ISceneBuilder {
     [[nodiscard]] virtual std::uint32_t
     addInstance(std::uint32_t meshIndex, const Xform& xform, std::uint32_t materialIdx) = 0;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_ISCENEBUILDER_HPP

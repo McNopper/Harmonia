@@ -12,21 +12,21 @@
 
 namespace {
 
-class RecordingSceneBuilder final : public ISceneBuilder {
+class RecordingSceneBuilder final : public harmonia::ISceneBuilder {
   public:
-    std::uint32_t addMaterial(Material&& /*mat*/) override {
+    std::uint32_t addMaterial(harmonia::Material&& /*mat*/) override {
         ++materialCount;
         return static_cast<std::uint32_t>(materialCount - 1);
     }
 
-    std::uint32_t addTexture(Texture&& /*texture*/) override {
+    std::uint32_t addTexture(harmonia::Texture&& /*texture*/) override {
         ++textureCount;
         return static_cast<std::uint32_t>(textureCount - 1);
     }
 
-    std::uint32_t addMesh(const DeviceContext& /*ctx*/,
-                          const CommandPool& /*pool*/,
-                          MeshData&& data,
+    std::uint32_t addMesh(const harmonia::DeviceContext& /*ctx*/,
+                          const harmonia::CommandPool& /*pool*/,
+                          harmonia::MeshData&& data,
                           std::string_view /*name*/) override {
         if (data.vertices.empty() || data.indices.empty()) {
             return std::numeric_limits<std::uint32_t>::max();
@@ -35,8 +35,8 @@ class RecordingSceneBuilder final : public ISceneBuilder {
         return static_cast<std::uint32_t>(meshCount - 1);
     }
 
-    std::uint32_t addSphereMesh(const DeviceContext& /*ctx*/,
-                                const CommandPool& /*pool*/,
+    std::uint32_t addSphereMesh(const harmonia::DeviceContext& /*ctx*/,
+                                const harmonia::CommandPool& /*pool*/,
                                 float radius,
                                 std::string_view /*name*/) override {
         if (radius <= 0.0F) {
@@ -47,7 +47,7 @@ class RecordingSceneBuilder final : public ISceneBuilder {
     }
 
     std::uint32_t
-    addInstance(std::uint32_t /*meshIndex*/, const Xform& /*xform*/, std::uint32_t /*materialIdx*/) override {
+    addInstance(std::uint32_t /*meshIndex*/, const harmonia::Xform& /*xform*/, std::uint32_t /*materialIdx*/) override {
         ++instanceCount;
         return static_cast<std::uint32_t>(instanceCount - 1);
     }
@@ -65,11 +65,11 @@ std::filesystem::path assetsDir() {
 
 TEST(SceneLoader, LoadsRealSceneAndProducesExpectedConfig) {
     RecordingSceneBuilder scene;
-    const DeviceContext dummyCtx{};
-    const CommandPool dummyPool{};
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::CommandPool dummyPool{};
 
     const auto cfg =
-        SceneLoader::load(assetsDir() / "cornell_classic.scene.toml", assetsDir(), scene, dummyCtx, dummyPool);
+        harmonia::SceneLoader::load(assetsDir() / "cornell_classic.scene.toml", assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
     EXPECT_EQ(cfg->workingColorSpace, harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
@@ -103,10 +103,10 @@ TEST(SceneLoader, UnknownTonemapperAndWorkingSpaceFallbackToDefaults) {
     }
 
     RecordingSceneBuilder scene;
-    const DeviceContext dummyCtx{};
-    const CommandPool dummyPool{};
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::CommandPool dummyPool{};
 
-    const auto cfg = SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+    const auto cfg = harmonia::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
     EXPECT_EQ(cfg->workingColorSpace, harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
@@ -141,10 +141,10 @@ TEST(SceneLoader, ParsesStageTogglesFromRenderPresetAndInlineOverride) {
     }
 
     RecordingSceneBuilder scene;
-    const DeviceContext dummyCtx{};
-    const CommandPool dummyPool{};
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::CommandPool dummyPool{};
 
-    const auto cfg = SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+    const auto cfg = harmonia::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
     ASSERT_TRUE(cfg->accumulationStageEnabled.has_value());

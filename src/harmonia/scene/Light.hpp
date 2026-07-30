@@ -10,6 +10,8 @@
 
 #include "harmonia/GpuTypes.hpp"
 
+namespace harmonia {
+
 /// Photometric unit for light intensity input.
 enum class IntensityUnit : std::uint32_t {
     Nit = 0,     ///< cd/m²  — luminance       (RectLight, SkyLight)
@@ -98,4 +100,7 @@ class SkyLight final : public Light {
     LightType lightType() const noexcept override { return LightType::Sky; }
     GpuLight toGpu() const noexcept override;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_LIGHT_HPP

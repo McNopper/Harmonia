@@ -17,6 +17,8 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
+namespace harmonia {
+
 /// Source color space of a texture asset.
 /// Tokens are ASWF ColorInterop interop IDs (scene-referred set); only the
 /// Rec.709/Rec.2020 related spaces are supported.
@@ -85,4 +87,7 @@ class Texture {
     std::uint32_t m_height{};
     std::uint32_t m_mipLevels{1};
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_TEXTURE_HPP

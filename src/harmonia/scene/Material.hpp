@@ -7,6 +7,8 @@
 
 #include "harmonia/GpuTypes.hpp"
 
+namespace harmonia {
+
 class Material {
   public:
     [[nodiscard]] static Material diffuse(sm::float3 color, float roughness = 1.0f, float specIor = 1.5f) {
@@ -141,4 +143,7 @@ class Material {
     GpuMaterial m_gpu{};
     bool m_emissiveAsLightSource = true;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_MATERIAL_HPP

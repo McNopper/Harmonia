@@ -7,6 +7,8 @@
 #include <slang-math/slang-math.hpp>
 #include <type_traits>
 
+namespace harmonia {
+
 /// Tone mapper selection (matches PushConstants::tonemapper and tonemap.slang switch).
 /// Applied only for SDR and Display P3 output; HDR paths (HDR10/HLG/scRGB) use their
 /// own transfer functions and ignore this field.
@@ -142,4 +144,7 @@ static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 64);
 static_assert(sizeof(CameraData) == 176);
 static_assert(sizeof(PushConstants) == 52);
+
+} // namespace harmonia
+
 #endif // HARMONIA_GPUTYPES_HPP

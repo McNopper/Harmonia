@@ -3,6 +3,8 @@
 
 #include <volk/volk.h>
 
+namespace harmonia {
+
 struct PassContext;
 
 /// Common interface for GPU render / compute passes that operate on a frame.
@@ -20,4 +22,7 @@ class IRenderPass {
     /// Debug name for logging and profiling.
     [[nodiscard]] virtual const char* name() const noexcept = 0;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_PIPELINE_IRENDERPASS_HPP

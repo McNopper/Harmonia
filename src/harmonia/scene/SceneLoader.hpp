@@ -12,6 +12,8 @@
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
+namespace harmonia {
+
 /// Loads a scene definition file (.scene.toml).
 ///
 /// Parsing is owned by Aether (`aether::SceneParser`); see Aether's
@@ -75,6 +77,9 @@ class SceneLoader {
                                                                    const std::filesystem::path& assetsDir,
                                                                    ISceneBuilder& scene,
                                                                    const DeviceContext& ctx,
-                                                                   const CommandPool& pool);
+                                                                    const CommandPool& pool);
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_SCENELOADER_HPP

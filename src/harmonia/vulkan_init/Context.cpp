@@ -9,6 +9,8 @@
 #include <vector>
 #include <vma/vk_mem_alloc.h>
 
+namespace harmonia {
+
 namespace {
 [[nodiscard]] bool validationEnabled(bool requested) noexcept {
     return requested;
@@ -597,3 +599,5 @@ void Context::destroy() noexcept {
     m_instance = VK_NULL_HANDLE;
     m_validationEnabled = false;
 }
+
+} // namespace harmonia

@@ -8,6 +8,8 @@
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 
+namespace harmonia {
+
 using harmonia::createShaderModule;
 
 std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
@@ -363,3 +365,5 @@ void ToneMapper::record(VkCommandBuffer cmd,
 
     record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace);
 }
+
+} // namespace harmonia

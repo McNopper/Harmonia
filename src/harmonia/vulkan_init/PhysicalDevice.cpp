@@ -5,6 +5,8 @@
 #include <string_view>
 #include <vector>
 
+namespace harmonia {
+
 namespace {
 constexpr std::array kRequiredExtensions{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -267,3 +269,5 @@ bool PhysicalDevice::hasDgcSupport(VkPhysicalDevice device) {
 
     return dgcFeatures.deviceGeneratedCommands == VK_TRUE;
 }
+
+} // namespace harmonia

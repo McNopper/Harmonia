@@ -1,7 +1,7 @@
-// Component tests: CommandPool one-shot command buffer submission.
+// Component tests: harmonia::CommandPool one-shot command buffer submission.
 //
 // Tests verify:
-//   - CommandPool handle is valid after creation.
+//   - harmonia::CommandPool handle is valid after creation.
 //   - beginOneShot / endOneShot round-trip submits successfully.
 //   - GPU-side work (vkCmdFillBuffer) actually runs: data written to a
 //     host-visible buffer is verified after the fence wait.
@@ -27,7 +27,7 @@ TEST_F(VulkanFixture, CommandPool_OneShotFillBufferAndVerify) {
     constexpr VkDeviceSize kSize = 256;
 
     // Host-visible target: vkCmdFillBuffer writes to it; we read via mappedData().
-    auto buf = Buffer::create(
+    auto buf = harmonia::Buffer::create(
         deviceCtx(), kSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.cmdpool.fill");
     ASSERT_TRUE(buf.has_value()) << "VkResult=" << static_cast<int>(buf.error());
     ASSERT_NE(buf->mappedData(), nullptr);

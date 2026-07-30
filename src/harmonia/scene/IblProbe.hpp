@@ -17,6 +17,8 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
+namespace harmonia {
+
 /// Image-based lighting probe loaded from an equirectangular HDR panorama (EXR).
 ///
 /// The panorama is stored on the GPU as a 2D RGBA32F texture in the scene's
@@ -108,4 +110,7 @@ class IblProbe {
     sm::float3 m_sunDirection{0.0f, 1.0f, 0.0f}; ///< world-space direction towards the dominant light
     float m_sunStrength{0.0f};                   ///< [0,1] concentration of the dominant light
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_IBLPROBE_HPP

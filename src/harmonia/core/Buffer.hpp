@@ -9,6 +9,8 @@
 
 #include "harmonia/DeviceContext.hpp"
 
+namespace harmonia {
+
 class CommandPool;
 
 [[nodiscard]] constexpr VkDeviceSize bufferAlignUp(VkDeviceSize value, VkDeviceSize alignment) noexcept {
@@ -59,4 +61,7 @@ class Buffer {
     std::uint32_t m_queueFamily = 0;
     void* m_mapped = nullptr;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_CORE_BUFFER_HPP

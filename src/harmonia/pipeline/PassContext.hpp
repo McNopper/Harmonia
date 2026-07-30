@@ -8,6 +8,8 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
 
+namespace harmonia {
+
 class Image; // forward — avoids pulling in the full header
 
 /// Per-frame context passed to every IRenderPass::record() call.
@@ -51,4 +53,7 @@ inline constexpr std::uint32_t kComputeGroupSize = 8U;
                                                        std::uint32_t groupSize = kComputeGroupSize) noexcept {
     return (extent + (groupSize - 1U)) / groupSize;
 }
+
+} // namespace harmonia
+
 #endif // HARMONIA_PIPELINE_PASSCONTEXT_HPP

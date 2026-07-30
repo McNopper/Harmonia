@@ -14,6 +14,8 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 
+namespace harmonia {
+
 struct MeshData {
     std::vector<GpuVertex> vertices;
     std::vector<std::uint32_t> indices;
@@ -42,4 +44,7 @@ class Mesh {
     std::uint32_t m_vertexCount{};
     std::uint32_t m_indexCount{};
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_MESH_HPP

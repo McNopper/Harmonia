@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 
+namespace harmonia {
+
 namespace {
 constexpr std::uint64_t kWaitForever = UINT64_MAX;
 
@@ -276,3 +278,5 @@ OutputColorSpace Swapchain::outputColorSpace() const noexcept {
         return OutputColorSpace::eSDR;
     }
 }
+
+} // namespace harmonia

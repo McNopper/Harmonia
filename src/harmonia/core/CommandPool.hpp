@@ -7,6 +7,8 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
+namespace harmonia {
+
 class CommandPool {
   public:
     [[nodiscard]] static std::expected<CommandPool, VkResult> create(const DeviceContext& ctx,
@@ -32,4 +34,7 @@ class CommandPool {
     harmonia::UniqueCommandPool m_pool;
     VkQueue m_queue = VK_NULL_HANDLE;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_CORE_COMMANDPOOL_HPP

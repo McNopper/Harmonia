@@ -5,6 +5,8 @@
 
 #include "harmonia/core/Logger.hpp"
 
+namespace harmonia {
+
 namespace {
 [[nodiscard]] const char* severityLabel(VkDebugUtilsMessageSeverityFlagBitsEXT severity) noexcept {
     switch (severity) {
@@ -99,3 +101,5 @@ void DebugUtils::destroy() noexcept {
     m_instance = VK_NULL_HANDLE;
     m_messenger = VK_NULL_HANDLE;
 }
+
+} // namespace harmonia

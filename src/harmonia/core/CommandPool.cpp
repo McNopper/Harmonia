@@ -4,6 +4,8 @@
 
 #include "harmonia/core/OneShot.hpp"
 
+namespace harmonia {
+
 namespace {
 constexpr std::uint64_t kWaitForever = UINT64_MAX;
 } // namespace
@@ -113,3 +115,5 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
     free(cmd);
     return result;
 }
+
+} // namespace harmonia

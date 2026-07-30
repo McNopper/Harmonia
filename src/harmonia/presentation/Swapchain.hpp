@@ -11,6 +11,8 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/presentation/OutputColorSpace.hpp"
 
+namespace harmonia {
+
 class Swapchain {
   public:
     [[nodiscard]] static std::expected<Swapchain, VkResult> create(const DeviceContext& ctx,
@@ -54,4 +56,7 @@ class Swapchain {
     std::vector<VkImage> m_images;
     std::vector<harmonia::UniqueImageView> m_views;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_PRESENTATION_SWAPCHAIN_HPP

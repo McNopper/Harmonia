@@ -16,6 +16,8 @@
 #include "harmonia/renderer/AccelerationStructure.hpp"
 #include "harmonia/scene/Mesh.hpp"
 
+namespace harmonia {
+
 /// Decomposed object→world transform (glTF T × R × S).
 ///
 /// A transform belongs to an *instance*, not a mesh: one mesh can be placed many
@@ -101,4 +103,7 @@ class Sphere final : public Geometry {
     AccelerationStructure m_accelerationStructure{};
     std::string m_debugName{};
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_GEOMETRY_HPP

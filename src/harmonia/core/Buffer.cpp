@@ -10,6 +10,8 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
 
+namespace harmonia {
+
 namespace {
 constexpr std::uint64_t kWaitForever = UINT64_MAX;
 constexpr std::size_t kMinBufferSize = 16;
@@ -347,3 +349,5 @@ void Buffer::destroy() noexcept {
     m_queueFamily = 0U;
     m_mapped = nullptr;
 }
+
+} // namespace harmonia

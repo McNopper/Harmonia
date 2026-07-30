@@ -5,6 +5,8 @@
 #include <string>
 #include <utility>
 
+namespace harmonia {
+
 std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(const DeviceContext& ctx,
                                                                              VkAccelerationStructureTypeKHR type,
                                                                              VkDeviceSize size,
@@ -83,3 +85,5 @@ createAccelerationStructureScratch(const DeviceContext& ctx,
         bufferAlignUp(out.buffer.deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
     return out;
 }
+
+} // namespace harmonia

@@ -45,26 +45,26 @@ TEST(Context, CreateContext) {
     }
 
     std::unique_ptr<SDL_Window, WindowDeleter> window(
-        SDL_CreateWindow("Harmonia Context Test", 64, 64, SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN));
+        SDL_CreateWindow("Harmonia harmonia::Context Test", 64, 64, SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN));
     if (!window) {
         GTEST_SKIP() << "Failed to create Vulkan test window: " << SDL_GetError();
     }
 
-    Context::Config config{};
+    harmonia::Context::Config config{};
     config.appName = "HarmoniaTestContext";
     config.enableValidation = false;
     config.window = window.get();
 
-    auto context = Context::create(config);
+    auto context = harmonia::Context::create(config);
     if (!context) {
         GTEST_SKIP() << "No Vulkan RT-capable device/context available: VkResult=" << static_cast<int>(context.error());
     }
 
-    const DeviceContext& deviceContext = context->deviceContext();
+    const harmonia::DeviceContext& deviceContext = context->deviceContext();
     EXPECT_NE(deviceContext.device, VK_NULL_HANDLE);
     EXPECT_NE(deviceContext.physicalDevice, VK_NULL_HANDLE);
     EXPECT_NE(deviceContext.graphicsQueue, VK_NULL_HANDLE);
-    // volk globals are loaded by volkLoadDevice inside Context::create.
+    // volk globals are loaded by volkLoadDevice inside harmonia::Context::create.
     EXPECT_NE(vkCreateAccelerationStructureKHR, nullptr);
     EXPECT_NE(vkCmdTraceRaysKHR, nullptr);
     EXPECT_NE(vkCmdPushDescriptorSet, nullptr);

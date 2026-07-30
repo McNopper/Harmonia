@@ -10,6 +10,8 @@
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/Texture.hpp"
 
+namespace harmonia {
+
 /// Loads an OpenPBR `.materials.toml` material library into GPU-ready Harmonia materials.
 ///
 /// Parsing of the `.materials.toml` TOML format is owned by Aether (`aether::MaterialLibrary`,
@@ -71,4 +73,7 @@ class MaterialLibrary {
     std::unordered_map<std::string, Material> m_materials;
     std::unordered_map<std::string, MaterialTextureRefs> m_textureRefs;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_SCENE_MATERIALLIBRARY_HPP

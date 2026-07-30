@@ -12,6 +12,8 @@
 #include "harmonia/presentation/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
+namespace harmonia {
+
 class ToneMapper {
   public:
     /// Create a graphics-pipeline tone mapper using dynamic rendering.
@@ -62,4 +64,7 @@ class ToneMapper {
     harmonia::UniqueDescriptorSetLayout m_setLayout; ///< Push descriptor set layout (must outlive all CBs using it).
     VkFormat m_attachmentFormat{VK_FORMAT_UNDEFINED};
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_PRESENTATION_TONEMAPPER_HPP

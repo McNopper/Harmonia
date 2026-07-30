@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <numbers>
 
+namespace harmonia {
+
 namespace {
 
 /// Luminous efficacy of radiation (lm/W).
@@ -129,3 +131,5 @@ GpuLight SkyLight::toGpu() const noexcept {
     g.cosOuter = 0.0f;
     return g;
 }
+
+} // namespace harmonia

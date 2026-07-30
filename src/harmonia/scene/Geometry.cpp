@@ -13,6 +13,8 @@
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
+namespace harmonia {
+
 namespace {
 [[nodiscard]] VkResult buildSingleBlas(const DeviceContext& ctx,
                                        const CommandPool& fallbackPool,
@@ -268,3 +270,5 @@ VkAccelerationStructureInstanceKHR Sphere::makeInstance(std::uint32_t instanceCu
 float Sphere::radius() const noexcept {
     return m_radius;
 }
+
+} // namespace harmonia

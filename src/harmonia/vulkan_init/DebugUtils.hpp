@@ -5,6 +5,8 @@
 
 #include <expected>
 
+namespace harmonia {
+
 class DebugUtils {
   public:
     [[nodiscard]] static std::expected<DebugUtils, VkResult> create(VkInstance instance);
@@ -31,4 +33,7 @@ class DebugUtils {
     VkInstance m_instance{};
     VkDebugUtilsMessengerEXT m_messenger{};
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_VULKAN_INIT_DEBUGUTILS_HPP

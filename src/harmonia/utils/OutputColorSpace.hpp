@@ -3,6 +3,8 @@
 
 #include <cstdint>
 
+namespace harmonia {
+
 /// Display output color space / HDR transfer function.
 ///
 /// Priority order used by Swapchain for automatic selection:
@@ -23,4 +25,7 @@ enum class OutputColorSpace : std::uint32_t {
     eSDRLinear = 4, ///< Linear BT.709, clamped [0, 1]
     eSDR = 5,       ///< sRGB / BT.709, gamma-encoded — always available fallback
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_UTILS_OUTPUTCOLORSPACE_HPP

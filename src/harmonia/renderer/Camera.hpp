@@ -8,6 +8,8 @@
 
 #include "harmonia/GpuTypes.hpp"
 
+namespace harmonia {
+
 class Camera {
   public:
     /// Physical camera properties (Unity HDRP / UE5 convention).
@@ -67,4 +69,7 @@ class Camera {
 
     Params m_params;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_RENDERER_CAMERA_HPP

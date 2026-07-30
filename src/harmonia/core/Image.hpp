@@ -7,6 +7,8 @@
 
 #include "harmonia/DeviceContext.hpp"
 
+namespace harmonia {
+
 class Image {
   public:
     [[nodiscard]] static std::expected<Image, VkResult> create(const DeviceContext& ctx,
@@ -54,4 +56,7 @@ class Image {
     VkImageAspectFlags m_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     std::uint32_t m_mipLevels = 1U;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_CORE_IMAGE_HPP

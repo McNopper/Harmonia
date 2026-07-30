@@ -9,6 +9,8 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
+namespace harmonia {
+
 namespace {
 
 /// Map Aether's texture color-space enum to Harmonia's (identical value order).
@@ -149,3 +151,5 @@ void MaterialLibrary::patchTextureIndex(const std::string& name, std::uint32_t s
     if (it != m_materials.end())
         it->second.setTextureIndex(slot, idx);
 }
+
+} // namespace harmonia

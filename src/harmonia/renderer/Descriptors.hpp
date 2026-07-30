@@ -11,6 +11,8 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/scene/Texture.hpp"
 
+namespace harmonia {
+
 class Descriptors {
   public:
     Descriptors() = default;
@@ -53,4 +55,7 @@ class Descriptors {
     VkDescriptorSet m_set1{VK_NULL_HANDLE};
     harmonia::UniquePipelineLayout m_pipelineLayout;
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_RENDERER_DESCRIPTORS_HPP

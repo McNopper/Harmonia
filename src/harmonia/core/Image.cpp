@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+namespace harmonia {
+
 std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
                                              VkExtent2D extent,
                                              VkFormat format,
@@ -217,3 +219,5 @@ void Image::destroy() noexcept {
     m_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     m_mipLevels = 1U;
 }
+
+} // namespace harmonia

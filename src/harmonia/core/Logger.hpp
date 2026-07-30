@@ -6,6 +6,8 @@
 #include <string_view>
 #include <utility>
 
+namespace harmonia {
+
 class Logger {
   public:
     /// Set the tag shown in the log prefix, e.g. "THEIA" → "[THEIA][INFO] ...".
@@ -34,4 +36,7 @@ class Logger {
 
     static void log(Level level, std::string message);
 };
+
+} // namespace harmonia
+
 #endif // HARMONIA_CORE_LOGGER_HPP

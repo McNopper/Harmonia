@@ -12,6 +12,8 @@
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 
+namespace harmonia {
+
 std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
                                                    const Descriptors& descriptors,
                                                    const ShaderPaths& paths,
@@ -170,3 +172,5 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
     pipeline.m_rtPipeline = harmonia::UniquePipeline{ctx.device, rtPipeline};
     return pipeline;
 }
+
+} // namespace harmonia
