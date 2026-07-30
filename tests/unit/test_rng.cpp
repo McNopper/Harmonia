@@ -35,7 +35,8 @@ TEST(Rng, FirstSamplesDecorrelateAcrossPixelsAndFrames) {
         for (std::uint32_t x = 0; x < 4U; ++x) {
             for (std::uint32_t frame = 0; frame < 4U; ++frame) {
                 std::uint32_t state = harmonia::Rng::composeSeed({x, y}, frame, 0U, 0x12345678U);
-                const std::uint32_t fingerprint = static_cast<std::uint32_t>(harmonia::Rng::nextFloat(state) * 16777216.0F);
+                const std::uint32_t fingerprint =
+                    static_cast<std::uint32_t>(harmonia::Rng::nextFloat(state) * 16777216.0F);
                 EXPECT_TRUE(fingerprints.insert(fingerprint).second);
             }
         }

@@ -12,9 +12,9 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 
-struct PassContext;
-
 namespace harmonia {
+
+struct PassContext;
 
 /// Fixed-view progressive accumulation pass.
 ///

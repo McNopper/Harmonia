@@ -20,10 +20,12 @@
 
 namespace {
 // Copy device-local buffer to a host-visible readback buffer and return the bytes.
-[[nodiscard]] std::vector<std::uint8_t>
-readbackBuffer(const harmonia::DeviceContext& ctx, harmonia::CommandPool& pool, const harmonia::Buffer& src, VkDeviceSize size) {
-    auto readback =
-        harmonia::Buffer::create(ctx, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.readback");
+[[nodiscard]] std::vector<std::uint8_t> readbackBuffer(const harmonia::DeviceContext& ctx,
+                                                       harmonia::CommandPool& pool,
+                                                       const harmonia::Buffer& src,
+                                                       VkDeviceSize size) {
+    auto readback = harmonia::Buffer::create(
+        ctx, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.readback");
     if (!readback || readback->mappedData() == nullptr) {
         return {};
     }
@@ -50,10 +52,10 @@ TEST_F(VulkanFixture, Buffer_DestroyMappedBufferDoesNotCrash) {
     // A stray vmaUnmapMemory call triggers the VMA abort() here in Debug.
     for (int i = 0; i < 8; ++i) {
         auto buf = harmonia::Buffer::create(deviceCtx(),
-                                  256,
-                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                  "test.mapped.destroy");
+                                            256,
+                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                            "test.mapped.destroy");
         ASSERT_TRUE(buf.has_value()) << "iter " << i << ": VkResult=" << static_cast<int>(buf.error());
         EXPECT_NE(buf->mappedData(), nullptr)
             << "iter " << i << ": host buffer must expose a persistent mapped pointer";
@@ -71,10 +73,10 @@ TEST_F(VulkanFixture, Buffer_HostMappedRoundTrip) {
     }
 
     auto buf = harmonia::Buffer::create(deviceCtx(),
-                              kCount,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                              "test.host.roundtrip");
+                                        kCount,
+                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                        VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                        "test.host.roundtrip");
     ASSERT_TRUE(buf.has_value()) << static_cast<int>(buf.error());
     ASSERT_NE(buf->mappedData(), nullptr);
 
@@ -95,10 +97,10 @@ TEST_F(VulkanFixture, Buffer_DeviceLocalStagingUploadRoundTrip) {
     // TRANSFER_SRC_BIT so we can copy FROM it for readback.
     // harmonia::Buffer::create always adds TRANSFER_DST_BIT, so staging upload is allowed.
     auto buf = harmonia::Buffer::create(deviceCtx(),
-                              kSize,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                              VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                              "test.device.staging");
+                                        kSize,
+                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                        "test.device.staging");
     ASSERT_TRUE(buf.has_value()) << static_cast<int>(buf.error());
     EXPECT_EQ(buf->mappedData(), nullptr) << "device-local buffer should not have a host-accessible mapped pointer";
 
@@ -117,10 +119,10 @@ TEST_F(VulkanFixture, Buffer_DeviceLocalStagingUploadRoundTrip) {
 // A buffer with VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT must return a non-zero address.
 TEST_F(VulkanFixture, Buffer_DeviceAddressNonZero) {
     auto buf = harmonia::Buffer::create(deviceCtx(),
-                              256,
-                              VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                              VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                              "test.device.address");
+                                        256,
+                                        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                        "test.device.address");
     ASSERT_TRUE(buf.has_value()) << static_cast<int>(buf.error());
     EXPECT_NE(buf->deviceAddress(), VkDeviceAddress{0})
         << "buffer with SHADER_DEVICE_ADDRESS_BIT must have a non-zero device address";

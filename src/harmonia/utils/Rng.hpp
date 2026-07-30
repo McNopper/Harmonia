@@ -40,5 +40,5 @@ namespace harmonia::Rng {
     return sm::float2{nextFloat(state), nextFloat(state)};
 }
 
-} // namespace Rng
+} // namespace harmonia::Rng
 #endif // HARMONIA_UTILS_RNG_HPP

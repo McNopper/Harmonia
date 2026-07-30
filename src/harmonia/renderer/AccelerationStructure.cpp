@@ -36,8 +36,7 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
     accelerationStructure.m_buffer = std::move(*storage);
 
     VkAccelerationStructureKHR handle{};
-    if (const VkResult result =
-            vkCreateAccelerationStructureKHR(ctx.device, &createInfo, nullptr, &handle);
+    if (const VkResult result = vkCreateAccelerationStructureKHR(ctx.device, &createInfo, nullptr, &handle);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
@@ -51,8 +50,9 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
     accelerationStructure.m_deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(ctx.device, &addressInfo);
 
     if (!debugName.empty()) {
-        ctx.setDebugName(
-            VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, accelerationStructure.m_handle.get(), std::string(debugName).c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR,
+                         accelerationStructure.m_handle.get(),
+                         std::string(debugName).c_str());
     }
 
     return accelerationStructure;

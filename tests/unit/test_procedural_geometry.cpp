@@ -19,7 +19,8 @@ constexpr float kEpsilon = 1.0e-5F;
 } // namespace
 
 TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
-    const harmonia::MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), sm::float4x4(1.0F));
+    const harmonia::MeshData mesh =
+        harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), sm::float4x4(1.0F));
 
     EXPECT_TRUE(mesh.vertices.size() == 24U || mesh.vertices.size() == 8U);
     EXPECT_EQ(mesh.indices.size(), 36U);

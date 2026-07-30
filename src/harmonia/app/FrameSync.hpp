@@ -43,7 +43,9 @@ class FrameSync {
     [[nodiscard]] std::uint32_t currentSlot() const noexcept { return m_currentFrame; }
     [[nodiscard]] VkCommandBuffer renderCmd(std::uint32_t slot) const noexcept { return m_frames[slot].renderCmd; }
     [[nodiscard]] VkCommandBuffer displayCmd(std::uint32_t slot) const noexcept { return m_frames[slot].displayCmd; }
-    [[nodiscard]] std::uint64_t completionValue(std::uint32_t slot) const noexcept { return m_frames[slot].completionValue; }
+    [[nodiscard]] std::uint64_t completionValue(std::uint32_t slot) const noexcept {
+        return m_frames[slot].completionValue;
+    }
     /// Block until the previous submission on this slot is done (timeline wait on its
     /// completion value). No-op when the slot is idle (completion value 0).
     void waitSlotComplete(std::uint32_t slot, std::uint64_t timeoutNs = UINT64_MAX) const noexcept;
@@ -57,13 +59,21 @@ class FrameSync {
     void resetSlots() noexcept;
 
     // ── semaphore accessors (for VkSubmitInfo2 / VkPresentInfo / acquire) ─────
-    [[nodiscard]] VkSemaphore imageAvailable(std::uint32_t slot) const noexcept { return m_frames[slot].imageAvailable; }
-    [[nodiscard]] VkSemaphore renderComplete(std::uint32_t imageIndex) const noexcept { return m_renderComplete[imageIndex]; }
+    [[nodiscard]] VkSemaphore imageAvailable(std::uint32_t slot) const noexcept {
+        return m_frames[slot].imageAvailable;
+    }
+    [[nodiscard]] VkSemaphore renderComplete(std::uint32_t imageIndex) const noexcept {
+        return m_renderComplete[imageIndex];
+    }
     [[nodiscard]] VkSemaphore timeline() const noexcept { return m_timelineSemaphore; }
 
     // ── swapchain-image layout tracking (present barriers) ────────────────────
-    [[nodiscard]] VkImageLayout swapchainLayout(std::uint32_t imageIndex) const noexcept { return m_swapchainLayouts[imageIndex]; }
-    void setSwapchainLayout(std::uint32_t imageIndex, VkImageLayout layout) noexcept { m_swapchainLayouts[imageIndex] = layout; }
+    [[nodiscard]] VkImageLayout swapchainLayout(std::uint32_t imageIndex) const noexcept {
+        return m_swapchainLayouts[imageIndex];
+    }
+    void setSwapchainLayout(std::uint32_t imageIndex, VkImageLayout layout) noexcept {
+        m_swapchainLayouts[imageIndex] = layout;
+    }
 
   private:
     struct FrameResources {

@@ -239,4 +239,4 @@ bool saveSdrPng(const DeviceContext& ctx,
     return true;
 }
 
-} // namespace ImageCapture
+} // namespace harmonia::ImageCapture

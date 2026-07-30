@@ -28,7 +28,9 @@ struct VulkanTestContext {
 
     [[nodiscard]] bool isValid() const noexcept { return context && commandPool; }
     [[nodiscard]] const harmonia::DeviceContext& deviceCtx() const noexcept { return context->deviceContext(); }
-    [[nodiscard]] const harmonia::PhysicalDeviceInfo& physInfo() const noexcept { return context->physicalDeviceInfo(); }
+    [[nodiscard]] const harmonia::PhysicalDeviceInfo& physInfo() const noexcept {
+        return context->physicalDeviceInfo();
+    }
 };
 
 // Set in main() before RUN_ALL_TESTS(); nullptr means Vulkan unavailable.

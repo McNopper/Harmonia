@@ -20,5 +20,5 @@ struct SphereAabb {
 };
 
 [[nodiscard]] SphereAabb makeSphereAabb(sm::float3 center, float radius) noexcept;
-} // namespace ProceduralGeometry
+} // namespace harmonia::ProceduralGeometry
 #endif // HARMONIA_SCENE_PROCEDURALGEOMETRY_HPP

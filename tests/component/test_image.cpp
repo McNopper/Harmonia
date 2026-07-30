@@ -19,11 +19,11 @@ TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
     constexpr VkExtent2D kExtent{16U, 16U};
 
     auto img = harmonia::Image::create(deviceCtx(),
-                             kExtent,
-                             VK_FORMAT_R32G32B32A32_SFLOAT,
-                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT,
-                             "test.image.create");
+                                       kExtent,
+                                       VK_FORMAT_R32G32B32A32_SFLOAT,
+                                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       "test.image.create");
     ASSERT_TRUE(img.has_value()) << "VkResult=" << static_cast<int>(img.error());
     EXPECT_NE(img->handle(), VK_NULL_HANDLE);
     EXPECT_NE(img->view(), VK_NULL_HANDLE);
@@ -45,18 +45,18 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     constexpr VkClearColorValue kClear{.float32 = {0.5F, 0.25F, 0.125F, 1.0F}};
 
     auto img = harmonia::Image::create(deviceCtx(),
-                             kExtent,
-                             VK_FORMAT_R32G32B32A32_SFLOAT,
-                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT,
-                             "test.image.clear");
+                                       kExtent,
+                                       VK_FORMAT_R32G32B32A32_SFLOAT,
+                                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       "test.image.clear");
     ASSERT_TRUE(img.has_value()) << static_cast<int>(img.error());
 
     auto readback = harmonia::Buffer::create(deviceCtx(),
-                                   kReadbackBytes,
-                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                   "test.image.readback");
+                                             kReadbackBytes,
+                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                             VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                             "test.image.readback");
     ASSERT_TRUE(readback.has_value()) << static_cast<int>(readback.error());
     ASSERT_NE(readback->mappedData(), nullptr);
 

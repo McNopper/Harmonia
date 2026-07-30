@@ -120,8 +120,7 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     texture.m_height = height;
 
     VkSampler sampler{};
-    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler);
-        result != VK_SUCCESS) {
+    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler); result != VK_SUCCESS) {
         return std::unexpected(result);
     }
     texture.m_sampler = harmonia::UniqueSampler{ctx.device, sampler};
@@ -175,10 +174,10 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
 
     // A texture needs CPU conversion when it is color data whose encoding or
     // primaries differ from the (linear) working color space.
-    const bool sameSpace =
-        (colorSpace == TextureColorSpace::LinRec2020Scene &&
-         workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020) ||
-        (colorSpace == TextureColorSpace::LinRec709Scene && workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec709);
+    const bool sameSpace = (colorSpace == TextureColorSpace::LinRec2020Scene &&
+                            workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020) ||
+                           (colorSpace == TextureColorSpace::LinRec709Scene &&
+                            workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec709);
     const bool needsConversion = (colorSpace != TextureColorSpace::Data && !sameSpace);
 
     if (!needsConversion) {

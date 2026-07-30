@@ -30,8 +30,8 @@ bool OffscreenCapture::tonemapToCaptureImage(const DeviceContext& ctx,
 
     if (m_captureToneMapper.isValid() == false) {
         const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
-        auto toneMapper = ToneMapper::create(
-            ctx, kCaptureFormat, shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
+        auto toneMapper =
+            ToneMapper::create(ctx, kCaptureFormat, shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
         if (!toneMapper) {
             Logger::error("Capture tone mapper creation failed: VkResult {}", static_cast<int>(toneMapper.error()));
             return false;

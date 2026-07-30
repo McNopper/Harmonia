@@ -42,11 +42,11 @@ class IblProbe {
     /// space, and upload to GPU. Source primaries come from the EXR
     /// `chromaticities` attribute (fallback: linear Rec.709).
     /// Requires HARMONIA_HAS_OPENEXR; returns VK_ERROR_FEATURE_NOT_PRESENT otherwise.
-    [[nodiscard]] static std::expected<IblProbe, VkResult>
-    loadFromEXR(const DeviceContext& ctx,
-                const CommandPool& pool,
-                const std::filesystem::path& path,
-                harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+    [[nodiscard]] static std::expected<IblProbe, VkResult> loadFromEXR(
+        const DeviceContext& ctx,
+        const CommandPool& pool,
+        const std::filesystem::path& path,
+        harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
 
     [[nodiscard]] VkImageView imageView() const noexcept { return m_image.view(); }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }

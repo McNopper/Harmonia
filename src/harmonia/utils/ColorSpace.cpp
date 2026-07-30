@@ -124,4 +124,4 @@ sm::float3 hlgOetf(sm::float3 E) noexcept {
     return {hlgOetf(E.r), hlgOetf(E.g), hlgOetf(E.b)};
 }
 
-} // namespace ColorSpace
+} // namespace harmonia::ColorSpace

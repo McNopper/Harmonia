@@ -110,5 +110,5 @@ inline constexpr float kPeakLuminanceSDRNits = 100.0f;     // sRGB / Rec.709
     return 1.0f / (1.2f * std::exp2(ev100));
 }
 
-} // namespace ColorSpace
+} // namespace harmonia::ColorSpace
 #endif // HARMONIA_UTILS_COLORSPACE_HPP

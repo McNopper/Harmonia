@@ -47,5 +47,5 @@ bool saveSdrPng(const DeviceContext& ctx,
                 const std::filesystem::path& path,
                 bool swapRB);
 
-} // namespace ImageCapture
+} // namespace harmonia::ImageCapture
 #endif // HARMONIA_PRESENTATION_IMAGECAPTURE_HPP

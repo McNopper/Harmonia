@@ -807,8 +807,8 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
 }
 
 void App::presentAndHandleResize(std::uint32_t imageIndex) noexcept {
-    const VkResult result =
-        m_swapchain.present(m_context.deviceContext().graphicsQueue, imageIndex, m_frameSync.renderComplete(imageIndex));
+    const VkResult result = m_swapchain.present(
+        m_context.deviceContext().graphicsQueue, imageIndex, m_frameSync.renderComplete(imageIndex));
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         m_frameSync.setSwapchainLayout(imageIndex, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         const VkExtent2D extent = windowPixelExtent(m_window);
@@ -883,15 +883,14 @@ int App::renderOffscreen() {
     if (!isPng) {
         pngPath.replace_extension(".png");
     }
-    if (m_toneMapper.isValid() &&
-        m_offscreen.tonemapToCaptureImage(deviceContext(),
-                                          commandPool(),
-                                          m_swapchain.extent(),
-                                          sceneOutputImage(),
-                                          sceneOutputStageMask(),
-                                          sceneOutputAccessMask(),
-                                          m_tonemapper,
-                                          m_workingColorSpace)) {
+    if (m_toneMapper.isValid() && m_offscreen.tonemapToCaptureImage(deviceContext(),
+                                                                    commandPool(),
+                                                                    m_swapchain.extent(),
+                                                                    sceneOutputImage(),
+                                                                    sceneOutputStageMask(),
+                                                                    sceneOutputAccessMask(),
+                                                                    m_tonemapper,
+                                                                    m_workingColorSpace)) {
         // Capture image is VK_FORMAT_R8G8B8A8_UNORM (RGBA) — no channel swap needed.
         ok = ImageCapture::saveSdrPng(
                  m_context.deviceContext(), m_commandPool, m_offscreen.captureImage(), pngPath, /*swapRB=*/false) &&

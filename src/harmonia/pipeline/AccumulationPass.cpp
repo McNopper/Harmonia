@@ -73,8 +73,7 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         .pPushConstantRanges = &pushRange,
     };
     VkPipelineLayout pipelineLayout{};
-    if (const VkResult result =
-            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+    if (const VkResult result = vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }

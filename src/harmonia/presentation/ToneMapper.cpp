@@ -231,8 +231,7 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
     };
 
     VkPipeline pipeline = VK_NULL_HANDLE;
-    const VkResult result =
-        vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+    const VkResult result = vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
 
     vkDestroyShaderModule(ctx.device, *vertModule, nullptr);
     vkDestroyShaderModule(ctx.device, *fragModule, nullptr);

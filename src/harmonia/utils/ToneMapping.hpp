@@ -108,5 +108,5 @@ inline constexpr sm::float3x3 kAP1ToP3 = sm::float3x3(
     return x * (lumTm / lum);
 }
 
-} // namespace ToneMapping
+} // namespace harmonia::ToneMapping
 #endif // HARMONIA_UTILS_TONEMAPPING_HPP

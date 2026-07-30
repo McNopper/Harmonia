@@ -68,8 +68,8 @@ TEST(SceneLoader, LoadsRealSceneAndProducesExpectedConfig) {
     const harmonia::DeviceContext dummyCtx{};
     const harmonia::CommandPool dummyPool{};
 
-    const auto cfg =
-        harmonia::SceneLoader::load(assetsDir() / "cornell_classic.scene.toml", assetsDir(), scene, dummyCtx, dummyPool);
+    const auto cfg = harmonia::SceneLoader::load(
+        assetsDir() / "cornell_classic.scene.toml", assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
     EXPECT_EQ(cfg->workingColorSpace, harmonia::ColorSpace::WorkingColorSpace::LinRec2020);

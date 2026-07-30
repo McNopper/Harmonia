@@ -77,7 +77,7 @@ class SceneLoader {
                                                                    const std::filesystem::path& assetsDir,
                                                                    ISceneBuilder& scene,
                                                                    const DeviceContext& ctx,
-                                                                    const CommandPool& pool);
+                                                                   const CommandPool& pool);
 };
 
 } // namespace harmonia

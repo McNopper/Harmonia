@@ -127,4 +127,4 @@ SphereAabb makeSphereAabb(sm::float3 center, float radius) noexcept {
         .max = center + extent,
     };
 }
-} // namespace ProceduralGeometry
+} // namespace harmonia::ProceduralGeometry

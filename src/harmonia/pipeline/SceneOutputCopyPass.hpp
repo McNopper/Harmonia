@@ -12,9 +12,9 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 
-struct PassContext;
-
 namespace harmonia {
+
+struct PassContext;
 
 /// Configuration for the denoiser/accumulation pass.
 /// Defined outside SceneOutputCopyPass to avoid CWG2664 (Clang 22+ C++23 restriction on nested-struct

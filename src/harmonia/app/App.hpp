@@ -17,10 +17,10 @@
 
 #include "harmonia/app/AppConfig.hpp"
 #include "harmonia/app/CliParser.hpp"
-#include "harmonia/app/OffscreenCapture.hpp"
 #include "harmonia/app/FrameSync.hpp"
 #include "harmonia/app/GreenScreenRenderer.hpp"
 #include "harmonia/app/IRenderer.hpp"
+#include "harmonia/app/OffscreenCapture.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
@@ -177,7 +177,7 @@ class App {
     [[nodiscard]] bool bootstrap();
     void shutdown() noexcept;
     int mainLoop();
-    [[nodiscard]] int renderOffscreen();    /// Record + submit the renderer into the HDR image; returns the timeline
+    [[nodiscard]] int renderOffscreen(); /// Record + submit the renderer into the HDR image; returns the timeline
     /// value signalled on completion and advances the frame slot.
     std::uint64_t renderSceneReferred();
     /// Acquire, tonemap, present the given completed scene-referred frame.

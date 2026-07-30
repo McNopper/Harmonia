@@ -11,8 +11,7 @@ namespace harmonia {
 /// The destroy command is bound at compile time via the address of the volk-loaded
 /// function-pointer global (e.g. `&vkDestroyPipeline`), so there is no per-instance
 /// storage overhead: destruction calls `(*DestroyPtr)(m_device, m_handle, nullptr)`.
-template <typename HandleT, auto* DestroyPtr>
-class UniqueHandle {
+template <typename HandleT, auto* DestroyPtr> class UniqueHandle {
   public:
     constexpr UniqueHandle() noexcept = default;
 
@@ -78,6 +77,6 @@ using UniqueAccelerationStructure = UniqueHandle<VkAccelerationStructureKHR, &vk
 using UniqueSwapchainKHR = UniqueHandle<VkSwapchainKHR, &vkDestroySwapchainKHR>;
 using UniqueIndirectCommandsLayout = UniqueHandle<VkIndirectCommandsLayoutEXT, &vkDestroyIndirectCommandsLayoutEXT>;
 
-}  // namespace harmonia
+} // namespace harmonia
 
-#endif  // HARMONIA_CORE_VULKANHANDLE_HPP
+#endif // HARMONIA_CORE_VULKANHANDLE_HPP

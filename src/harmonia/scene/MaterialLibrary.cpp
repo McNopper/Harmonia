@@ -34,7 +34,8 @@ namespace {
 // transmission_scatter) is never color-converted.  All lobes are set directly;
 // no threshold-based type select.
 // flags: 0 = general layered, 2 = glass/dielectric, 3 = mirror (not set here).
-[[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p, harmonia::ColorSpace::WorkingColorSpace workingSpace) {
+[[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p,
+                                     harmonia::ColorSpace::WorkingColorSpace workingSpace) {
     const bool srcRec709 = (p.inputColorSpace == aether::MaterialColorSpace::LinRec709);
     const bool dstRec2020 = (workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
     const auto cc = [srcRec709, dstRec2020](sm::float3 c) {

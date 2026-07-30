@@ -139,8 +139,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     };
     {
         VkPipelineLayout pipelineLayout{};
-        if (const VkResult result =
-                vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+        if (const VkResult result = vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
             result != VK_SUCCESS) {
             return std::unexpected(result);
         }

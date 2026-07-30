@@ -40,5 +40,5 @@ inline constexpr float kInv2Pi = 1.0F / k2Pi;
     return std::isnan(v.x) || std::isnan(v.y) || std::isnan(v.z) || std::isinf(v.x) || std::isinf(v.y) ||
            std::isinf(v.z);
 }
-} // namespace Math
+} // namespace harmonia::Math
 #endif // HARMONIA_UTILS_MATH_HPP

@@ -66,13 +66,13 @@ class Texture {
     /// working color space at load time. colorSpace describes how the source
     /// data is encoded; the correct decode + primaries conversion is applied
     /// on the CPU before GPU upload.
-    [[nodiscard]] static std::expected<Texture, VkResult>
-    loadFromFile(const DeviceContext& ctx,
-                 const CommandPool& cmdPool,
-                 const std::filesystem::path& path,
-                 TextureColorSpace colorSpace = TextureColorSpace::SrgbRec709Scene,
-                 harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020,
-                 std::string_view name = "");
+    [[nodiscard]] static std::expected<Texture, VkResult> loadFromFile(
+        const DeviceContext& ctx,
+        const CommandPool& cmdPool,
+        const std::filesystem::path& path,
+        TextureColorSpace colorSpace = TextureColorSpace::SrgbRec709Scene,
+        harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020,
+        std::string_view name = "");
 
     [[nodiscard]] const Image& image() const noexcept { return m_image; }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }
