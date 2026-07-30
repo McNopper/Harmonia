@@ -10,7 +10,7 @@ TEST(AppArgs, EnablesDisplayOverlayFlag) {
     char* argv[] = {arg0, arg1};
     int i = 1;
 
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 2, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 2, argv));
     EXPECT_TRUE(config.displayOverlay);
     EXPECT_EQ(i, 1);
 }
@@ -23,7 +23,7 @@ TEST(AppArgs, EnablesDeterministicReplayFlag) {
     char* argv[] = {arg0, arg1};
     int i = 1;
 
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 2, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 2, argv));
     EXPECT_TRUE(config.deterministicReplay);
 }
 
@@ -36,7 +36,7 @@ TEST(AppArgs, ParsesRngSeed) {
     char* argv[] = {arg0, arg1, arg2};
     int i = 1;
 
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 3, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 3, argv));
     EXPECT_EQ(config.rngSeed, 424242U);
     EXPECT_EQ(i, 2);
 }
@@ -50,7 +50,7 @@ TEST(AppArgs, ParsesOffscreenFrames) {
     char* argv[] = {arg0, arg1, arg2};
     int i = 1;
 
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 3, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 3, argv));
     EXPECT_EQ(config.offscreenFrames, 64U);
     EXPECT_EQ(i, 2);
 }
@@ -63,7 +63,7 @@ TEST(AppArgs, EnablesRngDebugFlag) {
     char* argv[] = {arg0, arg1};
     int i = 1;
 
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 2, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 2, argv));
     EXPECT_TRUE(config.rngDebug);
 }
 
@@ -78,12 +78,12 @@ TEST(AppArgs, ParsesDenoiserStrengthAndIterations) {
     char* argv[] = {arg0, arg1, arg2, arg3, arg4};
     int i = 1;
 
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 5, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 5, argv));
     EXPECT_FLOAT_EQ(config.denoiser.strength, 0.7F);
     EXPECT_EQ(i, 2);
 
     i = 3;
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 5, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 5, argv));
     EXPECT_EQ(config.denoiser.iterations, 5U);
     EXPECT_EQ(i, 4);
 }
@@ -99,11 +99,11 @@ TEST(AppArgs, ParsesDenoiserHistoryOptions) {
     char* argv[] = {arg0, arg1, arg2, arg3};
     int i = 1;
 
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 4, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 4, argv));
     EXPECT_FLOAT_EQ(config.denoiser.historyBlend, 0.33F);
     EXPECT_EQ(i, 2);
 
     i = 3;
-    EXPECT_TRUE(harmonia::App::applyCommonArg(config, i, 4, argv));
+    EXPECT_TRUE(harmonia::CliParser::applyCommonArg(config, i, 4, argv));
     EXPECT_FALSE(config.denoiser.useHistory);
 }
