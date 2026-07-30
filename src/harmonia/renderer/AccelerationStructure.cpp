@@ -5,27 +5,6 @@
 #include <string>
 #include <utility>
 
-AccelerationStructure::~AccelerationStructure() noexcept {
-    reset();
-}
-
-AccelerationStructure::AccelerationStructure(AccelerationStructure&& other) noexcept
-    : m_device(std::exchange(other.m_device, VK_NULL_HANDLE)),
-      m_buffer(std::move(other.m_buffer)),
-      m_handle(std::exchange(other.m_handle, VK_NULL_HANDLE)),
-      m_deviceAddress(std::exchange(other.m_deviceAddress, 0)) {}
-
-AccelerationStructure& AccelerationStructure::operator=(AccelerationStructure&& other) noexcept {
-    if (this != &other) {
-        reset();
-        m_device = std::exchange(other.m_device, VK_NULL_HANDLE);
-        m_buffer = std::move(other.m_buffer);
-        m_handle = std::exchange(other.m_handle, VK_NULL_HANDLE);
-        m_deviceAddress = std::exchange(other.m_deviceAddress, 0);
-    }
-    return *this;
-}
-
 std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(const DeviceContext& ctx,
                                                                              VkAccelerationStructureTypeKHR type,
                                                                              VkDeviceSize size,
@@ -52,14 +31,15 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
     };
 
     AccelerationStructure accelerationStructure;
-    accelerationStructure.m_device = ctx.device;
     accelerationStructure.m_buffer = std::move(*storage);
 
+    VkAccelerationStructureKHR handle{};
     if (const VkResult result =
-            vkCreateAccelerationStructureKHR(ctx.device, &createInfo, nullptr, &accelerationStructure.m_handle);
+            vkCreateAccelerationStructureKHR(ctx.device, &createInfo, nullptr, &handle);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    accelerationStructure.m_handle = harmonia::UniqueAccelerationStructure{ctx.device, handle};
 
     const VkAccelerationStructureDeviceAddressInfoKHR addressInfo{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
@@ -70,19 +50,10 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
 
     if (!debugName.empty()) {
         ctx.setDebugName(
-            VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, accelerationStructure.m_handle, std::string(debugName).c_str());
+            VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, accelerationStructure.m_handle.get(), std::string(debugName).c_str());
     }
 
     return accelerationStructure;
-}
-
-void AccelerationStructure::reset() noexcept {
-    if (m_device != VK_NULL_HANDLE && m_handle != VK_NULL_HANDLE) {
-        vkDestroyAccelerationStructureKHR(m_device, m_handle, nullptr);
-        m_handle = VK_NULL_HANDLE;
-    }
-    m_device = VK_NULL_HANDLE;
-    m_deviceAddress = 0;
 }
 
 std::expected<AccelerationStructureScratch, VkResult>

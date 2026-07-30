@@ -14,53 +14,6 @@ namespace {
 constexpr float kRec2020RedPrimariesThreshold = 0.68f;
 } // namespace
 
-IblProbe::IblProbe(IblProbe&& other) noexcept
-    : m_image(std::move(other.m_image)),
-      m_sampler(std::exchange(other.m_sampler, VK_NULL_HANDLE)),
-      m_ctx(other.m_ctx),
-      m_marginalCdf(std::move(other.m_marginalCdf)),
-      m_conditionalCdf(std::move(other.m_conditionalCdf)),
-      m_cdfWidth(std::exchange(other.m_cdfWidth, 0u)),
-      m_cdfHeight(std::exchange(other.m_cdfHeight, 0u)),
-      m_sunDirection(other.m_sunDirection),
-      m_sunStrength(std::exchange(other.m_sunStrength, 0.0f)) {
-    other.m_ctx = nullptr;
-}
-
-IblProbe& IblProbe::operator=(IblProbe&& other) noexcept {
-    if (this != &other) {
-        reset();
-        m_image = std::move(other.m_image);
-        m_sampler = std::exchange(other.m_sampler, VK_NULL_HANDLE);
-        m_ctx = other.m_ctx;
-        m_marginalCdf = std::move(other.m_marginalCdf);
-        m_conditionalCdf = std::move(other.m_conditionalCdf);
-        m_cdfWidth = std::exchange(other.m_cdfWidth, 0u);
-        m_cdfHeight = std::exchange(other.m_cdfHeight, 0u);
-        m_sunDirection = other.m_sunDirection;
-        m_sunStrength = std::exchange(other.m_sunStrength, 0.0f);
-        other.m_ctx = nullptr;
-    }
-    return *this;
-}
-
-IblProbe::~IblProbe() {
-    reset();
-}
-
-void IblProbe::reset() noexcept {
-    m_image = {};
-    m_marginalCdf = {};
-    m_conditionalCdf = {};
-    m_cdfWidth = 0;
-    m_cdfHeight = 0;
-    if (m_ctx != nullptr && m_sampler != VK_NULL_HANDLE) {
-        vkDestroySampler(m_ctx->device, m_sampler, nullptr);
-        m_sampler = VK_NULL_HANDLE;
-    }
-    m_ctx = nullptr;
-}
-
 std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx,
                                                         const CommandPool& pool,
                                                         const std::filesystem::path& path,
@@ -281,9 +234,8 @@ VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
         return result;
     }
 
-    probe.m_ctx = &ctx;
     probe.m_image = std::move(*image);
-    probe.m_sampler = sampler;
+    probe.m_sampler = harmonia::UniqueSampler{ctx.device, sampler};
     return VK_SUCCESS;
 }
 

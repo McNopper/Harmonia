@@ -6,34 +6,6 @@
 #include <cstdint>
 #include <utility>
 
-Descriptors::~Descriptors() noexcept {
-    reset();
-}
-
-Descriptors::Descriptors(Descriptors&& other) noexcept
-    : m_ctx(other.m_ctx),
-      m_set0Layout(std::exchange(other.m_set0Layout, VK_NULL_HANDLE)),
-      m_set1Layout(std::exchange(other.m_set1Layout, VK_NULL_HANDLE)),
-      m_pool(std::exchange(other.m_pool, VK_NULL_HANDLE)),
-      m_set1(std::exchange(other.m_set1, VK_NULL_HANDLE)),
-      m_pipelineLayout(std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE)) {
-    other.m_ctx = nullptr;
-}
-
-Descriptors& Descriptors::operator=(Descriptors&& other) noexcept {
-    if (this != &other) {
-        reset();
-        m_ctx = other.m_ctx;
-        m_set0Layout = std::exchange(other.m_set0Layout, VK_NULL_HANDLE);
-        m_set1Layout = std::exchange(other.m_set1Layout, VK_NULL_HANDLE);
-        m_pool = std::exchange(other.m_pool, VK_NULL_HANDLE);
-        m_set1 = std::exchange(other.m_set1, VK_NULL_HANDLE);
-        m_pipelineLayout = std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE);
-        other.m_ctx = nullptr;
-    }
-    return *this;
-}
-
 std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ctx) {
     constexpr std::uint32_t kBindlessTextureArraySize = 1024U;
     constexpr std::uint32_t kCombinedImageSamplerDescriptorCount = kBindlessTextureArraySize + 1U;
@@ -97,15 +69,22 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     };
 
     Descriptors descriptors;
-    descriptors.m_ctx = &ctx;
 
-    if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &set0Info, nullptr, &descriptors.m_set0Layout);
-        result != VK_SUCCESS) {
-        return std::unexpected(result);
+    {
+        VkDescriptorSetLayout set0Layout{};
+        if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &set0Info, nullptr, &set0Layout);
+            result != VK_SUCCESS) {
+            return std::unexpected(result);
+        }
+        descriptors.m_set0Layout = harmonia::UniqueDescriptorSetLayout{ctx.device, set0Layout};
     }
-    if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &set1Info, nullptr, &descriptors.m_set1Layout);
-        result != VK_SUCCESS) {
-        return std::unexpected(result);
+    {
+        VkDescriptorSetLayout set1Layout{};
+        if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &set1Info, nullptr, &set1Layout);
+            result != VK_SUCCESS) {
+            return std::unexpected(result);
+        }
+        descriptors.m_set1Layout = harmonia::UniqueDescriptorSetLayout{ctx.device, set1Layout};
     }
 
     constexpr std::array poolSizes{
@@ -120,9 +99,13 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         .poolSizeCount = static_cast<std::uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data(),
     };
-    if (const VkResult result = vkCreateDescriptorPool(ctx.device, &poolInfo, nullptr, &descriptors.m_pool);
-        result != VK_SUCCESS) {
-        return std::unexpected(result);
+    {
+        VkDescriptorPool pool{};
+        if (const VkResult result = vkCreateDescriptorPool(ctx.device, &poolInfo, nullptr, &pool);
+            result != VK_SUCCESS) {
+            return std::unexpected(result);
+        }
+        descriptors.m_pool = harmonia::UniqueDescriptorPool{ctx.device, pool};
     }
 
     const VkDescriptorSetAllocateInfo allocInfo{
@@ -130,7 +113,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         .pNext = nullptr,
         .descriptorPool = descriptors.m_pool,
         .descriptorSetCount = 1,
-        .pSetLayouts = &descriptors.m_set1Layout,
+        .pSetLayouts = descriptors.m_set1Layout.ptr(),
     };
     if (const VkResult result = vkAllocateDescriptorSets(ctx.device, &allocInfo, &descriptors.m_set1);
         result != VK_SUCCESS) {
@@ -142,7 +125,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         .offset = 0,
         .size = sizeof(PushConstants),
     };
-    const std::array layouts{descriptors.m_set0Layout, descriptors.m_set1Layout};
+    const std::array<VkDescriptorSetLayout, 2> layouts{descriptors.m_set0Layout, descriptors.m_set1Layout};
     const VkPipelineLayoutCreateInfo pipelineLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
@@ -152,16 +135,20 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushConstantRange,
     };
-    if (const VkResult result =
-            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &descriptors.m_pipelineLayout);
-        result != VK_SUCCESS) {
-        return std::unexpected(result);
+    {
+        VkPipelineLayout pipelineLayout{};
+        if (const VkResult result =
+                vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+            result != VK_SUCCESS) {
+            return std::unexpected(result);
+        }
+        descriptors.m_pipelineLayout = harmonia::UniquePipelineLayout{ctx.device, pipelineLayout};
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set0Layout, "harmonia.set0.push");
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set1Layout, "harmonia.set1.scene");
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, descriptors.m_pool, "harmonia.scene.pool");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, descriptors.m_pipelineLayout, "harmonia.pipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set0Layout.get(), "harmonia.set0.push");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set1Layout.get(), "harmonia.set1.scene");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, descriptors.m_pool.get(), "harmonia.scene.pool");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, descriptors.m_pipelineLayout.get(), "harmonia.pipelineLayout");
 
     return descriptors;
 }
@@ -332,25 +319,4 @@ VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer mar
     };
     vkUpdateDescriptorSets(ctx.device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
     return VK_SUCCESS;
-}
-
-void Descriptors::reset() noexcept {
-    if (m_ctx != nullptr && m_pipelineLayout != VK_NULL_HANDLE) {
-        vkDestroyPipelineLayout(m_ctx->device, m_pipelineLayout, nullptr);
-        m_pipelineLayout = VK_NULL_HANDLE;
-    }
-    if (m_ctx != nullptr && m_pool != VK_NULL_HANDLE) {
-        vkDestroyDescriptorPool(m_ctx->device, m_pool, nullptr);
-        m_pool = VK_NULL_HANDLE;
-    }
-    if (m_ctx != nullptr && m_set1Layout != VK_NULL_HANDLE) {
-        vkDestroyDescriptorSetLayout(m_ctx->device, m_set1Layout, nullptr);
-        m_set1Layout = VK_NULL_HANDLE;
-    }
-    if (m_ctx != nullptr && m_set0Layout != VK_NULL_HANDLE) {
-        vkDestroyDescriptorSetLayout(m_ctx->device, m_set0Layout, nullptr);
-        m_set0Layout = VK_NULL_HANDLE;
-    }
-    m_set1 = VK_NULL_HANDLE;
-    m_ctx = nullptr;
 }

@@ -5,6 +5,7 @@
 #include <expected>
 
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 
 class CommandPool {
   public:
@@ -14,9 +15,9 @@ class CommandPool {
     CommandPool() = default;
     CommandPool(const CommandPool&) = delete;
     CommandPool& operator=(const CommandPool&) = delete;
-    CommandPool(CommandPool&& other) noexcept;
-    CommandPool& operator=(CommandPool&& other) noexcept;
-    ~CommandPool();
+    CommandPool(CommandPool&&) noexcept = default;
+    CommandPool& operator=(CommandPool&&) noexcept = default;
+    ~CommandPool() noexcept = default;
 
     [[nodiscard]] std::expected<VkCommandBuffer, VkResult> allocate() const;
     void free(VkCommandBuffer cmd) const noexcept;
@@ -27,10 +28,8 @@ class CommandPool {
     [[nodiscard]] VkCommandPool handle() const noexcept { return m_pool; }
 
   private:
-    void destroy() noexcept;
-
     VkDevice m_device = VK_NULL_HANDLE;
-    VkCommandPool m_pool = VK_NULL_HANDLE;
+    harmonia::UniqueCommandPool m_pool;
     VkQueue m_queue = VK_NULL_HANDLE;
 };
 #endif // HARMONIA_CORE_COMMANDPOOL_HPP

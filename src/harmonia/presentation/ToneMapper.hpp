@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/presentation/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
@@ -24,9 +25,9 @@ class ToneMapper {
     ToneMapper() = default;
     ToneMapper(const ToneMapper&) = delete;
     ToneMapper& operator=(const ToneMapper&) = delete;
-    ToneMapper(ToneMapper&& other) noexcept;
-    ToneMapper& operator=(ToneMapper&& other) noexcept;
-    ~ToneMapper();
+    ToneMapper(ToneMapper&&) noexcept = default;
+    ToneMapper& operator=(ToneMapper&&) noexcept = default;
+    ~ToneMapper() noexcept = default;
 
     /// Record the tone-mapping draw into cmd.
     /// The swapchain image must already be in VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL.
@@ -56,12 +57,9 @@ class ToneMapper {
     [[nodiscard]] bool isValid() const noexcept { return m_pipeline != VK_NULL_HANDLE; }
 
   private:
-    void destroy() noexcept;
-
-    VkDevice m_device{};
-    VkPipeline m_pipeline{};
-    VkPipelineLayout m_pipelineLayout{};
-    VkDescriptorSetLayout m_setLayout{}; ///< Push descriptor set layout (must outlive all CBs using it).
+    harmonia::UniquePipeline m_pipeline;
+    harmonia::UniquePipelineLayout m_pipelineLayout;
+    harmonia::UniqueDescriptorSetLayout m_setLayout; ///< Push descriptor set layout (must outlive all CBs using it).
     VkFormat m_attachmentFormat{VK_FORMAT_UNDEFINED};
 };
 #endif // HARMONIA_PRESENTATION_TONEMAPPER_HPP

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/presentation/OutputColorSpace.hpp"
 
 class Swapchain {
@@ -21,9 +22,9 @@ class Swapchain {
     Swapchain() = default;
     Swapchain(const Swapchain&) = delete;
     Swapchain& operator=(const Swapchain&) = delete;
-    Swapchain(Swapchain&& other) noexcept;
-    Swapchain& operator=(Swapchain&& other) noexcept;
-    ~Swapchain();
+    Swapchain(Swapchain&&) noexcept = default;
+    Swapchain& operator=(Swapchain&&) noexcept = default;
+    ~Swapchain() = default;
 
     VkResult acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t& outIndex);
     VkResult present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore);
@@ -42,17 +43,15 @@ class Swapchain {
     [[nodiscard]] OutputColorSpace outputColorSpace() const noexcept;
 
   private:
-    void destroy() noexcept;
-
     const DeviceContext* m_ctx{};
     VkSurfaceKHR m_surface{};
     VkPhysicalDevice m_physicalDevice{};
-    VkSwapchainKHR m_swapchain{};
+    harmonia::UniqueSwapchainKHR m_swapchain;
     VkFormat m_format{VK_FORMAT_UNDEFINED};
     VkColorSpaceKHR m_colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
     VkExtent2D m_extent{};
     bool m_preferHDR = true;
     std::vector<VkImage> m_images;
-    std::vector<VkImageView> m_views;
+    std::vector<harmonia::UniqueImageView> m_views;
 };
 #endif // HARMONIA_PRESENTATION_SWAPCHAIN_HPP

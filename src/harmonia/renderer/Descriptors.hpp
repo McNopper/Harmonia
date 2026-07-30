@@ -8,15 +8,16 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/GpuTypes.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/scene/Texture.hpp"
 
 class Descriptors {
   public:
     Descriptors() = default;
-    ~Descriptors() noexcept;
+    ~Descriptors() noexcept = default;
 
-    Descriptors(Descriptors&& other) noexcept;
-    Descriptors& operator=(Descriptors&& other) noexcept;
+    Descriptors(Descriptors&&) noexcept = default;
+    Descriptors& operator=(Descriptors&&) noexcept = default;
 
     Descriptors(const Descriptors&) = delete;
     Descriptors& operator=(const Descriptors&) = delete;
@@ -46,13 +47,10 @@ class Descriptors {
     [[nodiscard]] VkPipelineLayout pipelineLayout() const noexcept { return m_pipelineLayout; }
 
   private:
-    void reset() noexcept;
-
-    const DeviceContext* m_ctx{};
-    VkDescriptorSetLayout m_set0Layout{VK_NULL_HANDLE};
-    VkDescriptorSetLayout m_set1Layout{VK_NULL_HANDLE};
-    VkDescriptorPool m_pool{VK_NULL_HANDLE};
+    harmonia::UniqueDescriptorSetLayout m_set0Layout;
+    harmonia::UniqueDescriptorSetLayout m_set1Layout;
+    harmonia::UniqueDescriptorPool m_pool;
     VkDescriptorSet m_set1{VK_NULL_HANDLE};
-    VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
+    harmonia::UniquePipelineLayout m_pipelineLayout;
 };
 #endif // HARMONIA_RENDERER_DESCRIPTORS_HPP

@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 
 class Descriptors;
 
@@ -23,10 +24,10 @@ class Pipeline {
     };
 
     Pipeline() = default;
-    ~Pipeline() noexcept;
+    ~Pipeline() noexcept = default;
 
-    Pipeline(Pipeline&& other) noexcept;
-    Pipeline& operator=(Pipeline&& other) noexcept;
+    Pipeline(Pipeline&&) noexcept = default;
+    Pipeline& operator=(Pipeline&&) noexcept = default;
 
     Pipeline(const Pipeline&) = delete;
     Pipeline& operator=(const Pipeline&) = delete;
@@ -39,9 +40,6 @@ class Pipeline {
     [[nodiscard]] VkPipeline rtPipeline() const noexcept { return m_rtPipeline; }
 
   private:
-    void reset() noexcept;
-
-    const DeviceContext* m_ctx{};
-    VkPipeline m_rtPipeline{VK_NULL_HANDLE};
+    harmonia::UniquePipeline m_rtPipeline;
 };
 #endif // HARMONIA_RENDERER_PIPELINE_HPP

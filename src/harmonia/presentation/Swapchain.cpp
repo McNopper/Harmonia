@@ -137,10 +137,12 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         .clipped = VK_TRUE,
         .oldSwapchain = oldSwapchain,
     };
-    result = vkCreateSwapchainKHR(ctx.device, &createInfo, nullptr, &swapchain.m_swapchain);
+    VkSwapchainKHR swapchainHandle{};
+    result = vkCreateSwapchainKHR(ctx.device, &createInfo, nullptr, &swapchainHandle);
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    swapchain.m_swapchain = harmonia::UniqueSwapchainKHR{ctx.device, swapchainHandle};
 
     std::uint32_t imageCount = 0;
     result = vkGetSwapchainImagesKHR(ctx.device, swapchain.m_swapchain, &imageCount, nullptr);
@@ -183,54 +185,10 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         if (result != VK_SUCCESS) {
             return std::unexpected(result);
         }
-        swapchain.m_views.push_back(view);
+        swapchain.m_views.emplace_back(ctx.device, view);
     }
 
     return swapchain;
-}
-
-Swapchain::Swapchain(Swapchain&& other) noexcept
-    : m_ctx(other.m_ctx),
-      m_surface(std::exchange(other.m_surface, VK_NULL_HANDLE)),
-      m_physicalDevice(std::exchange(other.m_physicalDevice, VK_NULL_HANDLE)),
-      m_swapchain(std::exchange(other.m_swapchain, VK_NULL_HANDLE)),
-      m_format(other.m_format),
-      m_colorSpace(other.m_colorSpace),
-      m_extent(other.m_extent),
-      m_preferHDR(other.m_preferHDR),
-      m_images(std::move(other.m_images)),
-      m_views(std::move(other.m_views)) {
-    other.m_ctx = nullptr;
-    other.m_format = VK_FORMAT_UNDEFINED;
-    other.m_colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-    other.m_extent = {};
-    other.m_preferHDR = true;
-}
-
-Swapchain& Swapchain::operator=(Swapchain&& other) noexcept {
-    if (this != &other) {
-        destroy();
-        m_ctx = other.m_ctx;
-        m_surface = std::exchange(other.m_surface, VK_NULL_HANDLE);
-        m_physicalDevice = std::exchange(other.m_physicalDevice, VK_NULL_HANDLE);
-        m_swapchain = std::exchange(other.m_swapchain, VK_NULL_HANDLE);
-        m_format = other.m_format;
-        m_colorSpace = other.m_colorSpace;
-        m_extent = other.m_extent;
-        m_preferHDR = other.m_preferHDR;
-        m_images = std::move(other.m_images);
-        m_views = std::move(other.m_views);
-        other.m_ctx = nullptr;
-        other.m_format = VK_FORMAT_UNDEFINED;
-        other.m_colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-        other.m_extent = {};
-        other.m_preferHDR = true;
-    }
-    return *this;
-}
-
-Swapchain::~Swapchain() {
-    destroy();
 }
 
 VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t& outIndex) {
@@ -247,7 +205,7 @@ VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore
         .waitSemaphoreCount = waitSemaphore != VK_NULL_HANDLE ? 1U : 0U,
         .pWaitSemaphores = waitSemaphore != VK_NULL_HANDLE ? &waitSemaphore : nullptr,
         .swapchainCount = 1U,
-        .pSwapchains = &m_swapchain,
+        .pSwapchains = m_swapchain.ptr(),
         .pImageIndices = &imageIndex,
         .pResults = nullptr,
     };
@@ -265,20 +223,7 @@ VkResult Swapchain::recreate(VkExtent2D newExtent) {
         return recreated.error();
     }
 
-    // Retire the old swapchain now that the new one is ready.
-    const VkDevice device = m_ctx->device;
-    for (VkImageView view : m_views) {
-        if (view != VK_NULL_HANDLE) {
-            vkDestroyImageView(device, view, nullptr);
-        }
-    }
-    m_views.clear();
-    m_images.clear();
-    if (m_swapchain != VK_NULL_HANDLE) {
-        vkDestroySwapchainKHR(device, m_swapchain, nullptr);
-        m_swapchain = VK_NULL_HANDLE;
-    }
-
+    // Move-assignment retires the old swapchain + views (RAII) and adopts the new one.
     const DeviceContext* savedCtx = recreated->m_ctx;
     *this = std::move(*recreated);
     if (m_ctx == nullptr) {
@@ -330,27 +275,4 @@ OutputColorSpace Swapchain::outputColorSpace() const noexcept {
     default:
         return OutputColorSpace::eSDR;
     }
-}
-
-void Swapchain::destroy() noexcept {
-    if (m_ctx != nullptr) {
-        for (VkImageView view : m_views) {
-            if (view != VK_NULL_HANDLE) {
-                vkDestroyImageView(m_ctx->device, view, nullptr);
-            }
-        }
-        if (m_swapchain != VK_NULL_HANDLE) {
-            vkDestroySwapchainKHR(m_ctx->device, m_swapchain, nullptr);
-        }
-    }
-
-    m_views.clear();
-    m_images.clear();
-    m_swapchain = VK_NULL_HANDLE;
-    m_surface = VK_NULL_HANDLE;
-    m_physicalDevice = VK_NULL_HANDLE;
-    m_format = VK_FORMAT_UNDEFINED;
-    m_colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-    m_extent = {};
-    m_ctx = nullptr;
 }

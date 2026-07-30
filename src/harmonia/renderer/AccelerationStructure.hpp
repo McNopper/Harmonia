@@ -8,14 +8,15 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 
 class AccelerationStructure {
   public:
     AccelerationStructure() = default;
-    ~AccelerationStructure() noexcept;
+    ~AccelerationStructure() noexcept = default;
 
-    AccelerationStructure(AccelerationStructure&& other) noexcept;
-    AccelerationStructure& operator=(AccelerationStructure&& other) noexcept;
+    AccelerationStructure(AccelerationStructure&&) noexcept = default;
+    AccelerationStructure& operator=(AccelerationStructure&&) noexcept = default;
 
     AccelerationStructure(const AccelerationStructure&) = delete;
     AccelerationStructure& operator=(const AccelerationStructure&) = delete;
@@ -30,11 +31,8 @@ class AccelerationStructure {
     [[nodiscard]] const Buffer& buffer() const noexcept { return m_buffer; }
 
   private:
-    void reset() noexcept;
-
-    VkDevice m_device{VK_NULL_HANDLE};
     Buffer m_buffer{};
-    VkAccelerationStructureKHR m_handle{VK_NULL_HANDLE};
+    harmonia::UniqueAccelerationStructure m_handle;
     VkDeviceAddress m_deviceAddress{};
 };
 

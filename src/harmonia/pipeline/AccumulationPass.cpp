@@ -51,10 +51,12 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
     AccumulationPass pass;
     pass.m_ctx = &ctx;
     pass.m_extent = extent;
-    if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &setLayoutInfo, nullptr, &pass.m_setLayout);
+    VkDescriptorSetLayout setLayout{};
+    if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &setLayoutInfo, nullptr, &setLayout);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    pass.m_setLayout = UniqueDescriptorSetLayout{ctx.device, setLayout};
 
     const VkPushConstantRange pushRange{
         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -66,15 +68,17 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         .pNext = nullptr,
         .flags = 0,
         .setLayoutCount = 1,
-        .pSetLayouts = &pass.m_setLayout,
+        .pSetLayouts = pass.m_setLayout.ptr(),
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushRange,
     };
+    VkPipelineLayout pipelineLayout{};
     if (const VkResult result =
-            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pass.m_pipelineLayout);
+            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    pass.m_pipelineLayout = UniquePipelineLayout{ctx.device, pipelineLayout};
 
     auto module = createShaderModule(ctx.device, computeSpvPath);
     if (!module) {
@@ -99,64 +103,23 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0,
     };
+    VkPipeline pipeline{};
     const VkResult pipelineResult =
-        vkCreateComputePipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pass.m_pipeline);
+        vkCreateComputePipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
     vkDestroyShaderModule(ctx.device, *module, nullptr);
     if (pipelineResult != VK_SUCCESS) {
         return std::unexpected(pipelineResult);
     }
+    pass.m_pipeline = UniquePipeline{ctx.device, pipeline};
 
     if (!pass.createHistoryImage(extent)) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, pass.m_setLayout, "harmonia.accum.setLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, pass.m_pipelineLayout, "harmonia.accum.pipelineLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pass.m_pipeline, "harmonia.accum.pipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, pass.m_setLayout.get(), "harmonia.accum.setLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, pass.m_pipelineLayout.get(), "harmonia.accum.pipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pass.m_pipeline.get(), "harmonia.accum.pipeline");
     return pass;
-}
-
-AccumulationPass::AccumulationPass(AccumulationPass&& other) noexcept
-    : m_ctx(other.m_ctx),
-      m_pipeline(std::exchange(other.m_pipeline, VK_NULL_HANDLE)),
-      m_pipelineLayout(std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE)),
-      m_setLayout(std::exchange(other.m_setLayout, VK_NULL_HANDLE)),
-      m_historyImage(std::move(other.m_historyImage)),
-      m_extent(other.m_extent),
-      m_sampleCount(other.m_sampleCount),
-      m_lastResetToken(other.m_lastResetToken),
-      m_historyFirstUse(other.m_historyFirstUse) {
-    other.m_ctx = nullptr;
-    other.m_extent = {};
-    other.m_sampleCount = 0;
-    other.m_lastResetToken = 0;
-    other.m_historyFirstUse = true;
-}
-
-AccumulationPass& AccumulationPass::operator=(AccumulationPass&& other) noexcept {
-    if (this != &other) {
-        destroy();
-        m_ctx = other.m_ctx;
-        m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
-        m_pipelineLayout = std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE);
-        m_setLayout = std::exchange(other.m_setLayout, VK_NULL_HANDLE);
-        m_historyImage = std::move(other.m_historyImage);
-        m_extent = other.m_extent;
-        m_sampleCount = other.m_sampleCount;
-        m_lastResetToken = other.m_lastResetToken;
-        m_historyFirstUse = other.m_historyFirstUse;
-
-        other.m_ctx = nullptr;
-        other.m_extent = {};
-        other.m_sampleCount = 0;
-        other.m_lastResetToken = 0;
-        other.m_historyFirstUse = true;
-    }
-    return *this;
-}
-
-AccumulationPass::~AccumulationPass() noexcept {
-    destroy();
 }
 
 void AccumulationPass::record(const PassContext& ctx) noexcept {
@@ -363,29 +326,6 @@ void AccumulationPass::resetHistory(std::uint64_t resetToken) noexcept {
     m_sampleCount = 0;
     m_historyFirstUse = true;
     m_lastResetToken = resetToken;
-}
-
-void AccumulationPass::destroy() noexcept {
-    m_historyImage = {};
-    if (m_ctx != nullptr) {
-        if (m_pipeline != VK_NULL_HANDLE) {
-            vkDestroyPipeline(m_ctx->device, m_pipeline, nullptr);
-            m_pipeline = VK_NULL_HANDLE;
-        }
-        if (m_pipelineLayout != VK_NULL_HANDLE) {
-            vkDestroyPipelineLayout(m_ctx->device, m_pipelineLayout, nullptr);
-            m_pipelineLayout = VK_NULL_HANDLE;
-        }
-        if (m_setLayout != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(m_ctx->device, m_setLayout, nullptr);
-            m_setLayout = VK_NULL_HANDLE;
-        }
-    }
-    m_ctx = nullptr;
-    m_extent = {};
-    m_sampleCount = 0;
-    m_lastResetToken = 0;
-    m_historyFirstUse = true;
 }
 
 } // namespace harmonia

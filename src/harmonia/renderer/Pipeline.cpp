@@ -12,25 +12,6 @@
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 
-Pipeline::~Pipeline() noexcept {
-    reset();
-}
-
-Pipeline::Pipeline(Pipeline&& other) noexcept
-    : m_ctx(other.m_ctx), m_rtPipeline(std::exchange(other.m_rtPipeline, VK_NULL_HANDLE)) {
-    other.m_ctx = nullptr;
-}
-
-Pipeline& Pipeline::operator=(Pipeline&& other) noexcept {
-    if (this != &other) {
-        reset();
-        m_ctx = other.m_ctx;
-        m_rtPipeline = std::exchange(other.m_rtPipeline, VK_NULL_HANDLE);
-        other.m_ctx = nullptr;
-    }
-    return *this;
-}
-
 std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
                                                    const Descriptors& descriptors,
                                                    const ShaderPaths& paths,
@@ -169,11 +150,9 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
         .basePipelineIndex = 0,
     };
 
-    Pipeline pipeline;
-    pipeline.m_ctx = &ctx;
-
+    VkPipeline rtPipeline{VK_NULL_HANDLE};
     if (const VkResult result = vkCreateRayTracingPipelinesKHR(
-            ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rtPipelineInfo, nullptr, &pipeline.m_rtPipeline);
+            ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rtPipelineInfo, nullptr, &rtPipeline);
         result != VK_SUCCESS) {
         for (VkShaderModule module : modules) {
             vkDestroyShaderModule(ctx.device, module, nullptr);
@@ -181,19 +160,13 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
         return std::unexpected(result);
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pipeline.m_rtPipeline, "hyperion.rtPipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, rtPipeline, "hyperion.rtPipeline");
 
     for (VkShaderModule module : modules) {
         vkDestroyShaderModule(ctx.device, module, nullptr);
     }
 
+    Pipeline pipeline;
+    pipeline.m_rtPipeline = harmonia::UniquePipeline{ctx.device, rtPipeline};
     return pipeline;
-}
-
-void Pipeline::reset() noexcept {
-    if (m_ctx != nullptr && m_rtPipeline != VK_NULL_HANDLE) {
-        vkDestroyPipeline(m_ctx->device, m_rtPipeline, nullptr);
-        m_rtPipeline = VK_NULL_HANDLE;
-    }
-    m_ctx = nullptr;
 }

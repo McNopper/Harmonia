@@ -14,6 +14,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 /// Source color space of a texture asset.
@@ -43,10 +44,10 @@ enum class TextureColorSpace : std::uint8_t {
 class Texture {
   public:
     Texture() = default;
-    ~Texture() noexcept;
+    ~Texture() noexcept = default;
 
-    Texture(Texture&& other) noexcept;
-    Texture& operator=(Texture&& other) noexcept;
+    Texture(Texture&&) noexcept = default;
+    Texture& operator=(Texture&&) noexcept = default;
 
     Texture(const Texture&) = delete;
     Texture& operator=(const Texture&) = delete;
@@ -78,11 +79,8 @@ class Texture {
     [[nodiscard]] std::uint32_t mipLevels() const noexcept { return m_mipLevels; }
 
   private:
-    void reset() noexcept;
-
-    const DeviceContext* m_ctx{};
     Image m_image{};
-    VkSampler m_sampler{VK_NULL_HANDLE};
+    harmonia::UniqueSampler m_sampler;
     std::uint32_t m_width{};
     std::uint32_t m_height{};
     std::uint32_t m_mipLevels{1};

@@ -14,6 +14,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 /// Image-based lighting probe loaded from an equirectangular HDR panorama (EXR).
@@ -31,9 +32,9 @@ class IblProbe {
     IblProbe() = default;
     IblProbe(const IblProbe&) = delete;
     IblProbe& operator=(const IblProbe&) = delete;
-    IblProbe(IblProbe&& other) noexcept;
-    IblProbe& operator=(IblProbe&& other) noexcept;
-    ~IblProbe();
+    IblProbe(IblProbe&&) noexcept = default;
+    IblProbe& operator=(IblProbe&&) noexcept = default;
+    ~IblProbe() noexcept = default;
 
     /// Load an equirectangular EXR panorama, convert to the working color
     /// space, and upload to GPU. Source primaries come from the EXR
@@ -72,8 +73,6 @@ class IblProbe {
         bool srcRec2020 = false;
     };
 
-    void reset() noexcept;
-
     [[nodiscard]] static std::expected<ExrData, VkResult> readEXR(const std::filesystem::path& path);
     [[nodiscard]] static std::vector<float> convertPrimaries(const std::vector<float>& raw,
                                                              std::size_t width,
@@ -99,8 +98,7 @@ class IblProbe {
                                    std::size_t sunAvgCount);
 
     Image m_image{};
-    VkSampler m_sampler{VK_NULL_HANDLE};
-    const DeviceContext* m_ctx{};
+    harmonia::UniqueSampler m_sampler;
 
     Buffer m_marginalCdf{};    ///< (H+1) floats: normalised marginal CDF over rows
     Buffer m_conditionalCdf{}; ///< H*(W+1) floats: normalised conditional CDF per row

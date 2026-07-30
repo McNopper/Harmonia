@@ -32,34 +32,6 @@ createStagingBuffer(const DeviceContext& ctx, std::span<const std::byte> pixels,
 }
 } // namespace
 
-Texture::~Texture() noexcept {
-    reset();
-}
-
-Texture::Texture(Texture&& other) noexcept
-    : m_ctx(other.m_ctx),
-      m_image(std::move(other.m_image)),
-      m_sampler(std::exchange(other.m_sampler, VK_NULL_HANDLE)),
-      m_width(std::exchange(other.m_width, 0)),
-      m_height(std::exchange(other.m_height, 0)),
-      m_mipLevels(std::exchange(other.m_mipLevels, 1)) {
-    other.m_ctx = nullptr;
-}
-
-Texture& Texture::operator=(Texture&& other) noexcept {
-    if (this != &other) {
-        reset();
-        m_ctx = other.m_ctx;
-        m_image = std::move(other.m_image);
-        m_sampler = std::exchange(other.m_sampler, VK_NULL_HANDLE);
-        m_width = std::exchange(other.m_width, 0);
-        m_height = std::exchange(other.m_height, 0);
-        m_mipLevels = std::exchange(other.m_mipLevels, 1);
-        other.m_ctx = nullptr;
-    }
-    return *this;
-}
-
 std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
                                                  const CommandPool& cmdPool,
                                                  std::span<const std::byte> pixels,
@@ -141,18 +113,19 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     });
 
     Texture texture;
-    texture.m_ctx = &ctx;
     texture.m_image = std::move(*image);
     texture.m_width = width;
     texture.m_height = height;
 
-    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &texture.m_sampler);
+    VkSampler sampler{};
+    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    texture.m_sampler = harmonia::UniqueSampler{ctx.device, sampler};
 
     if (!name.empty()) {
-        ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, texture.m_sampler, std::string(name).append(".sampler").c_str());
+        ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, texture.m_sampler.get(), std::string(name).append(".sampler").c_str());
     }
 
     return texture;
@@ -251,15 +224,4 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                   static_cast<std::uint32_t>(w),
                   static_cast<std::uint32_t>(h),
                   name.empty() ? path.filename().string() : std::string(name));
-}
-
-void Texture::reset() noexcept {
-    if (m_ctx != nullptr && m_sampler != VK_NULL_HANDLE) {
-        vkDestroySampler(m_ctx->device, m_sampler, nullptr);
-        m_sampler = VK_NULL_HANDLE;
-    }
-    m_ctx = nullptr;
-    m_width = 0;
-    m_height = 0;
-    m_mipLevels = 1;
 }

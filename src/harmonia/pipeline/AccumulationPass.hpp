@@ -9,6 +9,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 
 struct PassContext;
@@ -28,9 +29,9 @@ class AccumulationPass final : public IRenderPass {
     AccumulationPass() = default;
     AccumulationPass(const AccumulationPass&) = delete;
     AccumulationPass& operator=(const AccumulationPass&) = delete;
-    AccumulationPass(AccumulationPass&& other) noexcept;
-    AccumulationPass& operator=(AccumulationPass&& other) noexcept;
-    ~AccumulationPass() noexcept override;
+    AccumulationPass(AccumulationPass&&) noexcept = default;
+    AccumulationPass& operator=(AccumulationPass&&) noexcept = default;
+    ~AccumulationPass() noexcept override = default;
 
     void record(const PassContext& ctx) noexcept override;
     void onResize(VkExtent2D extent) noexcept override;
@@ -39,12 +40,11 @@ class AccumulationPass final : public IRenderPass {
   private:
     [[nodiscard]] bool createHistoryImage(VkExtent2D extent) noexcept;
     void resetHistory(std::uint64_t resetToken) noexcept;
-    void destroy() noexcept;
 
     const DeviceContext* m_ctx = nullptr;
-    VkPipeline m_pipeline = VK_NULL_HANDLE;
-    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
-    VkDescriptorSetLayout m_setLayout = VK_NULL_HANDLE;
+    UniquePipeline m_pipeline;
+    UniquePipelineLayout m_pipelineLayout;
+    UniqueDescriptorSetLayout m_setLayout;
 
     Image m_historyImage{};
     VkExtent2D m_extent{};

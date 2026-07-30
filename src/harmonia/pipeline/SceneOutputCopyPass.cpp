@@ -127,10 +127,12 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
     pass.m_extent = extent;
     pass.m_settings = settings;
 
-    if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &setLayoutInfo, nullptr, &pass.m_setLayout);
+    VkDescriptorSetLayout setLayout{};
+    if (const VkResult result = vkCreateDescriptorSetLayout(ctx.device, &setLayoutInfo, nullptr, &setLayout);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    pass.m_setLayout = UniqueDescriptorSetLayout{ctx.device, setLayout};
 
     const VkPushConstantRange pushRange{
         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -142,25 +144,29 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         .pNext = nullptr,
         .flags = 0U,
         .setLayoutCount = 1U,
-        .pSetLayouts = &pass.m_setLayout,
+        .pSetLayouts = pass.m_setLayout.ptr(),
         .pushConstantRangeCount = 1U,
         .pPushConstantRanges = &pushRange,
     };
+    VkPipelineLayout pipelineLayout{};
     if (const VkResult result =
-            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pass.m_pipelineLayout);
+            vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    pass.m_pipelineLayout = UniquePipelineLayout{ctx.device, pipelineLayout};
 
     const VkSamplerCreateInfo samplerInfo = makeSamplerCreateInfo({
         .magFilter = VK_FILTER_NEAREST,
         .minFilter = VK_FILTER_NEAREST,
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
     });
-    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &pass.m_guideSampler);
+    VkSampler guideSampler{};
+    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &guideSampler);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    pass.m_guideSampler = UniqueSampler{ctx.device, guideSampler};
 
     auto module = createShaderModule(ctx.device, computeSpvPath);
     if (!module) {
@@ -185,81 +191,24 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0,
     };
+    VkPipeline pipeline{};
     const VkResult pipelineResult =
-        vkCreateComputePipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pass.m_pipeline);
+        vkCreateComputePipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
     vkDestroyShaderModule(ctx.device, *module, nullptr);
     if (pipelineResult != VK_SUCCESS) {
         return std::unexpected(pipelineResult);
     }
+    pass.m_pipeline = UniquePipeline{ctx.device, pipeline};
 
     if (!pass.createWorkImages(extent)) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, pass.m_setLayout, "harmonia.denoiser.setLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, pass.m_pipelineLayout, "harmonia.denoiser.pipelineLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pass.m_pipeline, "harmonia.denoiser.pipeline");
-    ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, pass.m_guideSampler, "harmonia.denoiser.sampler");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, pass.m_setLayout.get(), "harmonia.denoiser.setLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, pass.m_pipelineLayout.get(), "harmonia.denoiser.pipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, pass.m_pipeline.get(), "harmonia.denoiser.pipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, pass.m_guideSampler.get(), "harmonia.denoiser.sampler");
     return pass;
-}
-
-SceneOutputCopyPass::SceneOutputCopyPass(SceneOutputCopyPass&& other) noexcept
-    : m_ctx(other.m_ctx),
-      m_pipeline(std::exchange(other.m_pipeline, VK_NULL_HANDLE)),
-      m_pipelineLayout(std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE)),
-      m_setLayout(std::exchange(other.m_setLayout, VK_NULL_HANDLE)),
-      m_guideSampler(std::exchange(other.m_guideSampler, VK_NULL_HANDLE)),
-      m_historyImage(std::move(other.m_historyImage)),
-      m_workImage(std::move(other.m_workImage)),
-      m_dummyMotionVectors(std::move(other.m_dummyMotionVectors)),
-      m_gradientImage(std::move(other.m_gradientImage)),
-      m_prevGradientImage(std::move(other.m_prevGradientImage)),
-      m_dummyGradient(std::move(other.m_dummyGradient)),
-      m_settings(other.m_settings),
-      m_extent(other.m_extent),
-      m_lastResetToken(other.m_lastResetToken),
-      m_firstUse(other.m_firstUse),
-      m_historyFirstUse(other.m_historyFirstUse) {
-    other.m_ctx = nullptr;
-    other.m_extent = {};
-    other.m_settings = {};
-    other.m_lastResetToken = 0U;
-    other.m_firstUse = true;
-    other.m_historyFirstUse = true;
-}
-
-SceneOutputCopyPass& SceneOutputCopyPass::operator=(SceneOutputCopyPass&& other) noexcept {
-    if (this != &other) {
-        destroy();
-        m_ctx = other.m_ctx;
-        m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
-        m_pipelineLayout = std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE);
-        m_setLayout = std::exchange(other.m_setLayout, VK_NULL_HANDLE);
-        m_guideSampler = std::exchange(other.m_guideSampler, VK_NULL_HANDLE);
-        m_historyImage = std::move(other.m_historyImage);
-        m_workImage = std::move(other.m_workImage);
-        m_dummyMotionVectors = std::move(other.m_dummyMotionVectors);
-        m_gradientImage = std::move(other.m_gradientImage);
-        m_prevGradientImage = std::move(other.m_prevGradientImage);
-        m_dummyGradient = std::move(other.m_dummyGradient);
-        m_settings = other.m_settings;
-        m_extent = other.m_extent;
-        m_lastResetToken = other.m_lastResetToken;
-        m_firstUse = other.m_firstUse;
-        m_historyFirstUse = other.m_historyFirstUse;
-
-        other.m_ctx = nullptr;
-        other.m_extent = {};
-        other.m_settings = {};
-        other.m_lastResetToken = 0U;
-        other.m_firstUse = true;
-        other.m_historyFirstUse = true;
-    }
-    return *this;
-}
-
-SceneOutputCopyPass::~SceneOutputCopyPass() noexcept {
-    destroy();
 }
 
 void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
@@ -1152,39 +1101,6 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
 
 void SceneOutputCopyPass::resetHistory(std::uint64_t resetToken) noexcept {
     m_lastResetToken = resetToken;
-    m_historyFirstUse = true;
-}
-
-void SceneOutputCopyPass::destroy() noexcept {
-    m_historyImage = {};
-    m_workImage = {};
-    m_dummyMotionVectors = {};
-    m_gradientImage = {};
-    m_prevGradientImage = {};
-    m_dummyGradient = {};
-    if (m_ctx != nullptr) {
-        if (m_pipeline != VK_NULL_HANDLE) {
-            vkDestroyPipeline(m_ctx->device, m_pipeline, nullptr);
-            m_pipeline = VK_NULL_HANDLE;
-        }
-        if (m_pipelineLayout != VK_NULL_HANDLE) {
-            vkDestroyPipelineLayout(m_ctx->device, m_pipelineLayout, nullptr);
-            m_pipelineLayout = VK_NULL_HANDLE;
-        }
-        if (m_setLayout != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(m_ctx->device, m_setLayout, nullptr);
-            m_setLayout = VK_NULL_HANDLE;
-        }
-        if (m_guideSampler != VK_NULL_HANDLE) {
-            vkDestroySampler(m_ctx->device, m_guideSampler, nullptr);
-            m_guideSampler = VK_NULL_HANDLE;
-        }
-    }
-    m_ctx = nullptr;
-    m_extent = {};
-    m_settings = {};
-    m_lastResetToken = 0U;
-    m_firstUse = true;
     m_historyFirstUse = true;
 }
 

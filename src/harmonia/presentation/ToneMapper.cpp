@@ -18,6 +18,9 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
+    ToneMapper mapper;
+    mapper.m_attachmentFormat = swapchainFormat;
+
     // Push descriptor set: binding 1 = HDR storage image (fragment stage only).
     const VkDescriptorSetLayoutBinding hdrBinding{
         .binding = 1,
@@ -38,6 +41,7 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         r != VK_SUCCESS) {
         return std::unexpected(r);
     }
+    mapper.m_setLayout = harmonia::UniqueDescriptorSetLayout{ctx.device, setLayout};
 
     // Push constant range covers the full PushConstants block at fragment stage.
     // Offsets used: outputColorSpace (20), tonemapper (44), workingColorSpace (48).
@@ -58,9 +62,9 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     const VkResult layoutResult = vkCreatePipelineLayout(ctx.device, &layoutInfo, nullptr, &pipelineLayout);
     if (layoutResult != VK_SUCCESS) {
-        vkDestroyDescriptorSetLayout(ctx.device, setLayout, nullptr);
         return std::unexpected(layoutResult);
     }
+    mapper.m_pipelineLayout = harmonia::UniquePipelineLayout{ctx.device, pipelineLayout};
     // NOTE: setLayout must NOT be destroyed here. The Vulkan spec requires that
     // push descriptor set layouts remain valid for the lifetime of any command
     // buffer that calls vkCmdPushDescriptorSet with a pipeline layout using them.
@@ -224,50 +228,22 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         .basePipelineIndex = 0,
     };
 
-    ToneMapper mapper;
-    mapper.m_device = ctx.device;
-    mapper.m_setLayout = setLayout;
-    mapper.m_pipelineLayout = pipelineLayout;
-    mapper.m_attachmentFormat = swapchainFormat;
+    VkPipeline pipeline = VK_NULL_HANDLE;
     const VkResult result =
-        vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &mapper.m_pipeline);
+        vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
 
     vkDestroyShaderModule(ctx.device, *vertModule, nullptr);
     vkDestroyShaderModule(ctx.device, *fragModule, nullptr);
 
     if (result != VK_SUCCESS) {
-        vkDestroyPipelineLayout(ctx.device, pipelineLayout, nullptr);
-        vkDestroyDescriptorSetLayout(ctx.device, setLayout, nullptr);
         return std::unexpected(result);
     }
+    mapper.m_pipeline = harmonia::UniquePipeline{ctx.device, pipeline};
 
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, mapper.m_pipeline, "harmonia.tonemapPipeline");
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mapper.m_pipelineLayout, "harmonia.tonemapPipelineLayout");
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mapper.m_setLayout, "harmonia.tonemapSetLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, mapper.m_pipeline.get(), "harmonia.tonemapPipeline");
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mapper.m_pipelineLayout.get(), "harmonia.tonemapPipelineLayout");
+    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mapper.m_setLayout.get(), "harmonia.tonemapSetLayout");
     return mapper;
-}
-
-ToneMapper::ToneMapper(ToneMapper&& other) noexcept
-    : m_device(std::exchange(other.m_device, VK_NULL_HANDLE)),
-      m_pipeline(std::exchange(other.m_pipeline, VK_NULL_HANDLE)),
-      m_pipelineLayout(std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE)),
-      m_setLayout(std::exchange(other.m_setLayout, VK_NULL_HANDLE)),
-      m_attachmentFormat(std::exchange(other.m_attachmentFormat, VK_FORMAT_UNDEFINED)) {}
-
-ToneMapper& ToneMapper::operator=(ToneMapper&& other) noexcept {
-    if (this != &other) {
-        destroy();
-        m_device = std::exchange(other.m_device, VK_NULL_HANDLE);
-        m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
-        m_pipelineLayout = std::exchange(other.m_pipelineLayout, VK_NULL_HANDLE);
-        m_setLayout = std::exchange(other.m_setLayout, VK_NULL_HANDLE);
-        m_attachmentFormat = std::exchange(other.m_attachmentFormat, VK_FORMAT_UNDEFINED);
-    }
-    return *this;
-}
-
-ToneMapper::~ToneMapper() {
-    destroy();
 }
 
 void ToneMapper::record(VkCommandBuffer cmd,
@@ -386,23 +362,4 @@ void ToneMapper::record(VkCommandBuffer cmd,
                        &tonemapper);
 
     record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace);
-}
-
-void ToneMapper::destroy() noexcept {
-    if (m_device != VK_NULL_HANDLE) {
-        if (m_pipeline != VK_NULL_HANDLE) {
-            vkDestroyPipeline(m_device, m_pipeline, nullptr);
-        }
-        if (m_pipelineLayout != VK_NULL_HANDLE) {
-            vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-        }
-        if (m_setLayout != VK_NULL_HANDLE) {
-            vkDestroyDescriptorSetLayout(m_device, m_setLayout, nullptr);
-        }
-    }
-    m_device = VK_NULL_HANDLE;
-    m_pipeline = VK_NULL_HANDLE;
-    m_pipelineLayout = VK_NULL_HANDLE;
-    m_setLayout = VK_NULL_HANDLE;
-    m_attachmentFormat = VK_FORMAT_UNDEFINED;
 }

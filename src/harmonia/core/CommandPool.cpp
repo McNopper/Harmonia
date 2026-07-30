@@ -21,40 +21,17 @@ std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ct
     };
 
     CommandPool pool;
-    const VkResult result = vkCreateCommandPool(ctx.device, &createInfo, nullptr, &pool.m_pool);
+    VkCommandPool commandPool{};
+    const VkResult result = vkCreateCommandPool(ctx.device, &createInfo, nullptr, &commandPool);
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
     }
+    pool.m_pool = harmonia::UniqueCommandPool{ctx.device, commandPool};
 
     pool.m_device = ctx.device;
     pool.m_queue = ctx.graphicsQueue;
-    ctx.setDebugName(VK_OBJECT_TYPE_COMMAND_POOL, pool.m_pool, "harmonia Command Pool");
+    ctx.setDebugName(VK_OBJECT_TYPE_COMMAND_POOL, pool.m_pool.get(), "harmonia Command Pool");
     return pool;
-}
-
-CommandPool::CommandPool(CommandPool&& other) noexcept
-    : m_device(other.m_device), m_pool(other.m_pool), m_queue(other.m_queue) {
-    other.m_device = VK_NULL_HANDLE;
-    other.m_pool = VK_NULL_HANDLE;
-    other.m_queue = VK_NULL_HANDLE;
-}
-
-CommandPool& CommandPool::operator=(CommandPool&& other) noexcept {
-    if (this != &other) {
-        destroy();
-        m_device = other.m_device;
-        m_pool = other.m_pool;
-        m_queue = other.m_queue;
-
-        other.m_device = VK_NULL_HANDLE;
-        other.m_pool = VK_NULL_HANDLE;
-        other.m_queue = VK_NULL_HANDLE;
-    }
-    return *this;
-}
-
-CommandPool::~CommandPool() {
-    destroy();
 }
 
 std::expected<VkCommandBuffer, VkResult> CommandPool::allocate() const {
@@ -135,14 +112,4 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
     vkDestroyFence(m_device, fence, nullptr);
     free(cmd);
     return result;
-}
-
-void CommandPool::destroy() noexcept {
-    if (m_device != VK_NULL_HANDLE && m_pool != VK_NULL_HANDLE) {
-        vkDestroyCommandPool(m_device, m_pool, nullptr);
-    }
-
-    m_device = VK_NULL_HANDLE;
-    m_pool = VK_NULL_HANDLE;
-    m_queue = VK_NULL_HANDLE;
 }

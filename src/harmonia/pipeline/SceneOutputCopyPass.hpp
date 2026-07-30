@@ -9,6 +9,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 
 struct PassContext;
@@ -42,9 +43,9 @@ class SceneOutputCopyPass final : public IRenderPass {
     SceneOutputCopyPass() = default;
     SceneOutputCopyPass(const SceneOutputCopyPass&) = delete;
     SceneOutputCopyPass& operator=(const SceneOutputCopyPass&) = delete;
-    SceneOutputCopyPass(SceneOutputCopyPass&& other) noexcept;
-    SceneOutputCopyPass& operator=(SceneOutputCopyPass&& other) noexcept;
-    ~SceneOutputCopyPass() noexcept override;
+    SceneOutputCopyPass(SceneOutputCopyPass&&) noexcept = default;
+    SceneOutputCopyPass& operator=(SceneOutputCopyPass&&) noexcept = default;
+    ~SceneOutputCopyPass() noexcept override = default;
 
     void record(const PassContext& ctx) noexcept override;
     void onResize(VkExtent2D extent) noexcept override;
@@ -61,7 +62,6 @@ class SceneOutputCopyPass final : public IRenderPass {
   private:
     [[nodiscard]] bool createWorkImages(VkExtent2D extent) noexcept;
     void resetHistory(std::uint64_t resetToken) noexcept;
-    void destroy() noexcept;
 
     void barrierForComputeRead(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage, bool useGradient) noexcept;
     [[nodiscard]] VkImage recordSpatialPasses(VkCommandBuffer cmd,
@@ -106,10 +106,10 @@ class SceneOutputCopyPass final : public IRenderPass {
     void restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage) noexcept;
 
     const DeviceContext* m_ctx = nullptr;
-    VkPipeline m_pipeline = VK_NULL_HANDLE;
-    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
-    VkDescriptorSetLayout m_setLayout = VK_NULL_HANDLE;
-    VkSampler m_guideSampler = VK_NULL_HANDLE;
+    UniquePipeline m_pipeline;
+    UniquePipelineLayout m_pipelineLayout;
+    UniqueDescriptorSetLayout m_setLayout;
+    UniqueSampler m_guideSampler;
 
     Image m_historyImage{};
     Image m_workImage{};
