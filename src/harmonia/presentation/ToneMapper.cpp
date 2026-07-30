@@ -251,7 +251,7 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkImageView swapchainView,
                         VkExtent2D extent,
                         OutputColorSpace colorSpace,
-                        ColorSpace::WorkingColorSpace workingSpace) const noexcept {
+                        harmonia::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;
@@ -346,7 +346,7 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkExtent2D extent,
                         OutputColorSpace colorSpace,
                         std::uint32_t tonemapper,
-                        ColorSpace::WorkingColorSpace workingSpace) const noexcept {
+                        harmonia::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;

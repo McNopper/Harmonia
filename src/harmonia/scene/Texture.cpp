@@ -135,7 +135,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                                                        const CommandPool& cmdPool,
                                                        const std::filesystem::path& path,
                                                        TextureColorSpace colorSpace,
-                                                       ColorSpace::WorkingColorSpace workingSpace,
+                                                       harmonia::ColorSpace::WorkingColorSpace workingSpace,
                                                        std::string_view name) {
     const std::string pathStr = path.string();
 
@@ -175,15 +175,15 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     // primaries differ from the (linear) working color space.
     const bool sameSpace =
         (colorSpace == TextureColorSpace::LinRec2020Scene &&
-         workingSpace == ColorSpace::WorkingColorSpace::LinRec2020) ||
-        (colorSpace == TextureColorSpace::LinRec709Scene && workingSpace == ColorSpace::WorkingColorSpace::LinRec709);
+         workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020) ||
+        (colorSpace == TextureColorSpace::LinRec709Scene && workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec709);
     const bool needsConversion = (colorSpace != TextureColorSpace::Data && !sameSpace);
 
     if (!needsConversion) {
         // Data maps (normal/ORM/roughness) or already in working space — copy verbatim.
         std::memcpy(converted.data(), raw.data(), pixelCount * 4);
     } else {
-        const bool toRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
+        const bool toRec2020 = (workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
         // Convert each pixel: decode transfer function, then primaries → working space.
         for (std::size_t i = 0; i < pixelCount; ++i) {
             const float r = static_cast<float>(raw[i * 4 + 0]) / 255.0f;
@@ -194,17 +194,17 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
             sm::float3 linear{r, g, b};
             switch (colorSpace) {
             case TextureColorSpace::SrgbRec709Scene:
-                linear = ColorSpace::srgbToLinearRec709(linear); // decode sRGB OETF
+                linear = harmonia::ColorSpace::srgbToLinearRec709(linear); // decode sRGB OETF
                 if (toRec2020)
-                    linear = ColorSpace::rec709ToRec2020(linear);
+                    linear = harmonia::ColorSpace::rec709ToRec2020(linear);
                 break;
             case TextureColorSpace::LinRec709Scene:
                 if (toRec2020)
-                    linear = ColorSpace::rec709ToRec2020(linear);
+                    linear = harmonia::ColorSpace::rec709ToRec2020(linear);
                 break;
             case TextureColorSpace::LinRec2020Scene:
                 if (!toRec2020)
-                    linear = ColorSpace::rec2020ToRec709(linear);
+                    linear = harmonia::ColorSpace::rec2020ToRec709(linear);
                 break;
             default:
                 break;

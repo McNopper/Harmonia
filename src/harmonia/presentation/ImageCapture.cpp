@@ -11,7 +11,7 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/ToneMapping.hpp"
 
-namespace ImageCapture {
+namespace harmonia::ImageCapture {
 namespace {
 
 // Copies the RGBA32F scene-output image (in VK_IMAGE_LAYOUT_GENERAL) into a

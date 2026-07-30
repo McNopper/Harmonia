@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 
-namespace ProceduralGeometry {
+namespace harmonia::ProceduralGeometry {
 MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform) {
     struct Face {
         sm::float3 normal;

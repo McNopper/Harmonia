@@ -42,7 +42,7 @@ struct PassContext {
     VkImageView swapchainView = VK_NULL_HANDLE;
     OutputColorSpace colorSpace = OutputColorSpace::eSDR;
     std::uint32_t tonemapper = 0;
-    ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
+    harmonia::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020;
 };
 
 inline constexpr std::uint32_t kComputeGroupSize = 8U;

@@ -16,7 +16,7 @@
 #include <slang-math/slang-math.hpp>
 #include <string_view>
 
-namespace ColorSpace {
+namespace harmonia::ColorSpace {
 
 // ── Working color space ──────────────────────────────────────────────────────
 // The scene-referred space all rendering happens in — always linear; only the

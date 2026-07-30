@@ -6,7 +6,7 @@
 
 #include "harmonia/scene/Mesh.hpp"
 
-namespace ProceduralGeometry {
+namespace harmonia::ProceduralGeometry {
 [[nodiscard]] MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform = sm::float4x4(1.0f));
 
 /// Generate a UV sphere mesh centred at @p center with the given radius.

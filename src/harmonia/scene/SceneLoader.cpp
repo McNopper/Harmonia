@@ -134,7 +134,7 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
 
     // ── Working color space ───────────────────────────────────────────────────
     if (desc->workingColorSpace) {
-        if (const auto ws = ColorSpace::parseWorkingColorSpace(*desc->workingColorSpace))
+        if (const auto ws = harmonia::ColorSpace::parseWorkingColorSpace(*desc->workingColorSpace))
             cfg.workingColorSpace = *ws;
         else
             Logger::warn("SceneLoader: unknown working_color_space '{}' — using lin_rec2020_scene",
@@ -266,7 +266,7 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
                 Logger::warn("SceneLoader: box '{}' has zero half-extents — skipping", m.name);
                 continue;
             }
-            MeshData mesh = ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
+            MeshData mesh = harmonia::ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
             const std::uint32_t idx = scene.addMesh(ctx, pool, std::move(mesh), m.name);
             if (idx == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to upload box '{}'", m.name);

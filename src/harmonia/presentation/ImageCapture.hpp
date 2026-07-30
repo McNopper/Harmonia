@@ -13,7 +13,7 @@
 //
 // The tone-mapping (ACES SDR) and the buffer read-back are identical across the two
 // renderers, so the code lives here rather than being duplicated per renderer.
-namespace ImageCapture {
+namespace harmonia::ImageCapture {
 
 // Reads back the working-space linear RGBA32F HDR image, applies the ACES SDR
 // tone map (working space -> Rec.709 linear -> sRGB) and writes an 8-bit RGB PNG.

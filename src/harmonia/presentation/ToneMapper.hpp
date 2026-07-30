@@ -39,7 +39,7 @@ class ToneMapper {
                 VkImageView swapchainView,
                 VkExtent2D extent,
                 OutputColorSpace colorSpace,
-                ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
+                harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
 
     /// Overload that also selects the SDR/Display-P3 tone-mapping operator
     /// (matches tonemap.slang: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable). Used by
@@ -52,7 +52,7 @@ class ToneMapper {
                 VkExtent2D extent,
                 OutputColorSpace colorSpace,
                 std::uint32_t tonemapper,
-                ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
+                harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
 
     [[nodiscard]] bool isValid() const noexcept { return m_pipeline != VK_NULL_HANDLE; }
 

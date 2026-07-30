@@ -19,7 +19,7 @@ constexpr float kEpsilon = 1.0e-5F;
 } // namespace
 
 TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
-    const MeshData mesh = ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), sm::float4x4(1.0F));
+    const MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), sm::float4x4(1.0F));
 
     EXPECT_TRUE(mesh.vertices.size() == 24U || mesh.vertices.size() == 8U);
     EXPECT_EQ(mesh.indices.size(), 36U);
@@ -50,8 +50,8 @@ TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
 }
 
 TEST(ProceduralGeometry, MakeBoxRotationTransformsNormals) {
-    const sm::float4x4 rotation = Math::makeRotationY(Math::kPi * 0.5F);
-    const MeshData mesh = ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
+    const sm::float4x4 rotation = harmonia::Math::makeRotationY(harmonia::Math::kPi * 0.5F);
+    const MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
     const sm::float3x3 normalTransform = sm::toFloat3x3(rotation);
 
     const std::array expectedDirections{
@@ -70,7 +70,7 @@ TEST(ProceduralGeometry, MakeBoxRotationTransformsNormals) {
 }
 
 TEST(ProceduralGeometry, MakeSphereAabbAtOriginMatchesUnitSphere) {
-    const auto aabb = ProceduralGeometry::makeSphereAabb(sm::float3(0.0F, 0.0F, 0.0F), 1.0F);
+    const auto aabb = harmonia::ProceduralGeometry::makeSphereAabb(sm::float3(0.0F, 0.0F, 0.0F), 1.0F);
     EXPECT_NEAR(aabb.min.x, -1.0F, kEpsilon);
     EXPECT_NEAR(aabb.min.y, -1.0F, kEpsilon);
     EXPECT_NEAR(aabb.min.z, -1.0F, kEpsilon);
@@ -80,7 +80,7 @@ TEST(ProceduralGeometry, MakeSphereAabbAtOriginMatchesUnitSphere) {
 }
 
 TEST(ProceduralGeometry, MakeSphereAabbWithOffsetMatchesExpectedBounds) {
-    const auto aabb = ProceduralGeometry::makeSphereAabb(sm::float3(1.0F, 2.0F, 3.0F), 0.5F);
+    const auto aabb = harmonia::ProceduralGeometry::makeSphereAabb(sm::float3(1.0F, 2.0F, 3.0F), 0.5F);
     EXPECT_NEAR(aabb.min.x, 0.5F, kEpsilon);
     EXPECT_NEAR(aabb.min.y, 1.5F, kEpsilon);
     EXPECT_NEAR(aabb.min.z, 2.5F, kEpsilon);

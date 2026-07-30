@@ -198,7 +198,7 @@ Sphere::create(const DeviceContext& ctx, const CommandPool& pool, float radius, 
 
     // Object-space AABB centred at the origin; placement (translation/scale) is
     // the instance transform's job via the TLAS.
-    const auto aabb = ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, radius);
+    const auto aabb = harmonia::ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, radius);
     const VkAabbPositionsKHR vkAabb{
         .minX = aabb.min.x,
         .minY = aabb.min.y,

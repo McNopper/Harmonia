@@ -44,7 +44,7 @@ class IblProbe {
     loadFromEXR(const DeviceContext& ctx,
                 const CommandPool& pool,
                 const std::filesystem::path& path,
-                ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020);
+                harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
 
     [[nodiscard]] VkImageView imageView() const noexcept { return m_image.view(); }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }
@@ -78,7 +78,7 @@ class IblProbe {
                                                              std::size_t width,
                                                              std::size_t height,
                                                              bool srcRec2020,
-                                                             ColorSpace::WorkingColorSpace workingSpace);
+                                                             harmonia::ColorSpace::WorkingColorSpace workingSpace);
     [[nodiscard]] static VkResult uploadEnvPanorama(IblProbe& probe,
                                                     const DeviceContext& ctx,
                                                     const CommandPool& pool,

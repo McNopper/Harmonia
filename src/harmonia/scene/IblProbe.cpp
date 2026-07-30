@@ -17,7 +17,7 @@ constexpr float kRec2020RedPrimariesThreshold = 0.68f;
 std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx,
                                                         const CommandPool& pool,
                                                         const std::filesystem::path& path,
-                                                        ColorSpace::WorkingColorSpace workingSpace) {
+                                                        harmonia::ColorSpace::WorkingColorSpace workingSpace) {
     auto exr = readEXR(path);
     if (!exr) {
         return std::unexpected(exr.error());
@@ -120,7 +120,7 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
                                               std::size_t width,
                                               std::size_t height,
                                               bool srcRec2020,
-                                              ColorSpace::WorkingColorSpace workingSpace) {
+                                              harmonia::ColorSpace::WorkingColorSpace workingSpace) {
     // ── Pick the primaries conversion (source → working space) ───────────────
     // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
     struct Mat3 {
@@ -138,7 +138,7 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
                               -0.1005789f,
                               1.1187297f};
     constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
-    const bool dstRec2020 = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020);
+    const bool dstRec2020 = (workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
     const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
 
     // Clamp non-finite values (e.g. half-float inf from overexposed sun disc) to

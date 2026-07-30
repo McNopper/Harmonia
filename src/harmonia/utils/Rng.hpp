@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 
-namespace Rng {
+namespace harmonia::Rng {
 
 [[nodiscard]] inline std::uint32_t wangHash(std::uint32_t seed) noexcept {
     seed = (seed ^ 61U) ^ (seed >> 16U);

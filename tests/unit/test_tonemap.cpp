@@ -24,42 +24,42 @@ TEST(PqOetf, ReferenceNitValues) {
         {10000.0f, 1.000000f},
     }};
     for (const auto& c : cases) {
-        EXPECT_NEAR(ColorSpace::pqOetfFromNits(c.nits), c.expected, kEps) << "nits = " << c.nits;
+        EXPECT_NEAR(harmonia::ColorSpace::pqOetfFromNits(c.nits), c.expected, kEps) << "nits = " << c.nits;
     }
 }
 
 TEST(PqOetf, BlackMapsToNearZero) {
-    EXPECT_NEAR(ColorSpace::pqOetfFromNits(0.0f), 0.0f, 1.0e-4f);
+    EXPECT_NEAR(harmonia::ColorSpace::pqOetfFromNits(0.0f), 0.0f, 1.0e-4f);
 }
 
 TEST(PqOetf, IsMonotonicallyIncreasing) {
     constexpr std::array<float, 6> nitsSteps{0.f, 1.f, 100.f, 203.f, 1000.f, 10000.f};
     float prev = -1.f;
     for (float n : nitsSteps) {
-        const float e = ColorSpace::pqOetfFromNits(n);
+        const float e = harmonia::ColorSpace::pqOetfFromNits(n);
         EXPECT_GE(e, prev);
         prev = e;
     }
 }
 
 TEST(HlgOetf, ZeroMapsToZero) {
-    EXPECT_NEAR(ColorSpace::hlgOetf(0.0f), 0.0f, 1.0e-6f);
+    EXPECT_NEAR(harmonia::ColorSpace::hlgOetf(0.0f), 0.0f, 1.0e-6f);
 }
 
 TEST(HlgOetf, KneePointIsExactHalf) {
     const float knee = 1.0f / 12.0f;
-    EXPECT_NEAR(ColorSpace::hlgOetf(knee), 0.5f, kEps);
+    EXPECT_NEAR(harmonia::ColorSpace::hlgOetf(knee), 0.5f, kEps);
 }
 
 TEST(HlgOetf, OneMapsToPeakNearOne) {
-    EXPECT_NEAR(ColorSpace::hlgOetf(1.0f), 1.0f, kEps);
+    EXPECT_NEAR(harmonia::ColorSpace::hlgOetf(1.0f), 1.0f, kEps);
 }
 
 TEST(HlgOetf, IsMonotonicallyIncreasing) {
     const std::array<float, 5> steps{0.f, 1.f / 12.f, 0.25f, 0.5f, 1.0f};
     float prev = -1.f;
     for (float e : steps) {
-        const float encoded = ColorSpace::hlgOetf(e);
+        const float encoded = harmonia::ColorSpace::hlgOetf(e);
         EXPECT_GE(encoded, prev);
         prev = encoded;
     }
@@ -67,15 +67,15 @@ TEST(HlgOetf, IsMonotonicallyIncreasing) {
 
 TEST(HlgOetf, VectorOverloadMatchesScalar) {
     const sm::float3 v(0.0f, 1.0f / 12.0f, 1.0f);
-    const sm::float3 enc = ColorSpace::hlgOetf(v);
-    EXPECT_NEAR(enc.x, ColorSpace::hlgOetf(v.x), 1.0e-6f);
-    EXPECT_NEAR(enc.y, ColorSpace::hlgOetf(v.y), 1.0e-6f);
-    EXPECT_NEAR(enc.z, ColorSpace::hlgOetf(v.z), 1.0e-6f);
+    const sm::float3 enc = harmonia::ColorSpace::hlgOetf(v);
+    EXPECT_NEAR(enc.x, harmonia::ColorSpace::hlgOetf(v.x), 1.0e-6f);
+    EXPECT_NEAR(enc.y, harmonia::ColorSpace::hlgOetf(v.y), 1.0e-6f);
+    EXPECT_NEAR(enc.z, harmonia::ColorSpace::hlgOetf(v.z), 1.0e-6f);
 }
 
 TEST(AcesToneMap, WhiteNeutralInLinearAP1) {
     const sm::float3 grey(1.0f, 1.0f, 1.0f);
-    const sm::float3 result = ToneMapping::acesRrtOdtFit(grey);
+    const sm::float3 result = harmonia::ToneMapping::acesRrtOdtFit(grey);
     EXPECT_NEAR(result.x, result.y, kEps);
     EXPECT_NEAR(result.y, result.z, kEps);
 }
@@ -83,7 +83,7 @@ TEST(AcesToneMap, WhiteNeutralInLinearAP1) {
 TEST(AcesToneMap, OutputIsBoundedAfterFit) {
     const std::array<float, 5> inputs{0.f, 0.18f, 1.f, 4.f, 8.f};
     for (float v : inputs) {
-        const sm::float3 out = ToneMapping::acesFittedSDR(sm::float3(v, v, v));
+        const sm::float3 out = harmonia::ToneMapping::acesFittedSDR(sm::float3(v, v, v));
         EXPECT_GE(out.x, 0.f) << "v = " << v;
         EXPECT_LE(out.x, 1.1f) << "v = " << v;
     }
@@ -92,7 +92,7 @@ TEST(AcesToneMap, OutputIsBoundedAfterFit) {
 TEST(AcesToneMap, IsMonotonicallyIncreasingOnGrey) {
     float prev = -1.f;
     for (float v : {0.f, 0.01f, 0.1f, 0.18f, 0.5f, 1.f, 4.f, 10.f}) {
-        const float out = ToneMapping::acesRrtOdtFit(sm::float3(v, v, v)).x;
+        const float out = harmonia::ToneMapping::acesRrtOdtFit(sm::float3(v, v, v)).x;
         EXPECT_GE(out, prev) << "v = " << v;
         prev = out;
     }
@@ -100,7 +100,7 @@ TEST(AcesToneMap, IsMonotonicallyIncreasingOnGrey) {
 
 TEST(AcesToneMap, DarkShadowsPreservedRelative) {
     const sm::float3 dark(0.001f, 0.001f, 0.001f);
-    const sm::float3 out = ToneMapping::acesFittedSDR(dark);
+    const sm::float3 out = harmonia::ToneMapping::acesFittedSDR(dark);
     EXPECT_GE(out.x, 0.f);
     EXPECT_LT(out.x, 0.05f);
 }
@@ -114,7 +114,7 @@ TEST(AcesToneMap, SDRFittedOutputInGamutRange) {
         {0.f, 0.f, 8.f},
     }};
     for (const auto& c : hdr2020) {
-        const sm::float3 out = ToneMapping::acesFittedSDR(c);
+        const sm::float3 out = harmonia::ToneMapping::acesFittedSDR(c);
         EXPECT_FALSE(std::isnan(out.x));
         EXPECT_FALSE(std::isnan(out.y));
         EXPECT_FALSE(std::isnan(out.z));
@@ -126,27 +126,27 @@ TEST(AcesToneMap, SDRFittedOutputInGamutRange) {
 
 TEST(HableToneMap, WhiteNeutralOnGrey) {
     const sm::float3 grey(1.f, 1.f, 1.f);
-    const sm::float3 out = ToneMapping::hableFilmic(grey);
+    const sm::float3 out = harmonia::ToneMapping::hableFilmic(grey);
     EXPECT_NEAR(out.x, out.y, kEps);
     EXPECT_NEAR(out.y, out.z, kEps);
 }
 
 TEST(HableToneMap, OutputBelowOne) {
     for (float v : {0.18f, 1.f, 4.f, 5.f}) {
-        const sm::float3 out = ToneMapping::hableFilmic(sm::float3(v, v, v));
+        const sm::float3 out = harmonia::ToneMapping::hableFilmic(sm::float3(v, v, v));
         EXPECT_LE(out.x, 1.0f + kEps) << "v = " << v;
         EXPECT_GE(out.x, 0.f);
     }
 }
 
 TEST(ReinhardToneMap, BlackStaysBlack) {
-    const sm::float3 out = ToneMapping::reinhardLuminance(sm::float3(0.f, 0.f, 0.f));
+    const sm::float3 out = harmonia::ToneMapping::reinhardLuminance(sm::float3(0.f, 0.f, 0.f));
     EXPECT_NEAR(sm::length(out), 0.f, 1.0e-6f);
 }
 
 TEST(ReinhardToneMap, OutputStrictlyBelowOne) {
     for (float v : {1.f, 4.f, 100.f}) {
-        const sm::float3 out = ToneMapping::reinhardLuminance(sm::float3(v, v, v));
+        const sm::float3 out = harmonia::ToneMapping::reinhardLuminance(sm::float3(v, v, v));
         EXPECT_LT(out.x, 1.0f);
         EXPECT_GE(out.x, 0.f);
     }
@@ -154,7 +154,7 @@ TEST(ReinhardToneMap, OutputStrictlyBelowOne) {
 
 TEST(AcesMatrices, Rec2020WhitePointPreservedInAP1) {
     const sm::float3 white2020(1.f, 1.f, 1.f);
-    const sm::float3 ap1 = ToneMapping::kRec2020ToAP1 * white2020;
+    const sm::float3 ap1 = harmonia::ToneMapping::kRec2020ToAP1 * white2020;
     EXPECT_NEAR(ap1.x, 1.f, kEpsHi);
     EXPECT_NEAR(ap1.y, 1.f, kEpsHi);
     EXPECT_NEAR(ap1.z, 1.f, kEpsHi);
@@ -162,7 +162,7 @@ TEST(AcesMatrices, Rec2020WhitePointPreservedInAP1) {
 
 TEST(AcesMatrices, AP1WhitePointPreservedInRec709) {
     const sm::float3 whiteAP1(1.f, 1.f, 1.f);
-    const sm::float3 rec709 = ToneMapping::kAP1ToRec709 * whiteAP1;
+    const sm::float3 rec709 = harmonia::ToneMapping::kAP1ToRec709 * whiteAP1;
     EXPECT_NEAR(rec709.x, 1.f, kEpsHi);
     EXPECT_NEAR(rec709.y, 1.f, kEpsHi);
     EXPECT_NEAR(rec709.z, 1.f, kEpsHi);
@@ -170,7 +170,7 @@ TEST(AcesMatrices, AP1WhitePointPreservedInRec709) {
 
 TEST(AcesMatrices, AP1WhitePointPreservedInP3) {
     const sm::float3 whiteAP1(1.f, 1.f, 1.f);
-    const sm::float3 p3 = ToneMapping::kAP1ToP3 * whiteAP1;
+    const sm::float3 p3 = harmonia::ToneMapping::kAP1ToP3 * whiteAP1;
     EXPECT_NEAR(p3.x, 1.f, kEpsHi);
     EXPECT_NEAR(p3.y, 1.f, kEpsHi);
     EXPECT_NEAR(p3.z, 1.f, kEpsHi);

@@ -69,7 +69,7 @@ class Texture {
                  const CommandPool& cmdPool,
                  const std::filesystem::path& path,
                  TextureColorSpace colorSpace = TextureColorSpace::SrgbRec709Scene,
-                 ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020,
+                 harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020,
                  std::string_view name = "");
 
     [[nodiscard]] const Image& image() const noexcept { return m_image; }

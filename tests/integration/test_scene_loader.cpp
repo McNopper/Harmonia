@@ -72,7 +72,7 @@ TEST(SceneLoader, LoadsRealSceneAndProducesExpectedConfig) {
         SceneLoader::load(assetsDir() / "cornell_classic.scene.toml", assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
-    EXPECT_EQ(cfg->workingColorSpace, ColorSpace::WorkingColorSpace::LinRec2020);
+    EXPECT_EQ(cfg->workingColorSpace, harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
     ASSERT_TRUE(cfg->spp.has_value());
     EXPECT_EQ(*cfg->spp, 64U);
     ASSERT_TRUE(cfg->maxDepth.has_value());
@@ -109,7 +109,7 @@ TEST(SceneLoader, UnknownTonemapperAndWorkingSpaceFallbackToDefaults) {
     const auto cfg = SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
-    EXPECT_EQ(cfg->workingColorSpace, ColorSpace::WorkingColorSpace::LinRec2020);
+    EXPECT_EQ(cfg->workingColorSpace, harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
     EXPECT_FALSE(cfg->tonemapper.has_value());
     ASSERT_TRUE(cfg->spp.has_value());
     EXPECT_EQ(*cfg->spp, 4U);

@@ -21,7 +21,7 @@
 
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace ToneMapping {
+namespace harmonia::ToneMapping {
 
 // ── ACES matrices ─────────────────────────────────────────────────────────────
 // Row-major slang-math form, matching ColorSpace.cpp kRec2020_to_AP1 / kAP1_to_Rec2020.

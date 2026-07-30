@@ -44,7 +44,7 @@ float sampleAndEvalPdf(std::uint32_t& rngState) {
         1.0F,
     };
 
-    const sm::float2 xi = Rng::nextFloat2(rngState);
+    const sm::float2 xi = harmonia::Rng::nextFloat2(rngState);
     const std::uint32_t row = sampleCdf1D(marginal, 0U, H, xi.x);
     const std::uint32_t col = sampleCdf1D(conditional, row * (W + 1U), W, xi.y);
 
@@ -69,8 +69,8 @@ float balanceHeuristic(float pA, float pB) {
 } // namespace
 
 TEST(EnvSamplingContract, DeterministicReplayKeepsPdfSequenceStable) {
-    std::uint32_t s0 = Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
-    std::uint32_t s1 = Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
+    std::uint32_t s0 = harmonia::Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
+    std::uint32_t s1 = harmonia::Rng::composeSeed({11U, 13U}, 2U, 1U, 999U);
     for (int i = 0; i < 16; ++i) {
         const float p0 = sampleAndEvalPdf(s0);
         const float p1 = sampleAndEvalPdf(s1);

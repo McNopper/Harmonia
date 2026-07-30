@@ -19,7 +19,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
 [[nodiscard]] sm::float3 sampleUniformHemisphere(float u1, float u2) noexcept {
     const float z = u1;
     const float r = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
-    const float phi = Math::k2Pi * u2;
+    const float phi = harmonia::Math::k2Pi * u2;
     return {r * std::cos(phi), r * std::sin(phi), z};
 }
 
@@ -43,7 +43,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
         return 0.0F;
     const float alpha2 = alpha * alpha;
     const float denom = (nDotH * nDotH) * (alpha2 - 1.0F) + 1.0F;
-    return alpha2 / (Math::kPi * denom * denom);
+    return alpha2 / (harmonia::Math::kPi * denom * denom);
 }
 
 [[nodiscard]] float smithLambdaGgx(float nDotV, float alpha) noexcept {
@@ -74,7 +74,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
     const sm::float3 t2 = sm::cross(vh, t1);
 
     const float r = std::sqrt(u.x);
-    const float phi = Math::k2Pi * u.y;
+    const float phi = harmonia::Math::k2Pi * u.y;
     float p1 = r * std::cos(phi);
     float p2 = r * std::sin(phi);
     const float s = 0.5F * (1.0F + vh.z);
@@ -165,7 +165,7 @@ TEST(Math, GgxDIntegratesToOneOverHemisphere) {
 
     constexpr float alpha = 0.5F;
     constexpr std::size_t sampleCount = 50000;
-    const float pdf = Math::kInv2Pi;
+    const float pdf = harmonia::Math::kInv2Pi;
 
     double estimate = 0.0;
     for (std::size_t i = 0; i < sampleCount; ++i) {
@@ -203,7 +203,7 @@ TEST(Math, SampleGgxVndfProducesNormalizedPdf) {
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
 
     constexpr std::size_t integralSampleCount = 10000;
-    const float hemispherePdf = Math::kInv2Pi;
+    const float hemispherePdf = harmonia::Math::kInv2Pi;
     double pdfIntegral = 0.0;
     double pdfWeightedMeanCos = 0.0;
     for (std::size_t i = 0; i < integralSampleCount; ++i) {

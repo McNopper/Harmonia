@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace ColorSpace {
+namespace harmonia::ColorSpace {
 
 // ── Rec.2020 ↔ Rec.709 ───────────────────────────────────────────────────────
 // Matrices from ITU-R BT.2087 / IEC 61966-2-1
