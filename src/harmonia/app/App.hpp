@@ -18,6 +18,7 @@
 #include "harmonia/app/AppConfig.hpp"
 #include "harmonia/app/CliParser.hpp"
 #include "harmonia/app/OffscreenCapture.hpp"
+#include "harmonia/app/FrameSync.hpp"
 #include "harmonia/app/GreenScreenRenderer.hpp"
 #include "harmonia/app/IRenderer.hpp"
 #include "harmonia/core/CommandPool.hpp"
@@ -173,13 +174,6 @@ class App {
     [[nodiscard]] VkImageView denoiserGradientImageView() const noexcept;
 
   private:
-    struct FrameResources {
-        VkCommandBuffer renderCmd{};  ///< scene-referred renderer recording
-        VkCommandBuffer displayCmd{}; ///< tonemap recording (interactive only)
-        harmonia::UniqueSemaphore imageAvailable;
-        std::uint64_t completionValue{}; ///< highest timeline value signalled for this slot
-    };
-
     [[nodiscard]] bool bootstrap();
     void shutdown() noexcept;
     int mainLoop();
@@ -233,20 +227,13 @@ class App {
     ColorSpace::WorkingColorSpace m_workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
     std::uint32_t m_tonemapper = 0;
 
-    std::array<FrameResources, 2> m_frames{};
-    /// One binary semaphore per swapchain image: signalled by the display
-    /// submit, consumed by vkQueuePresentKHR (indexed by imageIndex).
-    std::vector<harmonia::UniqueSemaphore> m_renderComplete;
-    harmonia::UniqueSemaphore m_timelineSemaphore;
-    std::uint64_t m_nextTimelineValue = 1;
+    FrameSync m_frameSync;
     std::uint64_t m_sceneEpoch = 1;
     std::uint64_t m_extentEpoch = 1;
     std::uint64_t m_stageEpoch = 1;
     std::uint64_t m_accumViewEpoch = 0;
     bool m_interactiveAccumulation = false;
-    std::uint32_t m_currentFrame = 0;
     std::uint32_t m_frameIndex = 0;
-    std::vector<VkImageLayout> m_swapchainLayouts;
     bool m_displayOverlayLogged = false;
     bool m_running = false;
 };

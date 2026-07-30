@@ -74,6 +74,7 @@ bool FrameSync::create(const DeviceContext& ctx, CommandPool& cmdPool, std::uint
     }
     m_timelineSemaphore = harmonia::UniqueSemaphore{m_device, timelineSem};
 
+    m_swapchainLayouts.assign(swapchainImageCount, VK_IMAGE_LAYOUT_UNDEFINED);
     return true;
 }
 
@@ -87,7 +88,7 @@ void FrameSync::destroy() noexcept {
 }
 
 void FrameSync::onResize(std::uint32_t swapchainImageCount) noexcept {
-    resetSlots();
+    m_swapchainLayouts.assign(swapchainImageCount, VK_IMAGE_LAYOUT_UNDEFINED);
     m_renderComplete.clear();
     m_renderComplete.reserve(swapchainImageCount);
     for (std::uint32_t i = 0; i < swapchainImageCount; ++i) {

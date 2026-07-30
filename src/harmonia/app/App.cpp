@@ -26,32 +26,6 @@ namespace harmonia {
 
 namespace {
 
-constexpr std::uint64_t kWaitForever = UINT64_MAX;
-
-[[nodiscard]] VkResult createBinarySemaphore(VkDevice device, VkSemaphore& semaphore) {
-    const VkSemaphoreCreateInfo info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-    };
-    return vkCreateSemaphore(device, &info, nullptr, &semaphore);
-}
-
-[[nodiscard]] VkResult createTimelineSemaphore(VkDevice device, VkSemaphore& semaphore) {
-    const VkSemaphoreTypeCreateInfo typeInfo{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
-        .pNext = nullptr,
-        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
-        .initialValue = 0,
-    };
-    const VkSemaphoreCreateInfo info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = &typeInfo,
-        .flags = 0,
-    };
-    return vkCreateSemaphore(device, &info, nullptr, &semaphore);
-}
-
 /// Drawable size in pixels (high-DPI aware) — the swapchain extent source.
 [[nodiscard]] VkExtent2D windowPixelExtent(SDL_Window* window) {
     int width = 0;
@@ -188,7 +162,6 @@ bool App::bootstrap() {
         return false;
     }
     m_swapchain = std::move(*swapchain);
-    m_swapchainLayouts.assign(m_swapchain.imageCount(), VK_IMAGE_LAYOUT_UNDEFINED);
 
     auto descriptors = Descriptors::create(m_context.deviceContext());
     if (!descriptors) {
@@ -205,39 +178,8 @@ bool App::bootstrap() {
         return false;
     }
 
-    const VkDevice device = m_context.deviceContext().device;
-    for (FrameResources& frame : m_frames) {
-        auto renderCmd = m_commandPool.allocate();
-        auto displayCmd = m_commandPool.allocate();
-        if (!renderCmd || !displayCmd) {
-            Logger::error("Command buffer allocation failed");
-            return false;
-        }
-        frame.renderCmd = *renderCmd;
-        frame.displayCmd = *displayCmd;
-        VkSemaphore imageSem{};
-        if (createBinarySemaphore(device, imageSem) != VK_SUCCESS) {
-            Logger::error("Semaphore creation failed");
-            return false;
-        }
-        frame.imageAvailable = harmonia::UniqueSemaphore{device, imageSem};
-    }
-    m_renderComplete.reserve(m_swapchain.imageCount());
-    for (std::uint32_t i = 0; i < m_swapchain.imageCount(); ++i) {
-        VkSemaphore sem{};
-        if (createBinarySemaphore(device, sem) != VK_SUCCESS) {
-            Logger::error("renderComplete semaphore creation failed");
-            return false;
-        }
-        m_renderComplete.emplace_back(device, sem);
-    }
-    {
-        VkSemaphore timelineSem{};
-        if (createTimelineSemaphore(device, timelineSem) != VK_SUCCESS) {
-            Logger::error("Timeline semaphore creation failed");
-            return false;
-        }
-        m_timelineSemaphore = harmonia::UniqueSemaphore{device, timelineSem};
+    if (!m_frameSync.create(m_context.deviceContext(), m_commandPool, m_swapchain.imageCount())) {
+        return false;
     }
 
     return true;
@@ -554,31 +496,22 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
 }
 
 std::uint64_t App::renderSceneReferred() {
-    FrameResources& frame = m_frames[m_currentFrame];
+    const std::uint32_t slot = m_frameSync.currentSlot();
 
     // Wait for the previous use of this frame slot to complete.
-    if (frame.completionValue > 0U) {
-        const VkSemaphoreWaitInfo waitInfo{
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .semaphoreCount = 1,
-            .pSemaphores = m_timelineSemaphore.ptr(),
-            .pValues = &frame.completionValue,
-        };
-        vkWaitSemaphores(m_context.deviceContext().device, &waitInfo, kWaitForever);
-    }
+    m_frameSync.waitSlotComplete(slot);
 
-    vkResetCommandBuffer(frame.renderCmd, 0);
+    const VkCommandBuffer renderCmd = m_frameSync.renderCmd(slot);
+    vkResetCommandBuffer(renderCmd, 0);
     const VkCommandBufferBeginInfo beginInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     };
-    if (vkBeginCommandBuffer(frame.renderCmd, &beginInfo) != VK_SUCCESS) {
+    if (vkBeginCommandBuffer(renderCmd, &beginInfo) != VK_SUCCESS) {
         Logger::error("Failed to begin render command buffer");
-        return frame.completionValue;
+        return m_frameSync.completionValue(slot);
     }
 
     // The renderer produces a linear image in the scene-referred working
@@ -590,11 +523,11 @@ std::uint64_t App::renderSceneReferred() {
         .colorSpace = m_swapchain.outputColorSpace(),
         .workingColorSpace = m_workingColorSpace,
     };
-    renderer().record(frame.renderCmd, target);
+    renderer().record(renderCmd, target);
 
     // Allow subclasses to split the frame for async compute.
-    // Default: {frame.renderCmd, VK_NULL_HANDLE} — single-queue path unchanged.
-    auto [stagesCmd, asyncWaitSem] = onBeforeSceneStages(frame.renderCmd);
+    // Default: {renderCmd, VK_NULL_HANDLE} — single-queue path unchanged.
+    auto [stagesCmd, asyncWaitSem] = onBeforeSceneStages(renderCmd);
 
     const PassContext passContext{
         .cmd = stagesCmd,
@@ -624,14 +557,14 @@ std::uint64_t App::renderSceneReferred() {
 
     if (vkEndCommandBuffer(stagesCmd) != VK_SUCCESS) {
         Logger::error("Failed to end render command buffer");
-        return frame.completionValue;
+        return m_frameSync.completionValue(slot);
     }
 
-    const std::uint64_t signalValue = m_nextTimelineValue++;
+    const std::uint64_t signalValue = m_frameSync.nextSignalValue();
     const VkSemaphoreSubmitInfo timelineSignal{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
         .pNext = nullptr,
-        .semaphore = m_timelineSemaphore,
+        .semaphore = m_frameSync.timeline(),
         .value = signalValue,
         .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
         .deviceIndex = 0,
@@ -653,12 +586,12 @@ std::uint64_t App::renderSceneReferred() {
                       waitSemaphores,
                       std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1}) != VK_SUCCESS) {
         Logger::error("Render queue submit failed");
-        return frame.completionValue;
+        return m_frameSync.completionValue(slot);
     }
 
-    frame.completionValue = signalValue;
+    m_frameSync.markSlotComplete(slot, signalValue);
     ++m_frameIndex;
-    m_currentFrame = (m_currentFrame + 1U) % static_cast<std::uint32_t>(m_frames.size());
+    m_frameSync.rotate();
     return signalValue;
 }
 
@@ -668,12 +601,10 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
         return;
     }
 
-    FrameResources& frame = m_frames[slot];
-
-    recordDisplayBarriers(frame.displayCmd, *imageIndex);
+    recordDisplayBarriers(m_frameSync.displayCmd(slot), *imageIndex);
 
     const PassContext displayPassContext{
-        .cmd = frame.displayCmd,
+        .cmd = m_frameSync.displayCmd(slot),
         .frameIndex = m_frameIndex,
         .frameSampleIndex = m_frameIndex,
         .rngSeed = m_config.rngSeed,
@@ -705,7 +636,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                          VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
-        pipelineBarrier(frame.displayCmd, toGeneral);
+        pipelineBarrier(m_frameSync.displayCmd(slot), toGeneral);
         const VkClearColorValue clear{
             .float32 = {0.0F, 0.0F, 0.0F, 1.0F},
         };
@@ -717,7 +648,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
             .layerCount = 1,
         };
         vkCmdClearColorImage(
-            frame.displayCmd, m_swapchain.image(*imageIndex), VK_IMAGE_LAYOUT_GENERAL, &clear, 1, &range);
+            m_frameSync.displayCmd(slot), m_swapchain.image(*imageIndex), VK_IMAGE_LAYOUT_GENERAL, &clear, 1, &range);
         swapchainInGeneral = true;
     }
 
@@ -735,7 +666,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                          VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
-        pipelineBarrier(frame.displayCmd, displayPreBarriers);
+        pipelineBarrier(m_frameSync.displayCmd(slot), displayPreBarriers);
         swapchainInGeneral = true;
 
         const RenderTarget displayTarget{
@@ -745,7 +676,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
             .colorSpace = m_swapchain.outputColorSpace(),
             .workingColorSpace = m_workingColorSpace,
         };
-        m_displayRenderer.record(frame.displayCmd, displayTarget);
+        m_displayRenderer.record(m_frameSync.displayCmd(slot), displayTarget);
     }
 
     const std::array presentBarrier{
@@ -758,7 +689,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
                      VK_PIPELINE_STAGE_2_NONE,
                      0),
     };
-    pipelineBarrier(frame.displayCmd, presentBarrier);
+    pipelineBarrier(m_frameSync.displayCmd(slot), presentBarrier);
 
     if (submitDisplay(slot, *imageIndex, renderValue) != VK_SUCCESS) {
         return;
@@ -768,10 +699,9 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
 }
 
 std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
-    FrameResources& frame = m_frames[slot];
 
     std::uint32_t imageIndex = 0;
-    VkResult result = m_swapchain.acquireNextImage(frame.imageAvailable, imageIndex);
+    VkResult result = m_swapchain.acquireNextImage(m_frameSync.imageAvailable(slot), imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         const VkExtent2D extent = windowPixelExtent(m_window);
         handleResize(extent.width, extent.height);
@@ -782,14 +712,14 @@ std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
         return std::nullopt;
     }
 
-    vkResetCommandBuffer(frame.displayCmd, 0);
+    vkResetCommandBuffer(m_frameSync.displayCmd(slot), 0);
     const VkCommandBufferBeginInfo beginInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     };
-    if (vkBeginCommandBuffer(frame.displayCmd, &beginInfo) != VK_SUCCESS) {
+    if (vkBeginCommandBuffer(m_frameSync.displayCmd(slot), &beginInfo) != VK_SUCCESS) {
         Logger::error("Failed to begin display command buffer");
         return std::nullopt;
     }
@@ -806,7 +736,7 @@ void App::recordDisplayBarriers(VkCommandBuffer cmd, std::uint32_t imageIndex) n
                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
         imageBarrier(m_swapchain.image(imageIndex),
-                     m_swapchainLayouts[imageIndex],
+                     m_frameSync.swapchainLayout(imageIndex),
                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                      VK_PIPELINE_STAGE_2_NONE,
                      0,
@@ -817,14 +747,13 @@ void App::recordDisplayBarriers(VkCommandBuffer cmd, std::uint32_t imageIndex) n
 }
 
 VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::uint64_t renderValue) noexcept {
-    FrameResources& frame = m_frames[slot];
 
-    if (vkEndCommandBuffer(frame.displayCmd) != VK_SUCCESS) {
+    if (vkEndCommandBuffer(m_frameSync.displayCmd(slot)) != VK_SUCCESS) {
         Logger::error("Failed to end display command buffer");
         return VK_ERROR_UNKNOWN;
     }
 
-    const std::uint64_t displayValue = m_nextTimelineValue++;
+    const std::uint64_t displayValue = m_frameSync.nextSignalValue();
     const VkPipelineStageFlags2 sceneReadyWaitStage =
         hasTonemapStage() ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_2_TRANSFER_BIT;
     const VkPipelineStageFlags2 imageAcquireWaitStage =
@@ -833,7 +762,7 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .pNext = nullptr,
-            .semaphore = m_timelineSemaphore,
+            .semaphore = m_frameSync.timeline(),
             .value = renderValue,
             .stageMask = sceneReadyWaitStage,
             .deviceIndex = 0,
@@ -841,7 +770,7 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .pNext = nullptr,
-            .semaphore = frame.imageAvailable,
+            .semaphore = m_frameSync.imageAvailable(slot),
             .value = 0,
             .stageMask = imageAcquireWaitStage,
             .deviceIndex = 0,
@@ -851,7 +780,7 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .pNext = nullptr,
-            .semaphore = m_renderComplete[imageIndex],
+            .semaphore = m_frameSync.renderComplete(imageIndex),
             .value = 0,
             .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             .deviceIndex = 0,
@@ -859,29 +788,29 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .pNext = nullptr,
-            .semaphore = m_timelineSemaphore,
+            .semaphore = m_frameSync.timeline(),
             .value = displayValue,
             .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             .deviceIndex = 0,
         },
     }};
     const VkResult result = submitOneShot(
-        m_context.deviceContext().graphicsQueue, frame.displayCmd, VK_NULL_HANDLE, waitInfos, signalInfos);
+        m_context.deviceContext().graphicsQueue, m_frameSync.displayCmd(slot), VK_NULL_HANDLE, waitInfos, signalInfos);
     if (result != VK_SUCCESS) {
         Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
         return result;
     }
 
     // This slot must not be reused until display has also completed.
-    frame.completionValue = displayValue;
+    m_frameSync.markSlotComplete(slot, displayValue);
     return VK_SUCCESS;
 }
 
 void App::presentAndHandleResize(std::uint32_t imageIndex) noexcept {
     const VkResult result =
-        m_swapchain.present(m_context.deviceContext().graphicsQueue, imageIndex, m_renderComplete[imageIndex]);
+        m_swapchain.present(m_context.deviceContext().graphicsQueue, imageIndex, m_frameSync.renderComplete(imageIndex));
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        m_swapchainLayouts[imageIndex] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        m_frameSync.setSwapchainLayout(imageIndex, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         const VkExtent2D extent = windowPixelExtent(m_window);
         handleResize(extent.width, extent.height);
         return;
@@ -889,7 +818,7 @@ void App::presentAndHandleResize(std::uint32_t imageIndex) noexcept {
     if (result != VK_SUCCESS) {
         Logger::error("Present failed: VkResult {}", static_cast<int>(result));
     }
-    m_swapchainLayouts[imageIndex] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    m_frameSync.setSwapchainLayout(imageIndex, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
 
 int App::mainLoop() {
@@ -920,7 +849,7 @@ int App::mainLoop() {
         }
 
         // Save the frame slot before renderSceneReferred advances it.
-        const std::uint32_t slot = m_currentFrame;
+        const std::uint32_t slot = m_frameSync.currentSlot();
         const std::uint64_t renderValue = renderSceneReferred();
         presentFrame(slot, renderValue);
     }
@@ -988,17 +917,9 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
 
     vkDeviceWaitIdle(m_context.deviceContext().device);
 
-    // Reset all frame command buffers to INITIAL state before destroying any
-    // resources they may reference (descriptor sets, images). This prevents
-    // the validation layer from flagging destroyed-while-still-referenced errors.
-    for (FrameResources& frame : m_frames) {
-        vkResetCommandBuffer(frame.renderCmd, 0);
-        vkResetCommandBuffer(frame.displayCmd, 0);
-        frame.completionValue = 0U;
-    }
-    // NOTE: m_nextTimelineValue is NOT reset — timeline semaphores require
-    // monotonically increasing signal values. Frame completionValues are reset
-    // to 0 so they are treated as "not in flight" after a resize.
+    // Reset frame command buffers (to INITIAL) + completion values before destroying any
+    // resources they reference. (Timeline signal values stay monotonic across a resize.)
+    m_frameSync.resetSlots();
 
     const VkExtent2D newExtent{
         .width = w,
@@ -1008,21 +929,9 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
         Logger::error("Swapchain recreate failed");
         return;
     }
-    m_swapchainLayouts.assign(m_swapchain.imageCount(), VK_IMAGE_LAYOUT_UNDEFINED);
-
-    // Recreate per-image renderComplete semaphores to match the new swapchain
-    // image count. vkDeviceWaitIdle() above guarantees they are unsignaled.
-    const VkDevice device = m_context.deviceContext().device;
-    m_renderComplete.clear();
-    m_renderComplete.reserve(m_swapchain.imageCount());
-    for (std::uint32_t i = 0; i < m_swapchain.imageCount(); ++i) {
-        VkSemaphore sem{};
-        if (createBinarySemaphore(device, sem) != VK_SUCCESS) {
-            Logger::error("renderComplete semaphore recreate failed");
-            return;
-        }
-        m_renderComplete.emplace_back(device, sem);
-    }
+    // Recreate per-image render-complete semaphores + reset layout tracking for the new
+    // swapchain image count. vkDeviceWaitIdle() above guarantees they are unsignaled.
+    m_frameSync.onResize(m_swapchain.imageCount());
 
     if (!createHdrImage()) {
         return;
@@ -1049,11 +958,7 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
 void App::shutdown() noexcept {
     if (m_context.deviceContext().device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(m_context.deviceContext().device);
-        for (FrameResources& frame : m_frames) {
-            frame = {};
-        }
-        m_renderComplete.clear();
-        m_timelineSemaphore.reset();
+        m_frameSync.destroy();
     }
 
     m_iblProbe.reset();
