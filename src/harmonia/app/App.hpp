@@ -22,6 +22,7 @@
 #include "harmonia/app/IRenderer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/presentation/Swapchain.hpp"
@@ -175,7 +176,7 @@ class App {
     struct FrameResources {
         VkCommandBuffer renderCmd{};  ///< scene-referred renderer recording
         VkCommandBuffer displayCmd{}; ///< tonemap recording (interactive only)
-        VkSemaphore imageAvailable{};
+        harmonia::UniqueSemaphore imageAvailable;
         std::uint64_t completionValue{}; ///< highest timeline value signalled for this slot
     };
 
@@ -235,8 +236,8 @@ class App {
     std::array<FrameResources, 2> m_frames{};
     /// One binary semaphore per swapchain image: signalled by the display
     /// submit, consumed by vkQueuePresentKHR (indexed by imageIndex).
-    std::vector<VkSemaphore> m_renderComplete;
-    VkSemaphore m_timelineSemaphore{};
+    std::vector<harmonia::UniqueSemaphore> m_renderComplete;
+    harmonia::UniqueSemaphore m_timelineSemaphore;
     std::uint64_t m_nextTimelineValue = 1;
     std::uint64_t m_sceneEpoch = 1;
     std::uint64_t m_extentEpoch = 1;

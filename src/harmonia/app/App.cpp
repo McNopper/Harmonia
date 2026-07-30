@@ -215,21 +215,29 @@ bool App::bootstrap() {
         }
         frame.renderCmd = *renderCmd;
         frame.displayCmd = *displayCmd;
-        if (createBinarySemaphore(device, frame.imageAvailable) != VK_SUCCESS) {
+        VkSemaphore imageSem{};
+        if (createBinarySemaphore(device, imageSem) != VK_SUCCESS) {
             Logger::error("Semaphore creation failed");
             return false;
         }
+        frame.imageAvailable = harmonia::UniqueSemaphore{device, imageSem};
     }
-    m_renderComplete.resize(m_swapchain.imageCount());
-    for (VkSemaphore& sem : m_renderComplete) {
+    m_renderComplete.reserve(m_swapchain.imageCount());
+    for (std::uint32_t i = 0; i < m_swapchain.imageCount(); ++i) {
+        VkSemaphore sem{};
         if (createBinarySemaphore(device, sem) != VK_SUCCESS) {
             Logger::error("renderComplete semaphore creation failed");
             return false;
         }
+        m_renderComplete.emplace_back(device, sem);
     }
-    if (createTimelineSemaphore(device, m_timelineSemaphore) != VK_SUCCESS) {
-        Logger::error("Timeline semaphore creation failed");
-        return false;
+    {
+        VkSemaphore timelineSem{};
+        if (createTimelineSemaphore(device, timelineSem) != VK_SUCCESS) {
+            Logger::error("Timeline semaphore creation failed");
+            return false;
+        }
+        m_timelineSemaphore = harmonia::UniqueSemaphore{device, timelineSem};
     }
 
     return true;
@@ -555,7 +563,7 @@ std::uint64_t App::renderSceneReferred() {
             .pNext = nullptr,
             .flags = 0,
             .semaphoreCount = 1,
-            .pSemaphores = &m_timelineSemaphore,
+            .pSemaphores = m_timelineSemaphore.ptr(),
             .pValues = &frame.completionValue,
         };
         vkWaitSemaphores(m_context.deviceContext().device, &waitInfo, kWaitForever);
@@ -1005,15 +1013,15 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
     // Recreate per-image renderComplete semaphores to match the new swapchain
     // image count. vkDeviceWaitIdle() above guarantees they are unsignaled.
     const VkDevice device = m_context.deviceContext().device;
-    for (VkSemaphore& sem : m_renderComplete) {
-        vkDestroySemaphore(device, sem, nullptr);
-    }
-    m_renderComplete.resize(m_swapchain.imageCount());
-    for (VkSemaphore& sem : m_renderComplete) {
+    m_renderComplete.clear();
+    m_renderComplete.reserve(m_swapchain.imageCount());
+    for (std::uint32_t i = 0; i < m_swapchain.imageCount(); ++i) {
+        VkSemaphore sem{};
         if (createBinarySemaphore(device, sem) != VK_SUCCESS) {
             Logger::error("renderComplete semaphore recreate failed");
             return;
         }
+        m_renderComplete.emplace_back(device, sem);
     }
 
     if (!createHdrImage()) {
@@ -1042,21 +1050,10 @@ void App::shutdown() noexcept {
     if (m_context.deviceContext().device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(m_context.deviceContext().device);
         for (FrameResources& frame : m_frames) {
-            if (frame.imageAvailable != VK_NULL_HANDLE) {
-                vkDestroySemaphore(m_context.deviceContext().device, frame.imageAvailable, nullptr);
-            }
             frame = {};
         }
-        for (VkSemaphore& sem : m_renderComplete) {
-            if (sem != VK_NULL_HANDLE) {
-                vkDestroySemaphore(m_context.deviceContext().device, sem, nullptr);
-            }
-        }
         m_renderComplete.clear();
-        if (m_timelineSemaphore != VK_NULL_HANDLE) {
-            vkDestroySemaphore(m_context.deviceContext().device, m_timelineSemaphore, nullptr);
-            m_timelineSemaphore = VK_NULL_HANDLE;
-        }
+        m_timelineSemaphore.reset();
     }
 
     m_iblProbe.reset();
