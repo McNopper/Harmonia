@@ -307,6 +307,24 @@ void App::rebuildStagePipeline() {
 
 void App::applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig) {
     m_config.stages = m_defaultStages;
+    // Two-tier output contract: the denoiser is an INTERACTIVE presentation filter only.
+    // An offscreen capture (--output) is the scene-referred *estimator result* — the
+    // artifact used for Hyperion/Theia parity and for reference screenshots — so the
+    // denoiser is identity there by default, for BOTH renderers.
+    //
+    // Why this must be the default rather than an opt-out flag: the shared a-trous filter
+    // has a FIXED PIXEL RADIUS, so the amount of image structure it destroys depends on
+    // render resolution. A denoised render therefore does NOT converge to the true image
+    // as samples/resolution increase (measured: Hyperion 320x240 disagreed with its own
+    // 4x-supersampled result by 13.7/255 on background detail, and was spp-independent).
+    // It is also applied ASYMMETRICALLY — Theia feeds it A-SVGF gradient/variance guidance
+    // so detail survives, while Hyperion's single-frame offscreen render is smeared — which
+    // made the "ground truth" the blurrier image and produced background-dependent parity
+    // errors (env-lit regions off by 12-21/255 while flat geometry matched).
+    // Explicit scene/render-preset config below still wins.
+    if (!m_config.outputFile.empty()) {
+        m_config.stages.denoiser = false;
+    }
     if (sceneConfig.accumulationStageEnabled.has_value()) {
         m_config.stages.accumulation = *sceneConfig.accumulationStageEnabled;
     }
