@@ -84,6 +84,10 @@ bool CliParser::applyCommonArg(AppConfig& config, int& i, int argc, char* const 
         config.validation = false;
         return true;
     }
+    if (arg == "--no-postfx") {
+        config.noPostfx = true;
+        return true;
+    }
 
     if (parseDenoiserArgs(config, i, argc, argv)) {
         return true;
@@ -227,14 +231,6 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
     }
     if (arg == "--rng-debug") {
         config.rngDebug = true;
-        return true;
-    }
-    if (arg == "--rt-gi") {
-        config.rtGi = true;
-        return true;
-    }
-    if (arg == "--no-rt-gi") {
-        config.rtGi = false;
         return true;
     }
     if (arg == "--rng-seed") {

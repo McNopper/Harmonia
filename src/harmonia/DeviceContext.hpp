@@ -19,7 +19,6 @@ struct DeviceContext {
     std::uint32_t graphicsFamily = 0;
     bool positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is enabled.
     bool serSupported = false;           ///< VK_EXT_ray_tracing_invocation_reorder is enabled.
-    bool indirectRt2Supported = false;   ///< VK_KHR_ray_tracing_maintenance1 rayTracingPipelineTraceRaysIndirect2.
     bool dgcSupported = false;           ///< VK_EXT_device_generated_commands is enabled.
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).

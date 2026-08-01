@@ -116,6 +116,14 @@ accumulation and an adaptive per-pixel gradient that reprojects history via moti
 (so camera motion does not reset the temporal history). It filters accumulated HDR with
 guide buffers (`gNormal`/`gDepth`) and blends history in fixed-view mode.
 
+**Two-tier output contract (presentation vs reference).** The à-trous kernel has a **fixed
+pixel radius**, so the structure it destroys scales with render resolution and does **not**
+vanish as samples increase — a denoised image is therefore **not** a converging image. The
+denoiser is an **interactive presentation stage only**: it is forced off for offscreen capture
+(`--output`) and with `--no-postfx`, in **both** renderers (`App.cpp`), so a capture is always
+the raw scene-referred estimator result that parity is measured against. Convergence to the
+reference comes from accumulation alone, not from the filter.
+
 Runtime tuning flags:
 
 - `--denoiser-strength <0..1>` spatial filter strength (default `0.45`)

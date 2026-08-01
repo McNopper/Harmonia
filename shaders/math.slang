@@ -44,6 +44,8 @@ float3 sampleCosineHemisphere(float2 xi)
     return float3(d.x, d.y, z);
 }
 
+// Smith-GGX VNDF (Heitz 2018, "Sampling the GGX Distribution of Visible Normals"):
+// returns the microfacet half-vector m visible to Ve.
 float3 sampleGGX_VNDF(float3 Ve, float alphaX, float alphaY, float2 xi)
 {
     float3 Vh = normalize(float3(alphaX * Ve.x, alphaY * Ve.y, Ve.z));
@@ -101,6 +103,11 @@ float GGX_G1(float3 v, float alphaX, float alphaY)
     return 1.0 / (1.0 + GGX_Lambda(v, alphaX, alphaY));
 }
 
+// Height-correlated Smith masking-shadowing (Heitz 2014): G2 = 1/(1 + Lambda(l) + Lambda(v)).
+// C8 review (Tamisier et al. 2024, "Visibility Evaluation in Microfacet Theory",
+// DOI 10.1109/TVCG.2024.3363659): that work is an error-prediction study over measured
+// height fields, not a replacement analytic G2; it confirms the Smith term remains the
+// appropriate analytic visibility model (low error vs. ray-cast ground truth). No change.
 float GGX_G2(float3 l, float3 v, float alphaX, float alphaY)
 {
     return 1.0 / (1.0 + GGX_Lambda(l, alphaX, alphaY) + GGX_Lambda(v, alphaX, alphaY));

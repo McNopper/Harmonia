@@ -1,12 +1,54 @@
+# Parity validation manifest for Harmonia/tools/validate_renders.py.
+#
+# Each [[scene]] names an EXR pair (reference_template / candidate_template,
+# default "{scene}.exr") compared by compare_renders.py's metric set. The default
+# gate is "all" (strict AND of mean_diff, Rel-MSE, SSIM, lum-histogram corr. —
+# SPRINT-PLAN §10). Scenes listed in `scale_aware` use the looser
+# absolute-OR-(relative+PSNR) gate instead, which Theia/README.md:253 sanctions
+# for HDR transmissive fixtures where brightness-dependent absolute false fails
+# are expected. Scale-aware scenes still REPORT the full metric set; they just
+# don't require it.
+#
+# Scene names mirror the 29-scene gallery in Theia/Hyperion screenshots/ (one EXR
+# per scene from each renderer). Coverage spans the material categories:
+#   diffuse, glossy/specular, transmissive (glass), subsurface, emissive, env-lit (IBL).
+#
+# Defaults follow the parity contract: 320x240, Hyperion 256 spp reference,
+# Theia 256 accumulated frames (see SPRINT-PLAN §10 / Theia AGENTS.md).
+
 [defaults]
 reference_template = "{scene}.exr"
 candidate_template = "{scene}.exr"
 threshold = 4.0
+# Rel-MSE is the standard asymmetric form mean((ref-cand)^2 / (ref^2 + eps))
+# (Rousselle et al. 2011) — reference-only denominator, never symmetric.
+# 0.01 corresponds to roughly 10-15% RMS relative error against the reference.
+# Measured over this 14-scene set the metric separates cleanly: independently
+# clean scenes land at <= 0.0050 and independently diverged scenes at >= 0.0159.
+# (The previous symmetric form with threshold 0.02 never fired: its worst
+# observed value across all 14 scenes was 0.0101, so it gated nothing.)
+rel_mse_threshold = 0.01
+# Denominator floor, in squared luminance; sqrt(eps) = 0.071 is the black point.
+# Do NOT lower this below ~1e-3: at 1e-4 the score is dominated by
+# sub-1%-luminance pixels and ranks clean scenes worse than broken ones.
+rel_mse_eps = 5e-3
+ssim_threshold = 0.98
+# Pearson correlation over 256 log-spaced bins for the positive luminance range
+# PLUS one explicit black/near-zero bin, so no pixel is discarded.
+lum_hist_threshold = 0.999
 channel = "luminance"
 width = 320
 height = 240
 hyperion_spp = 256
 theia_frames = 256
+# HDR transmissive / glass fixtures use the scale-aware gate (opt-in).
+# Listed by scene name; everything else uses the strict "all" gate.
+scale_aware = [
+    "shaderball_transmission",
+    "openpbr_dielectrics",
+]
+
+# ── Diffuse (Cornell box family) ──────────────────────────────────────────────
 
 [[scene]]
 name = "cornell_classic"
@@ -15,4 +57,47 @@ name = "cornell_classic"
 name = "cornell_spheres"
 
 [[scene]]
+name = "cornell_suzanne"
+
+[[scene]]
+name = "cornell_textured_cube"
+
+# ── Glossy / specular (shader balls, dragon) ──────────────────────────────────
+
+[[scene]]
 name = "dragon_teapot"
+
+[[scene]]
+name = "shaderball_metal"
+
+[[scene]]
+name = "openpbr_metals"
+
+[[scene]]
+name = "openpbr_specular"
+
+[[scene]]
+name = "openpbr_coat"
+
+# ── Transmissive / glass (scale-aware gate) ───────────────────────────────────
+
+[[scene]]
+name = "shaderball_transmission"
+
+[[scene]]
+name = "openpbr_dielectrics"
+
+# ── Subsurface / organics ─────────────────────────────────────────────────────
+
+[[scene]]
+name = "shaderball_subsurface"
+
+# ── Emissive (emission_luminance sweep, meadow IBL) ───────────────────────────
+
+[[scene]]
+name = "shaderball_emission"
+
+# ── Env-lit IBL showcase (bunny + shader ball) ────────────────────────────────
+
+[[scene]]
+name = "bunny_shaderball"

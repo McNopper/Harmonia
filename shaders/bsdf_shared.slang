@@ -405,18 +405,6 @@ float3 thinFilmFresnel(float metalness, float3 dielectricF0, float3 baseColor, f
     return lerp(schlick, conductor, saturate(metalness));
 }
 
-/// Backward-compatible helper for the legacy split-sum IBL fallback (raster GI-off path):
-/// modulates a normal-incidence reflectance F0 toward the (Schlick-base) Airy reflectance.
-/// Returns F0 unchanged when thin-film is inactive.
-float3 thinFilmTint(float3 baseF0, float cosTheta, float thicknessNm, float filmIor, float weight)
-{
-    if (weight <= 0.0 || thicknessNm <= 0.0) {
-        return baseF0;
-    }
-    float3 irid = mx_fresnel_airy(cosTheta, false, baseF0, 1.0.xxx, 0.0.xxx, 0.0.xxx, thicknessNm, max(filmIor, 1.0));
-    return saturate3(lerp(baseF0, irid, saturate(weight)));
-}
-
 /// Generalized-Schlick conductor Fresnel with F82-tint is defined above (moved earlier so
 /// the thin-film Schlick base can reuse it).
 

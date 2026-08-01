@@ -116,6 +116,104 @@ float3 evalEmissionGuarded(float3 emission, uint depth, bool specularBounce,
     return 0.0.xxx;
 }
 
+/// NEE against a single analytic sphere emitter via uniform solid-angle (cone) sampling.
+/// From the shading point the sphere subtends a cone of half-angle θMax; a direction is
+/// drawn uniformly within that cone (conditional pdf_ω = 1 / (2π·(1 - cosθMax))), the
+/// closest ray/sphere intersection gives the lit point + outward normal, the shadow ray is
+/// traced, and the BSDF is evaluated.
+///
+/// The cone pdf is only *conditional* on this sphere having been drawn from the power CDF,
+/// so the full estimator denominator is `triPdf × pdf_ω` — exactly the way the triangle
+/// branch folds the same selection probability into its area pdf (pdf_area = triPdf / area).
+/// `triPdf` is therefore passed in by the caller; dividing by the bare cone pdf scales every
+/// sphere contribution by triPdf < 1, a systematic energy loss no number of samples recovers.
+///
+/// Numerical note: (1 - cosθMax) is evaluated through the exact identity
+/// sin²θMax / (1 + cosθMax). The direct subtraction underflows to 0 once sin²θMax falls
+/// below the fp32 epsilon against 1 (radius/d ≲ 2.4e-4), making cosθMax exactly 1, the pdf
+/// +inf and the contribution silently 0 for every small or distant sphere. The cone
+/// direction is drawn in the same (1 - cosθ) parameterisation so it keeps full relative
+/// precision there too, and the ray/sphere discriminant uses r² - |oc - (oc·wi)wi|² rather
+/// than (oc·wi)² - (oc·oc - r²), whose two ≈d² terms cancel catastrophically in that regime.
+/// Ref: PBR Book 4e §22.2 (sampling shapes — sphere); Wang 1992 (solid-angle cone sampling).
+float3 evalEmissiveSphereNEE<T : ITracer>(
+    T tracer, SurfaceHit surf, GpuEmissiveTriangle s, float triPdf, inout RngState seed)
+{
+    float3 center = s.v0_area.xyz;
+    float  radius = s.v0_area.w;
+    float3 Le     = float3(s.edge1_emitR.w, s.edge2_emitG.w, s.normal_emitB.w);
+
+    float3 toC = center - surf.position;
+    float  d   = length(toC);
+    if (d <= radius) {
+        return 0.0.xxx; // shading point inside the sphere — no exterior cone to sample
+    }
+    float3 wc     = toC / d;
+    float  sinMax = min(radius / d, 1.0);
+    float  cosMax = safeSqrt(1.0 - sinMax * sinMax);
+    // (1 - cosθMax) via sin²/(1+cos): exact, and it never collapses to 0 the way the direct
+    // subtraction does once cosθMax rounds to 1 (radius/d ≲ 2.4e-4 in fp32).
+    float  oneMinusCosMax = (sinMax * sinMax) / (1.0 + cosMax);
+    if (oneMinusCosMax <= 0.0) {
+        return 0.0.xxx; // degenerate (zero-radius) sphere — the cone has no solid angle
+    }
+
+    // Uniform direction within the cone of half-angle θMax about axis wc, parameterised by
+    // (1 - cosθ) so the tiny-cone case keeps full relative precision.
+    float u1               = randFloat(seed);
+    float u2               = randFloat(seed);
+    float oneMinusCosTheta = u1 * oneMinusCosMax;
+    float cosTheta         = 1.0 - oneMinusCosTheta;
+    float sinTheta         = safeSqrt(oneMinusCosTheta * (2.0 - oneMinusCosTheta)); // √(1-cos²θ)
+    float phi              = 2.0 * kPi * u2;
+    float3x3 frame = buildFrameFromZ(wc); // rows: T, B, wc (Z axis)
+    float3 wi      = normalize(frame[0] * (sinTheta * cos(phi))
+                             + frame[1] * (sinTheta * sin(phi))
+                             + wc * cosTheta);
+
+    // Closest ray/sphere intersection (wi is unit → a == 1). oc = origin - center.
+    // disc is the stable form r² - |oc⊥|²: the textbook (oc·wi)² - (oc·oc - r²) subtracts
+    // two ≈d² quantities and loses every bit of the answer for a small distant sphere.
+    float3 oc   = surf.position - center;
+    float  hb   = dot(oc, wi);               // half-b
+    float3 ocT  = oc - hb * wi;              // component of oc perpendicular to wi
+    float  disc = radius * radius - dot(ocT, ocT);
+    if (disc <= 0.0) {
+        return 0.0.xxx; // numerical guard: sampled direction grazed past the sphere
+    }
+    float t = -hb - sqrt(disc);              // nearest (front) intersection
+    if (t <= 0.0) {
+        return 0.0.xxx;
+    }
+    float3 nLight = normalize((surf.position + wi * t) - center); // outward sphere normal
+    float  cosL   = dot(-wi, nLight);        // > 0: ray meets the outward face
+    float  cosI   = dot(wi, surf.normal);    // cosine at the shading surface
+
+    if (cosL <= 0.0 || cosI <= 0.0) {
+        return 0.0.xxx;
+    }
+
+    // Estimator denominator: P(select this emitter from the power CDF) × the uniform-cone
+    // solid-angle pdf it is conditioned on. Mirrors the triangle branch's triPdf / area.
+    float conePdf  = 1.0 / (2.0 * kPi * oneMinusCosMax);
+    float solidPdf = triPdf * conePdf;
+
+    // Shadow-terminator handling — same Chiang 2019 factor as the triangle NEE branch.
+    float g;
+    float fTerm = shadowTerminatorFactor(surf.normal, surf.geoNormal, wi, g);
+    if (fTerm > 0.0) {
+        float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
+        float  cosNgL       = dot(surf.geoNormal, wi);
+        float  shadowTMax   = max(t - kRayEpsilon * (1.0 + cosNgL), 0.0);
+        if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
+            float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
+                surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
+            return bsdfVal * Le * cosI * fTerm / solidPdf;
+        }
+    }
+    return 0.0.xxx;
+}
+
 /// Next-event estimation against the emissive-triangle set via direct area sampling.
 /// Power-proportional triangle selection (flat power CDF — a light tree's leaf sampling
 /// without the tree hierarchy), Shirley sqrt-folding barycentric sample, area→solid-angle
@@ -162,6 +260,13 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
     }
 
     GpuEmissiveTriangle tri = emissiveTriangles[triIdx];
+
+    // Tagged-union dispatch: analytic sphere emitters are cone-sampled in solid angle;
+    // triangle emitters take the area-sampling path below. Both share the single power CDF,
+    // so both must divide by triPdf — the sphere branch folds it into its cone pdf.
+    if (tri.kind_pad.x == kEmissiveSphere) {
+        return evalEmissiveSphereNEE(tracer, surf, tri, triPdf, seed);
+    }
 
     float3 v0    = tri.v0_area.xyz;
     float  area  = tri.v0_area.w;

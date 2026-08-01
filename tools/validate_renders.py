@@ -18,10 +18,17 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from compare_renders import compute_metrics, evaluate_gate, extract_channel, load_exr, save_heatmap
+from compare_renders import (REL_MSE_EPS, compute_metrics, evaluate_gate, extract_channel,
+                             load_exr, save_heatmap)
 
 
-DEFAULT_SCALE_AWARE = {"furnace_coverage"}
+# Scenes that always use the scale-aware gate regardless of the manifest. Empty
+# by design: the real scale-aware fixtures (shaderball_transmission,
+# openpbr_dielectrics) are declared in validation_manifest.toml's
+# defaults.scale_aware, which is where they belong. This previously hard-coded
+# "furnace_coverage", a scene that exists nowhere in the tree — no asset, no EXR,
+# no reference in any repo — so it was a phantom that could never match.
+DEFAULT_SCALE_AWARE: set[str] = set()
 DEFAULT_MANIFEST = Path(__file__).with_name("validation_manifest.toml")
 
 
@@ -62,8 +69,13 @@ def _compare_scene(
     channel: str,
     gate: str,
     threshold: float,
+    rel_mse_threshold: float,
+    ssim_threshold: float,
+    lum_hist_threshold: float,
     psnr_threshold: float | None,
     relative_threshold: float | None,
+    rel_mse_eps: float,
+    hist_bins: int,
     heatmap_dir: Path | None,
     emit_heatmap: bool,
 ) -> SceneResult:
@@ -77,12 +89,14 @@ def _compare_scene(
     if ref.shape != cand.shape:
         raise ValueError(f"shape mismatch for '{scene}' — reference {ref.shape} vs candidate {cand.shape}")
 
-    ref_ch = extract_channel(ref, channel)
-    cand_ch = extract_channel(cand, channel)
-    metrics = compute_metrics(ref_ch, cand_ch)
+    metrics = compute_metrics(ref, cand, channel=channel,
+                              rel_mse_eps=rel_mse_eps, hist_bins=hist_bins)
 
     args = argparse.Namespace(
         threshold=threshold,
+        rel_mse_threshold=rel_mse_threshold,
+        ssim_threshold=ssim_threshold,
+        lum_hist_threshold=lum_hist_threshold,
         psnr_threshold=psnr_threshold,
         relative_threshold=relative_threshold,
         gate=gate,
@@ -95,6 +109,8 @@ def _compare_scene(
         else:
             heatmap_dir.mkdir(parents=True, exist_ok=True)
             heatmap_path = heatmap_dir / f"{scene}_diff.png"
+        ref_ch = extract_channel(ref, channel)
+        cand_ch = extract_channel(cand, channel)
         save_heatmap(abs(ref_ch - cand_ch), heatmap_path)
 
     return SceneResult(
@@ -132,8 +148,18 @@ def main() -> int:
     parser.add_argument("--reference-template", default=None, help="Reference path template")
     parser.add_argument("--candidate-template", default=None, help="Candidate path template")
     parser.add_argument("--threshold", type=float, default=None, help="Mean-diff threshold (1/255 units)")
+    parser.add_argument("--rel-mse-threshold", type=float, default=None,
+                        help="Rel-MSE threshold (default: 0.01, scene-referred)")
+    parser.add_argument("--ssim-threshold", type=float, default=None,
+                        help="SSIM threshold (default: 0.98, tone-mapped sRGB)")
+    parser.add_argument("--lum-hist-threshold", type=float, default=None,
+                        help="Luminance-histogram Pearson correlation (default: 0.999)")
     parser.add_argument("--psnr-threshold", type=float, default=None, help="PSNR threshold for scale-aware gate")
     parser.add_argument("--relative-threshold", type=float, default=None, help="Relative mean-error threshold (percent)")
+    parser.add_argument("--rel-mse-eps", type=float, default=None,
+                        help=f"Rel-MSE denominator floor ref^2+eps (default: {REL_MSE_EPS:g})")
+    parser.add_argument("--hist-bins", type=int, default=None,
+                        help="Luminance-histogram log-spaced bin count for the positive range (default: 256)")
     parser.add_argument(
         "--channel",
         default=None,
@@ -156,6 +182,11 @@ def main() -> int:
     candidate_template = args.candidate_template or manifest_defaults.get("candidate_template", "{scene}.exr")
     threshold = args.threshold if args.threshold is not None else float(manifest_defaults.get("threshold", 4.0))
     channel = args.channel or str(manifest_defaults.get("channel", "luminance"))
+    rel_mse_threshold = args.rel_mse_threshold if args.rel_mse_threshold is not None else float(manifest_defaults.get("rel_mse_threshold", 0.01))
+    ssim_threshold = args.ssim_threshold if args.ssim_threshold is not None else float(manifest_defaults.get("ssim_threshold", 0.98))
+    lum_hist_threshold = args.lum_hist_threshold if args.lum_hist_threshold is not None else float(manifest_defaults.get("lum_hist_threshold", 0.999))
+    rel_mse_eps = args.rel_mse_eps if args.rel_mse_eps is not None else float(manifest_defaults.get("rel_mse_eps", REL_MSE_EPS))
+    hist_bins = args.hist_bins if args.hist_bins is not None else int(manifest_defaults.get("hist_bins", 256))
     psnr_threshold = args.psnr_threshold if args.psnr_threshold is not None else manifest_defaults.get("psnr_threshold")
     if psnr_threshold is not None:
         psnr_threshold = float(psnr_threshold)
@@ -165,7 +196,7 @@ def main() -> int:
 
     results: list[SceneResult] = []
     for scene in scenes:
-        gate = "scale-aware" if scene in scale_aware else "mean"
+        gate = "scale-aware" if scene in scale_aware else "all"
         ref = _resolve(reference_template, scene, args.reference_dir)
         cand = _resolve(candidate_template, scene, args.candidate_dir)
         try:
@@ -176,8 +207,13 @@ def main() -> int:
                 channel=channel,
                 gate=gate,
                 threshold=threshold,
+                rel_mse_threshold=rel_mse_threshold,
+                ssim_threshold=ssim_threshold,
+                lum_hist_threshold=lum_hist_threshold,
                 psnr_threshold=psnr_threshold,
                 relative_threshold=relative_threshold,
+                rel_mse_eps=rel_mse_eps,
+                hist_bins=hist_bins,
                 heatmap_dir=args.heatmap_dir,
                 emit_heatmap=not args.no_heatmap,
             )
@@ -192,7 +228,9 @@ def main() -> int:
                     candidate=cand,
                     passed=False,
                     gate=gate,
-                    metrics={"mean_diff": float("inf"), "psnr": float("-inf"), "rel_mean_pct": float("inf")},
+                    metrics={"mean_diff": float("inf"), "psnr": float("-inf"), "rel_mean_pct": float("inf"),
+                             "rel_mse": float("inf"), "ssim": float("-inf"), "lum_hist_corr": float("-inf"),
+                             "black_frac_ref": float("nan"), "black_frac_cand": float("nan")},
                     labels=[str(exc)],
                 )
             )
@@ -202,8 +240,10 @@ def main() -> int:
         print(
             f"{scene:24} {'PASS' if result.passed else 'FAIL'}  "
             f"mean={result.metrics['mean_diff']:.3f}  "
-            f"psnr={result.metrics['psnr']:.2f} dB  "
-            f"rel={result.metrics['rel_mean_pct']:.3f}%  "
+            f"relmse={result.metrics['rel_mse']:.4f}  "
+            f"ssim={result.metrics['ssim']:.4f}  "
+            f"hist={result.metrics['lum_hist_corr']:.4f}  "
+            f"blackd={(result.metrics['black_frac_cand'] - result.metrics['black_frac_ref']) * 100:+.2f}pp  "
             f"gate={result.gate}"
         )
 

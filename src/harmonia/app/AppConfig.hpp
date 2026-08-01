@@ -32,6 +32,11 @@ struct AppConfig {
     std::filesystem::path assetsDir;  ///< canonical Aether asset collection
     std::filesystem::path sceneFile;  ///< bare names are resolved against assetsDir (+ ".scene.toml")
     std::filesystem::path outputFile; ///< non-empty: offscreen render (EXR + PNG), then exit
+    /// Force off all post-processing stages (the shared denoiser/A-SVGF stage and
+    /// renderer-side TAA) so the displayed image is the raw estimator result — the
+    /// same identity --output enforces for offscreen capture, available in the
+    /// interactive window.
+    bool noPostfx = false;
     /// Number of scene-referred frames to render before saving in offscreen mode.
     /// For stochastic pipelines, increase this to improve convergence.
     std::uint32_t offscreenFrames = 4;
@@ -54,9 +59,6 @@ struct AppConfig {
     std::uint32_t rngSeed = 0x12345678U;
     /// Optional stochastic debug path switch for renderer-side visualization/tests.
     bool rngDebug = false;
-    /// Enable the ray-query global-illumination compute stage (Theia only).
-    /// On by default; disable with --no-rt-gi for debugging/baselines.
-    bool rtGi = true;
 };
 
 } // namespace harmonia

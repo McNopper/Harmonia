@@ -49,7 +49,8 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
     PhysicalDeviceInfo bestInfo{};
 
     for (VkPhysicalDevice device : devices) {
-        if (!hasRequiredExtensions(device) || !hasRayTracingSupport(device)) {
+        if (!hasRequiredExtensions(device) || !hasRayTracingSupport(device) ||
+            !hasRayTracingMaintenance1Support(device)) {
             continue;
         }
 
@@ -93,7 +94,6 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         vkGetPhysicalDeviceProperties2(device, &info.properties);
         vkGetPhysicalDeviceMemoryProperties(device, &info.memProperties);
         info.serSupported = hasSerSupport(device);
-        info.indirectRt2Supported = hasRayTracingMaintenance1Support(device);
         info.dgcSupported = hasDgcSupport(device);
 
         const std::int32_t score = scoreDevice(info.properties.properties) + 500;

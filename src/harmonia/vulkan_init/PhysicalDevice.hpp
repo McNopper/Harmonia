@@ -15,7 +15,6 @@ struct PhysicalDeviceInfo {
     std::uint32_t graphicsFamily{};
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps{};
     bool serSupported = false;         ///< VK_EXT_ray_tracing_invocation_reorder is available.
-    bool indirectRt2Supported = false; ///< rayTracingPipelineTraceRaysIndirect2 available.
     bool dgcSupported = false;         ///< VK_EXT_device_generated_commands is available.
 };
 

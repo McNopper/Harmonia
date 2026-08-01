@@ -36,14 +36,22 @@ struct GpuMaterial {
     uint4  textureIndices2;  ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
 };
 
-/// Per-triangle emissive descriptor for NEE direct area sampling (std430, 64 bytes = 4×float4).
+/// Tagged-union emissive descriptor for NEE direct sampling (std430, 80 bytes = 5×float4).
 /// Edge vectors and emission components share float4 w-channels to avoid padding.
+/// kind_pad.x selects the branch (kEmissiveTriangle / kEmissiveSphere): triangles use
+/// v0/edge1/edge2/normal; spheres use the world-space center (v0_area.xyz) + radius
+/// (v0_area.w) and reuse only the emission w-channels (edge1/edge2/normal xyz unused).
 struct GpuEmissiveTriangle {
-    float4 v0_area;      ///< xyz = v0 world pos, w = triangle area
-    float4 edge1_emitR;  ///< xyz = edge1 (v1-v0) world, w = emission.r
-    float4 edge2_emitG;  ///< xyz = edge2 (v2-v0) world, w = emission.g
-    float4 normal_emitB; ///< xyz = face normal (unit) world, w = emission.b
+    float4 v0_area;      ///< tri: xyz=v0, w=area | sphere: xyz=center, w=radius
+    float4 edge1_emitR;  ///< tri: xyz=edge1, w=emission.r | sphere: w=emission.r
+    float4 edge2_emitG;  ///< tri: xyz=edge2, w=emission.g | sphere: w=emission.g
+    float4 normal_emitB; ///< tri: xyz=face normal, w=emission.b | sphere: w=emission.b
+    uint4  kind_pad;     ///< x = emissive kind (kEmissiveTriangle / kEmissiveSphere)
 };
+
+/// Emissive light kind constants — match the EmissiveKind C++ enum in GpuTypes.hpp.
+static const uint kEmissiveTriangle = 0u;
+static const uint kEmissiveSphere   = 1u;
 
 /// GPU light descriptor.  intensity is in radiometric units (see Light.cpp toGpu()).
 struct GpuLight {

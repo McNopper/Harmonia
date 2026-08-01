@@ -310,7 +310,8 @@ void App::applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig) {
     // Two-tier output contract: the denoiser is an INTERACTIVE presentation filter only.
     // An offscreen capture (--output) is the scene-referred *estimator result* — the
     // artifact used for Hyperion/Theia parity and for reference screenshots — so the
-    // denoiser is identity there by default, for BOTH renderers.
+    // denoiser is identity there by default, for BOTH renderers. --no-postfx requests
+    // the same raw-estimator identity in the interactive window.
     //
     // Why this must be the default rather than an opt-out flag: the shared a-trous filter
     // has a FIXED PIXEL RADIUS, so the amount of image structure it destroys depends on
@@ -322,7 +323,7 @@ void App::applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig) {
     // made the "ground truth" the blurrier image and produced background-dependent parity
     // errors (env-lit regions off by 12-21/255 while flat geometry matched).
     // Explicit scene/render-preset config below still wins.
-    if (!m_config.outputFile.empty()) {
+    if (!m_config.outputFile.empty() || m_config.noPostfx) {
         m_config.stages.denoiser = false;
     }
     if (sceneConfig.accumulationStageEnabled.has_value()) {

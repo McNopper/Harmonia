@@ -58,6 +58,7 @@ __pycache__/
 
 # Test artifacts
 tests/output/
+tools/_vk_logs/
 
 # Render screenshots: EXR (HDR, inspect with GIMP) not committed;
 # tone-mapped PNGs (for GitHub README) ARE committed.

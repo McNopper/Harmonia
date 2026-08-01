@@ -171,7 +171,6 @@ struct EnabledFeatures {
 [[nodiscard]] const void* buildEnabledFeatures(EnabledFeatures& features,
                                                const SupportedFeatures& supported,
                                                bool serSupported,
-                                               bool indirectRt2Supported,
                                                bool positionFetchSupported,
                                                bool meshShaderSupported,
                                                bool dgcSupported) {
@@ -193,8 +192,8 @@ struct EnabledFeatures {
 
     features.rtMaintenance1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
     features.rtMaintenance1.pNext = &features.ser;
-    features.rtMaintenance1.rayTracingMaintenance1 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
-    features.rtMaintenance1.rayTracingPipelineTraceRaysIndirect2 = indirectRt2Supported ? VK_TRUE : VK_FALSE;
+    features.rtMaintenance1.rayTracingMaintenance1 = VK_TRUE;
+    features.rtMaintenance1.rayTracingPipelineTraceRaysIndirect2 = VK_TRUE;
 
     features.positionFetch.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
     features.positionFetch.pNext = &features.rtMaintenance1;
@@ -307,7 +306,6 @@ struct QueueInfos {
 }
 
 [[nodiscard]] std::vector<const char*> buildExtensionList(bool serSupported,
-                                                          bool indirectRt2Supported,
                                                           bool positionFetchSupported,
                                                           bool meshShaderSupported,
                                                           bool dgcSupported) {
@@ -321,9 +319,7 @@ struct QueueInfos {
     if (serSupported) {
         deviceExtensions.push_back(VK_EXT_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME);
     }
-    if (indirectRt2Supported) {
-        deviceExtensions.push_back(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
-    }
+    deviceExtensions.push_back(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
     if (positionFetchSupported) {
         deviceExtensions.push_back(VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME);
     }
@@ -339,8 +335,6 @@ struct QueueInfos {
 [[nodiscard]] VkResult createDevice(const PhysicalDeviceInfo& info, DeviceContext& ctx) {
     const SupportedFeatures supported = querySupportedFeatures(info.device);
 
-    const bool indirectRt2Supported = supported.rtMaintenance1.rayTracingMaintenance1 == VK_TRUE &&
-                                      supported.rtMaintenance1.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
     const bool dgcSupported = info.dgcSupported && supported.dgc.deviceGeneratedCommands == VK_TRUE;
     const bool serSupported = supported.ser.rayTracingInvocationReorder == VK_TRUE;
     const bool positionFetchSupported = supported.positionFetch.rayTracingPositionFetch == VK_TRUE;
@@ -358,6 +352,8 @@ struct QueueInfos {
         supported.as.accelerationStructure != VK_TRUE ||
         supported.as.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||
         supported.rt.rayTracingPipeline != VK_TRUE || supported.rayQuery.rayQuery != VK_TRUE ||
+        supported.rtMaintenance1.rayTracingMaintenance1 != VK_TRUE ||
+        supported.rtMaintenance1.rayTracingPipelineTraceRaysIndirect2 != VK_TRUE ||
         supported.features2.features.fragmentStoresAndAtomics != VK_TRUE ||
         supported.features2.features.independentBlend != VK_TRUE) {
         return VK_ERROR_FEATURE_NOT_PRESENT;
@@ -367,14 +363,13 @@ struct QueueInfos {
     const void* featuresHead = buildEnabledFeatures(enabled,
                                                     supported,
                                                     serSupported,
-                                                    indirectRt2Supported,
                                                     positionFetchSupported,
                                                     meshShaderSupported,
                                                     dgcSupported);
 
     const QueueInfos queues = buildQueueCreateInfos(info.device, info.graphicsFamily);
     const std::vector<const char*> deviceExtensions = buildExtensionList(
-        serSupported, indirectRt2Supported, positionFetchSupported, meshShaderSupported, dgcSupported);
+        serSupported, positionFetchSupported, meshShaderSupported, dgcSupported);
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = featuresHead,
@@ -392,7 +387,6 @@ struct QueueInfos {
     if (result == VK_SUCCESS) {
         ctx.positionFetchSupported = positionFetchSupported;
         ctx.serSupported = serSupported;
-        ctx.indirectRt2Supported = indirectRt2Supported;
         ctx.dgcSupported = dgcSupported;
         ctx.asyncComputeQueueFamily = queues.asyncComputeFamily;
     }

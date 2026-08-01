@@ -48,7 +48,9 @@ ratio-tracking degenerate case, zero walk variance); scattering media use the ch
 hero-wavelength free-flight estimator. OpenPBR's canonical/reference implementation is **MaterialX** (`mx_*` genGLSL nodes);
 follow OpenPBR parameter naming and cross-check against MaterialX. The shared scene-referred
 estimator is `shaders/path_integrator.slang`; the shared denoiser (`shaders/denoiser.slang`) is
-an à-trous wavelet edge-stopping filter + temporal accumulation.
+an à-trous wavelet edge-stopping filter + temporal accumulation — a **presentation stage only**,
+forced off for `--output`/`--no-postfx` (fixed pixel radius ⇒ non-converging; see the two-tier
+output contract in README).
 
 Hyperion/Theia demos are thin subclasses of `harmonia::App` injecting a `harmonia::IRenderer`.
 Shaders load from `*_SHADER_DIR`, never CWD.
@@ -63,7 +65,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--output <file>` / `-o` | **Headless mode**: render N frames, save EXR (untonemapped) + PNG (tonemapped), exit. |
 | `--width <n>` / `--height <n>` | Render resolution. |
 | `--validation` / `--no-validation` | Vulkan validation layers. |
-| `--rt-gi` / `--no-rt-gi` | Toggle Theia ray-query GI stage (default on). |
+| `--no-postfx` | Force off every post-processing stage (A-SVGF denoiser + TAA) — the interactive-window identity that `--output` enforces for offscreen capture. |
 | `--indirect-ambient <f>` | Presentation-only indirect ambient boost (scene-referred linear units). |
 
 ⚠️ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
@@ -111,6 +113,7 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 
 **Always-required Vulkan 1.4 features (enabled in Context.cpp):**
 - `maintenance4` (Vulkan 1.3), `maintenance5` (Vulkan 1.4) — both required.
+- `rayTracingMaintenance1` + `rayTracingPipelineTraceRaysIndirect2` (`VK_KHR_ray_tracing_maintenance1`) — required; Hyperion dispatches via `vkCmdTraceRaysIndirect2KHR` exclusively.
   `maintenance5` enables `VkBufferUsageFlags2CreateInfo` (64-bit buffer usage flags),
   which is needed by Theia's DGC preprocess buffer (`VK_BUFFER_USAGE_2_PREPROCESS_BUFFER_BIT_EXT`).
 - `pushDescriptor` (Vulkan 1.4).
@@ -124,7 +127,6 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 |-----------|---------------------|---------|
 | `VK_EXT_mesh_shader` | — (implicit: mesh draws used when enabled) | Mesh/task shaders (Theia rasterizer) |
 | `VK_EXT_ray_tracing_invocation_reorder` | `serSupported` | SER reorder hint (Hyperion/Theia RT) |
-| `VK_KHR_ray_tracing_maintenance1` | `indirectRt2Supported` | `vkCmdTraceRaysIndirect2KHR` (Hyperion) |
 | `VK_EXT_device_generated_commands` | `dgcSupported` | GPU-generated mesh draw commands (Theia GD6) |
 
 **Acceleration structure builds — device-side only (Khronos deprecation compliant):**

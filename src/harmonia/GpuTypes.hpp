@@ -66,13 +66,25 @@ struct GpuMaterial {
 // GpuInstance is renderer-specific (path-tracer index layout vs rasterizer meshlet
 // layout) and is defined by each renderer alongside its own Scene.
 
-/// Per-triangle emissive descriptor for NEE direct area sampling (std430, 64 bytes = 4×float4).
+/// Emissive light kind discriminator (matches the kEmissive* shader constants in
+/// gpu_types.slang). Carried in GpuEmissiveTriangle::kind_pad.x so one buffer can hold
+/// mixed triangle + analytic-sphere emitters behind a single power-proportional CDF.
+enum class EmissiveKind : std::uint32_t {
+    Triangle = 0, ///< triangular area emitter (v0/edge1/edge2 + area)
+    Sphere = 1,   ///< analytic sphere emitter (center + radius; solid-angle cone sampling)
+};
+
+/// Tagged-union emissive descriptor for NEE direct sampling (std430, 80 bytes = 5×float4).
 /// Edge vectors and emission components share float4 w-channels to avoid padding.
+/// `kind_pad.x` selects the branch: triangles use v0/edge1/edge2/normal; spheres use the
+/// world-space center (v0_area.xyz) + radius (v0_area.w) and reuse only the emission
+/// w-channels (edge1/edge2/normal xyz are unused for spheres).
 struct GpuEmissiveTriangle {
-    sm::float4 v0_area;      ///< xyz = v0 world pos, w = triangle area
-    sm::float4 edge1_emitR;  ///< xyz = edge1 (v1-v0) world, w = emission.r
-    sm::float4 edge2_emitG;  ///< xyz = edge2 (v2-v0) world, w = emission.g
-    sm::float4 normal_emitB; ///< xyz = face normal (unit) world, w = emission.b
+    sm::float4 v0_area;      ///< tri: xyz = v0 world, w = area | sphere: xyz = center, w = radius
+    sm::float4 edge1_emitR;  ///< tri: xyz = edge1 (v1-v0) world, w = emission.r | sphere: w = emission.r
+    sm::float4 edge2_emitG;  ///< tri: xyz = edge2 (v2-v0) world, w = emission.g | sphere: w = emission.g
+    sm::float4 normal_emitB; ///< tri: xyz = face normal (unit) world, w = emission.b | sphere: w = emission.b
+    sm::uint4   kind_pad;    ///< x = EmissiveKind; y,z,w = padding (clean 16-byte stride)
 };
 
 /// GPU-side light descriptor (std430, 64 bytes).
@@ -142,7 +154,7 @@ static_assert(std::is_trivially_copyable_v<PushConstants>);
 static_assert(sizeof(GpuVertex) == 48);
 static_assert(sizeof(GpuMaterial) == 288);
 static_assert(sizeof(GpuLight) == 64);
-static_assert(sizeof(GpuEmissiveTriangle) == 64);
+static_assert(sizeof(GpuEmissiveTriangle) == 80);
 static_assert(sizeof(CameraData) == 176);
 static_assert(sizeof(PushConstants) == 52);
 
