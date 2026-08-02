@@ -148,6 +148,7 @@ bool App::bootstrap() {
         return false;
     }
     m_context = std::move(*context);
+    logGpuClockCalibration();
 
     auto pool = CommandPool::create(m_context.deviceContext(), m_context.physicalDeviceInfo().graphicsFamily);
     if (!pool) {
@@ -183,6 +184,51 @@ bool App::bootstrap() {
     }
 
     return true;
+}
+
+void App::logGpuClockCalibration() noexcept {
+    const auto& ctx = m_context.deviceContext();
+    if (!ctx.calibratedTimestampsSupported) {
+        return;
+    }
+
+    // VK_KHR_calibrated_timestamps: correlate the GPU timestamp clock with a host clock.
+    std::uint32_t domainCount = 0;
+    if (vkGetPhysicalDeviceCalibrateableTimeDomainsKHR(ctx.physicalDevice, &domainCount, nullptr) != VK_SUCCESS ||
+        domainCount == 0U) {
+        return;
+    }
+    std::vector<VkTimeDomainEXT> domains(domainCount);
+    if (vkGetPhysicalDeviceCalibrateableTimeDomainsKHR(ctx.physicalDevice, &domainCount, domains.data()) !=
+        VK_SUCCESS) {
+        return;
+    }
+
+    VkTimeDomainEXT hostDomain = VK_TIME_DOMAIN_DEVICE_EXT;
+    for (const VkTimeDomainEXT d : domains) {
+        if (d == VK_TIME_DOMAIN_QUERY_PERFORMANCE_COUNTER_EXT || d == VK_TIME_DOMAIN_CLOCK_MONOTONIC_EXT) {
+            hostDomain = d;
+            break;
+        }
+    }
+    if (hostDomain == VK_TIME_DOMAIN_DEVICE_EXT) {
+        return; // no usable host clock domain advertised
+    }
+
+    const std::array<VkCalibratedTimestampInfoEXT, 2> infos{{
+        {VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT, nullptr, VK_TIME_DOMAIN_DEVICE_EXT},
+        {VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT, nullptr, hostDomain},
+    }};
+    std::array<std::uint64_t, 2> timestamps{0, 0};
+    std::uint64_t maxDeviation = 0;
+    if (vkGetCalibratedTimestampsKHR(
+            ctx.device, static_cast<std::uint32_t>(infos.size()), infos.data(), timestamps.data(), &maxDeviation) !=
+        VK_SUCCESS) {
+        return;
+    }
+
+    const double periodNs = m_context.physicalDeviceInfo().properties.properties.limits.timestampPeriod;
+    Logger::info("Calibrated GPU clock: {:.4f} ns/tick, GPU<->host max deviation {} ns", periodNs, maxDeviation);
 }
 
 bool App::createHdrImage() {

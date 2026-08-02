@@ -79,8 +79,17 @@ namespace {
     functions.vkGetDeviceBufferMemoryRequirements = vkGetDeviceBufferMemoryRequirements;
     functions.vkGetDeviceImageMemoryRequirements = vkGetDeviceImageMemoryRequirements;
 
+    // Pageable device-local memory: when supported, let VMA assign per-allocation priorities so
+    // the driver can page device-local memory under VRAM pressure (VK_EXT_pageable_device_local_memory
+    // depends on VK_EXT_memory_priority, both enabled together in createDevice).
+    VmaAllocatorCreateFlags flags =
+        VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT;
+    if (ctx.pageableMemorySupported) {
+        flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT;
+    }
+
     const VmaAllocatorCreateInfo createInfo{
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT,
+        .flags = flags,
         .physicalDevice = ctx.physicalDevice,
         .device = ctx.device,
         .preferredLargeHeapBlockSize = 0,
@@ -112,6 +121,10 @@ struct SupportedFeatures {
     VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetch{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR as{};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
+    VkPhysicalDeviceMemoryPriorityFeaturesEXT memoryPriority{};
+    VkPhysicalDevicePresentIdFeaturesKHR presentId{};
+    VkPhysicalDevicePresentWaitFeaturesKHR presentWait{};
+    VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR fifoLatestReady{};
     VkPhysicalDeviceVulkan14Features features14{};
     VkPhysicalDeviceVulkan13Features features13{};
     VkPhysicalDeviceVulkan12Features features12{};
@@ -146,6 +159,14 @@ struct SupportedFeatures {
     s.features11.pNext = &s.features12;
     s.features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     s.features2.pNext = &s.features11;
+    s.memoryPriority.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT;
+    s.rayQuery.pNext = &s.memoryPriority;
+    s.presentId.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+    s.memoryPriority.pNext = &s.presentId;
+    s.presentWait.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+    s.presentId.pNext = &s.presentWait;
+    s.fifoLatestReady.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
+    s.presentWait.pNext = &s.fifoLatestReady;
     vkGetPhysicalDeviceFeatures2(device, &s.features2);
     return s;
 }
@@ -164,6 +185,10 @@ struct EnabledFeatures {
     VkPhysicalDeviceFeatures2 features2{};
     VkPhysicalDeviceMeshShaderFeaturesEXT mesh{};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
+    VkPhysicalDeviceMemoryPriorityFeaturesEXT memoryPriority{};
+    VkPhysicalDevicePresentIdFeaturesKHR presentId{};
+    VkPhysicalDevicePresentWaitFeaturesKHR presentWait{};
+    VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR fifoLatestReady{};
 };
 
 // Fills @p features (caller-owned so the pNext chain survives vkCreateDevice) and
@@ -173,7 +198,11 @@ struct EnabledFeatures {
                                                bool serSupported,
                                                bool positionFetchSupported,
                                                bool meshShaderSupported,
-                                               bool dgcSupported) {
+                                               bool dgcSupported,
+                                               bool pageableMemorySupported,
+                                               bool presentIdSupported,
+                                               bool presentWaitSupported,
+                                               bool fifoLatestReadySupported) {
     features.rayQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
     features.rayQuery.rayQuery = VK_TRUE;
 
@@ -203,6 +232,7 @@ struct EnabledFeatures {
     features.features14.pNext = &features.positionFetch;
     features.features14.pushDescriptor = VK_TRUE;
     features.features14.maintenance5 = VK_TRUE;
+    features.features14.hostImageCopy = VK_TRUE;
 
     features.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     features.features13.pNext = &features.features14;
@@ -251,6 +281,44 @@ struct EnabledFeatures {
     features.dgc.pNext =
         meshShaderSupported ? static_cast<void*>(&features.mesh) : static_cast<void*>(&features.features2);
     features.dgc.deviceGeneratedCommands = VK_TRUE;
+
+    // VK_EXT_pageable_device_local_memory (depends on VK_EXT_memory_priority): lets the driver
+    // page device-local memory by priority. The two extensions + the memoryPriority feature are
+    // enabled together so VMA can assign per-allocation priorities (VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT on the
+    // allocator).
+    features.memoryPriority.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT;
+    features.memoryPriority.memoryPriority = pageableMemorySupported ? VK_TRUE : VK_FALSE;
+
+    // Present-pacing trio (present_id / present_wait / present_mode_fifo_latest_ready): each is
+    // optional; only link a feature struct into the pNext chain when its extension is enabled.
+    features.presentId.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+    features.presentId.presentId = presentIdSupported ? VK_TRUE : VK_FALSE;
+    features.presentWait.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+    features.presentWait.presentWait = presentWaitSupported ? VK_TRUE : VK_FALSE;
+    features.fifoLatestReady.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
+    features.fifoLatestReady.presentModeFifoLatestReady = fifoLatestReadySupported ? VK_TRUE : VK_FALSE;
+
+    // Link the optional tail chain in order (memoryPriority → presentId → presentWait → fifoLatestReady);
+    // each enabled node points to the next enabled node, rayQuery (always present) heads it.
+    features.fifoLatestReady.pNext = nullptr;
+    features.presentWait.pNext = fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr;
+    features.presentId.pNext =
+        presentWaitSupported ? static_cast<void*>(&features.presentWait)
+                             : (fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr);
+    features.memoryPriority.pNext =
+        presentIdSupported
+            ? static_cast<void*>(&features.presentId)
+            : (presentWaitSupported
+                   ? static_cast<void*>(&features.presentWait)
+                   : (fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr));
+    features.rayQuery.pNext =
+        pageableMemorySupported
+            ? static_cast<void*>(&features.memoryPriority)
+            : (presentIdSupported
+                   ? static_cast<void*>(&features.presentId)
+                   : (presentWaitSupported
+                          ? static_cast<void*>(&features.presentWait)
+                          : (fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr)));
 
     return dgcSupported          ? static_cast<const void*>(&features.dgc)
            : meshShaderSupported ? static_cast<const void*>(&features.mesh)
@@ -308,7 +376,12 @@ struct QueueInfos {
 [[nodiscard]] std::vector<const char*> buildExtensionList(bool serSupported,
                                                           bool positionFetchSupported,
                                                           bool meshShaderSupported,
-                                                          bool dgcSupported) {
+                                                          bool dgcSupported,
+                                                          bool pageableMemorySupported,
+                                                          bool calibratedTimestampsSupported,
+                                                          bool presentIdSupported,
+                                                          bool presentWaitSupported,
+                                                          bool fifoLatestReadySupported) {
     std::vector<const char*> deviceExtensions{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
@@ -329,6 +402,22 @@ struct QueueInfos {
     if (dgcSupported) {
         deviceExtensions.push_back(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
     }
+    if (pageableMemorySupported) {
+        deviceExtensions.push_back(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME);
+    }
+    if (calibratedTimestampsSupported) {
+        deviceExtensions.push_back(VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+    }
+    if (presentIdSupported) {
+        deviceExtensions.push_back(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+    }
+    if (presentWaitSupported) {
+        deviceExtensions.push_back(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+    }
+    if (fifoLatestReadySupported) {
+        deviceExtensions.push_back(VK_KHR_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME);
+    }
     return deviceExtensions;
 }
 
@@ -339,6 +428,12 @@ struct QueueInfos {
     const bool serSupported = supported.ser.rayTracingInvocationReorder == VK_TRUE;
     const bool positionFetchSupported = supported.positionFetch.rayTracingPositionFetch == VK_TRUE;
     const bool meshShaderSupported = supported.mesh.meshShader == VK_TRUE;
+    const bool pageableMemorySupported = info.pageableMemorySupported;
+    const bool calibratedTimestampsSupported = info.calibratedTimestampsSupported;
+    const bool presentIdSupported = info.presentIdSupported && supported.presentId.presentId == VK_TRUE;
+    const bool presentWaitSupported = info.presentWaitSupported && supported.presentWait.presentWait == VK_TRUE;
+    const bool fifoLatestReadySupported =
+        info.fifoLatestReadySupported && supported.fifoLatestReady.presentModeFifoLatestReady == VK_TRUE;
 
     if (supported.features12.bufferDeviceAddress != VK_TRUE || supported.features12.descriptorIndexing != VK_TRUE ||
         supported.features12.runtimeDescriptorArray != VK_TRUE ||
@@ -349,7 +444,7 @@ struct QueueInfos {
         supported.features12.timelineSemaphore != VK_TRUE || supported.features13.dynamicRendering != VK_TRUE ||
         supported.features13.synchronization2 != VK_TRUE || supported.features13.maintenance4 != VK_TRUE ||
         supported.features14.pushDescriptor != VK_TRUE || supported.features14.maintenance5 != VK_TRUE ||
-        supported.as.accelerationStructure != VK_TRUE ||
+        supported.features14.hostImageCopy != VK_TRUE || supported.as.accelerationStructure != VK_TRUE ||
         supported.as.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||
         supported.rt.rayTracingPipeline != VK_TRUE || supported.rayQuery.rayQuery != VK_TRUE ||
         supported.rtMaintenance1.rayTracingMaintenance1 != VK_TRUE ||
@@ -365,11 +460,22 @@ struct QueueInfos {
                                                     serSupported,
                                                     positionFetchSupported,
                                                     meshShaderSupported,
-                                                    dgcSupported);
+                                                    dgcSupported,
+                                                    pageableMemorySupported,
+                                                    presentIdSupported,
+                                                    presentWaitSupported,
+                                                    fifoLatestReadySupported);
 
     const QueueInfos queues = buildQueueCreateInfos(info.device, info.graphicsFamily);
-    const std::vector<const char*> deviceExtensions = buildExtensionList(
-        serSupported, positionFetchSupported, meshShaderSupported, dgcSupported);
+    const std::vector<const char*> deviceExtensions = buildExtensionList(serSupported,
+                                                                         positionFetchSupported,
+                                                                         meshShaderSupported,
+                                                                         dgcSupported,
+                                                                         pageableMemorySupported,
+                                                                         calibratedTimestampsSupported,
+                                                                         presentIdSupported,
+                                                                         presentWaitSupported,
+                                                                         fifoLatestReadySupported);
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = featuresHead,
@@ -388,6 +494,11 @@ struct QueueInfos {
         ctx.positionFetchSupported = positionFetchSupported;
         ctx.serSupported = serSupported;
         ctx.dgcSupported = dgcSupported;
+        ctx.pageableMemorySupported = pageableMemorySupported;
+        ctx.calibratedTimestampsSupported = calibratedTimestampsSupported;
+        ctx.presentIdSupported = presentIdSupported;
+        ctx.presentWaitSupported = presentWaitSupported;
+        ctx.fifoLatestReadySupported = fifoLatestReadySupported;
         ctx.asyncComputeQueueFamily = queues.asyncComputeFamily;
     }
     return result;

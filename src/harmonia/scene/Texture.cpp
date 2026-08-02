@@ -4,35 +4,15 @@
 
 #include <OpenImageIO/imageio.h>
 #include <algorithm>
-#include <array>
 #include <cstdint>
 #include <cstring>
 #include <utility>
-#include <vma/vk_mem_alloc.h>
 
-#include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 namespace harmonia {
-
-namespace {
-[[nodiscard]] std::expected<Buffer, VkResult>
-createStagingBuffer(const DeviceContext& ctx, std::span<const std::byte> pixels, std::string_view name) {
-    auto staging = Buffer::create(ctx,
-                                  static_cast<VkDeviceSize>(pixels.size()),
-                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                  std::string(name).append(".staging"));
-    if (!staging) {
-        return std::unexpected(staging.error());
-    }
-
-    staging->uploadData(pixels.data(), pixels.size(), 0);
-    return std::move(*staging);
-}
-} // namespace
 
 std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
                                                  const CommandPool& cmdPool,
@@ -48,35 +28,39 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     auto image = Image::create(ctx,
                                VkExtent2D{width, height},
                                format,
-                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                               VK_IMAGE_USAGE_HOST_TRANSFER_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                VK_IMAGE_ASPECT_COLOR_BIT,
                                name);
     if (!image) {
         return std::unexpected(image.error());
     }
 
-    auto staging = createStagingBuffer(ctx, pixels, name);
-    if (!staging) {
-        return std::unexpected(staging.error());
+    // Vulkan 1.4 hostImageCopy: stream host pixels straight into the (optimal-tiling) image
+    // with vkCopyMemoryToImage — no staging buffer, no device-side copy. Layout path:
+    // UNDEFINED -> GENERAL (queue), host copy into GENERAL, GENERAL -> SHADER_READ_ONLY (queue).
+    {
+        auto cmd = cmdPool.beginOneShot();
+        if (!cmd) {
+            return std::unexpected(cmd.error());
+        }
+        image->transition(*cmd,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_GENERAL,
+                          VK_PIPELINE_STAGE_2_NONE,
+                          0,
+                          VK_PIPELINE_STAGE_2_HOST_BIT,
+                          VK_ACCESS_2_HOST_WRITE_BIT);
+        if (const VkResult submitResult = cmdPool.endOneShot(*cmd); submitResult != VK_SUCCESS) {
+            return std::unexpected(submitResult);
+        }
     }
 
-    auto cmd = cmdPool.beginOneShot();
-    if (!cmd) {
-        return std::unexpected(cmd.error());
-    }
-
-    image->transition(*cmd,
-                      VK_IMAGE_LAYOUT_UNDEFINED,
-                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                      VK_PIPELINE_STAGE_2_NONE,
-                      0,
-                      VK_PIPELINE_STAGE_2_COPY_BIT,
-                      VK_ACCESS_2_TRANSFER_WRITE_BIT);
-
-    const VkBufferImageCopy region{
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
+    const VkMemoryToImageCopy region{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
+        .pNext = nullptr,
+        .pHostPointer = pixels.data(),
+        .memoryRowLength = 0,
+        .memoryImageHeight = 0,
         .imageSubresource =
             VkImageSubresourceLayers{
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -87,19 +71,35 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
         .imageOffset = VkOffset3D{0, 0, 0},
         .imageExtent = VkExtent3D{width, height, 1},
     };
-    vkCmdCopyBufferToImage(*cmd, staging->handle(), image->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    const VkCopyMemoryToImageInfo copyInfo{
+        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .dstImage = image->handle(),
+        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .regionCount = 1,
+        .pRegions = &region,
+    };
+    if (const VkResult copyResult = vkCopyMemoryToImage(ctx.device, &copyInfo); copyResult != VK_SUCCESS) {
+        return std::unexpected(copyResult);
+    }
 
-    image->transition(*cmd,
-                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                      VK_PIPELINE_STAGE_2_COPY_BIT,
-                      VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
-                          VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                      VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
-
-    if (const VkResult submitResult = cmdPool.endOneShot(*cmd); submitResult != VK_SUCCESS) {
-        return std::unexpected(submitResult);
+    {
+        auto cmd = cmdPool.beginOneShot();
+        if (!cmd) {
+            return std::unexpected(cmd.error());
+        }
+        image->transition(*cmd,
+                          VK_IMAGE_LAYOUT_GENERAL,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                          VK_PIPELINE_STAGE_2_HOST_BIT,
+                          VK_ACCESS_2_HOST_WRITE_BIT,
+                          VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
+                              VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                          VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
+        if (const VkResult submitResult = cmdPool.endOneShot(*cmd); submitResult != VK_SUCCESS) {
+            return std::unexpected(submitResult);
+        }
     }
 
     VkPhysicalDeviceProperties props{};

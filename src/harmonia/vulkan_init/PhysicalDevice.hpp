@@ -14,8 +14,13 @@ struct PhysicalDeviceInfo {
     VkPhysicalDeviceMemoryProperties memProperties{};
     std::uint32_t graphicsFamily{};
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps{};
-    bool serSupported = false;         ///< VK_EXT_ray_tracing_invocation_reorder is available.
-    bool dgcSupported = false;         ///< VK_EXT_device_generated_commands is available.
+    bool serSupported = false;                  ///< VK_EXT_ray_tracing_invocation_reorder is available.
+    bool dgcSupported = false;                  ///< VK_EXT_device_generated_commands is available.
+    bool pageableMemorySupported = false;       ///< VK_EXT_pageable_device_local_memory is available.
+    bool calibratedTimestampsSupported = false; ///< VK_KHR_calibrated_timestamps is available.
+    bool presentIdSupported = false;            ///< VK_KHR_present_id is available.
+    bool presentWaitSupported = false;          ///< VK_KHR_present_wait is available.
+    bool fifoLatestReadySupported = false;      ///< VK_KHR_present_mode_fifo_latest_ready is available.
 };
 
 class PhysicalDevice {
@@ -25,6 +30,7 @@ class PhysicalDevice {
   private:
     [[nodiscard]] static bool hasRayTracingSupport(VkPhysicalDevice device);
     [[nodiscard]] static bool hasRequiredExtensions(VkPhysicalDevice device);
+    [[nodiscard]] static bool hasExtension(VkPhysicalDevice device, const char* name);
     [[nodiscard]] static bool hasSerSupport(VkPhysicalDevice device);
     [[nodiscard]] static bool hasRayTracingMaintenance1Support(VkPhysicalDevice device);
     [[nodiscard]] static bool hasDgcSupport(VkPhysicalDevice device);

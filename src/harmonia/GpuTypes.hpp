@@ -84,7 +84,7 @@ struct GpuEmissiveTriangle {
     sm::float4 edge1_emitR;  ///< tri: xyz = edge1 (v1-v0) world, w = emission.r | sphere: w = emission.r
     sm::float4 edge2_emitG;  ///< tri: xyz = edge2 (v2-v0) world, w = emission.g | sphere: w = emission.g
     sm::float4 normal_emitB; ///< tri: xyz = face normal (unit) world, w = emission.b | sphere: w = emission.b
-    sm::uint4   kind_pad;    ///< x = EmissiveKind; y,z,w = padding (clean 16-byte stride)
+    sm::uint4 kind_pad;      ///< x = EmissiveKind; y,z,w = padding (clean 16-byte stride)
 };
 
 /// GPU-side light descriptor (std430, 64 bytes).

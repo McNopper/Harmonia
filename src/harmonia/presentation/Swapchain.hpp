@@ -30,6 +30,9 @@ class Swapchain {
 
     VkResult acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t& outIndex);
     VkResult present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore);
+    /// Block (up to @p timeoutNs) until the present tagged with @p presentId is on-screen.
+    /// Requires VK_KHR_present_wait. Returns VK_SUCCESS when displayed, VK_TIMEOUT on expiry.
+    VkResult waitForPresent(std::uint64_t presentId, std::uint64_t timeoutNs = UINT64_MAX);
     VkResult recreate(VkExtent2D newExtent);
 
     [[nodiscard]] VkSwapchainKHR handle() const noexcept;
@@ -53,6 +56,7 @@ class Swapchain {
     VkColorSpaceKHR m_colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
     VkExtent2D m_extent{};
     bool m_preferHDR = true;
+    std::uint64_t m_presentId = 0; ///< Monotonic per-present ID for VK_KHR_present_id / present_wait.
     std::vector<VkImage> m_images;
     std::vector<harmonia::UniqueImageView> m_views;
 };

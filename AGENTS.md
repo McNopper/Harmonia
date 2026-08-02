@@ -117,9 +117,14 @@ The CPU records commands only; it never reads back GPU-side state to determine c
   `maintenance5` enables `VkBufferUsageFlags2CreateInfo` (64-bit buffer usage flags),
   which is needed by Theia's DGC preprocess buffer (`VK_BUFFER_USAGE_2_PREPROCESS_BUFFER_BIT_EXT`).
 - `pushDescriptor` (Vulkan 1.4).
+- `hostImageCopy` (Vulkan 1.4) — texture/IBL upload goes host→optimal-tiling image directly via
+  `vkCopyMemoryToImage` (no staging buffer, no device copy); see `Texture::create` /
+  `IblProbe::uploadEnvPanorama`. Image usage `VK_IMAGE_USAGE_HOST_TRANSFER_BIT`, copy layout `GENERAL`.
 - **VMA allocator flag:** `VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT` must be set alongside
   `VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT` to let VMA handle
-  `VkBufferUsageFlags2CreateInfo` in `VkBufferCreateInfo::pNext`.
+  `VkBufferUsageFlags2CreateInfo` in `VkBufferCreateInfo::pNext`. When `VK_EXT_pageable_device_local_memory`
+  is present, `VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT` is also set (driver pages device-local memory
+  by priority under VRAM pressure).
 
 **Optional extensions managed here (all follow the same probe→enable pattern):**
 
@@ -128,6 +133,11 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 | `VK_EXT_mesh_shader` | — (implicit: mesh draws used when enabled) | Mesh/task shaders (Theia rasterizer) |
 | `VK_EXT_ray_tracing_invocation_reorder` | `serSupported` | SER reorder hint (Hyperion/Theia RT) |
 | `VK_EXT_device_generated_commands` | `dgcSupported` | GPU-generated mesh draw commands (Theia GD6) |
+| `VK_EXT_pageable_device_local_memory` (+ its dep `VK_EXT_memory_priority`) | `pageableMemorySupported` | Driver pageable device-local memory; VMA assigns priorities |
+| `VK_KHR_calibrated_timestamps` | `calibratedTimestampsSupported` | GPU↔host clock correlation (`vkGetCalibratedTimestampsKHR`); sampled once at startup (see `App::logGpuClockCalibration`) |
+| `VK_KHR_present_id` | `presentIdSupported` | Per-present monotonic ID tagging (foundation for present pacing) |
+| `VK_KHR_present_wait` | `presentWaitSupported` | `vkWaitForPresentKHR` — CPU-side "frame is on-screen" (`Swapchain::waitForPresent`) |
+| `VK_KHR_present_mode_fifo_latest_ready` | `fifoLatestReadySupported` | `VK_PRESENT_MODE_FIFO_LATEST_READY_KHR` — FIFO v-sync, latest-ready image (lower latency) |
 
 **Acceleration structure builds — device-side only (Khronos deprecation compliant):**
 - All BLAS/TLAS builds use `vkCmdBuildAccelerationStructuresKHR` (device-side).

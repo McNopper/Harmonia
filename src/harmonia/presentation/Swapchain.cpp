@@ -20,12 +20,14 @@ constexpr std::uint64_t kWaitForever = UINT64_MAX;
     };
 }
 
-[[nodiscard]] VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes) noexcept {
-    // FIFO is guaranteed by spec and most stable across drivers
-    for (VkPresentModeKHR preferred : {VK_PRESENT_MODE_FIFO_KHR}) {
-        if (std::find(modes.begin(), modes.end(), preferred) != modes.end()) {
-            return preferred;
-        }
+[[nodiscard]] VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes,
+                                                 bool fifoLatestReadySupported) noexcept {
+    // VK_PRESENT_MODE_FIFO_LATEST_READY_KHR: FIFO v-sync semantics, but the most recently rendered
+    // image is presented — lower input latency than classic FIFO. Chosen when the extension+mode
+    // are available; falls back to spec-guaranteed FIFO otherwise (image-identical, just timing).
+    if (fifoLatestReadySupported &&
+        std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_FIFO_LATEST_READY_KHR) != modes.end()) {
+        return VK_PRESENT_MODE_FIFO_LATEST_READY_KHR;
     }
     return VK_PRESENT_MODE_FIFO_KHR;
 }
@@ -135,7 +137,7 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         .pQueueFamilyIndices = nullptr,
         .preTransform = capabilities.currentTransform,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        .presentMode = choosePresentMode(presentModes),
+        .presentMode = choosePresentMode(presentModes, ctx.fifoLatestReadySupported),
         .clipped = VK_TRUE,
         .oldSwapchain = oldSwapchain,
     };
@@ -201,9 +203,23 @@ VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t&
 }
 
 VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore) {
+    // VK_KHR_present_id: tag this present with a monotonic ID so VK_KHR_present_wait can later
+    // block until it is on-screen (CPU-side present pacing — the foundation for I6 frames-per-flip).
+    std::uint64_t thisPresentId = 0;
+    const bool tagPresentId = m_ctx != nullptr && m_ctx->presentIdSupported;
+    if (tagPresentId) {
+        thisPresentId = ++m_presentId;
+    }
+    const VkPresentIdKHR presentIdInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR,
+        .pNext = nullptr,
+        .swapchainCount = 1U,
+        .pPresentIds = &thisPresentId,
+    };
+
     const VkPresentInfoKHR presentInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext = nullptr,
+        .pNext = tagPresentId ? &presentIdInfo : nullptr,
         .waitSemaphoreCount = waitSemaphore != VK_NULL_HANDLE ? 1U : 0U,
         .pWaitSemaphores = waitSemaphore != VK_NULL_HANDLE ? &waitSemaphore : nullptr,
         .swapchainCount = 1U,
@@ -212,6 +228,13 @@ VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore
         .pResults = nullptr,
     };
     return vkQueuePresentKHR(queue, &presentInfo);
+}
+
+VkResult Swapchain::waitForPresent(std::uint64_t presentId, std::uint64_t timeoutNs) {
+    if (m_ctx == nullptr || m_swapchain == VK_NULL_HANDLE || !m_ctx->presentWaitSupported) {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    return vkWaitForPresentKHR(m_ctx->device, m_swapchain, presentId, timeoutNs);
 }
 
 VkResult Swapchain::recreate(VkExtent2D newExtent) {

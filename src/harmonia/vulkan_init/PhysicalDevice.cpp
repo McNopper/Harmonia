@@ -26,6 +26,58 @@ constexpr std::array kRequiredExtensions{
     score += static_cast<std::int32_t>(properties.limits.maxImageDimension2D);
     return score;
 }
+
+struct PresentExtensionSupport {
+    bool presentId = false;
+    bool presentWait = false;
+    bool fifoLatestReady = false;
+};
+
+// Probes the present-pacing extension trio (present_id / present_wait /
+// present_mode_fifo_latest_ready): one enumerate + one feature query.
+[[nodiscard]] PresentExtensionSupport queryPresentExtensions(VkPhysicalDevice device) {
+    PresentExtensionSupport out;
+    std::uint32_t count = 0;
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS || count == 0U) {
+        return out;
+    }
+    std::vector<VkExtensionProperties> exts(count);
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, exts.data()) != VK_SUCCESS) {
+        return out;
+    }
+    const auto has = [&exts](const char* name) {
+        for (const VkExtensionProperties& e : exts) {
+            if (std::string_view(e.extensionName) == name) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const bool extId = has(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+    const bool extWait = has(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+    const bool extFlr = has(VK_KHR_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME);
+    if (!extId && !extWait && !extFlr) {
+        return out;
+    }
+
+    VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR flr{};
+    flr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
+    VkPhysicalDevicePresentWaitFeaturesKHR wait{};
+    wait.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+    wait.pNext = extFlr ? &flr : nullptr;
+    VkPhysicalDevicePresentIdFeaturesKHR id{};
+    id.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+    id.pNext = extWait ? &wait : nullptr;
+    VkPhysicalDeviceFeatures2 features2{};
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = extId ? &id : nullptr;
+    vkGetPhysicalDeviceFeatures2(device, &features2);
+
+    out.presentId = extId && id.presentId == VK_TRUE;
+    out.presentWait = extWait && wait.presentWait == VK_TRUE;
+    out.fifoLatestReady = extFlr && flr.presentModeFifoLatestReady == VK_TRUE;
+    return out;
+}
 } // namespace
 
 std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance instance, VkSurfaceKHR surface) {
@@ -95,6 +147,12 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         vkGetPhysicalDeviceMemoryProperties(device, &info.memProperties);
         info.serSupported = hasSerSupport(device);
         info.dgcSupported = hasDgcSupport(device);
+        info.pageableMemorySupported = hasExtension(device, VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME);
+        info.calibratedTimestampsSupported = hasExtension(device, VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+        const PresentExtensionSupport present = queryPresentExtensions(device);
+        info.presentIdSupported = present.presentId;
+        info.presentWaitSupported = present.presentWait;
+        info.fifoLatestReadySupported = present.fifoLatestReady;
 
         const std::int32_t score = scoreDevice(info.properties.properties) + 500;
         if (!foundCompatible || score > bestScore) {
@@ -206,6 +264,27 @@ bool PhysicalDevice::hasRayTracingMaintenance1Support(VkPhysicalDevice device) {
 
     return maint1Features.rayTracingMaintenance1 == VK_TRUE &&
            maint1Features.rayTracingPipelineTraceRaysIndirect2 == VK_TRUE;
+}
+
+bool PhysicalDevice::hasExtension(VkPhysicalDevice device, const char* name) {
+    std::uint32_t extensionCount = 0;
+    VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+    if (result != VK_SUCCESS || extensionCount == 0U) {
+        return false;
+    }
+
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+    if (result != VK_SUCCESS) {
+        return false;
+    }
+
+    for (const VkExtensionProperties& extension : extensions) {
+        if (std::string_view(extension.extensionName) == name) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool PhysicalDevice::hasRequiredExtensions(VkPhysicalDevice device) {

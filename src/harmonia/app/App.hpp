@@ -191,6 +191,9 @@ class App {
     [[nodiscard]] bool createHdrImage();
     [[nodiscard]] bool createDenoisedImage();
     [[nodiscard]] bool createToneMapper();
+    /// One-shot diagnostic: when VK_KHR_calibrated_timestamps is supported, sample the
+    /// GPU<->host clock relationship and log it (exercises the extension's entry points).
+    void logGpuClockCalibration() noexcept;
     void rebuildStagePipeline();
     void applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig);
     [[nodiscard]] bool hasTonemapStage() const noexcept;

@@ -171,60 +171,77 @@ VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
                                      std::size_t height) {
     // ── Upload to GPU ────────────────────────────────────────────────────────
     const VkExtent2D extent{static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
-    const VkDeviceSize byteSize = static_cast<VkDeviceSize>(width * height) * 4u * sizeof(float);
-
-    auto staging = Buffer::create(
-        ctx, byteSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "ibl.staging");
-    if (!staging) {
-        return staging.error();
-    }
-    staging->uploadData(rgba32f.data(), byteSize);
 
     auto image = Image::create(ctx,
                                extent,
                                VK_FORMAT_R32G32B32A32_SFLOAT,
-                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_HOST_TRANSFER_BIT,
                                VK_IMAGE_ASPECT_COLOR_BIT,
                                "ibl.env");
     if (!image) {
         return image.error();
     }
 
-    auto cmd = pool.beginOneShot();
-    if (!cmd) {
-        return cmd.error();
+    // Vulkan 1.4 hostImageCopy: stream host pixels straight into the (optimal-tiling) image
+    // with vkCopyMemoryToImage — no staging buffer, no device-side copy. Layout path:
+    // UNDEFINED -> GENERAL (queue), host copy into GENERAL, GENERAL -> SHADER_READ_ONLY (queue).
+    {
+        auto cmd = pool.beginOneShot();
+        if (!cmd) {
+            return cmd.error();
+        }
+        image->transition(*cmd,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_GENERAL,
+                          VK_PIPELINE_STAGE_2_NONE,
+                          0,
+                          VK_PIPELINE_STAGE_2_HOST_BIT,
+                          VK_ACCESS_2_HOST_WRITE_BIT);
+        if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
+            return result;
+        }
     }
 
-    image->transition(*cmd,
-                      VK_IMAGE_LAYOUT_UNDEFINED,
-                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                      VK_PIPELINE_STAGE_2_NONE,
-                      0,
-                      VK_PIPELINE_STAGE_2_COPY_BIT,
-                      VK_ACCESS_2_TRANSFER_WRITE_BIT);
-
-    const VkBufferImageCopy region{
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
+    const VkMemoryToImageCopy region{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
+        .pNext = nullptr,
+        .pHostPointer = rgba32f.data(),
+        .memoryRowLength = 0,
+        .memoryImageHeight = 0,
         .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
         .imageOffset = {0, 0, 0},
         .imageExtent = {extent.width, extent.height, 1u},
     };
-    vkCmdCopyBufferToImage(*cmd, staging->handle(), image->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    const VkCopyMemoryToImageInfo copyInfo{
+        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .dstImage = image->handle(),
+        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .regionCount = 1,
+        .pRegions = &region,
+    };
+    if (const VkResult result = vkCopyMemoryToImage(ctx.device, &copyInfo); result != VK_SUCCESS) {
+        return result;
+    }
 
     // Transition to SHADER_READ_ONLY_OPTIMAL covering all shader stages that may
     // sample the env panorama: fragment (Theia sky pass) and ray tracing (Hyperion).
-    image->transition(*cmd,
-                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                      VK_PIPELINE_STAGE_2_COPY_BIT,
-                      VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                      VK_ACCESS_2_SHADER_READ_BIT);
-
-    if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
-        return result;
+    {
+        auto cmd = pool.beginOneShot();
+        if (!cmd) {
+            return cmd.error();
+        }
+        image->transition(*cmd,
+                          VK_IMAGE_LAYOUT_GENERAL,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                          VK_PIPELINE_STAGE_2_HOST_BIT,
+                          VK_ACCESS_2_HOST_WRITE_BIT,
+                          VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                          VK_ACCESS_2_SHADER_READ_BIT);
+        if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
+            return result;
+        }
     }
 
     // ── Create sampler (REPEAT on U, CLAMP_TO_EDGE on V to avoid pole artefacts) ──
