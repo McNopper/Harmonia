@@ -56,11 +56,24 @@ class Geometry {
     [[nodiscard]] virtual VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
                                                                           const Xform& xform) const noexcept = 0;
 
+    /// Object-space axis-aligned bounding box of this geometry. Returned to the
+    /// renderers, which derive a per-instance world-space AABB via
+    /// `worldAabbFromInstance` for culling / ray-reject tests. For triangle
+    /// meshes this is the authored `MeshData::bounds` when present, else a vertex
+    /// scan; for analytic shapes it is derived from the shape parameters.
+    [[nodiscard]] virtual Aabb objectAabb() const noexcept = 0;
+
     [[nodiscard]] VkAccelerationStructureKHR blas() const noexcept { return m_blas; }
 
   protected:
     VkAccelerationStructureKHR m_blas = VK_NULL_HANDLE;
 };
+
+/// Transform an object-space AABB to world space under @p xform. Applies the
+/// TRS matrix to all 8 corners and re-bounds — correct under non-uniform scale
+/// (unlike transforming half-extents). Used per-instance to build the world-AABB
+/// SSBO consumed by the renderers' cull / ray-reject phases.
+[[nodiscard]] Aabb worldAabbFromInstance(const Aabb& object, const Xform& xform) noexcept;
 
 class TriangleMesh final : public Geometry {
   public:
@@ -70,6 +83,7 @@ class TriangleMesh final : public Geometry {
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
                                                                   const Xform& xform) const noexcept override;
+    [[nodiscard]] Aabb objectAabb() const noexcept override;
 
     [[nodiscard]] const Buffer& vertexBuffer() const noexcept;
     [[nodiscard]] const Buffer& indexBuffer() const noexcept;
@@ -94,6 +108,7 @@ class Sphere final : public Geometry {
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
                                                                   const Xform& xform) const noexcept override;
+    [[nodiscard]] Aabb objectAabb() const noexcept override;
 
     [[nodiscard]] float radius() const noexcept;
 

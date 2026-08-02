@@ -5,6 +5,8 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
+#include <slang-math/slang-math.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,9 +18,19 @@
 
 namespace harmonia {
 
+/// Axis-aligned bounding box (object or world space — caller-established).
+struct Aabb {
+    sm::float3 min{};
+    sm::float3 max{};
+};
+
 struct MeshData {
     std::vector<GpuVertex> vertices;
     std::vector<std::uint32_t> indices;
+    /// Optional object-space AABB authored in the scene file. When absent the
+    /// consumer derives it from `vertices`. Carried to the renderers, which
+    /// transform it to world space per instance (`worldAabbFromInstance`).
+    std::optional<Aabb> bounds;
 };
 
 class Mesh {

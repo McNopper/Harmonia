@@ -110,6 +110,28 @@ VkTransformMatrixKHR Xform::toVkTransform() const noexcept {
     }};
 }
 
+Aabb worldAabbFromInstance(const Aabb& object, const Xform& xform) noexcept {
+    const sm::float4x4 m = xform.matrix();
+    const sm::float3 corners[8]{
+        {object.min.x, object.min.y, object.min.z},
+        {object.min.x, object.min.y, object.max.z},
+        {object.min.x, object.max.y, object.min.z},
+        {object.min.x, object.max.y, object.max.z},
+        {object.max.x, object.min.y, object.min.z},
+        {object.max.x, object.min.y, object.max.z},
+        {object.max.x, object.max.y, object.min.z},
+        {object.max.x, object.max.y, object.max.z},
+    };
+    sm::float3 mn = static_cast<sm::float3>(m * sm::float4(corners[0], 1.0f));
+    sm::float3 mx = mn;
+    for (std::size_t i = 1; i < std::size(corners); ++i) {
+        const sm::float3 p = static_cast<sm::float3>(m * sm::float4(corners[i], 1.0f));
+        mn = sm::min(mn, p);
+        mx = sm::max(mx, p);
+    }
+    return Aabb{.min = mn, .max = mx};
+}
+
 std::expected<std::unique_ptr<TriangleMesh>, VkResult>
 TriangleMesh::create(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view debugName) {
     auto mesh = Mesh::create(ctx, pool, data, debugName);
@@ -192,6 +214,22 @@ const MeshData& TriangleMesh::data() const noexcept {
     return m_data;
 }
 
+Aabb TriangleMesh::objectAabb() const noexcept {
+    if (m_data.bounds) {
+        return *m_data.bounds;
+    }
+    if (m_data.vertices.empty()) {
+        return {};
+    }
+    sm::float3 mn = m_data.vertices[0].position;
+    sm::float3 mx = mn;
+    for (const GpuVertex& v : m_data.vertices) {
+        mn = sm::min(mn, v.position);
+        mx = sm::max(mx, v.position);
+    }
+    return Aabb{.min = mn, .max = mx};
+}
+
 std::expected<std::unique_ptr<Sphere>, VkResult>
 Sphere::create(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view debugName) {
     if (radius <= 0.0f) {
@@ -269,6 +307,11 @@ VkAccelerationStructureInstanceKHR Sphere::makeInstance(std::uint32_t instanceCu
 
 float Sphere::radius() const noexcept {
     return m_radius;
+}
+
+Aabb Sphere::objectAabb() const noexcept {
+    const auto aabb = harmonia::ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, m_radius);
+    return Aabb{.min = aabb.min, .max = aabb.max};
 }
 
 } // namespace harmonia

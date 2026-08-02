@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <slang-math/slang-math.hpp>
 #include <string>
 #include <toml++/toml.hpp>
@@ -104,6 +105,16 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
         });
     }
     return out;
+}
+
+// Convert an authored object-space AABB (Aether → Harmonia). The authored bounds
+// applies to the whole OBJ; each sub-mesh carries it as a conservative bounds
+// (a superset of the sub-mesh's own vertices — safe for culling/rejection).
+[[nodiscard]] std::optional<Aabb> toHarmoniaBounds(const std::optional<aether::Aabb>& b) {
+    if (!b) {
+        return std::nullopt;
+    }
+    return Aabb{.min = b->min, .max = b->max};
 }
 
 /// One sub-mesh of a declared mesh: its registered mesh index + the OBJ group
@@ -254,7 +265,9 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
                     continue;
                 }
                 const std::string debugName = m.name + "." + g.name;
-                const std::uint32_t idx = scene.addMesh(ctx, pool, toHarmoniaMesh(g.mesh), debugName);
+                MeshData hmesh = toHarmoniaMesh(g.mesh);
+                hmesh.bounds = toHarmoniaBounds(m.bounds);
+                const std::uint32_t idx = scene.addMesh(ctx, pool, std::move(hmesh), debugName);
                 if (idx == std::numeric_limits<std::uint32_t>::max()) {
                     Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
                     return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
