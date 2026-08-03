@@ -147,6 +147,7 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         vkGetPhysicalDeviceMemoryProperties(device, &info.memProperties);
         info.serSupported = hasSerSupport(device);
         info.dgcSupported = hasDgcSupport(device);
+        info.opacityMicromapSupported = hasOpacityMicromapSupport(device);
         info.pageableMemorySupported = hasExtension(device, VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME);
         info.calibratedTimestampsSupported = hasExtension(device, VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
         const PresentExtensionSupport present = queryPresentExtensions(device);
@@ -347,6 +348,40 @@ bool PhysicalDevice::hasDgcSupport(VkPhysicalDevice device) {
     vkGetPhysicalDeviceFeatures2(device, &features2);
 
     return dgcFeatures.deviceGeneratedCommands == VK_TRUE;
+}
+
+bool PhysicalDevice::hasOpacityMicromapSupport(VkPhysicalDevice device) {
+    std::uint32_t extensionCount = 0;
+    VkResult result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+    if (result != VK_SUCCESS || extensionCount == 0U) {
+        return false;
+    }
+
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    result = vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+    if (result != VK_SUCCESS) {
+        return false;
+    }
+
+    bool extensionAvailable = false;
+    for (const VkExtensionProperties& extension : extensions) {
+        if (std::string_view(extension.extensionName) == VK_EXT_OPACITY_MICROMAP_EXTENSION_NAME) {
+            extensionAvailable = true;
+            break;
+        }
+    }
+    if (!extensionAvailable) {
+        return false;
+    }
+
+    VkPhysicalDeviceOpacityMicromapFeaturesEXT ommFeatures{};
+    ommFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT;
+    VkPhysicalDeviceFeatures2 features2{};
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &ommFeatures;
+    vkGetPhysicalDeviceFeatures2(device, &features2);
+
+    return ommFeatures.micromap == VK_TRUE;
 }
 
 } // namespace harmonia

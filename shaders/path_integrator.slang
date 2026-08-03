@@ -29,11 +29,21 @@ import env_sample;   // sampleEnvImportanceDir, evalEnvImportancePdfDir, sanitiz
 // each provide their own bsdf.slang), so this estimator stays BSDF-implementation agnostic.
 import bsdf;
 
-/// Shadow-tracing abstraction: return true if origin→direction*tMax is UNOCCLUDED.
-/// Hyperion: implements with TraceRay (shadow miss shader sets inShadow=false).
-/// Theia:    implements with inline RayQuery<ACCEPT_FIRST_HIT | SKIP_PROCEDURAL>.
+/// Shadow-tracing abstraction: the fraction of light that reaches `origin` from
+/// `origin + direction*tMax`, i.e. **1 = unoccluded, 0 = fully blocked**.
+///
+/// Occluders are opaque except through OpenPBR's `geometry_opacity` (α): the spec's
+/// "transparent shadows" form (§Opacity/Transparency) gives the transmittance of a
+/// surface with an opaque base as `T = 1 - α`, so a shadow ray accumulates ∏(1-α_i)
+/// over the cut-out surfaces it crosses and stops at the first α = 1 hit. This is the
+/// same `geometry_opacity × map_opacity` quantity the surface gate uses, so a cutout
+/// casts a cutout shadow — the presence weight is one decision applied to every ray.
+///
+/// Hyperion: TraceRay against the shadow hit group, whose any-hit accumulates the
+///           product (opacity micromaps let traversal skip the invocation entirely).
+/// Theia:    inline RayQuery whose non-opaque-candidate loop runs the identical test.
 interface ITracer {
-    bool traceOccluded(float3 origin, float3 direction, float tMax);
+    float traceTransmittance(float3 origin, float3 direction, float tMax);
 }
 
 /// Pre-resolved per-bounce hit data. The caller applies texture maps and flips the
@@ -69,6 +79,14 @@ struct PathState {
     float   lastBsdfPdf;
     float3  nextOrigin;     ///< written by integrateSurface; read by caller for next bounce
     float3  nextDirection;
+    /// Set when the vertex resolved to the OpenPBR opacity pass-through
+    /// (`mix(ambient-medium, surface, geometry_opacity)` selected the ambient
+    /// medium): the ray continued unchanged and NO surface interaction
+    /// happened. Callers must NOT charge it against the bounce budget — it is a
+    /// null interaction exactly like a medium free-flight segment. Charging it
+    /// makes a cutout render black wherever a ray grazes several cut-out
+    /// crossings, which is a budget artifact, not light transport.
+    bool    passedThrough;
     // Step 3 (bulk subsurface random walk): set true when this bounce enters a bulk
     // subsurface medium (BSDFSample.entersMedium). Renderers that implement the walk (see
     // Hyperion's raygen/miss/closesthit) read these back from the caller's payload and drive
@@ -205,10 +223,11 @@ float3 evalEmissiveSphereNEE<T : ITracer>(
         float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
         float  cosNgL       = dot(surf.geoNormal, wi);
         float  shadowTMax   = max(t - kRayEpsilon * (1.0 + cosNgL), 0.0);
-        if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
+        float visibility = tracer.traceTransmittance(shadowOrigin, wi, shadowTMax);
+        if (visibility > 0.0) {
             float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                 surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
-            return bsdfVal * Le * cosI * fTerm / solidPdf;
+            return bsdfVal * Le * cosI * fTerm * visibility / solidPdf;
         }
     }
     return 0.0.xxx;
@@ -307,10 +326,11 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
             float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
             float  cosNgL       = dot(surf.geoNormal, wi);
             float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + cosNgL), 0.0);
-            if (tracer.traceOccluded(shadowOrigin, wi, shadowTMax)) {
+            float visibility = tracer.traceTransmittance(shadowOrigin, wi, shadowTMax);
+            if (visibility > 0.0) {
                 float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
-                return bsdfVal * Le * cosI * fTerm / solidPdf;
+                return bsdfVal * Le * cosI * fTerm * visibility / solidPdf;
             }
         }
     }
@@ -353,7 +373,8 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
         float fTerm = shadowTerminatorFactor(surf.normal, surf.geoNormal, wi, g);
         if (fTerm > 0.0) {
             float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
-            if (tracer.traceOccluded(shadowOrigin, wi, kInf)) {
+            float visibility = tracer.traceTransmittance(shadowOrigin, wi, kInf);
+            if (visibility > 0.0) {
                 float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
                 float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
@@ -362,7 +383,7 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
                 sample.bsdfPdf = bsdfPdf;
                 sample.misWeight = misW;
-                sample.contribution = bsdfVal * Le * cosI * fTerm * misW / envPdf;
+                sample.contribution = bsdfVal * Le * cosI * fTerm * misW * visibility / envPdf;
                 sample.valid = true;
             }
         }
@@ -397,6 +418,7 @@ void integrateSurface<T : ITracer>(
 {
     // 1) Emission. A front-face emitter hit terminates the path; the emission itself is
     //    added only when it is not already accounted for by NEE (see evalEmissionGuarded).
+    state.passedThrough = false;
     float3 emission = max(surf.mat.emissionColorLum.xyz, 0.0.xxx)
                     * max(surf.mat.emissionColorLum.w, 0.0);
     // G7 (OpenPBR spec): emission escaping through the coat is attenuated by the coat's Schlick
@@ -418,16 +440,19 @@ void integrateSurface<T : ITracer>(
         return;
     }
 
-    // 2) Stochastic opacity gate (OpenPBR delta pass-through). With probability (1-opacity)
-    //    the ray passes straight through with no interaction; continue it forward unchanged.
+    // 2) Stochastic opacity gate — the OpenPBR `mix(S_ambient-medium, M_surface, α)` with
+    //    α = geometry_opacity × map_opacity (spec §"Opacity / Transparency"). With
+    //    probability (1-α) the ambient medium is selected: no surface exists here, so the
+    //    ray continues straight through with no interaction. `passedThrough` tells the
+    //    caller this consumed no bounce (a null interaction, not a scattering event).
     float opacity = saturate(surf.mat.opacityFlagsPad.x);
     if (randFloat(state.seed) < (1.0 - opacity)) {
         float3 fwd = -surf.wo; // original forward (WorldRayDirection), already unit-length
         state.nextOrigin    = surf.position
-            + surf.geoNormal * (dot(fwd, surf.geoNormal) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
+            + surf.geoNormal * (dot(fwd, surf.geoNormal) >= 0.0 ? kNullInteractionEpsilon
+                                                                : -kNullInteractionEpsilon);
         state.nextDirection = fwd;
-        state.lastBsdfPdf   = 1.0e30; // delta (needed for MIS weighting)
-        state.specularBounce = true;
+        state.passedThrough = true;
         return;
     }
 

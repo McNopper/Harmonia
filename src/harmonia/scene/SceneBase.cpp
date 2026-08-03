@@ -33,17 +33,25 @@ std::uint32_t SceneBase::addLight(std::unique_ptr<Light> light) {
     return index;
 }
 
-std::uint32_t
-SceneBase::addMesh(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view name) {
+std::uint32_t SceneBase::addMesh(const DeviceContext& ctx,
+                                 const CommandPool& pool,
+                                 MeshData&& data,
+                                 const MeshOpacity& opacity,
+                                 std::string_view name) {
     const std::uint32_t meshIndex = static_cast<std::uint32_t>(m_meshes.size());
     const std::string debugName = name.empty() ? std::string{"mesh."} + std::to_string(meshIndex) : std::string{name};
 
-    auto mesh = TriangleMesh::create(ctx, pool, std::move(data), debugName);
+    auto mesh = TriangleMesh::create(ctx, pool, std::move(data), opacity, debugName);
     if (!mesh) {
         return std::numeric_limits<std::uint32_t>::max();
     }
     m_meshes.push_back(std::move(*mesh));
     return meshIndex;
+}
+
+const aether::OpacityMicromapData& SceneBase::addOpacityMicromap(aether::OpacityMicromapData&& data) {
+    m_ommAssets.push_back(std::move(data));
+    return m_ommAssets.back();
 }
 
 VkResult SceneBase::build(const DeviceContext& ctx, const CommandPool& pool) {

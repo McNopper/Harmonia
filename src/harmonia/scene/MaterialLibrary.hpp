@@ -35,7 +35,8 @@ class MaterialLibrary {
 
     /// All texture references for one material (one entry per bindless map slot).
     /// Slot order matches GpuMaterial::textureIndices: [0] base_color, [1] normal,
-    /// [2] ORM (occlusion/roughness/metalness), [3] emission.
+    /// [2] ORM (occlusion/roughness/metalness), [3] emission; textureIndices2:
+    /// [4] coat_normal, [5] tangent, [6] coat_tangent, [7] opacity.
     struct MaterialTextureRefs {
         MaterialTextureRef base_color;
         MaterialTextureRef normal;
@@ -44,6 +45,7 @@ class MaterialLibrary {
         MaterialTextureRef coat_normal;
         MaterialTextureRef tangent;
         MaterialTextureRef coat_tangent;
+        MaterialTextureRef opacity; ///< cutout/alpha-test map (Data space); drives the rasterizer alpha test
     };
 
     /// Load material definitions from a .materials.toml file, converting color

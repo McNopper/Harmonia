@@ -60,7 +60,7 @@ struct GpuMaterial {
         emissionColorLum; ///< xyz = emission_color (linear Rec.2020), w = emission_luminance in cd/m² (OpenPBR spec)
     sm::float4 opacityFlagsPad; ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w =
                                 ///< geometry_thin_walled
-    sm::uint4 textureIndices2;  ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
+    sm::uint4 textureIndices2;  ///< bindless indices: [coat_normal, tangent, coat_tangent, opacity]; ~0u = none
 };
 
 // GpuInstance is renderer-specific (path-tracer index layout vs rasterizer meshlet

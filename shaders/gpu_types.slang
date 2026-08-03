@@ -83,6 +83,15 @@ static const float kRayEpsilon = 0.001;
 /// free-flight distances below kRayEpsilon). Shared by both renderers' medium walk.
 static const float kMediumEpsilon = 1.0e-5;
 
+/// Epsilon for resuming a ray after a NULL interaction — the OpenPBR `geometry_opacity`
+/// pass-through, where the ambient-medium side of mix(ambient, surface, alpha) was selected.
+/// Deliberately far below kRayEpsilon: nothing is scattered off a shading normal here, the
+/// SAME ray continues, so the only thing to step over is the surface just crossed. Using the
+/// scattering epsilon would make the continuation skip every surface within 1 mm of the
+/// cut-out — dropping the ray straight through coincident geometry (a cut-out object resting
+/// on a floor lands *inside* the floor) and rendering the hole black.
+static const float kNullInteractionEpsilon = 1.0e-5;
+
 /// Effective infinity for ray TMax / hit-distance comparisons.
 static const float kInf = 1.0e30;
 

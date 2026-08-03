@@ -5,6 +5,7 @@
 #include <slang-math/slang-math.hpp>
 #include <string_view>
 
+#include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/scene/Geometry.hpp"
@@ -39,9 +40,21 @@ class ISceneBuilder {
     [[nodiscard]] virtual std::uint32_t addTexture(Texture&& texture) = 0;
 
     /// Register a unique triangle mesh (object space). Returns its mesh index,
-    /// or uint32_max on failure.
-    [[nodiscard]] virtual std::uint32_t
-    addMesh(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view name) = 0;
+    /// or uint32_max on failure. @p opacity declares whether the mesh can be cut
+    /// out by OpenPBR `geometry_opacity` (its BLAS geometry then drops the opaque
+    /// flag) and optionally attaches a pre-baked opacity micromap to accelerate
+    /// that decision.
+    [[nodiscard]] virtual std::uint32_t addMesh(const DeviceContext& ctx,
+                                                const CommandPool& pool,
+                                                MeshData&& data,
+                                                const MeshOpacity& opacity,
+                                                std::string_view name) = 0;
+
+    /// Take ownership of a parsed opacity-micromap asset so it outlives the
+    /// per-mesh BLAS builds that read it. Returns a stable reference to the
+    /// stored data. (OMM assets live in the scene, not the loader, because
+    /// `build()` runs after `load()`.)
+    [[nodiscard]] virtual const aether::OpacityMicromapData& addOpacityMicromap(aether::OpacityMicromapData&& data) = 0;
 
     /// Register a unique sphere mesh of @p radius (object space, centred at the
     /// origin). Returns its mesh index, or uint32_max on failure.

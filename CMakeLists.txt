@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(harmonia VERSION 0.7.5 LANGUAGES C CXX)
+project(harmonia VERSION 0.7.7 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -20,6 +20,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_definitions(VK_NO_PROTOTYPES)
+# VK_EXT_opacity_micromap types/functions are still behind VK_ENABLE_BETA_EXTENSIONS
+# in the SDK 1.4 headers (the extension ships widely but is not yet "stable" in the
+# header sense). Define it project-wide so the OMM structs (VkMicromapEXT,
+# VkMicromapBuildInfoEXT, VkAccelerationStructureTrianglesOpacityMicromapEXT, …)
+# and the volk function pointers (vkCreateMicromapEXT, vkCmdBuildMicromapsEXT, …)
+# are visible.
+add_compile_definitions(VK_ENABLE_BETA_EXTENSIONS)
 
 # ============================================================
 # AI-first static analysis (clang-tidy / cppcheck / clang-format)
@@ -204,7 +211,7 @@ endif()
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.7.2
+    GIT_TAG v0.7.3
 )
 FetchContent_MakeAvailable(aether)
 
@@ -230,6 +237,7 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/core/Logger.cpp
     src/harmonia/core/ShaderModule.cpp
     src/harmonia/renderer/AccelerationStructure.cpp
+    src/harmonia/renderer/MicromapBuilder.cpp
     src/harmonia/renderer/TlasBuilder.cpp
     src/harmonia/renderer/Camera.cpp
     src/harmonia/renderer/Descriptors.cpp
@@ -304,6 +312,7 @@ target_link_libraries(harmonia_lib
 
 target_compile_definitions(harmonia_lib
     PUBLIC HARMONIA_SHADER_DIR=\"${HARMONIA_SHADER_OUTPUT_DIR}\"
+           VK_ENABLE_BETA_EXTENSIONS # propagate to consumers (Hyperion/Theia) — OMM types are beta-flagged
 )
 
 # Tests only build when Harmonia is the top-level project.

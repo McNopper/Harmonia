@@ -23,16 +23,21 @@ class Buffer {
                                                                 VkDeviceSize size,
                                                                 VkBufferUsageFlags usage,
                                                                 VmaMemoryUsage memUsage,
-                                                                std::string_view debugName = "");
+                                                                std::string_view debugName = "",
+                                                                VkDeviceSize minAlignment = 0);
 
     // Stage-upload helper: allocates a host staging buffer, copies bytes into it,
     // then records a device-side copy to a DEVICE_LOCAL buffer and waits for it.
     // Enforces a 16-byte minimum size for safe empty-span sentinel uploads.
+    // @p minAlignment requests a minimum allocation alignment (power of two) — used
+    // for buffers whose device address must be aligned (e.g. micromap data/triangle
+    // arrays require 256-byte alignment per VUID-vkCmdBuildMicromapsEXT-pInfos-07515).
     [[nodiscard]] static std::expected<Buffer, VkResult> upload(const DeviceContext& ctx,
                                                                 const CommandPool& pool,
                                                                 std::span<const std::byte> bytes,
                                                                 VkBufferUsageFlags usage,
-                                                                std::string_view name = "");
+                                                                std::string_view name = "",
+                                                                VkDeviceSize minAlignment = 0);
 
     Buffer() = default;
     Buffer(const Buffer&) = delete;

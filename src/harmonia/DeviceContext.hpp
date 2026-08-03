@@ -17,9 +17,11 @@ struct DeviceContext {
     VmaAllocator allocator = VK_NULL_HANDLE;
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     std::uint32_t graphicsFamily = 0;
-    bool positionFetchSupported = false;  ///< VK_KHR_ray_tracing_position_fetch is enabled.
-    bool serSupported = false;            ///< VK_EXT_ray_tracing_invocation_reorder is enabled.
-    bool dgcSupported = false;            ///< VK_EXT_device_generated_commands is enabled.
+    bool positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is enabled.
+    bool serSupported = false;           ///< VK_EXT_ray_tracing_invocation_reorder is enabled.
+    bool dgcSupported = false;           ///< VK_EXT_device_generated_commands is enabled.
+    bool opacityMicromapSupported =
+        false; ///< VK_EXT_opacity_micromap is enabled (opacity micromaps on alpha-tested geometry).
     bool pageableMemorySupported = false; ///< VK_EXT_pageable_device_local_memory enabled (driver auto-uses paging).
     bool calibratedTimestampsSupported =
         false;                             ///< VK_KHR_calibrated_timestamps enabled (GPU/CPU timestamp correlation).

@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <expected>
 #include <limits>
 #include <memory>
@@ -13,6 +14,7 @@
 #include <string_view>
 #include <vector>
 
+#include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
@@ -55,10 +57,19 @@ class SceneBase : public ISceneBuilder {
 
     /// Registers a unique triangle mesh (object space). Shared because it is
     /// identical across renderers (a plain TriangleMesh upload).
-    [[nodiscard]] std::uint32_t
-    addMesh(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view name = "") override;
+    [[nodiscard]] std::uint32_t addMesh(const DeviceContext& ctx,
+                                        const CommandPool& pool,
+                                        MeshData&& data,
+                                        const MeshOpacity& opacity,
+                                        std::string_view name = "") override;
 
     // ── Additional scene population ─────────────────────────────────────────
+
+    /// Takes ownership of a parsed opacity-micromap asset and returns a stable
+    /// reference to it. The scene keeps the asset alive for as long as its
+    /// meshes (whose `buildBlas` reads the group), so callers may hand out
+    /// `OpacityMicromapGroup*` pointers into the returned data.
+    [[nodiscard]] const aether::OpacityMicromapData& addOpacityMicromap(aether::OpacityMicromapData&& data) override;
 
     /// Appends @p light and returns its index.  Must be called before build().
     std::uint32_t addLight(std::unique_ptr<Light> light);
@@ -98,6 +109,10 @@ class SceneBase : public ISceneBuilder {
     std::vector<InstanceRecord> m_instances;         ///< placements referencing m_meshes
     std::vector<std::unique_ptr<Light>> m_lights;
     std::vector<Texture> m_textures;
+    /// Parsed OMM assets. A deque, not a vector: `addOpacityMicromap` hands out
+    /// references into these and meshes keep `OpacityMicromapGroup*` pointers
+    /// into them until `buildBlas`, so the storage must never reallocate.
+    std::deque<aether::OpacityMicromapData> m_ommAssets;
 
     AccelerationStructure m_tlas{};
     VkDeviceAddress m_tlasAddress{};

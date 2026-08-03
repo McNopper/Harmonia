@@ -126,6 +126,7 @@ bool MaterialLibrary::load(const std::filesystem::path& path, harmonia::ColorSpa
         refs.coat_normal = toRef(desc.map_coat_normal);
         refs.tangent = toRef(desc.map_tangent);
         refs.coat_tangent = toRef(desc.map_coat_tangent);
+        refs.opacity = toRef(desc.map_opacity);
         m_textureRefs.insert_or_assign(name, std::move(refs));
     }
 

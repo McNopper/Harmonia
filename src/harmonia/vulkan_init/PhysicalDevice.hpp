@@ -16,6 +16,7 @@ struct PhysicalDeviceInfo {
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps{};
     bool serSupported = false;                  ///< VK_EXT_ray_tracing_invocation_reorder is available.
     bool dgcSupported = false;                  ///< VK_EXT_device_generated_commands is available.
+    bool opacityMicromapSupported = false;      ///< VK_EXT_opacity_micromap is available.
     bool pageableMemorySupported = false;       ///< VK_EXT_pageable_device_local_memory is available.
     bool calibratedTimestampsSupported = false; ///< VK_KHR_calibrated_timestamps is available.
     bool presentIdSupported = false;            ///< VK_KHR_present_id is available.
@@ -34,6 +35,7 @@ class PhysicalDevice {
     [[nodiscard]] static bool hasSerSupport(VkPhysicalDevice device);
     [[nodiscard]] static bool hasRayTracingMaintenance1Support(VkPhysicalDevice device);
     [[nodiscard]] static bool hasDgcSupport(VkPhysicalDevice device);
+    [[nodiscard]] static bool hasOpacityMicromapSupport(VkPhysicalDevice device);
 };
 
 } // namespace harmonia

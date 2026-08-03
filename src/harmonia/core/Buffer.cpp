@@ -34,7 +34,8 @@ std::expected<Buffer, VkResult> Buffer::create(const DeviceContext& ctx,
                                                VkDeviceSize size,
                                                VkBufferUsageFlags usage,
                                                VmaMemoryUsage memUsage,
-                                               std::string_view debugName) {
+                                               std::string_view debugName,
+                                               VkDeviceSize minAlignment) {
     if (!ctx.isValid() || ctx.allocator == VK_NULL_HANDLE || size == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -65,7 +66,7 @@ std::expected<Buffer, VkResult> Buffer::create(const DeviceContext& ctx,
         .pool = VK_NULL_HANDLE,
         .pUserData = nullptr,
         .priority = 0.0F,
-        .minAlignment = 0,
+        .minAlignment = minAlignment,
     };
 
     Buffer buffer;
@@ -109,11 +110,12 @@ std::expected<Buffer, VkResult> Buffer::upload(const DeviceContext& ctx,
                                                const CommandPool& pool,
                                                std::span<const std::byte> bytes,
                                                VkBufferUsageFlags usage,
-                                               std::string_view name) {
+                                               std::string_view name,
+                                               VkDeviceSize minAlignment) {
     const VkDeviceSize size = std::max<VkDeviceSize>(bytes.size(), kMinBufferSize);
 
-    auto deviceBuffer =
-        Buffer::create(ctx, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, name);
+    auto deviceBuffer = Buffer::create(
+        ctx, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, name, minAlignment);
     if (!deviceBuffer) {
         return std::unexpected(deviceBuffer.error());
     }

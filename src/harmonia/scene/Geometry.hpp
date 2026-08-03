@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <slang-math/slang-math.hpp>
 #include <string>
 #include <string_view>
@@ -14,6 +15,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/renderer/AccelerationStructure.hpp"
+#include "harmonia/renderer/MicromapBuilder.hpp"
 #include "harmonia/scene/Mesh.hpp"
 
 namespace harmonia {
@@ -75,10 +77,30 @@ class Geometry {
 /// SSBO consumed by the renderers' cull / ray-reject phases.
 [[nodiscard]] Aabb worldAabbFromInstance(const Aabb& object, const Xform& xform) noexcept;
 
+/// How a mesh's geometry resolves OpenPBR `geometry_opacity` during traversal.
+struct MeshOpacity {
+    /// Set when a material placed on this mesh can be less than fully present
+    /// (`geometry_opacity < 1`, or a `map_opacity` cutout mask). Such geometry
+    /// must NOT carry `VK_GEOMETRY_OPAQUE_BIT_KHR`, because the shadow any-hit
+    /// has to run for the cutout to attenuate shadow rays (and RayQuery has to
+    /// surface it as a candidate in Theia). Fully-present geometry keeps the
+    /// flag and traces exactly as it did before.
+    bool alphaTested = false;
+    /// Pre-baked opacity micromap for this mesh's BLAS, or nullptr. It only
+    /// accelerates the decision `alphaTested` describes: microtriangles the bake
+    /// proved uniform are resolved by traversal, the rest reach the shader.
+    /// The pointee must outlive `buildBlas`; the built `Micromap` then owns its
+    /// device buffers.
+    const aether::OpacityMicromapGroup* micromap = nullptr;
+};
+
 class TriangleMesh final : public Geometry {
   public:
-    [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult>
-    create(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view debugName = "");
+    [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult> create(const DeviceContext& ctx,
+                                                                                       const CommandPool& pool,
+                                                                                       MeshData&& data,
+                                                                                       const MeshOpacity& opacity = {},
+                                                                                       std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
@@ -95,6 +117,8 @@ class TriangleMesh final : public Geometry {
     MeshData m_data{};
     Mesh m_mesh{};
     AccelerationStructure m_accelerationStructure{};
+    MeshOpacity m_opacity{};            ///< cutout participation; micromap baked in buildBlas.
+    std::optional<Micromap> m_micromap; ///< built OMM, owns its device buffers.
     std::string m_debugName{};
 };
 

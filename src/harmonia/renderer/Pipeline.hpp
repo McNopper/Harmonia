@@ -16,6 +16,9 @@ class Descriptors;
 
 class Pipeline {
   public:
+    /// RT stage modules. `shadowAnyHit` must expose BOTH `triangleShadowAnyHit`
+    /// and `sphereShadowAnyHit`; it is the only stage in the shadow hit groups
+    /// and resolves OpenPBR `geometry_opacity` per crossing.
     struct ShaderPaths {
         std::filesystem::path raygen;
         std::filesystem::path closesthitTriangle;
@@ -23,7 +26,14 @@ class Pipeline {
         std::filesystem::path intersection;
         std::filesystem::path miss;
         std::filesystem::path shadowMiss;
+        std::filesystem::path shadowAnyHit;
     };
+
+    /// Hit-group record layout of the SBT this pipeline expects. Selected as
+    /// `instanceShaderBindingTableRecordOffset + RayContributionToHitGroupIndex`:
+    /// triangle instances use offset 0, procedural (sphere) instances offset 2;
+    /// radiance rays contribute 0, shadow rays 1.
+    static constexpr std::uint32_t kHitGroupCount = 4;
 
     Pipeline() = default;
     ~Pipeline() noexcept = default;

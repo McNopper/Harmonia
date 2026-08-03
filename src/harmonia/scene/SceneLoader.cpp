@@ -8,12 +8,15 @@
 #include <string>
 #include <toml++/toml.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "aether/format/ObjImporter.hpp"
+#include "aether/format/OmmImporter.hpp"
 #include "aether/format/SceneParser.hpp"
 #include "aether/types/MeshData.hpp"
+#include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/MaterialLibrary.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
@@ -207,7 +210,7 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
         if (!refs)
             return;
 
-        const std::array<std::pair<std::uint32_t, const MaterialLibrary::MaterialTextureRef*>, 7> slots{{
+        const std::array<std::pair<std::uint32_t, const MaterialLibrary::MaterialTextureRef*>, 8> slots{{
             {0u, &refs->base_color},
             {1u, &refs->normal},
             {2u, &refs->orm},
@@ -215,6 +218,7 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
             {4u, &refs->coat_normal},
             {5u, &refs->tangent},
             {6u, &refs->coat_tangent},
+            {7u, &refs->opacity},
         }};
 
         for (const auto& [slot, ref] : slots) {
@@ -241,6 +245,39 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
         }
     };
 
+    // ── Cutout participation (must be known BEFORE the BLAS is built) ─────────
+    // A mesh whose material can be less than fully present (`geometry_opacity < 1`
+    // or a `map_opacity` mask) must build non-opaque BLAS geometry, otherwise the
+    // shadow any-hit never runs and the cutout casts a solid shadow. Materials are
+    // attached by instances, which are processed after the meshes, so walk the
+    // instance list first and record which (mesh, OBJ group) pairs are affected.
+    // Erring towards "alpha-tested" only costs traversal speed, never correctness.
+    const auto materialIsAlphaTested = [&lib](const std::string& name) {
+        if (name.empty()) {
+            return false;
+        }
+        if (const auto refs = lib.textureRefs(name); refs && !refs->opacity.empty()) {
+            return true;
+        }
+        const auto mat = lib.get(name);
+        return mat && mat->gpu().opacityFlagsPad.x < 1.0f;
+    };
+    std::unordered_map<std::string, bool> meshAlphaTested; // whole-mesh material
+    std::unordered_set<std::string> groupAlphaTested;      // "<mesh>\0<group>"
+    for (const aether::InstanceDesc& inst : desc->instances) {
+        if (materialIsAlphaTested(inst.materialName)) {
+            meshAlphaTested[inst.meshName] = true;
+        }
+        for (const auto& [groupName, matName] : inst.groupMaterials) {
+            if (materialIsAlphaTested(matName)) {
+                groupAlphaTested.insert(inst.meshName + '\0' + groupName);
+            }
+        }
+    }
+    const auto isAlphaTested = [&](const std::string& meshName, const std::string& groupName) {
+        return meshAlphaTested.contains(meshName) || groupAlphaTested.contains(meshName + '\0' + groupName);
+    };
+
     // ── Meshes: import each declared mesh ONCE (object space) ─────────────────
     // Records, per declared mesh name, the registered sub-mesh indices (+ OBJ
     // group names for material resolution). Instances reference these.
@@ -248,6 +285,44 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
 
     for (const aether::MeshDesc& m : desc->meshes) {
         std::vector<LoadedSubmesh> subs;
+
+        // Opacity-micromap references: a scene that uses an OMM requires
+        // VK_EXT_opacity_micromap — there is no opaque fallback (a cutout is not
+        // an image-identical absent-branch). Fail fast if the device lacks it.
+        if (!m.opacityMicromaps.empty() && !ctx.opacityMicromapSupported) {
+            Logger::error("SceneLoader: mesh '{}' uses opacity_micromaps but the device "
+                          "lacks VK_EXT_opacity_micromap",
+                          m.name);
+            return std::unexpected(VK_ERROR_FEATURE_NOT_PRESENT);
+        }
+        // Resolve each referenced .micromap.toml once (dedup by path) and map
+        // OBJ group name -> parsed group. The scene owns the parsed assets.
+        std::unordered_map<std::string, const aether::OpacityMicromapGroup*> ommForGroup;
+        std::unordered_map<std::string, const aether::OpacityMicromapData*> parsedOmmFiles;
+        for (const auto& [groupName, relPath] : m.opacityMicromaps) {
+            const std::filesystem::path ommPath = assetsDir / relPath;
+            const std::string key = ommPath.string();
+            const aether::OpacityMicromapData* asset = parsedOmmFiles[key];
+            if (asset == nullptr) {
+                auto parsed = aether::OmmImporter::parse(ommPath);
+                if (!parsed) {
+                    Logger::error("SceneLoader: cannot parse opacity micromap '{}'", relPath);
+                    return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+                }
+                asset = &scene.addOpacityMicromap(std::move(*parsed));
+                parsedOmmFiles[key] = asset;
+            }
+            for (const auto& ag : asset->groups) {
+                if (ag.name == groupName) {
+                    ommForGroup[groupName] = &ag;
+                    break;
+                }
+            }
+            if (ommForGroup.find(groupName) == ommForGroup.end()) {
+                Logger::error("SceneLoader: opacity micromap '{}' has no group '{}'", relPath, groupName);
+                return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+            }
+        }
 
         switch (m.kind) {
         case aether::MeshDesc::Kind::Object: {
@@ -267,7 +342,11 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
                 const std::string debugName = m.name + "." + g.name;
                 MeshData hmesh = toHarmoniaMesh(g.mesh);
                 hmesh.bounds = toHarmoniaBounds(m.bounds);
-                const std::uint32_t idx = scene.addMesh(ctx, pool, std::move(hmesh), debugName);
+                const MeshOpacity opacity{
+                    .alphaTested = isAlphaTested(m.name, g.name),
+                    .micromap = ommForGroup[g.name],
+                };
+                const std::uint32_t idx = scene.addMesh(ctx, pool, std::move(hmesh), opacity, debugName);
                 if (idx == std::numeric_limits<std::uint32_t>::max()) {
                     Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
                     return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -282,7 +361,8 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
                 continue;
             }
             MeshData mesh = harmonia::ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
-            const std::uint32_t idx = scene.addMesh(ctx, pool, std::move(mesh), m.name);
+            const std::uint32_t idx = scene.addMesh(
+                ctx, pool, std::move(mesh), MeshOpacity{.alphaTested = isAlphaTested(m.name, "")}, m.name);
             if (idx == std::numeric_limits<std::uint32_t>::max()) {
                 Logger::error("SceneLoader: failed to upload box '{}'", m.name);
                 return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);

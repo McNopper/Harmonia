@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/scene/SceneLoader.hpp"
 
 namespace {
@@ -27,12 +28,18 @@ class RecordingSceneBuilder final : public harmonia::ISceneBuilder {
     std::uint32_t addMesh(const harmonia::DeviceContext& /*ctx*/,
                           const harmonia::CommandPool& /*pool*/,
                           harmonia::MeshData&& data,
+                          const harmonia::MeshOpacity& /*opacity*/,
                           std::string_view /*name*/) override {
         if (data.vertices.empty() || data.indices.empty()) {
             return std::numeric_limits<std::uint32_t>::max();
         }
         ++meshCount;
         return static_cast<std::uint32_t>(meshCount - 1);
+    }
+
+    const aether::OpacityMicromapData& addOpacityMicromap(aether::OpacityMicromapData&& data) override {
+        ommAssets.push_back(std::move(data));
+        return ommAssets.back();
     }
 
     std::uint32_t addSphereMesh(const harmonia::DeviceContext& /*ctx*/,
@@ -57,6 +64,7 @@ class RecordingSceneBuilder final : public harmonia::ISceneBuilder {
     std::size_t meshCount = 0;
     std::size_t sphereMeshCount = 0;
     std::size_t instanceCount = 0;
+    std::vector<aether::OpacityMicromapData> ommAssets;
 };
 
 std::filesystem::path assetsDir() {

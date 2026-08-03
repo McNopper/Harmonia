@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "harmonia/GpuTypes.hpp"
+#include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
 namespace harmonia {
@@ -132,8 +133,11 @@ Aabb worldAabbFromInstance(const Aabb& object, const Xform& xform) noexcept {
     return Aabb{.min = mn, .max = mx};
 }
 
-std::expected<std::unique_ptr<TriangleMesh>, VkResult>
-TriangleMesh::create(const DeviceContext& ctx, const CommandPool& pool, MeshData&& data, std::string_view debugName) {
+std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(const DeviceContext& ctx,
+                                                                            const CommandPool& pool,
+                                                                            MeshData&& data,
+                                                                            const MeshOpacity& opacity,
+                                                                            std::string_view debugName) {
     auto mesh = Mesh::create(ctx, pool, data, debugName);
     if (!mesh) {
         return std::unexpected(mesh.error());
@@ -142,6 +146,7 @@ TriangleMesh::create(const DeviceContext& ctx, const CommandPool& pool, MeshData
     auto triangleMesh = std::make_unique<TriangleMesh>();
     triangleMesh->m_data = std::move(data);
     triangleMesh->m_mesh = std::move(*mesh);
+    triangleMesh->m_opacity = opacity;
     triangleMesh->m_debugName = debugName.empty() ? "triangle_mesh" : std::string(debugName);
     return triangleMesh;
 }
@@ -150,26 +155,69 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& po
     const std::uint32_t primitiveCount = m_mesh.indexCount() / 3;
     const std::uint32_t maxVertex = m_mesh.vertexCount() == 0 ? 0U : m_mesh.vertexCount() - 1U;
 
+    // Bake the opacity micromap (if authored) before building the BLAS — the OMM
+    // handle + index buffer chain into the triangles descriptor.
+    if (m_opacity.micromap != nullptr && !m_micromap.has_value()) {
+        auto built = MicromapBuilder::build(ctx, pool, *m_opacity.micromap, m_debugName);
+        if (!built) {
+            Logger::error("TriangleMesh '{}': opacity-micromap build failed (VkResult {})",
+                          m_debugName,
+                          static_cast<int>(built.error()));
+            return built.error();
+        }
+        if (built->indexCount() != primitiveCount) {
+            // One micromap index per BLAS primitive, in the same order — the bake
+            // walks the OBJ group's triangles exactly as the importer does. A
+            // mismatch means the cached OMM is stale against the mesh.
+            Logger::error("TriangleMesh '{}': opacity micromap has {} indices but the BLAS has {} triangles "
+                          "(stale bake — re-run tools/omm_bake.py)",
+                          m_debugName,
+                          built->indexCount(),
+                          primitiveCount);
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        m_micromap = std::move(*built);
+    }
+
+    // OMM linkage (lives through the synchronous one-shot build below).
+    VkAccelerationStructureTrianglesOpacityMicromapEXT ommLink{};
+    VkAccelerationStructureGeometryTrianglesDataKHR triangles{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+        .pNext = nullptr,
+        .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
+        .vertexData = VkDeviceOrHostAddressConstKHR{m_mesh.vertexBuffer().deviceAddress()},
+        .vertexStride = sizeof(GpuVertex),
+        .maxVertex = maxVertex,
+        .indexType = VK_INDEX_TYPE_UINT32,
+        .indexData = VkDeviceOrHostAddressConstKHR{m_mesh.indexBuffer().deviceAddress()},
+        .transformData = VkDeviceOrHostAddressConstKHR{},
+    };
+
+    // A surface that can be cut out must be non-opaque so the shadow any-hit runs
+    // (Hyperion) / the hit surfaces as a RayQuery candidate (Theia); that is what
+    // makes `geometry_opacity` attenuate shadow rays. Fully-present geometry keeps
+    // the opaque flag, so nothing but cutout meshes pays for it.
+    VkGeometryFlagsKHR geometryFlags = m_opacity.alphaTested ? 0 : VK_GEOMETRY_OPAQUE_BIT_KHR;
+    if (m_micromap.has_value()) {
+        const auto usage = m_micromap->usage();
+        ommLink.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_TRIANGLES_OPACITY_MICROMAP_EXT;
+        ommLink.indexType = VK_INDEX_TYPE_UINT32;
+        ommLink.indexBuffer.deviceAddress = m_micromap->indexBufferAddress();
+        ommLink.indexStride = sizeof(std::uint32_t);
+        ommLink.baseTriangle = 0;
+        ommLink.usageCountsCount = static_cast<std::uint32_t>(usage.size());
+        ommLink.pUsageCounts = usage.data();
+        ommLink.micromap = m_micromap->handle();
+        triangles.pNext = &ommLink;
+        geometryFlags = 0;
+    }
+
     VkAccelerationStructureGeometryKHR geometry{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
         .pNext = nullptr,
         .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
-        .geometry =
-            VkAccelerationStructureGeometryDataKHR{
-                .triangles =
-                    VkAccelerationStructureGeometryTrianglesDataKHR{
-                        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
-                        .pNext = nullptr,
-                        .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
-                        .vertexData = VkDeviceOrHostAddressConstKHR{m_mesh.vertexBuffer().deviceAddress()},
-                        .vertexStride = sizeof(GpuVertex),
-                        .maxVertex = maxVertex,
-                        .indexType = VK_INDEX_TYPE_UINT32,
-                        .indexData = VkDeviceOrHostAddressConstKHR{m_mesh.indexBuffer().deviceAddress()},
-                        .transformData = VkDeviceOrHostAddressConstKHR{},
-                    },
-            },
-        .flags = VK_GEOMETRY_OPAQUE_BIT_KHR,
+        .geometry = VkAccelerationStructureGeometryDataKHR{.triangles = triangles},
+        .flags = geometryFlags,
     };
 
     VkAccelerationStructureBuildRangeInfoKHR rangeInfo{
@@ -299,7 +347,9 @@ VkAccelerationStructureInstanceKHR Sphere::makeInstance(std::uint32_t instanceCu
         .transform = xform.toVkTransform(),
         .instanceCustomIndex = instanceCustomIndex,
         .mask = kInstanceMaskAll,
-        .instanceShaderBindingTableRecordOffset = 1,
+        // Two hit-group records per geometry kind (radiance, shadow); procedural
+        // geometry is the second pair. See Pipeline::kHitGroupCount.
+        .instanceShaderBindingTableRecordOffset = 2,
         .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
         .accelerationStructureReference = m_accelerationStructure.deviceAddress(),
     };

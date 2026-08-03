@@ -74,6 +74,7 @@ using UniqueSemaphore = UniqueHandle<VkSemaphore, &vkDestroySemaphore>;
 using UniqueFence = UniqueHandle<VkFence, &vkDestroyFence>;
 using UniqueCommandPool = UniqueHandle<VkCommandPool, &vkDestroyCommandPool>;
 using UniqueAccelerationStructure = UniqueHandle<VkAccelerationStructureKHR, &vkDestroyAccelerationStructureKHR>;
+using UniqueMicromapEXT = UniqueHandle<VkMicromapEXT, &vkDestroyMicromapEXT>;
 using UniqueSwapchainKHR = UniqueHandle<VkSwapchainKHR, &vkDestroySwapchainKHR>;
 using UniqueIndirectCommandsLayout = UniqueHandle<VkIndirectCommandsLayoutEXT, &vkDestroyIndirectCommandsLayoutEXT>;
 

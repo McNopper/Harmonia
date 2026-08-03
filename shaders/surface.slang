@@ -8,7 +8,7 @@
 //
 // Texture slot convention (matches the host MaterialLibrary / GpuMaterial::textureIndices[2]):
 //   [0] base_color   [1] normal            [2] ORM (G=roughness, B=metalness)   [3] emission
-//   [4] coat_normal  [5] geometry_tangent  [6] coat_tangent
+//   [4] coat_normal  [5] geometry_tangent  [6] coat_tangent                     [7] map_opacity
 //
 // Texture sampling is abstracted behind ISurfaceTextureSampler because the renderers bind
 // bindless textures differently (Hyperion: combined-image-sampler arrays in RT stages; Theia:
@@ -80,6 +80,25 @@ struct SurfaceFrame {
     bool   backface;   ///< C7: ray hit the back side (inside the dielectric) -> BSDF exit branch
 };
 
+/// OpenPBR presence weight α at a hit point: `geometry_opacity × map_opacity.a`
+/// (texture slot [7], a Data-space alpha mask).
+///
+/// This is the ONE definition of "is the surface here?" — OpenPBR's
+/// `mix(S_ambient-medium, M_surface, α)`. Every consumer resolves the same
+/// number: the estimator's stochastic pass-through gate for camera/indirect
+/// rays, the shadow-ray transmittance `1 - α` (spec §Opacity/Transparency), and
+/// the rasterizer's alpha cutout. An opacity micromap only lets traversal skip
+/// re-deriving it where the answer is provably uniform over a microtriangle —
+/// it never replaces this function.
+float evalGeometryOpacity(GpuMaterial mat, ISurfaceTextureSampler tex, float2 uv)
+{
+    float alpha = saturate(mat.opacityFlagsPad.x);
+    if (mat.textureIndices2.w != kNoTexture) {
+        alpha *= saturate(tex.sampleTex(mat.textureIndices2.w, uv).a);
+    }
+    return alpha;
+}
+
 /// Apply the OpenPBR texture maps to @p mat and the raw hit normals/tangent, returning the
 /// resolved shading frame. `wo` is the outgoing direction (toward the camera/previous vertex);
 /// `rawShadingNormal` / `rawGeoNormal` are the pre-flip hit normals; `tangent` is the UV-aligned
@@ -104,6 +123,10 @@ SurfaceFrame applyOpenPbrTextureMaps(inout GpuMaterial mat,
     if (mat.textureIndices.w != kNoTexture) {
         mat.emissionColorLum.xyz *= tex.sampleTex(mat.textureIndices.w, uv).rgb;
     }
+    // [7] map_opacity — fold the textured mask into the material's presence
+    // weight so every downstream reader of opacityFlagsPad.x (the estimator's
+    // pass-through gate) sees the resolved α.
+    mat.opacityFlagsPad.x = evalGeometryOpacity(mat, tex, uv);
 
     float3 N = dot(wo, rawShadingNormal) >= 0.0 ? rawShadingNormal : -rawShadingNormal;
     float3 geoN = dot(wo, rawGeoNormal) >= 0.0 ? rawGeoNormal : -rawGeoNormal;

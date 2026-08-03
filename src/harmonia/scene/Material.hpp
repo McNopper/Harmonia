@@ -106,7 +106,8 @@ class Material {
 
     /// Set a bindless texture index for a given map slot.
     /// Slots 0-3 → textureIndices [base_color, normal, ORM, emission];
-    /// slots 4-6 → textureIndices2 [coat_normal, tangent, coat_tangent].
+    /// slots 4-6 → textureIndices2 [coat_normal, tangent, coat_tangent];
+    /// slot 7 → textureIndices2.w [opacity] (rasterizer alpha-test map).
     void setTextureIndex(std::uint32_t slot, std::uint32_t idx) noexcept {
         switch (slot) {
         case 0:
@@ -129,6 +130,9 @@ class Material {
             break;
         case 6:
             m_gpu.textureIndices2.z = idx;
+            break;
+        case 7:
+            m_gpu.textureIndices2.w = idx;
             break;
         default:
             break;

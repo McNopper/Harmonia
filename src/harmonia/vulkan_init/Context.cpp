@@ -121,6 +121,7 @@ struct SupportedFeatures {
     VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetch{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR as{};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
+    VkPhysicalDeviceOpacityMicromapFeaturesEXT omm{};
     VkPhysicalDeviceMemoryPriorityFeaturesEXT memoryPriority{};
     VkPhysicalDevicePresentIdFeaturesKHR presentId{};
     VkPhysicalDevicePresentWaitFeaturesKHR presentWait{};
@@ -148,7 +149,9 @@ struct SupportedFeatures {
     s.as.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     s.as.pNext = &s.positionFetch;
     s.dgc.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
-    s.dgc.pNext = &s.as;
+    s.dgc.pNext = &s.omm;
+    s.omm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT;
+    s.omm.pNext = &s.as;
     s.features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
     s.features14.pNext = &s.dgc;
     s.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -185,6 +188,7 @@ struct EnabledFeatures {
     VkPhysicalDeviceFeatures2 features2{};
     VkPhysicalDeviceMeshShaderFeaturesEXT mesh{};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
+    VkPhysicalDeviceOpacityMicromapFeaturesEXT omm{};
     VkPhysicalDeviceMemoryPriorityFeaturesEXT memoryPriority{};
     VkPhysicalDevicePresentIdFeaturesKHR presentId{};
     VkPhysicalDevicePresentWaitFeaturesKHR presentWait{};
@@ -199,6 +203,7 @@ struct EnabledFeatures {
                                                bool positionFetchSupported,
                                                bool meshShaderSupported,
                                                bool dgcSupported,
+                                               bool opacityMicromapSupported,
                                                bool pageableMemorySupported,
                                                bool presentIdSupported,
                                                bool presentWaitSupported,
@@ -207,8 +212,17 @@ struct EnabledFeatures {
     features.rayQuery.rayQuery = VK_TRUE;
 
     features.rt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    features.rt.pNext = &features.rayQuery;
+    features.rt.pNext = &features.omm;
     features.rt.rayTracingPipeline = VK_TRUE;
+
+    // VK_EXT_opacity_micromap: per-microtriangle opacity for alpha-tested
+    // geometry, resolved by RT traversal (no any-hit shader). Optional; enabled
+    // only when the device advertises it. Sits between rt and rayQuery in the
+    // always-on core so the optional present/pageable tail still hangs off
+    // rayQuery unchanged.
+    features.omm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT;
+    features.omm.pNext = &features.rayQuery;
+    features.omm.micromap = opacityMicromapSupported ? VK_TRUE : VK_FALSE;
 
     features.as.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     features.as.pNext = &features.rt;
@@ -377,6 +391,7 @@ struct QueueInfos {
                                                           bool positionFetchSupported,
                                                           bool meshShaderSupported,
                                                           bool dgcSupported,
+                                                          bool opacityMicromapSupported,
                                                           bool pageableMemorySupported,
                                                           bool calibratedTimestampsSupported,
                                                           bool presentIdSupported,
@@ -402,6 +417,9 @@ struct QueueInfos {
     if (dgcSupported) {
         deviceExtensions.push_back(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
     }
+    if (opacityMicromapSupported) {
+        deviceExtensions.push_back(VK_EXT_OPACITY_MICROMAP_EXTENSION_NAME);
+    }
     if (pageableMemorySupported) {
         deviceExtensions.push_back(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME);
         deviceExtensions.push_back(VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME);
@@ -425,6 +443,7 @@ struct QueueInfos {
     const SupportedFeatures supported = querySupportedFeatures(info.device);
 
     const bool dgcSupported = info.dgcSupported && supported.dgc.deviceGeneratedCommands == VK_TRUE;
+    const bool opacityMicromapSupported = info.opacityMicromapSupported && supported.omm.micromap == VK_TRUE;
     const bool serSupported = supported.ser.rayTracingInvocationReorder == VK_TRUE;
     const bool positionFetchSupported = supported.positionFetch.rayTracingPositionFetch == VK_TRUE;
     const bool meshShaderSupported = supported.mesh.meshShader == VK_TRUE;
@@ -461,6 +480,7 @@ struct QueueInfos {
                                                     positionFetchSupported,
                                                     meshShaderSupported,
                                                     dgcSupported,
+                                                    opacityMicromapSupported,
                                                     pageableMemorySupported,
                                                     presentIdSupported,
                                                     presentWaitSupported,
@@ -471,6 +491,7 @@ struct QueueInfos {
                                                                          positionFetchSupported,
                                                                          meshShaderSupported,
                                                                          dgcSupported,
+                                                                         opacityMicromapSupported,
                                                                          pageableMemorySupported,
                                                                          calibratedTimestampsSupported,
                                                                          presentIdSupported,
@@ -494,6 +515,7 @@ struct QueueInfos {
         ctx.positionFetchSupported = positionFetchSupported;
         ctx.serSupported = serSupported;
         ctx.dgcSupported = dgcSupported;
+        ctx.opacityMicromapSupported = opacityMicromapSupported;
         ctx.pageableMemorySupported = pageableMemorySupported;
         ctx.calibratedTimestampsSupported = calibratedTimestampsSupported;
         ctx.presentIdSupported = presentIdSupported;
