@@ -30,11 +30,11 @@ OPTIONS
                            region is smaller than the 11x11 window. Without this flag such a
                            region is a hard error rather than a silent metric substitution.
     --gate MODE            Gate mode (default: all):
-        all          Strict AND of all declared §10 metrics:
+        all          Strict AND of all declared §7 (PLAN.md) metrics:
                      mean_diff <= threshold AND rel_mse <= rel-mse-threshold AND
                      SSIM >= ssim-threshold AND lum_hist_corr >= lum-hist-threshold.
                      When --psnr-threshold / --relative-threshold are also given they are
-                     ANDed in as extras. This is the default and matches SPRINT-PLAN §10
+                     ANDed in as extras. This is the default and matches PLAN.md §7
                      ("all of them, never one alone").
         mean         Pass if mean_diff <= threshold (legacy single-metric diagnostic).
         psnr         Pass if PSNR >= psnr-threshold (requires --psnr-threshold).
@@ -557,7 +557,7 @@ def evaluate_gate(metrics: dict, args: argparse.Namespace) -> tuple[bool, list[s
     relative_ok = (args.relative_threshold is not None) and (metrics["rel_mean_pct"] <= args.relative_threshold)
 
     if args.gate == "all":
-        # Strict AND of all declared §10 metrics (SPRINT-PLAN §10: "all of them,
+        # Strict AND of all declared §7 metrics (PLAN.md §7: "all of them,
         # never one alone"). PSNR / rel_mean_% are ANDed in only when explicitly
         # requested via --psnr-threshold / --relative-threshold (opt-in extras).
         checks = [

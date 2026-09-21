@@ -3,10 +3,10 @@
 # Each [[scene]] names an EXR pair (reference_template / candidate_template,
 # default "{scene}.exr") compared by compare_renders.py's metric set. The default
 # gate is "all" (strict AND of mean_diff, Rel-MSE, SSIM, lum-histogram corr. —
-# SPRINT-PLAN §10). Scenes listed in `scale_aware` use the looser
-# absolute-OR-(relative+PSNR) gate instead, which Theia/README.md:253 sanctions
-# for HDR transmissive fixtures where brightness-dependent absolute false fails
-# are expected. Scale-aware scenes still REPORT the full metric set; they just
+# PLAN.md §7). Scenes listed in `scale_aware` use the looser
+# absolute-OR-(relative+PSNR) gate instead, which Theia/README.md ("Gate policy")
+# sanctions for HDR transmissive fixtures where brightness-dependent absolute false
+# fails are expected. Scale-aware scenes still REPORT the full metric set; they just
 # don't require it.
 #
 # Scene names mirror the 29-scene gallery in Theia/Hyperion screenshots/ (one EXR
@@ -14,7 +14,7 @@
 #   diffuse, glossy/specular, transmissive (glass), subsurface, emissive, env-lit (IBL).
 #
 # Defaults follow the parity contract: 320x240, Hyperion 256 spp reference,
-# Theia 256 accumulated frames (see SPRINT-PLAN §10 / Theia AGENTS.md).
+# Theia 256 accumulated frames (see PLAN.md §7 / Theia AGENTS.md).
 
 [defaults]
 reference_template = "{scene}.exr"
