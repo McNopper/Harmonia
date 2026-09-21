@@ -2,6 +2,9 @@
 
 Quick-start context for AI agents so basic facts don't have to be rediscovered each session.
 
+**Outstanding work, governance (definition of done + guardrails) and release history: see
+[`PLAN.md`](PLAN.md).**
+
 ## What this repo is
 
 **Harmonia** is the shared **Vulkan pipeline library** used 1:1 by both renderers.
@@ -14,7 +17,9 @@ Pipeline (dependency direction):
 
 ```mermaid
 flowchart LR
-    A["Aether<br/>file format"] --> H["<b>Harmonia</b><br/>shared Vulkan lib (this repo)"]
+    SM["slang-math<br/>math"] --> A["Aether<br/>file format"]
+    SM --> H
+    A --> H["<b>Harmonia</b><br/>shared Vulkan lib (this repo)"]
     H --> Hy["Hyperion<br/>path tracer · ground truth"]
     H --> T["Theia<br/>real-time renderer"]
 ```
@@ -70,17 +75,27 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 
 ⚠️ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
 
-## Parity comparison tool
+## Parity comparison tools
 
-`tools/compare_renders.py <reference.exr> <candidate.exr> [--threshold 4.0] [--heatmap out.png]`
+`tools/compare_renders.py <reference.exr> <candidate.exr>` computes `mean_diff`, `rel_mse`,
+`ssim` (tone-mapped sRGB), luminance-histogram correlation, `psnr`, `mse`, `rel_mean_pct`,
+percentile/max diffs and a signed heatmap (`--signed-heatmap`). `tools/check_consistency.py`
+covers bias/variance (Theia N vs 4N frames).
 
-Contract (all must hold or the number is meaningless):
+Contract (all must hold or the numbers are meaningless):
 - Reference = Hyperion EXR; candidate = Theia EXR. **Pre-tonemap linear EXR**, never PNG.
 - Same resolution, same working color space (same `[render]` preset).
 - Theia's unified accumulation RT path is the only path now.
-- Pass = `mean_diff <= 4.0` (in 1/255 luminance units).
-- For IBL references, render Hyperion at high spp (`--spp 256`) — a 16 spp reference is
-  noisy and inflates `mean_diff`. See Aether/AGENTS.md "16-vs-512 spp trap".
+- **Gate = strict AND across the metric set** (mean_diff ≤ 4.0 in 1/255 units, SSIM ≥ 0.98,
+  luminance-histogram corr ≥ 0.999, rel-MSE below tolerance) over the **14 scenes** in
+  `tools/validation_manifest.toml` at 320×240 / 256 spp / 256 frames. The
+  `compare_renders.py --gate scale-aware` path (absolute OR relative+PSNR) is the sanctioned
+  looser gate for HDR transmissive fixtures.
+- For IBL references, render Hyperion at high spp (`--spp 256`) — a low-spp reference is
+  noisy and inflates `mean_diff`. See Aether/AGENTS.md "low-spp reference trap".
+
+Which metric catches which failure mode, and the bias-vs-noise method: see `PLAN.md`
+(*Parity methodology*).
 
 ## Build & test
 

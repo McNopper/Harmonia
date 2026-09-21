@@ -12,7 +12,9 @@ file format.
 
 ```mermaid
 flowchart LR
-    A["Aether<br/>file format"] --> H["<b>Harmonia</b><br/>shared Vulkan lib"]
+    SM["slang-math<br/>math"] --> A["Aether<br/>file format"]
+    SM --> H
+    A --> H["<b>Harmonia</b><br/>shared Vulkan lib"]
     H --> Hy["Hyperion<br/>path tracer · ground truth"]
     H --> T["Theia<br/>real-time renderer"]
 ```
@@ -38,15 +40,8 @@ flowchart LR
 - **Shader toolchain** — the `compile_slang_shaders` CMake rule (Slang → SPIR-V at build
   time, used identically by Harmonia, Hyperion and Theia) and the shared SPIR-V loader
   (`harmonia::createShaderModule`)
-- **Shared Slang modules** — `bsdf_shared.slang` (OpenPBR Surface BSDF: Fujii diffuse,
-  GGX + Turquin/Kulla-Conty MS compensation, F82 conductor Fresnel with the
-  `F90 = saturate(50·F0)` vanishing-interface fade, MaterialX-faithful
-  `mx_fresnel_airy` thin-film with complex-IOR conductor phase, Zeltner LTC sheen,
-  MaterialX transmission tint semantics (per-crossing tint at depth 0, white at depth > 0
-  with absorption realized by the volumetric walk), dielectric interface sidedness
-  (raw outward geoNormal → `backface`/`exiting` → side-correct Fresnel/Snell/TIR;
-  `geometry_thin_walled` exempt), lobe weight helpers),
-  `env_sample.slang` (pure-parameter CDF
+- **Shared Slang modules** — `bsdf_shared.slang` (the full OpenPBR Surface BSDF — see
+  *Material model* below), `env_sample.slang` (pure-parameter CDF
   env-map importance sampling), `path_integrator.slang` (renderer-agnostic unidirectional
   path-integrator surface estimator — emissive/env NEE + MIS + Russian roulette, shared
   1:1 between Hyperion's path tracer and Theia's RT-GI compute stage via an `ITracer`
@@ -67,6 +62,69 @@ and **each renderer owns its own `Scene` and `GpuInstance` layout** — Hyperion
 around index buffers and a ray-tracing pipeline, Theia's around meshlets and mesh shaders.
 Only types and code that are shared **1:1** live here; anything that diverges per renderer
 stays in the renderer.
+
+---
+
+## Material model — OpenPBR Surface v1.1.1
+
+The shared `shaders/bsdf_shared.slang` implements the full OpenPBR 1.1.1 layer stack,
+used 1:1 by both renderers — this section is the canonical description (the renderer
+READMEs link here).
+
+Conductor reflectance uses the OpenPBR generalized-Schlick **F82-tint** model
+(`base_color` = F0, `specular_color` = the 82° tint); specular/coat microfacets use GGX
+with the spec's anisotropy remapping plus Turquin/Kulla-Conty multiple-scattering energy
+compensation on both the reflection **and** the rough-transmission lobes (so rough glass
+does not lose energy). The F82 conductor Fresnel carries the
+`F90 = saturate(50·F0)` vanishing-interface fade (Lagarde/Frostbite — no lobe-weight gates).
+
+**Layer stacking** follows OpenPBR's directional-albedo coupling rather than a linear
+blend: each lower layer is attenuated by the directional albedo of the layer above it
+(`R_out = R_top + (1 − E_top)·R_base`). The coat darkens the substrate by
+`1 − coat·E_coat` and the dielectric diffuse/subsurface base sits under the specular
+layer (`1 − E_spec`); both are applied symmetrically in view/light so the stack stays
+reciprocal and energy-conserving.
+
+**Thin-film iridescence** is the spec model — a faithful port of MaterialX
+`mx_fresnel_airy` (Belcour & Barla 2017): a full s/p-polarized Airy summation with the
+spectral Gaussian sensitivity. For metals it uses the true **complex-IOR conductor
+phase** (with `(n,k)` recovered from `base_color` + `specular_color` via the Gulbrandsen
+2014 artist-friendly mapping), so anodized metals show vivid, physically-correct
+interference colour; dielectric bases use the Schlick interface, and the two are blended
+by `base_metalness`.
+
+**Fuzz/sheen** is the OpenPBR spec model — a faithful port of MaterialX's Zeltner et al.
+2022 "Practical Multiple-Scattering Sheen Using Linearly Transformed Cosines". The LTC
+coefficients and the sheen directional albedo are closed-form analytic fits (no lookup
+table), and that directional albedo also drives the physically-correct, view-dependent
+darkening of the layers beneath the fuzz.
+
+**Subsurface** (bulk, non-thin-walled) is a **real volumetric random walk**, not a
+diffusion or tinted-diffuse approximation: light refracts through the dielectric
+interface (Fresnel-gated), takes an exponential free-flight walk with Henyey-Greenstein
+phase scattering (`subsurface_scatter_anisotropy` = the phase mean cosine), and exits
+through the interface with Fresnel-gated transmission / total internal reflection.
+Extinction is **chromatic (per-channel)** — derived from `subsurface_radius` ×
+`subsurface_radius_scale`, so the default `(1, 0.5, 0.25)` scale gives the characteristic
+red-shifted subsurface glow; the single-scatter albedo is `subsurface_color`. A
+**hero-wavelength spectral-MIS estimator** samples one channel's mean-free-path per step
+and reweights the others, and reduces exactly to the achromatic walk when the extinction
+is grey (clear glass stays byte-stable). The walk runs on its own bounce budget (it does
+not starve surface transport). Thin-walled subsurface keeps a diffuse
+reflection/transmission sheet.
+
+**Transmission scattering** reuses the same volumetric walk: when `transmission_scatter`
+is set, the smooth dielectric interior becomes a genuine scattering medium (milky/cloudy
+liquids) rather than a fixed tint, while `transmission_color` / `transmission_depth`
+provide the Beer–Lambert absorption. For pure absorbers (`transmission_scatter = 0`) the
+walk applies **exact deterministic per-channel Beer–Lambert transmittance** at the
+boundary (ratio-tracking degenerate case — zero walk variance), and dielectric exits are
+**side-correct**: interior rays refract with the inverted IOR and undergo genuine total
+internal reflection, matching the MaterialX `dielectric_bsdf` / PBRT-v4 `DielectricBxDF`
+convention.
+
+**Diffuse** is the Fujii/EON model; **dielectric sidedness** follows the raw-outward-normal
+contract (see `AGENTS.md`).
 
 ---
 
@@ -98,9 +156,11 @@ Batch-compare Hyperion references against Theia candidates with:
 python tools/validate_renders.py <reference_dir> <candidate_dir>
 ```
 
-The default scene set lives in `tools/validation_manifest.toml`:
-`cornell_classic`, `cornell_spheres`, `dragon_teapot`. Use `--scale-aware` for HDR/transmissive scenes that need
-the relaxed gate from `compare_renders.py`.
+The gated scene set lives in `tools/validation_manifest.toml` — **14 scenes**
+(the Cornell set, `dragon_teapot`, and the `shaderball_*` / `openpbr_*` material fixtures),
+compared at 320×240 / 256 spp / 256 frames with a **strict-AND metric set** (mean_diff,
+rel_mse, SSIM, luminance-histogram correlation). Use `--scale-aware` for HDR/transmissive
+scenes that need the relaxed gate from `compare_renders.py`.
 
 To render and compare a whole batch in one go:
 
