@@ -173,19 +173,20 @@ convergence speed. **Industry GI/denoising/perceptual techniques are adopted her
 | PERF8 | *Direct Coherent Ray Generation for Path Tracing* (Lou et al. — Visual Computer 2025, [doi:10.1007/s00371-025-04090-6](https://doi.org/10.1007/s00371-025-04090-6)). | watchlist |
 
 **Wavefront (PERF5) implementation finding — the estimator-split prerequisite.** Assessed
-2026-08 against the live code: the shared `integrateSurface` (`path_integrator.slang:389`)
-traces **shadow rays synchronously and inline** through the `ITracer` abstraction at three
-sites (`:208` sphere NEE, `:310` triangle NEE, `:356` env NEE) — `tracer.traceOccluded(...)`
-returns a boolean used *in the same call* to decide the contribution. Wavefront requires
+2026-08 against the live code (line refs re-verified 2026-09): the shared `integrateSurface`
+(`path_integrator.slang:410`) traces **shadow rays synchronously and inline** through the
+`ITracer` abstraction at three sites (`:226` sphere NEE, `:329` triangle NEE, `:376` env NEE) —
+`tracer.traceTransmittance(...)` returns the shadow transmittance used *in the same call* to
+decide the contribution. Wavefront requires
 shadow rays to be **asynchronous** (emit → separate trace dispatch → gather), so each NEE
 branch must split into an **emit** half (compute `wi`/`tMax`/`Le`/`pdf`/`bsdfVal`/`cosI`/
 `fTerm`, write a shadow-ray record + a pending contribution) and a **gather** half (after the
 shadow dispatch, commit or discard by the visibility bit). This split must be **identical for
 both renderers** (Harmonia split rule), must preserve the exact **RNG sequence** (else
 `--deterministic-replay` breaks) and keep **MIS numerically identical** (else the parity gate
-breaks). A second phase to split: Hyperion's medium-walk interleaving (`raygen.slang:64–83` —
+breaks). A second phase to split: Hyperion's medium-walk interleaving (`raygen.slang:61–93` —
 surface bounces vs free-flight segments as separate budgets in one `while` loop). Theia is
-harder — `gi.comp.slang` (~1242 lines) fuses ReSTIR PT + medium walk + path trace.
+harder — `gi.comp.slang` (~1519 lines) fuses ReSTIR PT + medium walk + path trace.
 
 **Consequence:** PERF5 is a *redesign* of the shared estimator's shadow-ray flow, not a
 refactor — and the gate is strict (Hyperion deterministic-replay EXR bit-identical; Theia
@@ -374,7 +375,7 @@ the 30 scenes (strict AND across the metric set). Add new perceptual metrics bel
 **Grounding:** verified via `vulkaninfo` on the dev target — **NVIDIA RTX 4050 Laptop, driver
 610.88, apiVersion 1.4.341 (SDK 1.4.357)**. All entries are core / `KHR` / `EXT` → compliant
 with the cross-vendor guardrail (§8). They follow the established **probe→enable** pattern in
-`Context.cpp` (cf. `serSupported` / `indirectRt2Supported` / `dgcSupported` /
+`Context.cpp` (cf. `serSupported` / `dgcSupported` /
 `positionFetchSupported` / `meshShaderSupported`): each is *optional* and engaged only when
 present — when absent the renderer simply does not use the capability. This is **not** a
 fallback: the alternative branch must be image-identical and effectively free, otherwise the
@@ -382,7 +383,7 @@ capability becomes a hard requirement and device selection fails fast (§8). Ado
 biases the image (perf / enabling only) → passes the convergence-to-Hyperion litmus.
 
 *Already adopted, removed from the table:* `VK_KHR_ray_tracing_position_fetch` (formerly VK3)
-has been probed and enabled since before this table existed (`Context.cpp:328`,
+has been probed and enabled since before this table existed (`Context.cpp`,
 `positionFetchSupported`) and underpins the object-space position-fetch guardrail.
 `VK_EXT_opacity_micromap` (formerly VK2) shipped v0.7.7 — probed/enabled per-mesh, backing C14
 (`geometry_opacity`); the `shaderball_checker` scene demonstrates it. Also adopted (v0.7.6):
@@ -412,8 +413,8 @@ image, passes the convergence-to-Hyperion litmus. Grounded in current code:
 
 | ID  | Legacy (drop) | Modern (use) | Deletes | Track | Status |
 |-----|---------------|--------------|---------|-------|--------|
-| MOD1 | Descriptor pools/sets — `vkCreateDescriptorPool`/`vkAllocateDescriptorSets`/`vkUpdateDescriptorSets` (6 files, verified: Harmonia `Descriptors` core + Theia `ForwardRenderer`/`GiPass`/`GpuCullPass`/`IblPrecompute`/`LightCuller`; 7 pool creations) | **`VK_EXT_descriptor_buffer`** (EXT, not KHR) — bindless: write to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT` (storage-buffer descriptors = device address; combined-image-sampler descriptors via `vkGetDescriptorEXT` capture/replay) | the `Descriptors` pool abstraction + per-pass pools/allocated sets + all update-writes (keep the 7 passes / 9 call sites already on push descriptors) | PERF, CH | backlog · **blocked** (← VK7): image capture/replay needs `VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT` memory that **VMA 3.4 cannot allocate** — a sampled-image allocation path outside VMA + the all-or-nothing pipeline-layout flip are prerequisites; needs a dedicated, visually-verified effort |
-| MOD2 | `VkFence` — `vkWaitForFences` in Harmonia `Buffer.cpp:311` + `CommandPool.cpp:102` (one-shot submits), and create/wait/reset on Theia's async-compute `m_asyncFences` (`Application.cpp:209/512/515` — the only `vkResetFences` in the tree) | timeline semaphore (core 1.2, no extension) signal/wait — already the only primitive in the frame path (`FrameSync.cpp:22-119`) | every `VkFence` create/wait/reset; unifies sync on one primitive | CH | backlog |
+| MOD1 | Descriptor pools/sets — `vkCreateDescriptorPool`/`vkAllocateDescriptorSets`/`vkUpdateDescriptorSets` (5 files, verified: Harmonia `Descriptors` core 1 pool + Theia `ForwardRenderer`/`GiPass`/`GpuCullPass`/`LightCuller` 4 pools) | **`VK_EXT_descriptor_buffer`** (EXT, not KHR) — bindless: write to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT` (storage-buffer descriptors = device address; combined-image-sampler descriptors via `vkGetDescriptorEXT` capture/replay) | the `Descriptors` pool abstraction + per-pass pools/allocated sets + all update-writes (keep the 7 passes / 9 call sites already on push descriptors) | PERF, CH | backlog · **blocked** (← VK7): image capture/replay needs `VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT` memory that **VMA 3.4 cannot allocate** — a sampled-image allocation path outside VMA + the all-or-nothing pipeline-layout flip are prerequisites; needs a dedicated, visually-verified effort |
+| MOD2 | `VkFence` — `vkWaitForFences` in Harmonia `Buffer.cpp:321` + `CommandPool.cpp:111` (one-shot submits), and create/wait/reset on Theia's async-compute `m_asyncFences` (`Application.cpp:205/492/495` — the only `vkResetFences` in the tree) | timeline semaphore (core 1.2, no extension) signal/wait — already the only primitive in the frame path (`FrameSync.cpp:22-119`) | every `VkFence` create/wait/reset; unifies sync on one primitive | CH | backlog |
 | MOD4 | Full swapchain recreate on resize | `VK_KHR_swapchain_maintenance1` scaling | the recreate-on-resize path | I, PERF | backlog — **owned by `Theia/PLAN.md`** |
 
 *Shipped (v0.7.6):* **MOD3** — Vulkan-1.4 `hostImageCopy`
@@ -479,7 +480,7 @@ the wavefront rewrite.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| SM6-Harmonia | **slang-math v0.3.0 migration slice** — replace the ~35 hand-rolled saturate sites (`src/harmonia/.../Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`), delete the dead `Math::isNanOrInf` (`src/harmonia/utils/Math.hpp:39`) + duplicate `kPi` constants, `IblProbe` hand-rolled `Mat3` → `sm::float3x3` (`IblProbe.cpp:128-160`), `Geometry.cpp` TRS → `sm::trs`, test-mirror `rsqrt` cleanup (`tests/unit/test_math.cpp:71`). `verify-full` + pin bump. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
+| SM6-Harmonia | **slang-math v0.3.0 migration slice** — replace the hand-rolled saturate sites (`src/harmonia/scene/Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`, `Texture.cpp`, `CliParser.cpp`, `ColorSpace.cpp`, `IblProbe.cpp`), delete the dead `Math::isNanOrInf` (`src/harmonia/utils/Math.hpp:39`) + duplicate `kPi` constants, `IblProbe` hand-rolled `Mat3` → `sm::float3x3` (`IblProbe.cpp:128-160`), per-component trig in `IblProbe.cpp:280-281,327` / `Light.cpp:90-91` → SM2 functions, `Geometry.cpp` TRS → `sm::trs`, test-mirror `rsqrt` cleanup (`tests/unit/test_math.cpp:73`). `verify-full` + pin bump. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
 
 ---
 
@@ -562,7 +563,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   and never touches the scene-referred EXR that parity is measured on.
 - **The denoiser is a presentation stage, never part of the estimator (v0.7.4 contract).**
   The A-SVGF stage is forced off for offscreen capture (`--output`) in both renderers
-  (`src/harmonia/app/App.cpp:325`); a capture is the raw scene-referred estimator result.
+  (`src/harmonia/app/App.cpp:372`); a capture is the raw scene-referred estimator result.
   Reason: the à-trous kernel has a fixed pixel radius, so its effect scales with resolution
   and never vanishes with samples — a denoised image is not a converging image. Do not
   re-enable it on the capture path, and do not describe it as converging. (DEN2 makes this a
@@ -590,14 +591,14 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   branch). `geometry_thin_walled` has no bulk interior: its crossings are side-independent
   (no eta inversion, never TIR).
 - **Terminator = genuine Chiang 2019 factor.** Defined as `shadowTerminatorFactor` in
-  `bsdf_shared.slang:954`; applied in BOTH renderers at every NEE site AND the
-  BSDF-continuation throughput (MIS-consistent) — shared sites `path_integrator.slang:200`
-  (emissive NEE), `:248` (env NEE), `:356` (continuation); Theia-side `gi.comp.slang:791,904`
-  and `forward_render.frag.slang:352`. No origin lift (rejected — see the bsdf_shared.slang
-  header). Keep all sites in sync when editing.
+  `bsdf_shared.slang:942`; applied in BOTH renderers at every NEE site AND the
+  BSDF-continuation throughput (MIS-consistent) — shared sites `path_integrator.slang:221`
+  (sphere NEE), `:324` (triangle NEE), `:373` (env NEE), `:486` (continuation); Theia-side
+  `gi.comp.slang:899,1017` and `forward_render.frag.slang:302,328`. No origin lift (rejected —
+  see the bsdf_shared.slang header). Keep all sites in sync when editing.
 - **Position-fetch vertices are OBJECT-space** (`HitTriangleVertexPositionsKHR`, Vulkan spec) —
   always transform by `ObjectToWorld3x4`. Skipping it desyncs the geoNormal on TLAS-rotated
-  instances. (`VK_KHR_ray_tracing_position_fetch` is probed and enabled in `Context.cpp:328`.)
+  instances. (`VK_KHR_ray_tracing_position_fetch` is probed and enabled in `Context.cpp`.)
 - **Transmission tint follows MaterialX semantics:** the BTDF is tinted by
   `transmission_color` per crossing at `transmission_depth == 0`, and is **white** at
   depth > 0, where the colour is realized volumetrically by the walk (σ_t = −ln(color)/depth)
@@ -701,7 +702,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   restored to Heitz-2018 VNDF and established A-SVGF. `verify-full` / ctest (142) /
   Vulkan-validation (58/58) clean.
 - **v0.7.4**: **two-tier denoiser output contract** — A-SVGF forced off when `--output` is
-  set, both renderers (`src/harmonia/app/App.cpp:325`). Root cause: the shared à-trous
+  set, both renderers (`src/harmonia/app/App.cpp:372`). Root cause: the shared à-trous
   filter's fixed pixel radius makes denoised output resolution-dependent and non-converging
   (Hyperion 320×240 vs its own 4× supersample: 13.7/255, spp-independent), and it was applied
   asymmetrically between renderers → 12–21/255 parity error on env-lit regions.
