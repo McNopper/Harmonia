@@ -108,7 +108,12 @@ cd build; ctest --output-on-failure
 ```
 
 Image I/O uses OpenImageIO (PNG/JPEG/EXR load+save, EXR chromaticities); OpenEXR/stb are
-transitive dependencies.
+transitive dependencies. The first configure builds OpenImageIO from source (one-time,
+several minutes; later configures reuse the vcpkg binary cache).
+
+⚠️ If `cmake --build` fails inside `GoogleTestAddTests.cmake` with a 5 s discovery timeout
+on a freshly-linked test exe (cold DLL load / AV scan on its first run), just re-run
+`cmake --build build` — gtest discovery passes on retry.
 
 ## Conventions
 
@@ -119,7 +124,7 @@ transitive dependencies.
 - **GPU-driven, latest standard Vulkan, cross-vendor only** (core + `KHR`/`EXT`). No
   vendor-specific extensions (`VK_NV_*`/`VK_AMD_*`/`VK_INTEL_*`) — must run on any vendor.
 - Working color space is scene-referred (e.g. `lin_rec2020_scene` / `lin_rec709_scene`).
-- SDL3, slangc and volk come from the Vulkan SDK (not vcpkg); vcpkg provides openexr, stb.
+- SDL3, slangc and volk come from the Vulkan SDK (not vcpkg); vcpkg provides tomlplusplus and OpenImageIO.
 
 ## GPU-driven design (Harmonia device layer)
 
