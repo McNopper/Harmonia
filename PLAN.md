@@ -67,12 +67,13 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.7 — Harmonia / Hyperion / Theia lockstep (Aether v0.7.3; slang-math
+- **Release:** v0.7.8 — Harmonia / Hyperion / Theia lockstep (Aether v0.7.4; slang-math
   v0.2.1). All five repos verified tag-synced with GitHub (`git ls-remote --tags origin` ==
   `git tag -l`).
-- **Last shipped:** v0.7.7 — **C14 / VK2: real OpenPBR `geometry_opacity` cutout** (textured
-  `map_opacity` and scalar) as a genuine presence weight, with matching ∏(1-α) shadow
-  transmittance and `VK_EXT_opacity_micromap` acceleration — see Baseline.
+- **Last shipped:** v0.7.8 — **VK11** (`shaderDemoteToHelperInvocation` hard-required;
+  VUID-08740 validation-clean) + **OpenPBR 1.1.1 conformance refresh** (`specular_weight` > 1,
+  transmission μ_a gray-shift) + **estimator-pure capture contract** (Theia) + the
+  new tooling lane — see Baseline.
 - **Next:** **GI-SMS** (caustics / SDS chains) — global item #1 below.
 - **Newly available (dev driver/SDK upgrade):** the Vulkan 1.4 capability set is verified on
   the dev GPU (RTX 4050, driver 610.88 / SDK 1.4.357) — subgroup rotate/reconvergence,
@@ -102,6 +103,7 @@ priority. Owner repo in parens; each repo's PLAN.md carries its own slice.
 | 7 | **C11: ReSTIR Subsurface Scattering** (I3D 2024) — reservoir resampling *accelerator over the shared random-walk BSSRDF* (same model as ReSTIR PT over the shared `path_integrator`), NOT a second BSSRDF; brings Theia's realtime SSS onto the shared model Hyperion already runs → SSS parity. *(Harmonia + Theia)* | C | — | **next** |
 | 8 | **C12: Fully-correlated Anisotropic Micrograin BSDF** (TOG 2024) — the OpenPBR flake/sparkle lobe. *(Harmonia)* | C | — | **next** |
 | 9 | **I6: configurable frames-per-flip** (Theia window) — owned by `Theia/PLAN.md`; the flag lands in the shared parser (`src/harmonia/app/CliParser.cpp`). *(Theia)* | I | — | **next** |
+| 10 | **GI-ENH: ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — I3D/PACMCGIT 2026 Best Paper, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — footprint-based reconnection criteria, vector-valued spatial resampling weights, Gaussian paired-neighbor selection in Theia's path reservoir. *(Theia; estimator half shared with Harmonia)* | GI | — | **next** |
 
 > **Editorial rule (v0.7.5):** conformance to OpenPBR 1.1.1 is reached by *implementing
 > established algorithms and proven approximations*, not by re-deriving formulas against a
@@ -141,6 +143,7 @@ tracked.
 | C12 | **Fully-correlated Anisotropic Micrograin BSDF** (Lucas, Ribardière, Pacanowski — TOG 2024, [doi:10.1145/3658224](https://doi.org/10.1145/3658224)) — physically-grounded flake/particle layer; the OpenPBR flake/sparkle lobe. | **next** |
 | C4 | Upgrade specular/coat MS compensation (A2 `1/21` / Kulla-Conty) via **Successive Height Preintegration for Smith Microfacet BRDFs** (Zhang et al., SIG 2026 — confirmed published & open-access). **Owns the multi-bounce-Smith slot** as the evolutionary upgrade of the in-engine Kulla-Conty/A2 compensation. | backlog |
 | C13 | **Position-Normal Manifold for Glint Rendering** (Wu, Luan, Hasan — SIG 2025, [doi:10.1145/3721238.3730633](https://doi.org/10.1145/3721238.3730633)) — consistent sparkle/glint estimator. | backlog |
+| C15 | **OpenPBR 1.2 switch-over** (on spec release — conformance target stays **1.1.1** until then). Delta verified against the ASWF 1.1↔1.2 versioning tool ([PR #307](https://github.com/AcademySoftwareFoundation/OpenPBR/pull/307)): `emission_weight` + `emission_luminance` default 0→1000 (#231); `transmission_scatter` coefficient↔albedo reinterpretation (#286 — **flips the σ_s = transmission_scatter/depth formula in both medium walks**, `transmissionVolumeCoeffs`); `specular_weight` refraction decoupling (#247); `specular_haze`/`specular_haze_spread` dual-lobe NDF (#254) + `specular_retroreflectivity` (#255); class-C formula fixes deferred by policy (coat-darkening #253, F82 clamps #238/#256, input clamps #277). | watchlist (→ 1.2 release) |
 | C-W | Watchlist (wave-optics & iridescence / SSS diffusion / inverse capture): *Microfacet Theory for Non-Uniform Heightfields* (d'Eon, SIG'23); *Photon-Beam Diffusion directional SSS* (Liang, TVCG'25); *Wave-optics BSDF for correlated scatterers* (Yang, CGF'25); *Free-Space Diffraction BSDF* (Steinberg, TOG'24); *Thin-film param estimation* (Nakamoto'24); *Practical Inverse Rendering translucent* (Weier, TOG'25). | watchlist |
 
 *Dropped:* **C8** (Smith G₂ "correctness" — a formula re-check; closed as a verified no-op,
@@ -235,6 +238,12 @@ DN6 (PatchEX) is TAA-class presentation work with no parity value. One technique
 *Shipped (v0.7.5):* **DEN2** — the two-tier-contract regression test (offscreen capture
 bit-identical with the denoiser stage on vs off, both renderers).
 
+*Negative result to design against:* feeding a neural denoiser the raw 1-spp ReSTIR initial
+candidates as an extra input does **not** resolve correlation artifacts ("Neural Denoising
+under Correlated Noise from ReSTIR Path Tracing", Aalto MSc thesis 2026,
+[urn](https://aaltodoc.aalto.fi/items/03b862af-bd57-4c2e-afb0-5d39c5d5f0b9)) — DN1 should not
+budget for that input channel.
+
 ### 5.3 Interactivity track (I)
 
 _(No outstanding Harmonia items. The one live interactivity item, **I6** (frames-per-flip),
@@ -277,15 +286,19 @@ Lin/Kettunen/Wyman 2026 Enhanced).
 | ID | Paper (venue) | Relevance to Theia | Status |
 |----|---------------|--------------------|--------|
 | GI-SMS | **Sample Space Partitioning and Spatiotemporal Resampling for Specular Manifold Sampling** (Hong et al., **SIGGRAPH Asia 2025**) | Caustics / SDS chains (reconnection shifts can't handle delta lobes); real caustics/TIR fix. **Owns the caustics slot** — GI-BDPT (TOG 44(5) 2025) targets the same niche and is deliberately not tracked. | **next** |
+| GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir: (a) **footprint-based reconnection criteria** (Eq. 5: dual ray-footprint ≥ (c/100)·R_pri², c=0.02, α_min=0.2 at x_{k−1} only, skip inverse test on diffuse/emissive x_k) — powers the tracked reconnection-shift refinement, replaces the scene-tuned distance/roughness thresholds; (b) **vector-valued resampling weights** in the spatial pass (accumulate Σ m_i·F(Y_i)·W_i·|J| as RGB for shading — kills chroma noise at zero extra cost); (c) **Gaussian paired-neighbor textures** (self-inverse offset maps, σ=16 ≙ R=30 disk) replacing uniform-square draws. Caveat: the paper's 2× spatial-cost win assumes the 2022 baseline's two shifts per neighbor (pairwise MIS) — Theia's seed-space plain-RIS scheme already pays one, so pairing is a quality change here, not a cost win. Unified DI/GI reservoir + duplication maps already shipped (the paper validates both); its temporal cCap modulation is N/A (no temporal merge). Owned by `Theia/PLAN.md`. | **next** |
 | GI-PG | **ReSTIR PG** — path guiding w/ spatiotemporally resampled paths (Zeng et al., **SIGGRAPH Asia 2025**) | Hard-to-sample indirect transport; consistent; belongs in the shared estimator. Overlaps LS4 — one guiding approach only. | backlog |
 | GI-CG | **Compatibility-Guided Neighbor Selection** (Junkins et al., **HPG 2026, Best Paper**) | Drop-in spatial-reuse quality boost (shift-compatible neighbors) | backlog |
+| GI-CV | **Spatio-Temporal Control Variates with ReSTIR for Real-Time Rendering (ReSTCV)** (Shi et al., **SIGGRAPH 2026**, honorable mention) | Reservoir-borne accumulated estimates + CV from neighbor/frame differences — cuts color noise at 1-spp budgets. Consistent **only if** the CV is zero-expectation — audit before adopting. | backlog |
 | GI-RS | **Reservoir Splatting** — temporal path resampling + motion blur (Liu et al., **SIGGRAPH 2025**) | Temporal reuse under disocclusion without per-reservoir reprojection | watchlist |
-| GI-CV | **Spatio-Temporal Control Variates with ReSTIR for Real-Time Rendering (ReSTCV)** (Shi et al., **SIGGRAPH 2026**) | Variance reduction; consistent **only if** the CV is zero-expectation — audit before adopting | watchlist |
 | GI-GD | **Gradient-Domain ReSTIR Path Tracing** (Wang, Kettunen, Lin, Wyman, Wu, Zhao — **CGF 2026**, [doi:10.1111/cgf.70328](https://doi.org/10.1111/cgf.70328)) | Image-space gradient reconstruction over ReSTIR PT (surface paths, consistent → converges); gates DN5 | watchlist |
 
 *Dropped:* **GI-VOL / Ghost ReSTIR** (participating media — out of scope, and a deferred item
-is not tracked work), **GI-LOD** (a "line of work" with no citation or actionable content),
-**GI-BDPT** (duplicate of the GI-SMS caustics slot).
+is not tracked work), **GI-LOD** — now has a concrete citation (*Real-Time Level-of-Detail
+Rendering with ReSTIR*, Wang et al., SIGGRAPH 2026, [doi:10.1145/3799902.3811100](https://doi.org/10.1145/3799902.3811100):
+sample reuse across topology-changing LoD via a UV-space vertex mapping) but stays dropped —
+no LoD pipeline exists to consume it; re-triage if ANI5 morph targets ever need
+topology-change reuse, **GI-BDPT** (duplicate of the GI-SMS caustics slot).
 
 ### 5.6 Research triage — SIGGRAPH / SIGGRAPH Asia / I3D / HPG / EG 2025–26
 
@@ -513,6 +526,21 @@ relative+PSNR) path remains the sanctioned looser gate for HDR transmissive fixt
 Theia@∞frames → Hyperion@∞spp. Method: (1) confirm consistency (Theia N vs 4N diff → 0);
 (2) whatever remains at convergence is **bias** — root-caused in code, never tuned away.
 
+**Visual look-and-feel review.** Alongside the metric gate and signed heatmaps, review the
+Hyperion/Theia PNG pairs by eye (a vision-capable reviewer can diff them directly): the
+metrics catch numeric and structural drift, but not every perceptual mismatch (halos,
+texture/color shifts inside tolerance, correlation blotches). A scene that passes the gate
+but *looks* different is a finding, not a pass.
+
+**Capture purity (Theia, extended 2026-09):** an `--output` capture disables all Theia
+presentation aids — denoiser/TAA (v0.7.4), the firefly clamps, and the A3(a) secondary-bounce
+roughness regularization — and forces camera jitter **on**, so the capture integrates the
+same pixel footprint as Hyperion's per-sample jitter and converges to the *unclamped* ground
+truth. The gate therefore compares estimator to estimator: what fails now is true bias or
+true variance, never a presentation aid. Expect visible firefly speckle on HDR scenes at
+finite frames — that is variance (attack with frames / GI-ENH variance work), and the
+bias-vs-noise method above is how to tell it apart from bias.
+
 **Gold-standard perceptual (optional, heavyweight):** HDR-FLIP (Andersson et al. 2020, HDR
 ext. 2021) — JND-based pair metric for HDR; pull in when the cheap set flags disagreement with
 the eye. (LPIPS is the neural alternative but needs a model.)
@@ -658,11 +686,33 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
-- **Tagged on GitHub:** slang-math @ **v0.2.1**; Aether @ **v0.7.3**; Harmonia / Hyperion /
-  Theia @ **v0.7.7**. Verified: `git ls-remote --tags origin` == `git tag -l` in all five
-  repos, and the `FetchContent` pins resolve (Hyperion/Theia → Harmonia v0.7.7 → Aether
-  v0.7.3 → slang-math v0.2.1).
-- **v0.7.7** (current; slang-math unchanged, Aether bumped to v0.7.3): **C14 / VK2 — real
+- **Tagged on GitHub:** slang-math @ **v0.2.1**; Aether @ **v0.7.4**; Harmonia / Hyperion /
+  Theia @ **v0.7.8**. Verified: `git ls-remote --tags origin` == `git tag -l` in all five
+  repos, and the `FetchContent` pins resolve (Hyperion/Theia → Harmonia v0.7.8 → Aether
+  v0.7.4 → slang-math v0.2.1).
+- **v0.7.8** (current; slang-math unchanged, Aether bumped to v0.7.4): **VK11** —
+  `shaderDemoteToHelperInvocation` enabled as a hard-required Vulkan 1.3 feature
+  (`Context.cpp`): the C14 cutout's Slang `discard` emits the `DemoteToHelperInvocation`
+  SPIR-V capability, which tripped VUID-08740 on every `vkCreateShaderModule` —
+  validation-clean now. **OpenPBR 1.1.1 conformance audit** (against the v1.1.1 spec tag +
+  reference graph): `specular_weight` > 1 is now supported end-to-end (parser unclamped; the
+  spec's mandated ξ_s·F_s ≤ 1 clamp lives in `openpbrModulatedEta`; the metal path is
+  unchanged — its >1 clamp is 1.2's #238, tracked in C15); `transmissionVolumeCoeffs` adopts
+  the spec's gray-shift of negative μ_a (was a per-channel clamp). Coat darkening, thin-film,
+  thin-walled subsurface and HDR emission verified already conformant. **Theia↔Hyperion
+  duplication audit:** verified no-op — the shared core is already maximal (PhysicalCamera,
+  SceneBase, MaterialLibrary, IblProbe, CliParser, OffscreenCapture and the estimator/BSDF
+  shaders live here; per-repo code is renderer-specific). **Parity tooling:**
+  `render_and_validate.py` drops `--no-camera-jitter` (Theia capture forces jitter +
+  estimator purity — Theia Baseline); §7 gains the vision look-and-feel review and the
+  capture-purity note. **Research triage refresh (SIG/I3D/HPG 2026):** GI-ENH (ReSTIR PT
+  Enhanced, I3D 2026 Best Paper) added as global next-up #10; C15 (OpenPBR 1.2 switch-over
+  delta table) tracked for the release event; GI-CV promoted to backlog; DN1 annotated with
+  the correlated-noise negative result; GI-LOD's citation recorded (stays dropped).
+  **Tooling**: presets, `tools/check_tidy.py` + ctest `test_tidy`,
+  `HARMONIA_SANITIZER`, deterministic host FP. 89 ctest green (incl. the tidy lane);
+  validation-clean headless on the 14-scene manifest set.
+- **v0.7.7** (slang-math unchanged, Aether bumped to v0.7.3): **C14 / VK2 — real
   OpenPBR `geometry_opacity` cutout**, closing the only non-conformant row in the OpenPBR
   table (§4.1). `geometry_opacity` (scalar and textured via the new `map_opacity` material
   input) is now the spec's actual presence weight `mix(S_ambient-medium, M_surface, α)`
