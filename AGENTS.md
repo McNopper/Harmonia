@@ -133,6 +133,9 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 
 **Always-required Vulkan 1.4 features (enabled in Context.cpp):**
 - `maintenance4` (Vulkan 1.3), `maintenance5` (Vulkan 1.4) — both required.
+- `shaderDemoteToHelperInvocation` (Vulkan 1.3) — required: the C14 `geometry_opacity` cutout
+  path uses Slang `discard` (Theia `forward_render.frag.slang`), so the emitted SPIR-V
+  declares the `DemoteToHelperInvocation` capability (VUID-08740).
 - `rayTracingMaintenance1` + `rayTracingPipelineTraceRaysIndirect2` (`VK_KHR_ray_tracing_maintenance1`) — required; Hyperion dispatches via `vkCmdTraceRaysIndirect2KHR` exclusively.
   `maintenance5` enables `VkBufferUsageFlags2CreateInfo` (64-bit buffer usage flags),
   which is needed by Theia's DGC preprocess buffer (`VK_BUFFER_USAGE_2_PREPROCESS_BUFFER_BIT_EXT`).

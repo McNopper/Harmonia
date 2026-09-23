@@ -253,6 +253,10 @@ struct EnabledFeatures {
     features.features13.synchronization2 = VK_TRUE;
     features.features13.dynamicRendering = VK_TRUE;
     features.features13.maintenance4 = VK_TRUE;
+    // Hard-required: the geometry_opacity cutout path (C14) uses Slang `discard` in
+    // forward_render.frag.slang, so the emitted SPIR-V declares the DemoteToHelperInvocation
+    // capability — the device feature must be enabled (VUID-08740).
+    features.features13.shaderDemoteToHelperInvocation = VK_TRUE;
 
     features.features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     features.features12.pNext = &features.features13;
@@ -462,6 +466,7 @@ struct QueueInfos {
         supported.features12.descriptorBindingStorageImageUpdateAfterBind != VK_TRUE ||
         supported.features12.timelineSemaphore != VK_TRUE || supported.features13.dynamicRendering != VK_TRUE ||
         supported.features13.synchronization2 != VK_TRUE || supported.features13.maintenance4 != VK_TRUE ||
+        supported.features13.shaderDemoteToHelperInvocation != VK_TRUE ||
         supported.features14.pushDescriptor != VK_TRUE || supported.features14.maintenance5 != VK_TRUE ||
         supported.features14.hostImageCopy != VK_TRUE || supported.as.accelerationStructure != VK_TRUE ||
         supported.as.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||

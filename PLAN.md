@@ -302,7 +302,7 @@ track table is sorted in this order.
 
 **ID gaps:** numbering is not contiguous. Retired IDs mark work that shipped, was folded into
 another item, or was dropped as a duplicate slot / out-of-scope: PERF1–PERF2, PERF7, PERF9,
-GI1, GI2, GI-BDPT, GI-LOD, GI-VOL, DN2, DN4, DN6, DN7, LS3, PAR6, VK3, I1–I5, INTEROP1, M0,
+GI1, GI2, GI-BDPT, GI-LOD, GI-VOL, DN2, DN4, DN6, DN7, LS3, PAR6, VK3, VK11, I1–I5, INTEROP1, M0,
 C0–C7, R6/R8/R12 (CH1–CH15). Noteworthy retired work is recorded in **Baseline**.
 
 **Phantom-paper audit — corrected:** earlier "phantom" verdicts used only arXiv+DBLP+Wikipedia
@@ -394,7 +394,11 @@ Vulkan-1.4 `hostImageCopy` via `vkCopyMemoryToImage` (host → optimal-tiling im
 the staging-buffer upload + `vkCmdCopyBufferToImage` is deleted from `Texture`/`IblProbe`);
 **VK6** — `VK_KHR_present_id` + `VK_KHR_present_wait` +
 `VK_KHR_present_mode_fifo_latest_ready` (`FIFO_LATEST_READY` present mode, per-present ID
-tagging, `Swapchain::waitForPresent`). `VK_KHR_swapchain_maintenance1` (the MOD4 scaling
+tagging, `Swapchain::waitForPresent`). **VK11** — `shaderDemoteToHelperInvocation` (Vulkan
+1.3 core feature) enabled as hard-required in `Context.cpp`: the C14 `geometry_opacity`
+cutout's Slang `discard` emits the `DemoteToHelperInvocation` SPIR-V capability, which
+tripped VUID-08740 on every `vkCreateShaderModule` until the feature was enabled.
+`VK_KHR_swapchain_maintenance1` (the MOD4 scaling
 piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
 
 | ID | Capability (verified present) | Enables | Track | Status |
@@ -403,7 +407,6 @@ piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
 | VK5 | `VK_KHR_pipeline_binary` | Serialized/faster PSO creation — cuts Theia's cold start (5 pipelines built at init: opaque / transparent / sky / cull / GI) and speeds `.spv` hot-reload | PERF, CH | backlog |
 | VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **Blocked (see MOD1):** combined-image-sampler descriptors require image capture/replay, whose `VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT` memory **VMA 3.4 cannot allocate** (no support in `vk_mem_alloc.h`) — a non-VMA sampled-image allocation path is a prerequisite before the conversion can start. | PERF, CH | backlog · **blocked** (→ MOD1) |
 | VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path **DN1** (the RaNAD neural denoiser) needs. Consumer is DN1; until DN1 starts this stays speculative, so backlog rather than next. | DN | backlog (→ DN1) |
-| VK11 | `shaderDemoteToHelperInvocation` (Vulkan 1.3 core feature, no extension) | **Validation-correctness fix, not optional adoption:** Theia's `forward_render.frag.slang` uses Slang `discard` (the C14 `geometry_opacity` cutout) → the emitted SPIR-V declares `DemoteToHelperInvocation`, but `Context.cpp` never enables the feature → every `vkCreateShaderModule` trips VUID-08740 (NVIDIA drivers tolerate it; strict validation fails). Enable `VkPhysicalDeviceVulkan13Features::shaderDemoteToHelperInvocation` as a hard-required feature — the cutout path is shipped, not optional — mirroring the maintenance4/5 entries. One-line device-feature change. | CH | backlog |
 | VK9 | Reduced precision — `shaderFloat16` / `shaderBFloat16` / `shaderFloat8` | FP16/BF16/FP8 compute; consumer is DN1 (with VK1) | DN, PERF | watchlist (→ DN1) |
 
 **Modernization removals — legacy → modern (drop, not just add).** The capability table above
