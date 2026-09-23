@@ -69,7 +69,9 @@ def main() -> int:
             "--scene",
             scene,
             "--no-postfx",
-            "--no-camera-jitter",
+            # NB: no --no-camera-jitter — capture forces estimator-pure mode (--output):
+            # firefly clamps off, A3(a) regularization off, camera jitter ON (same
+            # pixel-footprint integral as Hyperion's per-sample jitter).
             "--offscreen-frames",
             str(theia_frames),
             "--output",

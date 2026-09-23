@@ -182,7 +182,11 @@ vanish as samples increase — a denoised image is therefore **not** a convergin
 denoiser is an **interactive presentation stage only**: it is forced off for offscreen capture
 (`--output`) and with `--no-postfx`, in **both** renderers (`App.cpp`), so a capture is always
 the raw scene-referred estimator result that parity is measured against. Convergence to the
-reference comes from accumulation alone, not from the filter.
+reference comes from accumulation alone, not from the filter. Theia extends the same capture
+purity to its remaining presentation aids: the firefly clamps and the A3(a) secondary-bounce
+roughness regularization switch off for `--output`, and camera jitter is forced on — the
+capture integrates the same pixel footprint as Hyperion's per-sample jitter and converges to
+the unclamped ground truth.
 
 Runtime tuning flags:
 
