@@ -375,6 +375,15 @@ computes `mean_diff`, `rel_mse`, `ssim` (tone-mapped sRGB), luminance-histogram 
 `check_consistency.py` covers bias/variance, and `validation_manifest.toml` gates **14** of
 the 30 scenes (strict AND across the metric set). Add new perceptual metrics below as backlog.
 
+**Consistency-run evidence (2026-09, estimator-pure capture):** `cornell_classic` converges
+at the textbook rate (pairwise ratio 0.504 ≈ 1/√N) and passes the bias floor (Theia@1024f vs
+Hyperion@1024spp mean_diff 1.84 ≤ 4.0) — the shared estimator + contract work as designed.
+`openpbr_metals` passes the variance rate (0.674, in-band) but fails the bias floor (27.9):
+at 1024 spp the sun-IBL *reference* is itself firefly-noisy, so that number conflates
+reference variance with true residual bias — **bias-floor reads on sun-IBL scenes need a
+converged reference (≫1024 spp) or a controlled sun-strength fixture** before they can
+indict the estimator. (Akin to the low-spp reference trap, Aether/AGENTS.md.)
+
 | ID | Task | Status |
 |----|------|--------|
 | PAR2 | **MILO** lightweight perceptual metric for image/latent optimization (Cogalan et al. — TOG/SIG 2025, [doi:10.1145/3763340](https://doi.org/10.1145/3763340)) — cheap full-reference metric to drive Theia-vs-Hyperion loss/tuning. | backlog |

@@ -45,11 +45,13 @@ from compare_renders import load_exr, compute_metrics  # type: ignore  # noqa: E
 def render_theia(exe: Path, scene: str, frames: int, width: int, height: int,
                  out: Path, extra_args: list[str] | None = None) -> None:
     """Headless accumulation render with denoiser/TAA bypassed."""
+    # NB: no --no-camera-jitter — capture (--output) is estimator-pure since the extended
+    # two-tier contract: firefly clamps + A3(a) off, camera jitter forced ON (the flag is
+    # ignored on the capture path; passing it would be a stale no-op).
     cmd = [
         str(exe),
         "--scene", scene,
         "--no-postfx",
-        "--no-camera-jitter",
         "--offscreen-frames", str(frames),
         "--width", str(width),
         "--height", str(height),
