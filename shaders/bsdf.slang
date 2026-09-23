@@ -48,7 +48,7 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     // specular_weight·F0, re-derived to a modulated eta), and — when coated — the IOR ratio
     // through the coat medium (specular_ior/coat_ior, TIR-safe). Uncoated + specular_weight=1
     // → eta = specular_ior unchanged. (Metal takes specular_weight as its lobe weight instead.)
-    float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), coatEta, saturate(mat.coatColorWeight.w));
+    float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), max(mat.specularColorWeight.w, 0.0), coatEta, saturate(mat.coatColorWeight.w));
     // C7 thin-wall exception: geometry_thin_walled collapses the film to a single surface —
     // there is NO bulk interior (a hollow shell's inside is air), so every crossing is a full
     // air→film→air transmission: side-independent, never TIR-capable. Inverting eta on the
@@ -222,7 +222,7 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
     } else {
         // A3: OpenPBR/PBRT-v4 transmission PDF (generalized half-vector + refraction Jacobian).
         if (transmissionWeight > 0.0) {
-            float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
+            float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), max(mat.specularColorWeight.w, 0.0), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
             if (exiting && mat.opacityFlagsPad.w <= 0.5) { // thin-walled: side-independent (no bulk)
                 eta = 1.0 / eta; // C7: side-correct etap so pdf matches evalTransmissionMicrofacet
             }
@@ -290,7 +290,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     // the ray is inside the dielectric), driving every Fresnel branch and Snell ratio below.
     // geometry_thin_walled is exempt: the film has no bulk interior (a hollow shell holds air),
     // so its crossings are side-independent full air→film→air transmissions, never TIR.
-    float etaS = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), saturate(mat.specularColorWeight.w), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
+    float etaS = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), max(mat.specularColorWeight.w, 0.0), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
     float eta = (exiting && mat.opacityFlagsPad.w <= 0.5) ? (1.0 / etaS) : etaS;
     float baseRough = mat.specularRoughAnisoIor.x;
     float baseAniso = mat.specularRoughAnisoIor.y;

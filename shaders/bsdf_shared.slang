@@ -51,16 +51,20 @@ float3 sssExtinction(float radius, float3 radiusScale)
 
 /// G6: per-channel absorption/scattering coefficients for the transmission volume, per the spec
 /// `dielectric_volume` VDF: σ_t = -ln(transmission_color)/transmission_depth (extinction);
-/// σ_s = transmission_scatter/transmission_depth (scattering). Returns σ_t in `sigmaT` and the
-/// per-channel single-scatter albedo (σ_s/σ_t) in `albedo`. Caller gates on transmission_depth>0.
+/// σ_s = transmission_scatter/transmission_depth (scattering). Spec §translucent-base:
+/// μ_a = μ_t − μ_s; if any μ_a component is negative, shift μ_a by enough gray to make all
+/// components non-negative (chromaticity-preserving uniform shift — the reference graph's
+/// behaviour), then σ_t' = μ_a' + μ_s. Returns σ_t in `sigmaT` and the per-channel
+/// single-scatter albedo (σ_s/σ_t) in `albedo`. Caller gates on transmission_depth>0.
 void transmissionVolumeCoeffs(float3 transmissionColor, float3 transmissionScatter, float depth,
                               out float3 sigmaT, out float3 albedo)
 {
     float d = max(depth, 1.0e-4);
     float3 extinction = -log(max(saturate3(transmissionColor), 1.0e-4.xxx)) / d; // absorption+scatter
     float3 scattering = max(saturate3(transmissionScatter), 0.0.xxx) / d;
-    // Extinction must be >= scattering (absorption non-negative); clamp defensively.
-    sigmaT = max(extinction, scattering + 1.0e-4.xxx);
+    float3 muA = extinction - scattering;
+    float grayShift = max(0.0, -min(min(muA.x, muA.y), muA.z)); // spec gray-shift of negative μ_a
+    sigmaT = extinction + grayShift.xxx;
     albedo = saturate3(scattering / max(sigmaT, 1.0e-4.xxx));
 }
 
@@ -146,7 +150,10 @@ float openpbrEffectiveSpecularRoughness(float specularRoughness, float coatRough
 /// seen through the coat's relative IOR. Spec: eta_s = mix(specular_ior, specular_ior/coat_ior
 /// [TIR-safe inverted], coat_weight); F0 = ((eta_s-1)/(eta_s+1))²; scaled_F0 = specular_weight·F0;
 /// then re-derive the modulated eta from the (sign-preserving) sqrt of the clamped scaled F0.
-/// Ref: open_pbr_surface.mtlx `modulated_eta_s`. Returns the effective relative IOR.
+/// The spec allows specular_weight > 1 (boosting reflectivity above specular_ior's level) with the
+/// mandated internal clamp ξ_s·F_s ≤ 1 — realized here as the 0.99999 scaled-F0 clamp, matching
+/// the reference's `scaled_specular_F0_clamped`. Ref: open_pbr_surface.mtlx `modulated_eta_s`.
+/// Returns the effective relative IOR.
 float openpbrModulatedEta(float specularIor, float specularWeight, float coatIor, float coatWeight)
 {
     float ratio = specularIor / max(coatIor, 1.0e-4);
@@ -156,7 +163,7 @@ float openpbrModulatedEta(float specularIor, float specularWeight, float coatIor
     float etaS = lerp(specularIor, ratio, saturate(coatWeight));
     float f0sqrt = (etaS - 1.0) / (etaS + 1.0);
     float f0 = f0sqrt * f0sqrt;
-    float scaledF0 = clamp(saturate(specularWeight) * f0, 0.0, 0.99999);
+    float scaledF0 = clamp(max(specularWeight, 0.0) * f0, 0.0, 0.99999);
     float eps = sign(etaS - 1.0) * sqrt(scaledF0);
     return (1.0 + eps) / max(1.0 - eps, 1.0e-4);
 }
