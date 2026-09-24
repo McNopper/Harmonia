@@ -97,7 +97,85 @@ struct PathState {
     float3  mediumAlbedo;
     float   mediumG;
     float   mediumEta;
+    // GI-ENH (a): reconnection capture (Theia's path reservoir only — captureRe = 1 asks
+    // integrateSurface to record its FIRST full surface vertex). Pure observability: no
+    // RNG draw is added, removed or reordered, so deterministic replay is unaffected and
+    // the estimator output is bit-identical with capture on or off.
+    uint    captureRe;
+    uint    reCaptured;
+    ReconnectionCapture rec;
 };
+
+/// GI-ENH (a): one NEE event at a vertex, split so a reconnection shift can re-evaluate it
+/// under a NEW incoming direction. `raw` carries every direction-independent factor
+/// (Le, cosI, terminator, visibility, sampling-pdf division — the MIS-free form for env);
+/// the shift recomputes the BSDF value and (for env) the balance-heuristic MIS weight.
+struct NeeEventCapture {
+    float3 wi;     ///< direction vertex -> light sample
+    float3 raw;    ///< Le * cosI * fTerm * visibility / pdf (BSDF-free, MIS-free)
+    float  srcPdf; ///< technique pdf (tri/sphere: solid-angle pdf incl. selection; env: envPdf)
+    uint   valid;
+};
+
+/// GI-ENH (a): reconnection record of a path candidate's first FULL surface vertex — the
+/// paper's compact (instance, primitive, barycentrics) reconnection vertex plus the cached
+/// suffix value. Filled only when PathState.captureRe != 0.
+struct ReconnectionCapture {
+    float3 omegaK;         ///< continuation direction x_k -> x_{k+1}
+    float3 throughputAtXk; ///< FULL prefix throughput at x_k (w_1·w_2, post-RR) — the divisor
+                           ///< that normalises the cached suffix to pure incident radiance
+    float3 suffixRadiance; ///< L_inc(x_k, omegaK): walk value beyond x_k, divided by throughputAtXk
+    float  pdfOmegaK;      ///< p^x_k(omegaK) (1e30 for delta) — Jacobian + MIS recompute
+    float  pdfEdgeIn;      ///< p^x_1(omega_1): arriving-edge BSDF pdf — Jacobian
+    float  dist2X1Xk;      ///< |x_1 - x_k|^2 source side (shadow tMax at shift time)
+    float  geomGSource;    ///< G(x_1 -> x_k) source side (shading-cos/dist^2 at x_k) — Jacobian
+    float  geomGReverse;   ///< G(x_k -> x_1) source side (shading-cos/dist^2 at x_1) — Eq. 5
+                           ///< inverse-footprint test (destination cos, both sides consistent)
+    float  opacityXk;      ///< geometry_opacity at x_k (gate-eligibility at shift time)
+    float3 xkPos;          ///< reconnection vertex surface identity (raw GiHit fields —
+    float3 xkNormal;       ///<  rebuilt exactly into a SurfaceHit at shift time via
+    float3 xkGeoNormal;    ///<  makeSurfaceHit semantics with the NEW incoming direction)
+    float3 xkTangent;
+    float2 xkUv;
+    uint   xkMaterialIdx;
+    NeeEventCapture tri;   ///< emissive-triangle/sphere NEE event at x_k (valid bit = fired)
+    NeeEventCapture env;   ///< environment NEE event at x_k
+    uint   flags;          ///< bit0 = captured a full vertex; bit1 = no medium entry on x_k's
+                           ///< continuation; bit2 = continuation weight per-channel > 0;
+                           ///< bit3 = x_k's continuation is non-delta; bit4 = primary edge
+                           ///< was non-delta; bit5 = primary continuation entered no medium
+};
+
+/// Zero-init helper — every capture record starts fully defined (uninitialized struct
+/// fields carry run-to-run garbage; never let them reach a GPU buffer).
+ReconnectionCapture makeEmptyReconnectionCapture() {
+    ReconnectionCapture rc;
+    rc.omegaK = 0.0.xxx;
+    rc.throughputAtXk = 0.0.xxx;
+    rc.suffixRadiance = 0.0.xxx;
+    rc.pdfOmegaK = 0.0;
+    rc.pdfEdgeIn = 0.0;
+    rc.dist2X1Xk = 0.0;
+    rc.geomGSource = 0.0;
+    rc.geomGReverse = 0.0;
+    rc.opacityXk = 1.0;
+    rc.xkPos = 0.0.xxx;
+    rc.xkNormal = 0.0.xxx;
+    rc.xkGeoNormal = 0.0.xxx;
+    rc.xkTangent = 0.0.xxx;
+    rc.xkUv = 0.0.xx;
+    rc.xkMaterialIdx = 0u;
+    rc.tri.wi = 0.0.xxx;
+    rc.tri.raw = 0.0.xxx;
+    rc.tri.srcPdf = 0.0;
+    rc.tri.valid = 0u;
+    rc.env.wi = 0.0.xxx;
+    rc.env.raw = 0.0.xxx;
+    rc.env.srcPdf = 0.0;
+    rc.env.valid = 0u;
+    rc.flags = 0u;
+    return rc;
+}
 
 /// Equirectangular (lat-long) env-map lookup matching env.slang's sampleEnvMap convention.
 /// Passed-in texture/sampler keep this module free of renderer globals.
@@ -155,8 +233,13 @@ float3 evalEmissionGuarded(float3 emission, uint depth, bool specularBounce,
 /// than (oc·wi)² - (oc·oc - r²), whose two ≈d² terms cancel catastrophically in that regime.
 /// Ref: PBR Book 4e §22.2 (sampling shapes — sphere); Wang 1992 (solid-angle cone sampling).
 float3 evalEmissiveSphereNEE<T : ITracer>(
-    T tracer, SurfaceHit surf, GpuEmissiveTriangle s, float triPdf, inout RngState seed)
+    T tracer, SurfaceHit surf, GpuEmissiveTriangle s, float triPdf, inout RngState seed,
+    out NeeEventCapture cap)
 {
+    cap.wi = 0.0.xxx;
+    cap.raw = 0.0.xxx;
+    cap.srcPdf = 0.0;
+    cap.valid = 0u;
     float3 center = s.v0_area.xyz;
     float  radius = s.v0_area.w;
     float3 Le     = float3(s.edge1_emitR.w, s.edge2_emitG.w, s.normal_emitB.w);
@@ -227,6 +310,10 @@ float3 evalEmissiveSphereNEE<T : ITracer>(
         if (visibility > 0.0) {
             float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                 surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
+            cap.wi = wi;
+            cap.raw = Le * cosI * fTerm * visibility / solidPdf;
+            cap.srcPdf = solidPdf;
+            cap.valid = 1u;
             return bsdfVal * Le * cosI * fTerm * visibility / solidPdf;
         }
     }
@@ -246,8 +333,12 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
     T tracer, SurfaceHit surf,
     StructuredBuffer<GpuEmissiveTriangle> emissiveTriangles, uint emissiveTriangleCount,
     StructuredBuffer<float> emissiveCdf,
-    inout RngState seed)
+    inout RngState seed, out NeeEventCapture cap)
 {
+    cap.wi = 0.0.xxx;
+    cap.raw = 0.0.xxx;
+    cap.srcPdf = 0.0;
+    cap.valid = 0u;
     if (emissiveTriangleCount == 0u) {
         return 0.0.xxx;
     }
@@ -284,7 +375,7 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
     // triangle emitters take the area-sampling path below. Both share the single power CDF,
     // so both must divide by triPdf — the sphere branch folds it into its cone pdf.
     if (tri.kind_pad.x == kEmissiveSphere) {
-        return evalEmissiveSphereNEE(tracer, surf, tri, triPdf, seed);
+        return evalEmissiveSphereNEE(tracer, surf, tri, triPdf, seed, cap);
     }
 
     float3 v0    = tri.v0_area.xyz;
@@ -330,6 +421,10 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
             if (visibility > 0.0) {
                 float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
+                cap.wi = wi;
+                cap.raw = Le * cosI * fTerm * visibility / solidPdf;
+                cap.srcPdf = solidPdf;
+                cap.valid = 1u;
                 return bsdfVal * Le * cosI * fTerm * visibility / solidPdf;
             }
         }
@@ -346,8 +441,12 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
-    inout RngState seed)
+    inout RngState seed, out NeeEventCapture cap)
 {
+    cap.wi = 0.0.xxx;
+    cap.raw = 0.0.xxx;
+    cap.srcPdf = 0.0;
+    cap.valid = 0u;
     EnvNeeSample sample;
     sample.wi = 0.0.xxx;
     sample.envPdf = 0.0;
@@ -385,6 +484,12 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
                 sample.misWeight = misW;
                 sample.contribution = bsdfVal * Le * cosI * fTerm * misW * visibility / envPdf;
                 sample.valid = true;
+                // GI-ENH (a) capture: MIS-free raw form (the shift recomputes misW under the
+                // new incoming direction).
+                cap.wi = wi;
+                cap.raw = Le * cosI * fTerm * visibility / envPdf;
+                cap.srcPdf = envPdf;
+                cap.valid = 1u;
             }
         }
     }
@@ -396,11 +501,11 @@ float3 evalEnvNEE<T : ITracer>(
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
-    inout RngState seed)
+    inout RngState seed, out NeeEventCapture cap)
 {
     return evalEnvNEESample(
         tracer, surf, marginalCdf, conditionalCdf, envW, envH, hasEnvMap, envLuminanceScale,
-        envMap, envSampler, seed).contribution;
+        envMap, envSampler, seed, cap).contribution;
 }
 
 /// Estimate the outgoing radiance contribution at one surface vertex and advance the path.
@@ -457,13 +562,23 @@ void integrateSurface<T : ITracer>(
     }
 
     // 3) NEE: direct emissive-triangle area sampling (power-proportional selection).
+    // GI-ENH (a): capture the NEE events of the first FULL vertex when requested — pure
+    // observability, no RNG added or reordered.
+    const bool captureHere = (state.captureRe != 0u) && (state.reCaptured == 0u);
+    NeeEventCapture capTri;
     state.radiance += state.throughput * evalEmissiveTriangleNEE(
-        tracer, surf, emissiveTriangles, emissiveTriangleCount, emissiveCdf, state.seed);
+        tracer, surf, emissiveTriangles, emissiveTriangleCount, emissiveCdf, state.seed, capTri);
 
     // 4) NEE: environment importance sampling with MIS.
+    NeeEventCapture capEnv;
     state.radiance += state.throughput * evalEnvNEE(
         tracer, surf, marginalCdf, conditionalCdf, envW, envH, hasEnvMap, envLuminanceScale,
-        envMap, envSampler, state.seed);
+        envMap, envSampler, state.seed, capEnv);
+    if (captureHere) {
+        state.rec.tri = capTri;
+        state.rec.env = capEnv;
+        state.rec.opacityXk = saturate(surf.mat.opacityFlagsPad.x);
+    }
 
     // 5) BSDF continuation sample.
     BSDFSample bsdfSample = sampleBSDF(surf.mat, surf.wo,
@@ -492,6 +607,17 @@ void integrateSurface<T : ITracer>(
     state.specularBounce = bsdfSample.isDelta;
     state.lastBsdfPdf    = bsdfSample.isDelta ? 1.0e30 : bsdfSample.pdf;
     state.throughput    *= bsdfSample.weight * fCont;
+    if (captureHere) {
+        // GI-ENH (a): the reconnection record's suffix anchor — x_k's continuation
+        // direction/pdf (the walk's own factors, not a re-derivation). The throughput
+        // divisor is captured at the harvest site (post-RR, full prefix w_1·w_2).
+        state.rec.omegaK = normalize(bsdfSample.direction);
+        state.rec.pdfOmegaK = bsdfSample.isDelta ? 1.0e30 : bsdfSample.pdf;
+        state.rec.flags = 1u
+            | (bsdfSample.entersMedium ? 0u : 2u)
+            | (bsdfSample.isDelta ? 0u : 8u);
+        state.reCaptured = 1u;
+    }
     state.insideMedium   = bsdfSample.entersMedium;
     state.mediumSigmaT   = bsdfSample.mediumSigmaT;
     state.mediumAlbedo   = bsdfSample.mediumAlbedo;

@@ -9,6 +9,10 @@ the prioritized next-up list. *AI agent picking up work:* read `AGENTS.md` (orie
 contracts) → *How to continue* (your task) → *Governance* (definition of done + guardrails)
 **before editing any repo**. Harmonia is the family's shared-estimator hub, so this file also
 carries the cross-repo research triage, the parity methodology, and the global next-up order.
+The shared `path_integrator.slang` also carries the **GI-ENH (a) reconnection-capture hooks**
+(`NeeEventCapture`/`ReconnectionCapture` out-params + `PathState.captureRe`) — pure
+observability for Theia's path reservoir, inert for any consumer that leaves `captureRe = 0`
+(no RNG change; Hyperion compiles them dead).
 
 ## Contents
 
@@ -103,8 +107,9 @@ priority. Owner repo in parens; each repo's PLAN.md carries its own slice.
 | 7 | **C11: ReSTIR Subsurface Scattering** (I3D 2024) — reservoir resampling *accelerator over the shared random-walk BSSRDF* (same model as ReSTIR PT over the shared `path_integrator`), NOT a second BSSRDF; brings Theia's realtime SSS onto the shared model Hyperion already runs → SSS parity. *(Harmonia + Theia)* | C | — | **next** |
 | 8 | **C12: Fully-correlated Anisotropic Micrograin BSDF** (TOG 2024) — the OpenPBR flake/sparkle lobe. *(Harmonia)* | C | — | **next** |
 | 9 | **I6: configurable frames-per-flip** (Theia window) — owned by `Theia/PLAN.md`; the flag lands in the shared parser (`src/harmonia/app/CliParser.cpp`). *(Theia)* | I | — | **next** |
-| 10 | **GI-ENH: ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — I3D/PACMCGIT 2026 Best Paper, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — remaining: the **reconnection shift with footprint-based reconnection criteria** in Theia's path reservoir (vector-valued resampling weights + Gaussian paired-neighbor selection landed). *(Theia; estimator half shared with Harmonia)* | GI | — | **next** |
+| 10 | **GI-ENH: ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — I3D/PACMCGIT 2026 Best Paper, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — core landed in Theia (vector-valued weights, Gaussian paired neighbours, k=2 reconnection shift with Eq. 5 footprint criteria — bias-floor-proven unbiased); remaining: the **k≥3 hybrid extension + shift-sharing** that unlock the paper's 2–3× cost/quality win. *(Theia; estimator half shared with Harmonia)* | GI | — | **next** |
 | 11 | **MOD5: modern Vulkan AS creation** (`VK_KHR_device_address_commands` — hardware gate opened 2026-09) — replace `vkCreateAccelerationStructureKHR` + the CPU-side build-info plumbing with `vkCreateAccelerationStructure2KHR` device-address-only creation in `Geometry::buildBlas` / `SceneBase::buildTlas`. Modern-over-legacy: the old creation path is **dropped**, not kept alongside. *(Harmonia)* | MOD | — | **next** |
+| 12 | **Vulkan modernization wave** (2026-09 driver: all hardware-ready) — MOD6 present pacing v1→v2 (`present_id2`/`present_wait2`, drop the v1 pair), VK13 maintenance7–11 triage (device-layer hardening), MOD2 fences→timeline-semaphores, VK14 robustness2/compute-derivatives adoption review. Doctrine: this codebase stays **latest-standard, GPU-driven, cross-vendor** — every release should carry at least one legacy→modern removal or capability adoption when the hardware supports it. *(Harmonia; MOD4/Theia follows)* | MOD, VK | — | **next** |
 
 > **Editorial rule (v0.7.5):** conformance to OpenPBR 1.1.1 is reached by *implementing
 > established algorithms and proven approximations*, not by re-deriving formulas against a
@@ -287,7 +292,7 @@ Lin/Kettunen/Wyman 2026 Enhanced).
 | ID | Paper (venue) | Relevance to Theia | Status |
 |----|---------------|--------------------|--------|
 | GI-SMS | **Sample Space Partitioning and Spatiotemporal Resampling for Specular Manifold Sampling** (Hong et al., **SIGGRAPH Asia 2025**) | Caustics / SDS chains (reconnection shifts can't handle delta lobes); real caustics/TIR fix. **Owns the caustics slot** — GI-BDPT (TOG 44(5) 2025) targets the same niche and is deliberately not tracked. | **next** |
-| GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir. *(Landed: (b) vector-valued resampling weights (§6.3) and (c) Gaussian paired-neighbor self-inverse maps (§3) — provably expectation-identical (`p̂·s ≡ u` ⇒ per-set luma unchanged), bias floors measured invariant.)* **Remaining (a):** the reconnection shift with the **footprint-based reconnection criteria** (Eq. 5: dual ray-footprint ≥ (c/100)·R_pri², c=0.02, α_min=0.2 at x_{k−1} only, skip inverse test on diffuse/emissive x_k) — replaces the scene-tuned distance/roughness thresholds, turns each neighbour's full replay into a cached-suffix evaluation (1 shadow ray + BSDF re-evals), and unlocks the paper's paired shift-sharing. Owned by `Theia/PLAN.md`. | **next** |
+| GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir. *(Core landed 2026-09: (b) vector-valued resampling weights (§6.3), (c) Gaussian paired-neighbor self-inverse maps (§3), (a) the k=2 reconnection shift with Eq. 5 footprint criteria + opacity-gate mixture + GRIS Jacobian — bias-floor-proven unbiased (cornell 1.826 vs 1.830 replay-only), and multi-frame captures made run-to-run reproducible (per-frame-slot descriptor sets + reservoir ping-pong barrier).)* **Remaining:** the k≥3 hybrid extension (replay deeper, reconnect later — unlocks the 2–3× cost/quality win), forced-NEE reconnection, paired shift-sharing, replay stream compaction. Owned by `Theia/PLAN.md`. | **next** |
 | GI-PG | **ReSTIR PG** — path guiding w/ spatiotemporally resampled paths (Zeng et al., **SIGGRAPH Asia 2025**) | Hard-to-sample indirect transport; consistent; belongs in the shared estimator. Overlaps LS4 — one guiding approach only. | backlog |
 | GI-CG | **Compatibility-Guided Neighbor Selection** (Junkins et al., **HPG 2026, Best Paper**) | Drop-in spatial-reuse quality boost (shift-compatible neighbors) | backlog |
 | GI-CV | **Spatio-Temporal Control Variates with ReSTIR for Real-Time Rendering (ReSTCV)** (Shi et al., **SIGGRAPH 2026**, honorable mention) | Reservoir-borne accumulated estimates + CV from neighbor/frame differences — cuts color noise at 1-spp budgets. Consistent **only if** the CV is zero-expectation — audit before adopting. | backlog |
@@ -438,7 +443,11 @@ piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
 **Modernization removals — legacy → modern (drop, not just add).** The capability table above
 lists what we can *enable*; the "modern Vulkan preferred over legacy" rule (§8) means the
 higher-value move is *removing* legacy code now that a verified-present modern equivalent
-exists. Each is perf/code-health-only and binding-/sync-/data-equivalent → never biases the
+exists. **Standing priority (owner directive, 2026-09):** this family's code stays
+*latest-standard Vulkan and GPU-driven by design* — each release carries at least one
+legacy→modern removal or capability adoption whenever the dev hardware supports it; the
+2026-09 driver wave (MOD5/MOD6/VK13/VK14) is the current harvest. Each removal is
+perf/code-health-only and binding-/sync-/data-equivalent → never biases the
 image, passes the convergence-to-Hyperion litmus. Grounded in current code:
 
 | ID  | Legacy (drop) | Modern (use) | Deletes | Track | Status |
@@ -559,7 +568,9 @@ same pixel footprint as Hyperion's per-sample jitter and converges to the *uncla
 truth. The gate therefore compares estimator to estimator: what fails now is true bias or
 true variance, never a presentation aid. Expect visible firefly speckle on HDR scenes at
 finite frames — that is variance (attack with frames / GI-ENH variance work), and the
-bias-vs-noise method above is how to tell it apart from bias.
+bias-vs-noise method above is how to tell it apart from bias. Multi-frame Theia captures are
+run-to-run pixel-reproducible (per-frame-slot descriptor sets + the reservoir ping-pong
+barrier, 2026-09) — the bias-vs-noise method can now debug against byte-stable references.
 
 **Gold-standard perceptual (optional, heavyweight):** HDR-FLIP (Andersson et al. 2020, HDR
 ext. 2021) — JND-based pair metric for HDR; pull in when the cheap set flags disagreement with
@@ -682,6 +693,11 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   `VK_EXT_buffer_device_address` / `VK_NV_buffer_device_address`). **No fallback paths** — if
   a required feature is missing at device selection, fail fast rather than maintain a second
   code path. An *optional* capability is permitted only when its absent-branch is
+  **Standing priority (owner directive, 2026-09):** latest-standard Vulkan + GPU-driven
+  approaches + state-of-the-art algorithms are core to this family's identity — every
+  release carries at least one legacy→modern removal or verified-present capability
+  adoption (§5.8 MOD table), and the research tracks (§5) adopt the current
+  SIGGRAPH/HPG/I3D state of the art rather than legacy techniques.
   image-identical and free to maintain (the §5.8 probe→enable pattern); anything that produces
   a different image, or duplicates a code path to stay alive, is a fallback and is removed.
   The same rule applies to this plan itself — no "opt-in alternative", no "low-end tier", no
