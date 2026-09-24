@@ -178,5 +178,4 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 - `vkBuildAccelerationStructuresKHR` (host-side) is **never used** â€” it is deprecated per the
   [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
 - `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` is the **future forward
-  path** for AS creation (cleanest device-address-only API). Plan when it becomes available on the
-  dev hardware (not yet on RTX 4050 / Vulkan 1.4.341).
+  path** for AS creation (cleanest device-address-only API). Now available on the dev GPU (RTX 5070, driver 616.92); adoption tracked as MOD5 (PLAN.md).

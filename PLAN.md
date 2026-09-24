@@ -103,7 +103,8 @@ priority. Owner repo in parens; each repo's PLAN.md carries its own slice.
 | 7 | **C11: ReSTIR Subsurface Scattering** (I3D 2024) — reservoir resampling *accelerator over the shared random-walk BSSRDF* (same model as ReSTIR PT over the shared `path_integrator`), NOT a second BSSRDF; brings Theia's realtime SSS onto the shared model Hyperion already runs → SSS parity. *(Harmonia + Theia)* | C | — | **next** |
 | 8 | **C12: Fully-correlated Anisotropic Micrograin BSDF** (TOG 2024) — the OpenPBR flake/sparkle lobe. *(Harmonia)* | C | — | **next** |
 | 9 | **I6: configurable frames-per-flip** (Theia window) — owned by `Theia/PLAN.md`; the flag lands in the shared parser (`src/harmonia/app/CliParser.cpp`). *(Theia)* | I | — | **next** |
-| 10 | **GI-ENH: ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — I3D/PACMCGIT 2026 Best Paper, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — footprint-based reconnection criteria, vector-valued spatial resampling weights, Gaussian paired-neighbor selection in Theia's path reservoir. *(Theia; estimator half shared with Harmonia)* | GI | — | **next** |
+| 10 | **GI-ENH: ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — I3D/PACMCGIT 2026 Best Paper, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — remaining: the **reconnection shift with footprint-based reconnection criteria** in Theia's path reservoir (vector-valued resampling weights + Gaussian paired-neighbor selection landed). *(Theia; estimator half shared with Harmonia)* | GI | — | **next** |
+| 11 | **MOD5: modern Vulkan AS creation** (`VK_KHR_device_address_commands` — hardware gate opened 2026-09) — replace `vkCreateAccelerationStructureKHR` + the CPU-side build-info plumbing with `vkCreateAccelerationStructure2KHR` device-address-only creation in `Geometry::buildBlas` / `SceneBase::buildTlas`. Modern-over-legacy: the old creation path is **dropped**, not kept alongside. *(Harmonia)* | MOD | — | **next** |
 
 > **Editorial rule (v0.7.5):** conformance to OpenPBR 1.1.1 is reached by *implementing
 > established algorithms and proven approximations*, not by re-deriving formulas against a
@@ -286,7 +287,7 @@ Lin/Kettunen/Wyman 2026 Enhanced).
 | ID | Paper (venue) | Relevance to Theia | Status |
 |----|---------------|--------------------|--------|
 | GI-SMS | **Sample Space Partitioning and Spatiotemporal Resampling for Specular Manifold Sampling** (Hong et al., **SIGGRAPH Asia 2025**) | Caustics / SDS chains (reconnection shifts can't handle delta lobes); real caustics/TIR fix. **Owns the caustics slot** — GI-BDPT (TOG 44(5) 2025) targets the same niche and is deliberately not tracked. | **next** |
-| GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir: (a) **footprint-based reconnection criteria** (Eq. 5: dual ray-footprint ≥ (c/100)·R_pri², c=0.02, α_min=0.2 at x_{k−1} only, skip inverse test on diffuse/emissive x_k) — powers the tracked reconnection-shift refinement, replaces the scene-tuned distance/roughness thresholds; (b) **vector-valued resampling weights** in the spatial pass (accumulate Σ m_i·F(Y_i)·W_i·|J| as RGB for shading — kills chroma noise at zero extra cost); (c) **Gaussian paired-neighbor textures** (self-inverse offset maps, σ=16 ≙ R=30 disk) replacing uniform-square draws. Caveat: the paper's 2× spatial-cost win assumes the 2022 baseline's two shifts per neighbor (pairwise MIS) — Theia's seed-space plain-RIS scheme already pays one, so pairing is a quality change here, not a cost win. Unified DI/GI reservoir + duplication maps already shipped (the paper validates both); its temporal cCap modulation is N/A (no temporal merge). Owned by `Theia/PLAN.md`. | **next** |
+| GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir. *(Landed: (b) vector-valued resampling weights (§6.3) and (c) Gaussian paired-neighbor self-inverse maps (§3) — provably expectation-identical (`p̂·s ≡ u` ⇒ per-set luma unchanged), bias floors measured invariant.)* **Remaining (a):** the reconnection shift with the **footprint-based reconnection criteria** (Eq. 5: dual ray-footprint ≥ (c/100)·R_pri², c=0.02, α_min=0.2 at x_{k−1} only, skip inverse test on diffuse/emissive x_k) — replaces the scene-tuned distance/roughness thresholds, turns each neighbour's full replay into a cached-suffix evaluation (1 shadow ray + BSDF re-evals), and unlocks the paper's paired shift-sharing. Owned by `Theia/PLAN.md`. | **next** |
 | GI-PG | **ReSTIR PG** — path guiding w/ spatiotemporally resampled paths (Zeng et al., **SIGGRAPH Asia 2025**) | Hard-to-sample indirect transport; consistent; belongs in the shared estimator. Overlaps LS4 — one guiding approach only. | backlog |
 | GI-CG | **Compatibility-Guided Neighbor Selection** (Junkins et al., **HPG 2026, Best Paper**) | Drop-in spatial-reuse quality boost (shift-compatible neighbors) | backlog |
 | GI-CV | **Spatio-Temporal Control Variates with ReSTIR for Real-Time Rendering (ReSTCV)** (Shi et al., **SIGGRAPH 2026**, honorable mention) | Reservoir-borne accumulated estimates + CV from neighbor/frame differences — cuts color noise at 1-spp budgets. Consistent **only if** the CV is zero-expectation — audit before adopting. | backlog |
@@ -394,8 +395,8 @@ indict the estimator. (Akin to the low-spp reference trap, Aether/AGENTS.md.)
 
 ### 5.8 Vulkan capability adoption — newly available on the dev GPU
 
-**Grounding:** verified via `vulkaninfo` on the dev target — **NVIDIA RTX 4050 Laptop, driver
-610.88, apiVersion 1.4.341 (SDK 1.4.357)**. All entries are core / `KHR` / `EXT` → compliant
+**Grounding:** verified via `vulkaninfo` on the dev target — **NVIDIA RTX 5070, driver
+616.92, apiVersion 1.4.351 (SDK 1.4.357)**, re-verified 2026-09-24 (earlier grounding: RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
 with the cross-vendor guardrail (§8). They follow the established **probe→enable** pattern in
 `Context.cpp` (cf. `serSupported` / `dgcSupported` /
 `positionFetchSupported` / `meshShaderSupported`): each is *optional* and engaged only when
@@ -430,6 +431,9 @@ piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
 | VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **Blocked (see MOD1):** combined-image-sampler descriptors require image capture/replay, whose `VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT` memory **VMA 3.4 cannot allocate** (no support in `vk_mem_alloc.h`) — a non-VMA sampled-image allocation path is a prerequisite before the conversion can start. | PERF, CH | backlog · **blocked** (→ MOD1) |
 | VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path **DN1** (the RaNAD neural denoiser) needs. Consumer is DN1; until DN1 starts this stays speculative, so backlog rather than next. | DN | backlog (→ DN1) |
 | VK9 | Reduced precision — `shaderFloat16` / `shaderBFloat16` / `shaderFloat8` | FP16/BF16/FP8 compute; consumer is DN1 (with VK1) | DN, PERF | watchlist (→ DN1) |
+| VK12 | `VK_KHR_present_id2` + `VK_KHR_present_wait2` | present-pacing v2 (supersedes the VK6 v1 pair — richer per-present timing/latency control for the interactive window); adoption = **MOD6** (drop v1) | I, PERF | watchlist (→ MOD6) |
+| VK13 | `VK_KHR_maintenance7`–`maintenance11` (all present, 2026-09 wave) | device-layer hardening/modernization candidates past core-1.4 maintenance6; triage each against the device layer before adopting | CH | watchlist |
+| VK14 | `VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives` | GPU-driven robustness (null-descriptor sparse-binding patterns) and compute-stage derivatives (analytic filtering in `gi.comp`); `VK_EXT_graphics_pipeline_library` pairs with VK5 for cold start | PERF, CH | watchlist |
 
 **Modernization removals — legacy → modern (drop, not just add).** The capability table above
 lists what we can *enable*; the "modern Vulkan preferred over legacy" rule (§8) means the
@@ -441,7 +445,9 @@ image, passes the convergence-to-Hyperion litmus. Grounded in current code:
 |-----|---------------|--------------|---------|-------|--------|
 | MOD1 | Descriptor pools/sets — `vkCreateDescriptorPool`/`vkAllocateDescriptorSets`/`vkUpdateDescriptorSets` (5 files, verified: Harmonia `Descriptors` core 1 pool + Theia `ForwardRenderer`/`GiPass`/`GpuCullPass`/`LightCuller` 4 pools) | **`VK_EXT_descriptor_buffer`** (EXT, not KHR) — bindless: write to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT` (storage-buffer descriptors = device address; combined-image-sampler descriptors via `vkGetDescriptorEXT` capture/replay) | the `Descriptors` pool abstraction + per-pass pools/allocated sets + all update-writes (keep the 7 passes / 9 call sites already on push descriptors) | PERF, CH | backlog · **blocked** (← VK7): image capture/replay needs `VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT` memory that **VMA 3.4 cannot allocate** — a sampled-image allocation path outside VMA + the all-or-nothing pipeline-layout flip are prerequisites; needs a dedicated, visually-verified effort |
 | MOD2 | `VkFence` — `vkWaitForFences` in Harmonia `Buffer.cpp:321` + `CommandPool.cpp:111` (one-shot submits), and create/wait/reset on Theia's async-compute `m_asyncFences` (`Application.cpp:205/492/495` — the only `vkResetFences` in the tree) | timeline semaphore (core 1.2, no extension) signal/wait — already the only primitive in the frame path (`FrameSync.cpp:22-119`) | every `VkFence` create/wait/reset; unifies sync on one primitive | CH | backlog |
-| MOD4 | Full swapchain recreate on resize | `VK_KHR_swapchain_maintenance1` scaling | the recreate-on-resize path | I, PERF | backlog — **owned by `Theia/PLAN.md`** |
+| MOD4 | Full swapchain recreate on resize | `VK_KHR_swapchain_maintenance1` scaling (hardware now verified present; the remaining decision is behavioral) | the recreate-on-resize path | I, PERF | backlog — **owned by `Theia/PLAN.md`** |
+| MOD5 | Acceleration-structure creation — `vkCreateAccelerationStructureKHR` + CPU-side build-info plumbing (`Geometry::buildBlas`, `SceneBase::buildTlas`) | **`VK_KHR_device_address_commands`** `vkCreateAccelerationStructure2KHR` — device-address-only AS creation, the forward path per the Khronos AS deprecation blog. Gate opened 2026-09 (driver 616.92). Old path dropped on adoption. | CH, PERF | **next** |
+| MOD6 | Present pacing — `VK_KHR_present_id` + `VK_KHR_present_wait` (VK6, shipped v0.7.6) | `VK_KHR_present_id2` + `VK_KHR_present_wait2` (VK12, 2026-09 wave) — superseding v2 pair; replace the v1 pair when adopted (drop, not alongside) | I, PERF | backlog — **owned by `Theia/PLAN.md`** |
 
 *Shipped (v0.7.6):* **MOD3** — Vulkan-1.4 `hostImageCopy`
 (`VK_EXT_host_image_copy` promoted to core) replaced the staging-buffer→`vkCmdCopyBufferToImage`
@@ -452,10 +458,15 @@ directly).
 but there is no secondary-command-buffer legacy to drop (engine is already primary-only) —
 watch only.
 
-**Confirmed still unavailable (future-forward, unchanged):** `VK_KHR_device_address_commands` /
-`vkCreateAccelerationStructure2KHR` — the cleanest device-address-only AS-creation API; remains
-"plan when available" per the device-layer notes in `AGENTS.md`. Verified **absent** on driver
-610.88.
+**Former future-forward item — now available:** `VK_KHR_device_address_commands` /
+`vkCreateAccelerationStructure2KHR` — the cleanest device-address-only AS-creation API — is
+verified **present** on driver 616.92 (it was absent on 610.88). The "plan when available"
+gate in the device-layer notes (`AGENTS.md`) is open; adoption is tracked as **MOD5** below.
+Also new in the 2026-09 driver wave (presence verified, triage pending): `VK_KHR_maintenance7`
+through `maintenance11`, `VK_KHR_present_id2`/`present_wait2`, `VK_KHR_robustness2`
+(`robustBufferAccess2` + `nullDescriptor`), `VK_KHR_compute_shader_derivatives`,
+`VK_KHR_swapchain_maintenance1` (hardware-ready for MOD4). NV-only arrivals
+(`VK_NV_cooperative_matrix2`/`decode_vector`) stay excluded by the cross-vendor guardrail.
 
 ---
 
