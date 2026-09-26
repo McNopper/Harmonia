@@ -13,7 +13,6 @@
 namespace harmonia {
 
 namespace {
-constexpr std::uint64_t kWaitForever = UINT64_MAX;
 constexpr std::size_t kMinBufferSize = 16;
 
 [[nodiscard]] bool prefersHostAccess(VmaMemoryUsage usage) noexcept {
@@ -310,23 +309,24 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
         result = vkEndCommandBuffer(cmd);
     }
 
-    VkFence fence = VK_NULL_HANDLE;
+    // MOD2: timeline semaphore replaces VkFence for staging-upload completion.
+    VkSemaphore semaphore = VK_NULL_HANDLE;
     if (result == VK_SUCCESS) {
-        result = harmonia::createFence(m_device, &fence);
+        result = harmonia::createTimelineSemaphore(m_device, &semaphore);
     }
     if (result == VK_SUCCESS) {
-        result = harmonia::submitOneShot(m_queue, cmd, fence);
+        result = harmonia::submitOneShot(m_queue, cmd, semaphore, 1);
     }
     if (result == VK_SUCCESS) {
-        result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, kWaitForever);
+        result = harmonia::waitTimelineSemaphore(m_device, semaphore, 1);
     }
 
     if (result != VK_SUCCESS) {
         Logger::error("Buffer staging upload failed: VkResult {}", static_cast<int>(result));
     }
 
-    if (fence != VK_NULL_HANDLE) {
-        vkDestroyFence(m_device, fence, nullptr);
+    if (semaphore != VK_NULL_HANDLE) {
+        vkDestroySemaphore(m_device, semaphore, nullptr);
     }
     if (cmd != VK_NULL_HANDLE) {
         vkFreeCommandBuffers(m_device, commandPool, 1U, &cmd);

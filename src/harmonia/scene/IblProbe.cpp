@@ -402,7 +402,9 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
         // Upload marginal CDF buffer
         const VkDeviceSize margSize = static_cast<VkDeviceSize>(kCdfH + 1) * sizeof(float);
         auto mBuf = Buffer::create(
-            ctx, margSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.marginalCdf");
+            ctx, margSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.marginalCdf");
         if (mBuf) {
             mBuf->uploadData(marginalCdf.data(), margSize);
             probe.m_marginalCdf = std::move(*mBuf);
@@ -412,7 +414,7 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
         const VkDeviceSize condSize = static_cast<VkDeviceSize>(kCdfH * (kCdfW + 1)) * sizeof(float);
         auto cBuf = Buffer::create(ctx,
                                    condSize,
-                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                                    VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
                                    "ibl.conditionalCdf");
         if (cBuf) {

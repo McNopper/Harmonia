@@ -26,7 +26,7 @@ struct DeviceContext {
     bool calibratedTimestampsSupported =
         false;                             ///< VK_KHR_calibrated_timestamps enabled (GPU/CPU timestamp correlation).
     bool presentIdSupported = false;       ///< VK_KHR_present_id enabled (per-present ID tagging).
-    bool presentWaitSupported = false;     ///< VK_KHR_present_wait enabled (vkWaitForPresentKHR pacing).
+    bool presentWaitSupported = false;     ///< VK_KHR_present_wait2 enabled (vkWaitForPresent2KHR pacing).
     bool fifoLatestReadySupported = false; ///< VK_KHR_present_mode_fifo_latest_ready enabled (low-latency FIFO).
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).

@@ -10,7 +10,6 @@ namespace harmonia {
 
 std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ctx) {
     constexpr std::uint32_t kBindlessTextureArraySize = 1024U;
-    constexpr std::uint32_t kCombinedImageSamplerDescriptorCount = kBindlessTextureArraySize + 1U;
 
     constexpr std::array set0Bindings{
         VkDescriptorSetLayoutBinding{0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_ALL, nullptr},
@@ -23,7 +22,8 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     const VkDescriptorSetLayoutCreateInfo set0Info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
-        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
+        // MOD1: descriptor buffer (was PUSH_DESCRIPTOR — can't mix with descriptor buffer sets).
+        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT,
         .bindingCount = static_cast<std::uint32_t>(set0Bindings.size()),
         .pBindings = set0Bindings.data(),
     };
@@ -47,8 +47,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         VkDescriptorBindingFlags{},
         VkDescriptorBindingFlags{},
         VkDescriptorBindingFlags{},
-        VkDescriptorBindingFlags(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                 VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT),
+        VkDescriptorBindingFlags(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT), // MOD1: no UPDATE_AFTER_BIND
         VkDescriptorBindingFlags{},
         VkDescriptorBindingFlags(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT),
         VkDescriptorBindingFlags{},
@@ -65,7 +64,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     const VkDescriptorSetLayoutCreateInfo set1Info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = &bindingFlagsInfo,
-        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT, // MOD1
         .bindingCount = static_cast<std::uint32_t>(set1Bindings.size()),
         .pBindings = set1Bindings.data(),
     };
@@ -89,37 +88,10 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         descriptors.m_set1Layout = harmonia::UniqueDescriptorSetLayout{ctx.device, set1Layout};
     }
 
-    constexpr std::array poolSizes{
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 9},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kCombinedImageSamplerDescriptorCount},
-    };
-    const VkDescriptorPoolCreateInfo poolInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-        .maxSets = 1,
-        .poolSizeCount = static_cast<std::uint32_t>(poolSizes.size()),
-        .pPoolSizes = poolSizes.data(),
-    };
-    {
-        VkDescriptorPool pool{};
-        if (const VkResult result = vkCreateDescriptorPool(ctx.device, &poolInfo, nullptr, &pool);
-            result != VK_SUCCESS) {
-            return std::unexpected(result);
-        }
-        descriptors.m_pool = harmonia::UniqueDescriptorPool{ctx.device, pool};
-    }
-
-    const VkDescriptorSetAllocateInfo allocInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .descriptorPool = descriptors.m_pool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = descriptors.m_set1Layout.ptr(),
-    };
-    if (const VkResult result = vkAllocateDescriptorSets(ctx.device, &allocInfo, &descriptors.m_set1);
-        result != VK_SUCCESS) {
-        return std::unexpected(result);
+    // MOD1: descriptor buffers replace the pool + sets.
+    if (!descriptors.m_frameWriter.init(ctx, descriptors.m_set0Layout.get(), 6, "harmonia.set0.frame.descBuf") ||
+        !descriptors.m_sceneWriter.init(ctx, descriptors.m_set1Layout.get(), 11, "harmonia.set1.scene.descBuf")) {
+        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
     constexpr VkPushConstantRange pushConstantRange{
@@ -148,7 +120,6 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
 
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set0Layout.get(), "harmonia.set0.push");
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set1Layout.get(), "harmonia.set1.scene");
-    ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, descriptors.m_pool.get(), "harmonia.scene.pool");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, descriptors.m_pipelineLayout.get(), "harmonia.pipelineLayout");
 
     return descriptors;
@@ -163,163 +134,59 @@ VkResult Descriptors::updateSceneSet(const DeviceContext& ctx,
                                      VkBuffer emissiveTriangleBuffer,
                                      VkBuffer emissiveCdfBuffer,
                                      std::span<const Texture> textures) {
-    const std::array bufferInfos{
-        VkDescriptorBufferInfo{instanceBuffer, 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{materialBuffer, 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{vertexBuffer, 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{indexBuffer, 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{lightBuffer, 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{emissiveTriangleBuffer, 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{emissiveCdfBuffer, 0, VK_WHOLE_SIZE},
-    };
-    const std::array writes{
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             0,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &bufferInfos[0],
-                             nullptr},
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             1,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &bufferInfos[1],
-                             nullptr},
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             2,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &bufferInfos[2],
-                             nullptr},
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             3,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &bufferInfos[3],
-                             nullptr},
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             5,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &bufferInfos[4],
-                             nullptr},
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             7,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &bufferInfos[5],
-                             nullptr},
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             10,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &bufferInfos[6],
-                             nullptr},
-    };
-    vkUpdateDescriptorSets(ctx.device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    // MOD1: typed descriptor buffer writes.
+    m_sceneWriter.writeStorageBufferHandle(ctx, 0, instanceBuffer);
+    m_sceneWriter.writeStorageBufferHandle(ctx, 1, materialBuffer);
+    m_sceneWriter.writeStorageBufferHandle(ctx, 2, vertexBuffer);
+    m_sceneWriter.writeStorageBufferHandle(ctx, 3, indexBuffer);
+    m_sceneWriter.writeStorageBufferHandle(ctx, 5, lightBuffer);
+    m_sceneWriter.writeStorageBufferHandle(ctx, 7, emissiveTriangleBuffer);
+    m_sceneWriter.writeStorageBufferHandle(ctx, 10, emissiveCdfBuffer);
 
     // Bind each scene texture to binding 4 (bindless combined image sampler array).
     for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(textures.size()); ++i) {
-        const VkDescriptorImageInfo imageInfo{
-            .sampler = textures[i].sampler(),
-            .imageView = textures[i].image().view(),
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-        const VkWriteDescriptorSet write{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .pNext = nullptr,
-            .dstSet = m_set1,
-            .dstBinding = 4,
-            .dstArrayElement = i,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &imageInfo,
-            .pBufferInfo = nullptr,
-            .pTexelBufferView = nullptr,
-        };
-        vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+        m_sceneWriter.writeCombinedImageSampler(ctx, 4, i, textures[i].sampler(),
+                                                 textures[i].image().view(),
+                                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
-
     return VK_SUCCESS;
 }
 
 VkResult Descriptors::updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler) {
-    const VkDescriptorImageInfo imageInfo{
-        .sampler = sampler,
-        .imageView = view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-    const VkWriteDescriptorSet write{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = nullptr,
-        .dstSet = m_set1,
-        .dstBinding = 6,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .pImageInfo = &imageInfo,
-        .pBufferInfo = nullptr,
-        .pTexelBufferView = nullptr,
-    };
-    vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+    // MOD1: typed descriptor buffer write.
+    m_sceneWriter.writeCombinedImageSampler(ctx, 6, 0, sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     return VK_SUCCESS;
 }
 
 VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf) {
-    const VkDescriptorBufferInfo marginalInfo{.buffer = marginalCdf, .offset = 0, .range = VK_WHOLE_SIZE};
-    const VkDescriptorBufferInfo conditionalInfo{.buffer = conditionalCdf, .offset = 0, .range = VK_WHOLE_SIZE};
-    const std::array writes{
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             8,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &marginalInfo,
-                             nullptr},
-        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                             nullptr,
-                             m_set1,
-                             9,
-                             0,
-                             1,
-                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                             nullptr,
-                             &conditionalInfo,
-                             nullptr},
-    };
-    vkUpdateDescriptorSets(ctx.device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    // MOD1: typed descriptor buffer writes.
+    m_sceneWriter.writeStorageBufferHandle(ctx, 8, marginalCdf);
+    m_sceneWriter.writeStorageBufferHandle(ctx, 9, conditionalCdf);
     return VK_SUCCESS;
+}
+
+VkResult Descriptors::updateFrameSet(const DeviceContext& ctx,
+                                     VkAccelerationStructureKHR tlas,
+                                     VkImageView hdrView,
+                                     VkBuffer cameraBuffer,
+                                     VkImageView gNormalView,
+                                     VkImageView gDepthView) {
+    // MOD1: set 0 per-frame writes via descriptor buffer.
+    // Bindings match the set0 layout: 0=AS, 1=hdr storage image, 2=camera UBO,
+    // 4=gNormal storage image, 5=gDepth storage image.
+    m_frameWriter.writeAccelerationStructure(ctx, 0, tlas);
+    m_frameWriter.writeStorageImage(ctx, 1, hdrView, VK_IMAGE_LAYOUT_GENERAL);
+    m_frameWriter.writeUniformBufferHandle(ctx, 2, cameraBuffer);
+    m_frameWriter.writeStorageImage(ctx, 3, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL); // unused (nullDescriptor)
+    m_frameWriter.writeStorageImage(ctx, 4, gNormalView, VK_IMAGE_LAYOUT_GENERAL);
+    m_frameWriter.writeStorageImage(ctx, 5, gDepthView, VK_IMAGE_LAYOUT_GENERAL);
+    return VK_SUCCESS;
+}
+
+void Descriptors::bindSceneSet(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint) const {
+    // MOD1: bind both descriptor buffers (set 0 + set 1).
+    const std::array<const DescriptorBufferWriter*, 2> writers{&m_frameWriter, &m_sceneWriter};
+    DescriptorBufferWriter::bindSets(cmd, bindPoint, m_pipelineLayout, 0, writers);
 }
 
 } // namespace harmonia

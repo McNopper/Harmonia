@@ -21,33 +21,34 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
         return std::unexpected(storage.error());
     }
 
-    const VkAccelerationStructureCreateInfoKHR createInfo{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+    // MOD5: device-address-only AS creation via vkCreateAccelerationStructure2KHR
+    // (VK_KHR_device_address_commands — the forward path per the Khronos AS deprecation
+    // blog). The legacy vkCreateAccelerationStructureKHR (buffer-handle + offset + size)
+    // is dropped; the address is already known from the backing buffer.
+    const VkAccelerationStructureCreateInfo2KHR createInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_2_KHR,
         .pNext = nullptr,
         .createFlags = 0,
-        .buffer = storage->handle(),
-        .offset = 0,
-        .size = size,
+        .addressRange =
+            {
+                .address = storage->deviceAddress(),
+                .size = size,
+            },
+        .addressFlags = 0,
         .type = type,
-        .deviceAddress = 0,
     };
 
     AccelerationStructure accelerationStructure;
     accelerationStructure.m_buffer = std::move(*storage);
+    // The device address IS the input — no post-creation address query needed.
+    accelerationStructure.m_deviceAddress = accelerationStructure.m_buffer.deviceAddress();
 
     VkAccelerationStructureKHR handle{};
-    if (const VkResult result = vkCreateAccelerationStructureKHR(ctx.device, &createInfo, nullptr, &handle);
+    if (const VkResult result = vkCreateAccelerationStructure2KHR(ctx.device, &createInfo, nullptr, &handle);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
     accelerationStructure.m_handle = harmonia::UniqueAccelerationStructure{ctx.device, handle};
-
-    const VkAccelerationStructureDeviceAddressInfoKHR addressInfo{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
-        .pNext = nullptr,
-        .accelerationStructure = accelerationStructure.m_handle,
-    };
-    accelerationStructure.m_deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(ctx.device, &addressInfo);
 
     if (!debugName.empty()) {
         ctx.setDebugName(VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR,

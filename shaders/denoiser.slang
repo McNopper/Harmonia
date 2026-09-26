@@ -148,6 +148,24 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
         const float mScale = saturate(sqrt(centerM / 32.0f));  // normalize to M_ref = 32
         lumaSigma *= max(mScale, 0.3f);  // floor at 30% so low-M pixels still get filtered
 
+        // ── DN3: converging kernel blend (Denisova & Bocchi, I3D 2024, Eq. 2). ────
+        // The fixed-radius à-trous filter destroys structure at a rate that depends
+        // on render resolution, not sample count — a denoised render never converges
+        // to the true image. DN3's fix: blend filtered toward the input with an
+        // analytical weight W/(I+W) where W is the denoised pixel's equivalent sample
+        // count from the convergence curve log(v) = a·log(I) + b (Eq. 7).
+        // For MC integration, a ≈ -1 (variance ∝ 1/I), so W ≈ I·v_I/v_d where v_I is
+        // the noisy variance and v_d the denoised variance. The denoised pixel's
+        // effective sample count determines its weight — pixels the denoiser improved
+        // a lot get high W (denoised dominates); pixels it barely changed get low W.
+        // Provably converging: as I → ∞, W/(I+W) → 0 regardless of v_d, so the output
+        // converges to the input (identity) → the true image.
+        // Algorithm-agnostic: I is the effective sample count (reservoir M or spp).
+        const float kConvRef = 256.0f; // I at which the filter is ~50% blended
+        // W ≈ kConvRef (denoiser improves pixel to ~kConvRef-spp quality at I=1).
+        // Blend weight W/(I+W) = kConvRef/(M + kConvRef) → 0 as M → ∞.
+        const float convBlend = kConvRef / (centerM + kConvRef);
+
         float4 sum = 0.0f.xxxx;
         float totalWeight = 0.0f;
         for (int y = -2; y <= 2; ++y) {
@@ -194,6 +212,8 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID) {
         }
         filtered = (totalWeight > 1e-6f) ? (sum / totalWeight) : center;
         filtered = sanitize4(filtered);
+        // DN3: converge to identity as M → ∞ — blend filtered toward the raw input.
+        filtered = sanitize4(lerp(center, filtered, convBlend));
     }
 
     if (gDenoiser.applyHistory != 0u) {

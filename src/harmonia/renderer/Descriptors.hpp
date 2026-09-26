@@ -8,6 +8,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/GpuTypes.hpp"
+#include "harmonia/core/DescriptorBufferWriter.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/scene/Texture.hpp"
 
@@ -43,16 +44,27 @@ class Descriptors {
     VkResult updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler);
     VkResult updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf);
 
+    /// MOD1: update set 0 (per-frame AS + images + camera UBO) via descriptor buffer.
+    VkResult updateFrameSet(const DeviceContext& ctx,
+                            VkAccelerationStructureKHR tlas,
+                            VkImageView hdrView,
+                            VkBuffer cameraBuffer,
+                            VkImageView gNormalView,
+                            VkImageView gDepthView);
+
+    /// MOD1: bind both descriptor buffers (set 0 + set 1). Replaces set1() + vkCmdBindDescriptorSets.
+    void bindSceneSet(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint) const;
+
     [[nodiscard]] VkDescriptorSetLayout set0Layout() const noexcept { return m_set0Layout; }
     [[nodiscard]] VkDescriptorSetLayout set1Layout() const noexcept { return m_set1Layout; }
-    [[nodiscard]] VkDescriptorSet set1() const noexcept { return m_set1; }
     [[nodiscard]] VkPipelineLayout pipelineLayout() const noexcept { return m_pipelineLayout; }
 
   private:
     harmonia::UniqueDescriptorSetLayout m_set0Layout;
     harmonia::UniqueDescriptorSetLayout m_set1Layout;
-    harmonia::UniqueDescriptorPool m_pool;
-    VkDescriptorSet m_set1{VK_NULL_HANDLE};
+    /// MOD1: descriptor buffer writers replace the pool + sets.
+    DescriptorBufferWriter m_frameWriter;  ///< set 0: per-frame AS + images + camera UBO
+    DescriptorBufferWriter m_sceneWriter;  ///< set 1: scene buffers + bindless textures
     harmonia::UniquePipelineLayout m_pipelineLayout;
 };
 

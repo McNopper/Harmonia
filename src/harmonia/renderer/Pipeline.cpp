@@ -182,7 +182,8 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
     // flag is harmless when a scene uses no OMM; it only enables traversal of
     // micromapped geometry when present.
     const VkPipelineCreateFlags pipelineFlags =
-        ctx.opacityMicromapSupported ? VK_PIPELINE_CREATE_RAY_TRACING_OPACITY_MICROMAP_BIT_EXT : 0;
+        (ctx.opacityMicromapSupported ? VK_PIPELINE_CREATE_RAY_TRACING_OPACITY_MICROMAP_BIT_EXT : 0) |
+        VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT; // MOD1
     const VkRayTracingPipelineCreateInfoKHR rtPipelineInfo{
         .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
         .pNext = nullptr,

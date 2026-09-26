@@ -53,8 +53,9 @@ struct PresentExtensionSupport {
         }
         return false;
     };
-    const bool extId = has(VK_KHR_PRESENT_ID_EXTENSION_NAME);
-    const bool extWait = has(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+    // MOD6: present pacing v2 (present_id2/present_wait2 EXTEND the v1 pair — both needed).
+    const bool extId = has(VK_KHR_PRESENT_ID_EXTENSION_NAME) && has(VK_KHR_PRESENT_ID_2_EXTENSION_NAME);
+    const bool extWait = has(VK_KHR_PRESENT_WAIT_EXTENSION_NAME) && has(VK_KHR_PRESENT_WAIT_2_EXTENSION_NAME);
     const bool extFlr = has(VK_KHR_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME);
     if (!extId && !extWait && !extFlr) {
         return out;
@@ -62,19 +63,19 @@ struct PresentExtensionSupport {
 
     VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR flr{};
     flr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
-    VkPhysicalDevicePresentWaitFeaturesKHR wait{};
-    wait.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+    VkPhysicalDevicePresentWait2FeaturesKHR wait{};
+    wait.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_2_FEATURES_KHR;
     wait.pNext = extFlr ? &flr : nullptr;
-    VkPhysicalDevicePresentIdFeaturesKHR id{};
-    id.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+    VkPhysicalDevicePresentId2FeaturesKHR id{};
+    id.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_2_FEATURES_KHR;
     id.pNext = extWait ? &wait : nullptr;
     VkPhysicalDeviceFeatures2 features2{};
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = extId ? &id : nullptr;
     vkGetPhysicalDeviceFeatures2(device, &features2);
 
-    out.presentId = extId && id.presentId == VK_TRUE;
-    out.presentWait = extWait && wait.presentWait == VK_TRUE;
+    out.presentId = extId && id.presentId2 == VK_TRUE;
+    out.presentWait = extWait && wait.presentWait2 == VK_TRUE;
     out.fifoLatestReady = extFlr && flr.presentModeFifoLatestReady == VK_TRUE;
     return out;
 }

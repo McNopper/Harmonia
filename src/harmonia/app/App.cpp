@@ -11,11 +11,13 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
+#include "harmonia/core/ProcessPriority.hpp"
 #include "harmonia/pipeline/AccumulationPass.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
@@ -648,6 +650,7 @@ std::uint64_t App::renderSceneReferred() {
     if (submitOneShot(m_context.deviceContext().graphicsQueue,
                       stagesCmd,
                       VK_NULL_HANDLE,
+                      0,
                       waitSemaphores,
                       std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1}) != VK_SUCCESS) {
         Logger::error("Render queue submit failed");
@@ -859,8 +862,12 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
             .deviceIndex = 0,
         },
     }};
-    const VkResult result = submitOneShot(
-        m_context.deviceContext().graphicsQueue, m_frameSync.displayCmd(slot), VK_NULL_HANDLE, waitInfos, signalInfos);
+    const VkResult result = submitOneShot(m_context.deviceContext().graphicsQueue,
+                                          m_frameSync.displayCmd(slot),
+                                          VK_NULL_HANDLE,
+                                          0,
+                                          waitInfos,
+                                          signalInfos);
     if (result != VK_SUCCESS) {
         Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
         return result;
@@ -917,6 +924,10 @@ int App::mainLoop() {
         const std::uint32_t slot = m_frameSync.currentSlot();
         const std::uint64_t renderValue = renderSceneReferred();
         presentFrame(slot, renderValue);
+        // Courtesy yield, same rationale as renderOffscreen(). `presentFrame` paces this
+        // loop under FIFO present, but with MAILBOX/immediate it does not block and the
+        // window then pins the CPU exactly like an offscreen capture. Costs ~nothing.
+        std::this_thread::yield();
     }
 
     vkDeviceWaitIdle(m_context.deviceContext().device);
@@ -926,8 +937,26 @@ int App::mainLoop() {
 int App::renderOffscreen() {
     const std::uint32_t frameCount = offscreenFrameCount();
     Logger::info("Offscreen render: {} frame(s) -> {}", frameCount, m_config.outputFile.string());
+
+    // Headless capture is a batch job: run it BELOW_NORMAL so every other process on the
+    // machine preempts it automatically and stays responsive. This is the actual
+    // mechanism -- the per-frame yield below is only a hint (see the comment there).
+    // Restored to the previous class on return, so an interactive session is unaffected.
+    ScopedBackgroundPriority backgroundPriority;
+
     for (std::uint32_t i = 0; i < frameCount; ++i) {
         renderSceneReferred();
+        // Courtesy yield between frames, in addition to the priority drop above. It is
+        // NOT sufficient on its own: on Windows this is SwitchToThread(), which per
+        // Microsoft "will not switch execution to another processor, even if that
+        // processor is idle or is running a thread of lower priority", and returns
+        // immediately when no thread is ready -- so a yield-only loop still burns 100%
+        // CPU. Kept because it is free and helps the CPU-bound stretches between frame
+        // slot waits; the priority class is what actually keeps the machine usable.
+        //
+        // NB: neither of these is licence to run two captures at once. One GPU job at a
+        // time -- see AGENTS.md.
+        std::this_thread::yield();
     }
     vkDeviceWaitIdle(m_context.deviceContext().device);
 
@@ -978,6 +1007,10 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
     if (w == 0U || h == 0U || m_context.deviceContext().device == VK_NULL_HANDLE) {
         return;
     }
+
+    // MOD4: driver-side scaling was attempted (VkSwapchainPresentScalingCreateInfoKHR),
+    // but the RTX 5070 driver 616.92 reports supportedPresentScaling = 0 for all present
+    // modes — scaling is not available. The recreate path below is the proven behavior.
 
     vkDeviceWaitIdle(m_context.deviceContext().device);
 

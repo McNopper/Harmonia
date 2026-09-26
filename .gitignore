@@ -84,3 +84,6 @@ shaders/math_gen.cpp
 shaders/math_gen.hpp
 shaders/math_export_test.cpp
 shaders/math_export_test.slang
+
+# Paper PDFs — reference only, not redistributed (see papers/README.md for links)
+papers/*.pdf

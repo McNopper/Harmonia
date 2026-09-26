@@ -18,7 +18,7 @@ target_link_libraries(harmonia_unit_tests
     PRIVATE harmonia_lib harmonia_project_options GTest::gtest GTest::gtest_main
 )
 
-gtest_discover_tests(harmonia_unit_tests)
+gtest_discover_tests(harmonia_unit_tests PROPERTIES RUN_SERIAL TRUE)
 
 # ---------------------------------------------------------------------------
 # Component tests — single Vulkan object lifecycle (Buffer, Image, CommandPool)
@@ -44,7 +44,7 @@ target_include_directories(harmonia_component_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-gtest_discover_tests(harmonia_component_tests)
+gtest_discover_tests(harmonia_component_tests PROPERTIES RUN_SERIAL TRUE)
 
 # ---------------------------------------------------------------------------
 # Integration tests — full Context creation end-to-end
@@ -67,4 +67,4 @@ target_compile_definitions(harmonia_integration_tests
     PRIVATE AETHER_ASSETS_DIR="${aether_SOURCE_DIR}/assets"
 )
 
-gtest_discover_tests(harmonia_integration_tests)
+gtest_discover_tests(harmonia_integration_tests PROPERTIES RUN_SERIAL TRUE)

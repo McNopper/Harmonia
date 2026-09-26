@@ -6,9 +6,7 @@
 
 namespace harmonia {
 
-namespace {
-constexpr std::uint64_t kWaitForever = UINT64_MAX;
-} // namespace
+namespace {} // namespace
 
 std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ctx, std::uint32_t queueFamily) {
     if (!ctx.isValid() || ctx.graphicsQueue == VK_NULL_HANDLE) {
@@ -99,19 +97,20 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
         return endResult;
     }
 
-    VkFence fence = VK_NULL_HANDLE;
-    VkResult result = harmonia::createFence(m_device, &fence);
+    // MOD2: timeline semaphore replaces VkFence for one-shot completion tracking.
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    VkResult result = harmonia::createTimelineSemaphore(m_device, &semaphore);
     if (result != VK_SUCCESS) {
         free(cmd);
         return result;
     }
 
-    result = harmonia::submitOneShot(m_queue, cmd, fence);
+    result = harmonia::submitOneShot(m_queue, cmd, semaphore, 1);
     if (result == VK_SUCCESS) {
-        result = vkWaitForFences(m_device, 1U, &fence, VK_TRUE, kWaitForever);
+        result = harmonia::waitTimelineSemaphore(m_device, semaphore, 1);
     }
 
-    vkDestroyFence(m_device, fence, nullptr);
+    vkDestroySemaphore(m_device, semaphore, nullptr);
     free(cmd);
     return result;
 }

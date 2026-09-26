@@ -110,6 +110,23 @@ cd build; ctest --output-on-failure
 Equivalent preset flow (Ninja + Release + clang-cl + `$env:VCPKG_ROOT` toolchain):
 `cmake --preset win` / `cmake --build --preset win` / `ctest --preset win`.
 
+> **⚠️ Do not run things in parallel — it slows the machine to a crawl.**
+> - **Tests are serialised in CMake:** every test carries `RUN_SERIAL`, so `ctest -j`
+>   cannot parallelise them. That only covers *within* one `ctest` invocation, so still
+>   run ONE repo's suite at a time (never Harmonia + Theia + Hyperion together).
+> - **GPU jobs strictly one after the other:** renders, gallery generation and parity
+>   gates all saturate the GPU. Run one, wait for it to finish, then start the next.
+>   Two concurrent jobs make both several times slower and interleave their logs.
+> - **Offscreen capture self-deprioritises:** `App::renderOffscreen()` drops the
+>   process to below-normal CPU priority (`BELOW_NORMAL_PRIORITY_CLASS` on Windows,
+>   nice +10 on POSIX) for the whole capture, so the desktop stays usable while a
+>   render runs. A per-frame `std::this_thread::yield()` alone is NOT sufficient - it
+>   is `SwitchToThread()`/`sched_yield()`, only a hint that does nothing when no
+>   equal-or-higher-priority thread is already runnable. On POSIX the drop is one-way
+>   for an unprivileged process (raising priority back needs `CAP_SYS_NICE`), so it is
+>   used only in the one-shot capture path. This helps *during* a capture; it is still
+>   not licence to run two captures at once.
+
 **Static analysis:** `python tools/check_tidy.py` â€” parallel clang-tidy over
 `build/compile_commands.json`, classified per `.clang-tidy`'s WarningsAsErrors contract
 (clang-diagnostic/clang-analyzer/bugprone fail the run; modernize/performance/portability
@@ -147,6 +164,9 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 - `shaderDemoteToHelperInvocation` (Vulkan 1.3) â€” required: the C14 `geometry_opacity` cutout
   path uses Slang `discard` (Theia `forward_render.frag.slang`), so the emitted SPIR-V
   declares the `DemoteToHelperInvocation` capability (VUID-08740).
+- `deviceAddressCommands` (`VK_KHR_device_address_commands`, MOD5) — required: all AS creation
+  goes through `vkCreateAccelerationStructure2KHR` (device-address-only); the legacy
+  `vkCreateAccelerationStructureKHR` path is deleted, no fallback.
 - `rayTracingMaintenance1` + `rayTracingPipelineTraceRaysIndirect2` (`VK_KHR_ray_tracing_maintenance1`) â€” required; Hyperion dispatches via `vkCmdTraceRaysIndirect2KHR` exclusively.
   `maintenance5` enables `VkBufferUsageFlags2CreateInfo` (64-bit buffer usage flags),
   which is needed by Theia's DGC preprocess buffer (`VK_BUFFER_USAGE_2_PREPROCESS_BUFFER_BIT_EXT`).
@@ -178,4 +198,4 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 - `vkBuildAccelerationStructuresKHR` (host-side) is **never used** â€” it is deprecated per the
   [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
 - `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` is the **future forward
-  path** for AS creation (cleanest device-address-only API). Now available on the dev GPU (RTX 5070, driver 616.92); adoption tracked as MOD5 (PLAN.md).
+  path** for AS creation (cleanest device-address-only API). SHIPPED 2026-09-25 (MOD5): vkCreateAccelerationStructure2KHR is the only AS creation path; the legacy vkCreateAccelerationStructureKHR is deleted (hard-required).

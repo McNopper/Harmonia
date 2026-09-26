@@ -617,8 +617,13 @@ float reflectionPdf(float3 wo, float3 wi, float alphaX, float alphaY)
         return 0.0;
     }
 
-    float pdfM = GGX_D(h, alphaX, alphaY) * GGX_G1(wo, alphaX, alphaY) * VoH / max(abs(wo.z), 1.0e-5);
-    return pdfM / max(4.0 * VoH, 1.0e-5);
+    // Half-vector density converted to solid angle by |dm/do| = 1/(4|i.m|).
+    // Delegates to GGX_VNDF_PDF so this CANNOT drift from sampleGGX_VNDF: the
+    // reflection lobes are sampled by the C9 bounded sampler, so their density must
+    // be Eq. 8 (k*i_z + t), not the unbounded Eq. 7. This is exactly Listing 2's
+    // solid-angle form D / (2 (k i_z + t)) once the 4*VoH cancels. (wo.z > 0 here,
+    // so the Eq. 8 branch applies.)
+    return GGX_VNDF_PDF(h, wo, alphaX, alphaY) / max(4.0 * VoH, 1.0e-5);
 }
 
 /// Raw rational-fit coefficients (A = F0 scale, B = F90 scale) for the GGX directional

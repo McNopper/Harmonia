@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(harmonia VERSION 0.7.8 LANGUAGES C CXX)
+project(harmonia VERSION 0.7.9 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -244,6 +244,7 @@ set(HARMONIA_ENTRY_SHADERS
 set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/core/Buffer.cpp
     src/harmonia/core/CommandPool.cpp
+    src/harmonia/core/DescriptorBufferWriter.cpp
     src/harmonia/core/Image.cpp
     src/harmonia/core/Logger.cpp
     src/harmonia/core/ShaderModule.cpp
@@ -370,7 +371,7 @@ if(PROJECT_IS_TOP_LEVEL)
     if(Python3_Interpreter_FOUND)
         add_test(NAME test_tidy
                  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_tidy.py)
-        set_tests_properties(test_tidy PROPERTIES SKIP_RETURN_CODE 77 LABELS analysis)
+        set_tests_properties(test_tidy PROPERTIES SKIP_RETURN_CODE 77 LABELS analysis RUN_SERIAL TRUE)
     endif()
 endif()
 

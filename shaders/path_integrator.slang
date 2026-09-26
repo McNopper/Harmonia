@@ -103,6 +103,9 @@ struct PathState {
     // the estimator output is bit-identical with capture on or off.
     uint    captureRe;
     uint    reCaptured;
+    uint    surfaceCount;   ///< GI-ENH k≥3: how many surfaces integrateSurface has visited
+    uint    captureTarget;  ///< GI-ENH k≥3: 0 = capture at first surface (k=2), 1 = second (k=3)
+    uint    disableRR;      ///< GI-ENH §6.2.4: 1 = skip Russian roulette (replay path — avoid killing valid paths)
     ReconnectionCapture rec;
 };
 
@@ -144,6 +147,20 @@ struct ReconnectionCapture {
                            ///< continuation; bit2 = continuation weight per-channel > 0;
                            ///< bit3 = x_k's continuation is non-delta; bit4 = primary edge
                            ///< was non-delta; bit5 = primary continuation entered no medium
+    // ── GI-ENH k≥3: hop + reconnection-edge data for the hybrid extension. ──
+    // For k=2 the existing fields above ARE the reconnection edge (x_1→x_k). For k=3
+    // they store the HOP (x_1→x_2) and these new fields store the reconnection edge
+    // (x_2→x_k). `kLevel` selects which path to try first.
+    float3 omegaHop1;      ///< ω_1: direction x_1 → x_2 (replay direction for k=3)
+    float3 omegaInK;       ///< ω_2: direction x_2 → x_k (reconnection edge for k=3)
+    float  pdfInK;         ///< p^x_2(omegaInK): reconnection-edge BSDF pdf for k=3
+    float  dist2InK;       ///< |x_2 - x_k|^2 source side (k=3 reconnection edge)
+    float  geomGInKSource; ///< G(x_2 → x_k) source side — k=3 Jacobian
+    float  geomGInKReverse;///< G(x_k → x_2) source side — k=3 Eq. 5 inverse footprint
+    float  dist2Hop1;      ///< |x_1 - x_2|^2 source side (k=3 hop geometry)
+    float  geomGHop1Source;///< G(x_1 → x_2) source side — k=3 hop Jacobian
+    float  geomGHop1Reverse;///< G(x_2 → x_1) source side — k=3 hop inverse footprint
+    uint   kLevel;         ///< 0 = no record; 1 = k=2 only; 2 = k=3 available (try k=2 first)
 };
 
 /// Zero-init helper — every capture record starts fully defined (uninitialized struct
@@ -174,6 +191,17 @@ ReconnectionCapture makeEmptyReconnectionCapture() {
     rc.env.srcPdf = 0.0;
     rc.env.valid = 0u;
     rc.flags = 0u;
+    // GI-ENH k≥3 fields.
+    rc.omegaHop1 = 0.0.xxx;
+    rc.omegaInK = 0.0.xxx;
+    rc.pdfInK = 0.0;
+    rc.dist2InK = 0.0;
+    rc.geomGInKSource = 0.0;
+    rc.geomGInKReverse = 0.0;
+    rc.dist2Hop1 = 0.0;
+    rc.geomGHop1Source = 0.0;
+    rc.geomGHop1Reverse = 0.0;
+    rc.kLevel = 0u;
     return rc;
 }
 
@@ -562,9 +590,12 @@ void integrateSurface<T : ITracer>(
     }
 
     // 3) NEE: direct emissive-triangle area sampling (power-proportional selection).
-    // GI-ENH (a): capture the NEE events of the first FULL vertex when requested — pure
-    // observability, no RNG added or reordered.
-    const bool captureHere = (state.captureRe != 0u) && (state.reCaptured == 0u);
+    // GI-ENH (a): capture the NEE events of the target FULL vertex when requested — pure
+    // observability, no RNG added or reordered. GI-ENH k≥3: captureTarget selects which
+    // surface to capture (0 = first, 1 = second) for the hybrid reconnection shift.
+    ++state.surfaceCount;
+    const bool captureHere = (state.captureRe != 0u) && (state.reCaptured == 0u) &&
+                             (state.surfaceCount == state.captureTarget + 1u);
     NeeEventCapture capTri;
     state.radiance += state.throughput * evalEmissiveTriangleNEE(
         tracer, surf, emissiveTriangles, emissiveTriangleCount, emissiveCdf, state.seed, capTri);
@@ -613,7 +644,7 @@ void integrateSurface<T : ITracer>(
         // divisor is captured at the harvest site (post-RR, full prefix w_1·w_2).
         state.rec.omegaK = normalize(bsdfSample.direction);
         state.rec.pdfOmegaK = bsdfSample.isDelta ? 1.0e30 : bsdfSample.pdf;
-        state.rec.flags = 1u
+        state.rec.flags |= 1u
             | (bsdfSample.entersMedium ? 0u : 2u)
             | (bsdfSample.isDelta ? 0u : 8u);
         state.reCaptured = 1u;
@@ -628,7 +659,9 @@ void integrateSurface<T : ITracer>(
     state.nextDirection  = normalize(bsdfSample.direction);
 
     // 7) Russian roulette (after a fixed minimum depth).
-    if (state.depth >= kRRMinDepth) {
+    // GI-ENH §6.2.4: disabled during replay — roulette failures at shift mapping kill
+    // valid paths that spatiotemporal reuse would otherwise exploit.
+    if (state.depth >= kRRMinDepth && state.disableRR == 0u) {
         float q = saturate(max(state.throughput.x, max(state.throughput.y, state.throughput.z)));
         if (randFloat(state.seed) > q) {
             state.terminated = true;

@@ -22,9 +22,9 @@ constexpr std::uint64_t kWaitForever = UINT64_MAX;
 
 [[nodiscard]] VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes,
                                                  bool fifoLatestReadySupported) noexcept {
-    // VK_PRESENT_MODE_FIFO_LATEST_READY_KHR: FIFO v-sync semantics, but the most recently rendered
-    // image is presented — lower input latency than classic FIFO. Chosen when the extension+mode
-    // are available; falls back to spec-guaranteed FIFO otherwise (image-identical, just timing).
+    // FIFO_LATEST_READY: FIFO v-sync, latest-ready image — lower latency (VK6, v0.7.6).
+    // MOD4 scaling was attempted but the driver reports supportedPresentScaling = 0 for all
+    // modes; scaling is not available. Falls back to spec-guaranteed FIFO.
     if (fifoLatestReadySupported &&
         std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_FIFO_LATEST_READY_KHR) != modes.end()) {
         return VK_PRESENT_MODE_FIFO_LATEST_READY_KHR;
@@ -117,6 +117,12 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     swapchain.m_colorSpace = chosenFormat->colorSpace;
     swapchain.m_extent = clampExtent(capabilities, extent);
 
+    // MOD4 attempted: VkSwapchainPresentScalingCreateInfoKHR with ASPECT_RATIO_STRETCH,
+    // but the RTX 5070 driver 616.92 reports supportedPresentScaling = 0 for FIFO —
+    // scaling is not available. Reverted to recreate-on-resize (the proven behavior).
+    // The swapchain_maintenance1 extension stays enabled (future-forward); the scaling
+    // sub-feature is blocked on driver support.
+
     // COLOR_ATTACHMENT_BIT is always supported on swapchain images (Vulkan spec §34.2.2).
     // TRANSFER_DST_BIT is always supported when the surface supports presentation.
     const VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -203,15 +209,16 @@ VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t&
 }
 
 VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore) {
-    // VK_KHR_present_id: tag this present with a monotonic ID so VK_KHR_present_wait can later
-    // block until it is on-screen (CPU-side present pacing — the foundation for I6 frames-per-flip).
+    // MOD6 / VK_KHR_present_id2: tag this present with a monotonic ID so
+    // VK_KHR_present_wait2 can later block until it is on-screen (CPU-side present pacing —
+    // the foundation for I6 frames-per-flip). The v1 pair (VK_KHR_present_id/wait) is dropped.
     std::uint64_t thisPresentId = 0;
     const bool tagPresentId = m_ctx != nullptr && m_ctx->presentIdSupported;
     if (tagPresentId) {
         thisPresentId = ++m_presentId;
     }
-    const VkPresentIdKHR presentIdInfo{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR,
+    const VkPresentId2KHR presentIdInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR,
         .pNext = nullptr,
         .swapchainCount = 1U,
         .pPresentIds = &thisPresentId,
@@ -234,7 +241,14 @@ VkResult Swapchain::waitForPresent(std::uint64_t presentId, std::uint64_t timeou
     if (m_ctx == nullptr || m_swapchain == VK_NULL_HANDLE || !m_ctx->presentWaitSupported) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
-    return vkWaitForPresentKHR(m_ctx->device, m_swapchain, presentId, timeoutNs);
+    // MOD6: vkWaitForPresent2KHR (info-struct form) replaces vkWaitForPresentKHR.
+    const VkPresentWait2InfoKHR waitInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_WAIT_2_INFO_KHR,
+        .pNext = nullptr,
+        .presentId = presentId,
+        .timeout = timeoutNs,
+    };
+    return vkWaitForPresent2KHR(m_ctx->device, m_swapchain, &waitInfo);
 }
 
 VkResult Swapchain::recreate(VkExtent2D newExtent) {
