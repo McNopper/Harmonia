@@ -79,14 +79,15 @@ the sibling clones.
   transmission μ_a gray-shift) + **estimator-pure capture contract** (Theia) + the
   new tooling lane — see Baseline.
 - **Next:** **GI-SMS** (caustics / SDS chains) — global item #1 below.
-- **Newly available (dev driver/SDK upgrade):** the Vulkan 1.4 capability set is verified on
-  the dev GPU (RTX 4050, driver 610.88 / SDK 1.4.357) — subgroup rotate/reconvergence,
-  `pipeline_binary`, `descriptor_buffer`, present pacing, `cooperative_matrix`,
-  `host_image_copy`, `pageable_device_local_memory`, `calibrated_timestamps`. **Adopted:**
-  present pacing (VK6), `host_image_copy` (VK8/MOD3), `pageable_device_local_memory` +
-  `calibrated_timestamps` (VK10) in v0.7.6; `opacity_micromap` (VK2) in v0.7.7. **Blocked:**
-  `descriptor_buffer` (VK7/MOD1 — VMA capture-replay gap). See §5.8.
-  (`ray_tracing_position_fetch` was already probed and enabled in `Context.cpp` — not new.)
+- **Newly available (dev driver/SDK upgrade, re-verified 2026-09-29):** the Vulkan 1.4
+  capability set is verified on the dev GPU (**RTX 5070, driver 617.14 / SDK 1.4.363**, 291
+  device extensions, slang 2026.17) — subgroup rotate/reconvergence family, `pipeline_binary`,
+  `device_fault`, `shader_module_identifier`, `present_timing`, `descriptor_heap`,
+  `unified_image_layouts`, `memory_budget`, next-gen shader model; see §5.8 rows VK15–VK22.
+  **Adopted since v0.7.6:** present pacing (VK6 → MOD6 `present_id2`/`present_wait2`),
+  `host_image_copy` (VK8/MOD3), `pageable_device_local_memory` + `calibrated_timestamps`
+  (VK10), `opacity_micromap` (VK2, v0.7.7), `descriptor_buffer` (VK7/MOD1), `robustness2`
+  nullDescriptor (VK14), `device_address_commands` AS2KHR (MOD5).
 
 ---
 
@@ -404,7 +405,7 @@ indict the estimator. (Akin to the low-spp reference trap, Aether/AGENTS.md.)
 ### 5.8 Vulkan capability adoption — newly available on the dev GPU
 
 **Grounding:** verified via `vulkaninfo` on the dev target — **NVIDIA RTX 5070, driver
-616.92, apiVersion 1.4.351 (SDK 1.4.357)**, re-verified 2026-09-24 (earlier grounding: RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
+617.14, apiVersion 1.4.351 (SDK 1.4.363, slang 2026.17)**, re-verified 2026-09-29 (earlier groundings: driver 616.92 / SDK 1.4.357, and RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
 with the cross-vendor guardrail (§8). They follow the established **probe→enable** pattern in
 `Context.cpp` (cf. `serSupported` / `dgcSupported` /
 `positionFetchSupported` / `meshShaderSupported`): each is *optional* and engaged only when
@@ -432,9 +433,19 @@ tripped VUID-08740 on every `vkCreateShaderModule` until the feature was enabled
 `VK_KHR_swapchain_maintenance1` (the MOD4 scaling
 piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
 
+**2026-09-29 audit (SDK 1.4.363.0 / driver 617.14 — 291 device extensions, slang 2026.17).**
+The .363 spec revision itself adds only `VK_INTEL_device_info` (vendor → excluded); the rows
+below capture the cross-vendor arrivals now verified present on this GPU. Verified present
+but excluded by the cross-vendor guardrail (§8): `VK_NV_cluster_acceleration_structure`,
+`VK_NV_partitioned_acceleration_structure`, `VK_NV_ray_tracing_linear_swept_spheres`,
+`VK_NV_low_latency2`, `VK_NV_present_metering`, `VK_NV_cooperative_vector`,
+`VK_NV_cuda_kernel_launch`. **First action before any adoption:** rebuild all three repos
+with the SDK's slang 2026.17 and run the full test suites — a compiler change is a
+revalidation event, not a free upgrade.
+
 | ID | Capability (verified present) | Enables | Track | Status |
 |----|------------------------------|---------|-------|--------|
-| VK4 | `VK_KHR_shader_subgroup_rotate` + `VK_KHR_shader_maximal_reconvergence` (subgroupSize 32; RT + compute stages) | Warp-coherent reductions/rotations for **ReSTIR reservoir merging & compaction** → faster spatial reuse; maximal reconvergence guarantees a converged wavefront for the path integrator | GI, PERF | backlog |
+| VK4 | `VK_KHR_shader_subgroup_rotate` + `VK_KHR_shader_maximal_reconvergence` + `VK_KHR_shader_subgroup_uniform_control_flow` + `VK_KHR_shader_quad_control` (subgroupSize 32; RT + compute stages) | Warp-coherent reductions/rotations for **ReSTIR reservoir merging & compaction** → faster spatial reuse; maximal reconvergence guarantees a converged wavefront for the path integrator | GI, PERF | backlog |
 | VK5 | `VK_KHR_pipeline_binary` | Serialized/faster PSO creation — cuts Theia's cold start (5 pipelines built at init: opaque / transparent / sky / cull / GI) and speeds `.spv` hot-reload | PERF, CH | backlog |
 | VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **SHIPPED 2026-09-25** (MOD1): all descriptor pools deleted, `DescriptorBufferWriter` shared helper. | PERF, CH | ~~backlog · blocked~~ **shipped** |
 | VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path **DN1** (the RaNAD neural denoiser) needs. Consumer is DN1; until DN1 starts this stays speculative, so backlog rather than next. | DN | backlog (→ DN1) |
@@ -442,6 +453,14 @@ piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
 | VK12 | `VK_KHR_present_id2` + `VK_KHR_present_wait2` | present-pacing v2 (supersedes the VK6 v1 pair — richer per-present timing/latency control for the interactive window); adoption = **MOD6** (drop v1) | I, PERF | watchlist (→ MOD6) |
 | VK13 | ~~`VK_KHR_maintenance7`–`maintenance11`~~ | **TRIAGED 2026-09-25: no actionable features** — these are spec clarifications and minor struct additions (layered rendering, depth/stencil clarifications, sync edge cases); nothing our codebase uses or benefits from. | CH | ~~watchlist~~ **closed** |
 | VK14 | ~~`VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives`~~ | **SHIPPED 2026-09-25**: `nullDescriptor` enabled (hard-required) — all dummy resources DELETED (GiPass gradient/motion images, ForwardRenderer env + tile-light buffers). `robustBufferAccess2/ImageAccess2` deliberately NOT enabled (perf cost). Compute derivatives NOT adopted (not used yet). | PERF, CH | ~~watchlist~~ **shipped** |
+| VK15 | `VK_KHR_opacity_micromap` | KHR promotion of the `VK_EXT_opacity_micromap` shipped v0.7.7 — the newer-replaces-old rule: migrate the enable EXT→KHR and drop the EXT name | CH | backlog |
+| VK16 | `VK_KHR_device_fault` (+ `VK_EXT_device_address_binding_report`) | Device-lost forensics with fault addresses — localizing a crash in a GPU-driven pipeline (DGC + indirect dispatch) that today surfaces only as a bare `VK_ERROR_DEVICE_LOST` | CH | backlog |
+| VK17 | `VK_EXT_shader_module_identifier` | Skip recompiling unchanged shaders (identifier-based reuse) — CI and cold-start win; natural companion to VK5 `pipeline_binary` | PERF, CH | backlog |
+| VK18 | `VK_EXT_present_timing` | Present-timing control beyond the MOD6 `present_id2`/`present_wait2` pair — the next present-pacing step | I | watchlist |
+| VK19 | `VK_EXT_descriptor_heap` | The descriptor-subsystem successor (Khronos, 2026-02). MOD1 just shipped `descriptor_buffer`; evaluate this before any further descriptor investment | PERF, CH | watchlist |
+| VK20 | `VK_KHR_unified_image_layouts` | Unified image layouts — layout/transition ergonomics across the sync-heavy pass graph | CH | watchlist |
+| VK21 | `VK_EXT_memory_budget` | VRAM budget query before large offscreen renders — back off under pressure (also mitigates the display-GPU DWM demotion observed on this machine) | PERF, CH | watchlist |
+| VK22 | `VK_KHR_shader_untyped_pointers` + `VK_EXT_shader_replicated_composites` + `VK_EXT_shader_64bit_indexing` + `VK_EXT_shader_long_vector` | Next-generation shader model — gated on slang 2026.17 support verification before any use | CH | watchlist |
 
 **Modernization removals — legacy → modern (drop, not just add).** The capability table above
 lists what we can *enable*; the "modern Vulkan preferred over legacy" rule (§8) means the

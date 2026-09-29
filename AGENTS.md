@@ -174,6 +174,18 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 - `hostImageCopy` (Vulkan 1.4) â€” texture/IBL upload goes hostâ†’optimal-tiling image directly via
   `vkCopyMemoryToImage` (no staging buffer, no device copy); see `Texture::create` /
   `IblProbe::uploadEnvPanorama`. Image usage `VK_IMAGE_USAGE_HOST_TRANSFER_BIT`, copy layout `GENERAL`.
+- `VK_EXT_descriptor_buffer` (MOD1) — the GPU-driven descriptor path: descriptor data is
+  written into GPU buffers and bound via `vkCmdBindDescriptorBuffersEXT`. Hard-required:
+  every descriptor pool/set was deleted with MOD1 (no fallback exists).
+- `VK_KHR_robustness2` — `nullDescriptor` only (VK14): bind `VK_NULL_HANDLE` instead of
+  dummy 1x1 resources. `robustBufferAccess2`/`robustImageAccess2` deliberately NOT enabled
+  (perf cost).
+- Ray-tracing core quartet — `VK_KHR_acceleration_structure`, `VK_KHR_ray_tracing_pipeline`,
+  `VK_KHR_ray_query`, `VK_KHR_deferred_host_operations`: hard-required (the RT paths have
+  no fallback).
+
+Further capability candidates (verified present on the dev GPU, not yet adopted) are
+tracked in `PLAN.md` §5.8 — audit refreshed 2026-09-29 (SDK 1.4.363 / driver 617.14).
 - **VMA allocator flag:** `VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT` must be set alongside
   `VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT` to let VMA handle
   `VkBufferUsageFlags2CreateInfo` in `VkBufferCreateInfo::pNext`. When `VK_EXT_pageable_device_local_memory`
@@ -184,13 +196,15 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 
 | Extension | `DeviceContext` flag | Purpose |
 |-----------|---------------------|---------|
-| `VK_EXT_mesh_shader` | â€” (implicit: mesh draws used when enabled) | Mesh/task shaders (Theia rasterizer) |
+| `VK_EXT_mesh_shader` | `meshShaderSupported` | Mesh/task shaders (Theia rasterizer) |
 | `VK_EXT_ray_tracing_invocation_reorder` | `serSupported` | SER reorder hint (Hyperion/Theia RT) |
+| `VK_KHR_ray_tracing_position_fetch` | `positionFetchSupported` | Object-space vertex positions in RT hit shaders (the object-space position-fetch guardrail) |
 | `VK_EXT_device_generated_commands` | `dgcSupported` | GPU-generated mesh draw commands (Theia GD6) |
+| `VK_EXT_opacity_micromap` | `opacityMicromapSupported` | Per-microtriangle opacity for `geometry_opacity` cutouts (C14); scene load fails fast if a mesh needs it and the device lacks it |
 | `VK_EXT_pageable_device_local_memory` (+ its dep `VK_EXT_memory_priority`) | `pageableMemorySupported` | Driver pageable device-local memory; VMA assigns priorities |
 | `VK_KHR_calibrated_timestamps` | `calibratedTimestampsSupported` | GPUâ†”host clock correlation (`vkGetCalibratedTimestampsKHR`); sampled once at startup (see `App::logGpuClockCalibration`) |
-| `VK_KHR_present_id` | `presentIdSupported` | Per-present monotonic ID tagging (foundation for present pacing) |
-| `VK_KHR_present_wait` | `presentWaitSupported` | `vkWaitForPresentKHR` â€” CPU-side "frame is on-screen" (`Swapchain::waitForPresent`) |
+| `VK_KHR_present_id` + `VK_KHR_present_id2` | `presentIdSupported` | Per-present monotonic ID tagging (MOD6: the v2 API is used; v1 is enabled as its declared dependency) |
+| `VK_KHR_present_wait` + `VK_KHR_present_wait2` | `presentWaitSupported` | CPU-side "frame is on-screen" wait via `vkWaitForPresent2KHR` (`Swapchain::waitForPresent`, MOD6) |
 | `VK_KHR_present_mode_fifo_latest_ready` | `fifoLatestReadySupported` | `VK_PRESENT_MODE_FIFO_LATEST_READY_KHR` â€” FIFO v-sync, latest-ready image (lower latency) |
 
 **Acceleration structure builds â€” device-side only (Khronos deprecation compliant):**
