@@ -125,12 +125,15 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-**CI:** `.github/workflows/build.yml` runs on `windows-latest` + `ubuntu-latest` for every
+**CI:** `.github/workflows/build.yml` runs on `windows-latest` + `ubuntu-26.04` for every
 push/PR — **pure build** for the renderer targets (their test suites need a GPU and stay a
 local activity); Aether/slang-math additionally run their CPU suites. Checkouts set
 `lfs: true` (Aether's assets are Git LFS). The Linux leg installs the SDK tarball (cached),
 bridges SDL3, and builds with the image's g++ under the same `-Wall -Wextra -Werror
--Wpedantic` gate as Windows (`/W4 /WX`).
+-Wpedantic` gate as Windows (`/W4 /WX`). The Windows leg runs the LunarG installer
+  silently with the LOCAL machine's component set (core, glm, sdl2 (ships SDL2+SDL3),
+  volk, vma, arm64) and registers its Bin on PATH exactly like the local install -
+  the contract check (vma/SDL3/volk/slangc) is the gate.
 
 > **⚠️ Do not run things in parallel — it slows the machine to a crawl.**
 > - **Tests are serialised in CMake:** every test carries `RUN_SERIAL`, so `ctest -j`
