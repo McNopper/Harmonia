@@ -110,6 +110,28 @@ cd build; ctest --output-on-failure
 Equivalent preset flow (Ninja + Release + clang-cl + `$env:VCPKG_ROOT` toolchain):
 `cmake --preset win` / `cmake --build --preset win` / `ctest --preset win`.
 
+**Linux (g++/Ninja — supported, CI-proven):**
+
+```bash
+# Vulkan SDK: https://sdk.lunarg.com/sdk/download/latest/linux/vulkan_sdk.tar.xz
+#   export VULKAN_SDK=<extract>/<version>/x86_64   (the layout VulkanSDK.cmake
+#   requires: include/{vma,SDL3,volk}, lib/libSDL3.so, bin/slangc — found via slangc)
+# The Linux SDK tarball ships NO SDL3 (the Windows one does): bridge the
+#   distro's libsdl3-dev into that layout (ln -s include/SDL3, lib/libSDL3.so).
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
+      -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+**CI:** `.github/workflows/build.yml` runs on `windows-latest` + `ubuntu-latest` for every
+push/PR — **pure build** for the renderer targets (their test suites need a GPU and stay a
+local activity); Aether/slang-math additionally run their CPU suites. Checkouts set
+`lfs: true` (Aether's assets are Git LFS). The Linux leg installs the SDK tarball (cached),
+bridges SDL3, and builds with the image's g++ under the same `-Wall -Wextra -Werror
+-Wpedantic` gate as Windows (`/W4 /WX`).
+
 > **⚠️ Do not run things in parallel — it slows the machine to a crawl.**
 > - **Tests are serialised in CMake:** every test carries `RUN_SERIAL`, so `ctest -j`
 >   cannot parallelise them. That only covers *within* one `ctest` invocation, so still
