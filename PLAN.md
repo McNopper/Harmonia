@@ -79,8 +79,8 @@ the sibling clones.
   transmission μ_a gray-shift) + **estimator-pure capture contract** (Theia) + the
   new tooling lane — see Baseline.
 - **Next:** **GI-SMS** (caustics / SDS chains) — global item #1 below.
-- **Newly available (dev driver/SDK upgrade, re-verified 2026-09-29):** the Vulkan 1.4
-  capability set is verified on the dev GPU (**RTX 5070, driver 617.14 / SDK 1.4.363**, 291
+- **Newly available (dev driver/SDK upgrade, re-verified 2026-08-08 - extension surface unchanged vs 617.14):** the Vulkan 1.4
+  capability set is verified on the dev GPU (**RTX 5070, driver 617.42 / SDK 1.4.363**, 291
   device extensions, slang 2026.17) — subgroup rotate/reconvergence family, `pipeline_binary`,
   `device_fault`, `shader_module_identifier`, `present_timing`, `descriptor_heap`,
   `unified_image_layouts`, `memory_budget`, next-gen shader model; see §5.8 rows VK15–VK22.
@@ -405,7 +405,7 @@ indict the estimator. (Akin to the low-spp reference trap, Aether/AGENTS.md.)
 ### 5.8 Vulkan capability adoption — newly available on the dev GPU
 
 **Grounding:** verified via `vulkaninfo` on the dev target — **NVIDIA RTX 5070, driver
-617.14, apiVersion 1.4.351 (SDK 1.4.363, slang 2026.17)**, re-verified 2026-09-29 (earlier groundings: driver 616.92 / SDK 1.4.357, and RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
+617.14, apiVersion 1.4.351 (SDK 1.4.363, slang 2026.17)**, re-verified 2026-08-08 - extension surface unchanged vs 617.14 (earlier groundings: driver 616.92 / SDK 1.4.357, and RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
 with the cross-vendor guardrail (§8). They follow the established **probe→enable** pattern in
 `Context.cpp` (cf. `serSupported` / `dgcSupported` /
 `positionFetchSupported` / `meshShaderSupported`): each is *optional* and engaged only when
@@ -433,7 +433,7 @@ tripped VUID-08740 on every `vkCreateShaderModule` until the feature was enabled
 `VK_KHR_swapchain_maintenance1` (the MOD4 scaling
 piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
 
-**2026-09-29 audit (SDK 1.4.363.0 / driver 617.14 — 291 device extensions, slang 2026.17).**
+**2026-09-29 audit (SDK 1.4.363.0 / driver 617.42 — 291 device extensions, slang 2026.17).**
 The .363 spec revision itself adds only `VK_INTEL_device_info` (vendor → excluded); the rows
 below capture the cross-vendor arrivals now verified present on this GPU. Verified present
 but excluded by the cross-vendor guardrail (§8): `VK_NV_cluster_acceleration_structure`,
