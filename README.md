@@ -1,5 +1,7 @@
 # Harmonia
 
+[![Build](https://github.com/McNopper/Harmonia/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/McNopper/Harmonia/actions/workflows/build.yml)
+
 The shared Vulkan foundation for the [Hyperion](https://github.com/McNopper/Hyperion)
 (offline) and [Theia](https://github.com/McNopper/Theia) (real-time) renderers —
 everything common **except** the renderer itself and the [Aether](https://github.com/McNopper/Aether)
