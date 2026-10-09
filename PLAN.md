@@ -104,11 +104,23 @@ Bernoulli-trial estimator.
 | 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — split `gi.comp.slang` into focused kernels | PERF | **next session** | ~16% faster; gates PERF4 |
 | 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **next session** | 1.3–2.0× trace; gated by PERF5 |
 | 5 | **I6: configurable frames-per-flip** (Theia window) | I | **done** | `--frames-per-flip <N>` in the shared parser; N = 1 is the classic cadence (display half gated per flip). Validated: suites + interactive smoke + N=1 control. |
+| 6 | **VAL1: interactive-path validation smoke** — `check_vulkan_validation.py` runs the offscreen path only (no present), which is how the 08045/10820 violations survived since MOD1/MOD6; add a short `--validation` windowed run to the gate | CH | **next** | tooling, small |
 
 **Shipped (2026-09-25):** C9 bounded VNDF, DN3 converging denoiser, GI-ENH (k≥3 + pairwise
 MIS + forced NEE + Russian roulette), GI-SMS (manifold walk + MNEE +
 biased SMS), C12 micrograin NDF + GAF, MOD1 descriptor buffers, VK14 nullDescriptor,
 MOD2 timeline semaphores, MOD5 AS creation v2, MOD6 present pacing v2.
+
+**Code-health second pass (refactoring review 2026-10-09):** wave 1 shipped 8/8 approved items
+(H-01..H-06 here + HY-01/T-01/T-02 and the H-04 follow-through in the renderers). Remaining
+`consider` tier, roughly ordered: X-01 single canonical `check_tidy.py`; T-04
+`Scene::uploadBuffer` Middle Man; X-02 shared buffer uploads into Harmonia; A-01
+`_obj_transform` dedup; A-03 `parseMesh` guard clause; A-02 OBJ-transform CLI unification
+(UX decision); H-05 color-space *decision* core (NOT the matrix literals); T-03
+queue-ownership barrier helper (barrier-sensitive); H-07 opportunistic `create()`/`record()`
+extractions; X-03 tools `main()` splits; SM-02 unrolled rows; A-05 `applyKw` tables (mind
+SM6-Aether); SH-02 shared Slang medium-walk module (inside PERF5 only). Closed as rejected:
+SM-01, A-04, HY-02 (RNG parity invariant), H-05b (matrix literals — image identity).
 
 **Excluded:** Neural network techniques (no training).
 
@@ -485,6 +497,13 @@ image, passes the convergence-to-Hyperion litmus. Grounded in current code:
 upload in `Texture`/`IblProbe` with `vkCopyMemoryToImage` (host → optimal-tiling image
 directly).
 
+**Shipped (v0.7.10) — two validation follow-throughs:** the MOD1 descriptor-buffer writes
+carry the buffer's **creation size** as the descriptor range (`VUID-VkDescriptorAddressInfoEXT-
+range-08045`; `Buffer`-typed writer overloads + explicit-size raw variant), and MOD6's
+`VkPresentId2KHR` tagging is matched by `VK_SWAPCHAIN_CREATE_PRESENT_ID_2_BIT_KHR` at
+swapchain creation (`VUID-VkPresentId2KHR-None-10820`). Both violations were pre-existing and
+invisible to the offscreen-only validation gate (see **VAL1**).
+
 **Additive, not a removal (skip):** `VK_EXT_nested_command_buffer` would modernize recording,
 but there is no secondary-command-buffer legacy to drop (engine is already primary-only) —
 watch only.
@@ -744,11 +763,36 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
-- **Tagged on GitHub:** slang-math @ **v0.2.1**; Aether @ **v0.7.4**; Harmonia / Hyperion /
-  Theia @ **v0.7.8**. Verified: `git ls-remote --tags origin` == `git tag -l` in all five
-  repos, and the `FetchContent` pins resolve (Hyperion/Theia → Harmonia v0.7.8 → Aether
-  v0.7.4 → slang-math v0.2.1).
-- **v0.7.8** (current; slang-math unchanged, Aether bumped to v0.7.4): **VK11** —
+- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.4** (unchanged); Harmonia
+  @ **v0.7.10**; Hyperion / Theia @ **v0.7.10** (their v0.7.11 releases land together with
+  the regenerated README galleries). Verified: `git ls-remote --tags origin` == `git tag -l`
+  in all five repos, and the `FetchContent` pins resolve (Hyperion/Theia → Harmonia v0.7.10 →
+  Aether v0.7.4 → slang-math v0.3.0). GitHub Releases are published again as of this wave,
+  gated on the dual-OS CI.
+- **v0.7.10** (current; slang-math bumped to v0.3.0, Aether unchanged @ v0.7.4): **dual-OS CI
+  + refactoring wave + I6 + two validation fixes.** **CI:** `.github/workflows/build.yml` on
+  `windows-latest` + `ubuntu-26.04` — pure build for the renderer targets (GPU suites stay
+  local), CPU suites for the base repos; Linux installs the LunarG SDK tarball (cached) and
+  bridges distro SDL3, Windows runs the LunarG installer with the local component set + PATH
+  registration; vcpkg registry pinned with baseline tripwires. `harmonia::getEnvString`
+  (portable env read). **Refactoring wave 1** (refactoring.guru review, 8/8 approved items,
+  all behavior-neutral, ctest-gated per item): H-01 denoiser parameter objects
+  (`DenoiseGuides`/`DispatchGrid` — de-risks PERF5/DN3), H-02 shared hostImageCopy upload
+  helper (`core/HostImageUpload`), H-03 `setTextureIndex` index collapse, H-04 `Math.hpp`
+  dead-code purge incl. the wrong gamma-2.2 `srgbToLinear` twin, H-06 `SceneLoader::load`
+  phase extraction + `SceneLoadContext` (de-risks NH1/NH2). **I6:** `--frames-per-flip <N>` —
+  N accumulation frames per swapchain flip in the interactive window (N = 1 byte-identical to
+  the classic cadence). **Validation fixes** (pre-existing since MOD1/MOD6, surfaced by an
+  interactive `--validation` smoke): `VUID-VkDescriptorAddressInfoEXT-range-08045` —
+  descriptor ranges now use the buffer's **creation size** (`Buffer`-typed writer overloads /
+  explicit-size raw variant), never the rounded memory-requirement size;
+  `VUID-VkPresentId2KHR-None-10820` — the swapchain is created with
+  `VK_SWAPCHAIN_CREATE_PRESENT_ID_2_BIT_KHR` under the same condition as the present-id
+  tagging. Both error classes gone on interactive + offscreen; 89 ctest green on both OSes.
+- **v0.7.9** (slang-math unchanged, Aether bumped to v0.7.4): **C9 bounded VNDF fixed (was up
+  to 35% biased); DN3/C12/GI-SMS landed; MOD1+VK14; background-priority captures.** (Entry
+  backfilled 2026-10-09 from the release commit; documented retroactively with v0.7.10.)
+- **v0.7.8** (slang-math unchanged, Aether bumped to v0.7.4): **VK11** —
   `shaderDemoteToHelperInvocation` enabled as a hard-required Vulkan 1.3 feature
   (`Context.cpp`): the C14 cutout's Slang `discard` emits the `DemoteToHelperInvocation`
   SPIR-V capability, which tripped VUID-08740 on every `vkCreateShaderModule` —
