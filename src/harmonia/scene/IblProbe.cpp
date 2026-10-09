@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "harmonia/core/Buffer.hpp"
+#include "harmonia/core/HostImageUpload.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
 
@@ -169,92 +170,34 @@ VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
                                      const std::vector<float>& rgba32f,
                                      std::size_t width,
                                      std::size_t height) {
-    // ── Upload to GPU ────────────────────────────────────────────────────────
+    // ── Upload to GPU ────────────────────────────────────────────────
     const VkExtent2D extent{static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
 
-    auto image = Image::create(ctx,
-                               extent,
-                               VK_FORMAT_R32G32B32A32_SFLOAT,
-                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_HOST_TRANSFER_BIT,
-                               VK_IMAGE_ASPECT_COLOR_BIT,
-                               "ibl.env");
-    if (!image) {
-        return image.error();
+    // Vulkan 1.4 hostImageCopy upload + sampler creation (shared helper).
+    // dst stages of the final GENERAL -> SHADER_READ_ONLY transition cover every shader
+    // stage that may sample the env panorama: fragment (Theia sky pass) and ray tracing
+    // (Hyperion). Sampler is REPEAT on U, CLAMP_TO_EDGE on V (default) to avoid pole
+    // artefacts.
+    auto uploaded = uploadHostImage(ctx,
+                                    pool,
+                                    HostImageUploadDesc{
+                                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                                        .pixels = rgba32f.data(),
+                                        .extent = extent,
+                                        .finalStages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |
+                                                       VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                                        .finalAccess = VK_ACCESS_2_SHADER_READ_BIT,
+                                        .name = "ibl.env",
+                                        .sampler = SamplerSpec{
+                                            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                        },
+                                    });
+    if (!uploaded) {
+        return uploaded.error();
     }
 
-    // Vulkan 1.4 hostImageCopy: stream host pixels straight into the (optimal-tiling) image
-    // with vkCopyMemoryToImage — no staging buffer, no device-side copy. Layout path:
-    // UNDEFINED -> GENERAL (queue), host copy into GENERAL, GENERAL -> SHADER_READ_ONLY (queue).
-    {
-        auto cmd = pool.beginOneShot();
-        if (!cmd) {
-            return cmd.error();
-        }
-        image->transition(*cmd,
-                          VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_PIPELINE_STAGE_2_NONE,
-                          0,
-                          VK_PIPELINE_STAGE_2_HOST_BIT,
-                          VK_ACCESS_2_HOST_WRITE_BIT);
-        if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
-            return result;
-        }
-    }
-
-    const VkMemoryToImageCopy region{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
-        .pNext = nullptr,
-        .pHostPointer = rgba32f.data(),
-        .memoryRowLength = 0,
-        .memoryImageHeight = 0,
-        .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {extent.width, extent.height, 1u},
-    };
-    const VkCopyMemoryToImageInfo copyInfo{
-        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .dstImage = image->handle(),
-        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .regionCount = 1,
-        .pRegions = &region,
-    };
-    if (const VkResult result = vkCopyMemoryToImage(ctx.device, &copyInfo); result != VK_SUCCESS) {
-        return result;
-    }
-
-    // Transition to SHADER_READ_ONLY_OPTIMAL covering all shader stages that may
-    // sample the env panorama: fragment (Theia sky pass) and ray tracing (Hyperion).
-    {
-        auto cmd = pool.beginOneShot();
-        if (!cmd) {
-            return cmd.error();
-        }
-        image->transition(*cmd,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                          VK_PIPELINE_STAGE_2_HOST_BIT,
-                          VK_ACCESS_2_HOST_WRITE_BIT,
-                          VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                          VK_ACCESS_2_SHADER_READ_BIT);
-        if (const VkResult result = pool.endOneShot(*cmd); result != VK_SUCCESS) {
-            return result;
-        }
-    }
-
-    // ── Create sampler (REPEAT on U, CLAMP_TO_EDGE on V to avoid pole artefacts) ──
-    const VkSamplerCreateInfo samplerInfo = harmonia::makeSamplerCreateInfo({
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-    });
-    VkSampler sampler = VK_NULL_HANDLE;
-    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler); result != VK_SUCCESS) {
-        return result;
-    }
-
-    probe.m_image = std::move(*image);
-    probe.m_sampler = harmonia::UniqueSampler{ctx.device, sampler};
+    probe.m_image = std::move(uploaded->image);
+    probe.m_sampler = std::move(uploaded->sampler);
     return VK_SUCCESS;
 }
 

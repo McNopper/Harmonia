@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <utility>
+#include "harmonia/core/HostImageUpload.hpp"
 
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
@@ -25,105 +26,43 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     }
 
     constexpr VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-    auto image = Image::create(ctx,
-                               VkExtent2D{width, height},
-                               format,
-                               VK_IMAGE_USAGE_HOST_TRANSFER_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                               VK_IMAGE_ASPECT_COLOR_BIT,
-                               name);
-    if (!image) {
-        return std::unexpected(image.error());
-    }
-
-    // Vulkan 1.4 hostImageCopy: stream host pixels straight into the (optimal-tiling) image
-    // with vkCopyMemoryToImage — no staging buffer, no device-side copy. Layout path:
-    // UNDEFINED -> GENERAL (queue), host copy into GENERAL, GENERAL -> SHADER_READ_ONLY (queue).
-    {
-        auto cmd = cmdPool.beginOneShot();
-        if (!cmd) {
-            return std::unexpected(cmd.error());
-        }
-        image->transition(*cmd,
-                          VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_PIPELINE_STAGE_2_NONE,
-                          0,
-                          VK_PIPELINE_STAGE_2_HOST_BIT,
-                          VK_ACCESS_2_HOST_WRITE_BIT);
-        if (const VkResult submitResult = cmdPool.endOneShot(*cmd); submitResult != VK_SUCCESS) {
-            return std::unexpected(submitResult);
-        }
-    }
-
-    const VkMemoryToImageCopy region{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
-        .pNext = nullptr,
-        .pHostPointer = pixels.data(),
-        .memoryRowLength = 0,
-        .memoryImageHeight = 0,
-        .imageSubresource =
-            VkImageSubresourceLayers{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-        .imageOffset = VkOffset3D{0, 0, 0},
-        .imageExtent = VkExtent3D{width, height, 1},
-    };
-    const VkCopyMemoryToImageInfo copyInfo{
-        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .dstImage = image->handle(),
-        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .regionCount = 1,
-        .pRegions = &region,
-    };
-    if (const VkResult copyResult = vkCopyMemoryToImage(ctx.device, &copyInfo); copyResult != VK_SUCCESS) {
-        return std::unexpected(copyResult);
-    }
-
-    {
-        auto cmd = cmdPool.beginOneShot();
-        if (!cmd) {
-            return std::unexpected(cmd.error());
-        }
-        image->transition(*cmd,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                          VK_PIPELINE_STAGE_2_HOST_BIT,
-                          VK_ACCESS_2_HOST_WRITE_BIT,
-                          VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
-                              VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                          VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
-        if (const VkResult submitResult = cmdPool.endOneShot(*cmd); submitResult != VK_SUCCESS) {
-            return std::unexpected(submitResult);
-        }
-    }
 
     VkPhysicalDeviceProperties props{};
     vkGetPhysicalDeviceProperties(ctx.physicalDevice, &props);
 
-    const VkSamplerCreateInfo samplerInfo = harmonia::makeSamplerCreateInfo({
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .anisotropyEnable = VK_TRUE,
-        .maxAnisotropy = std::min(16.0f, props.limits.maxSamplerAnisotropy),
-        .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-    });
+    // Vulkan 1.4 hostImageCopy: stream host pixels straight into the (optimal-tiling) image
+    // with vkCopyMemoryToImage - no staging buffer, no device-side copy (shared helper).
+    // Layout path: UNDEFINED -> GENERAL (queue), host copy into GENERAL,
+    // GENERAL -> SHADER_READ_ONLY (queue). Sampler is REPEAT x3 with anisotropy.
+    auto uploaded = uploadHostImage(ctx,
+                                    cmdPool,
+                                    HostImageUploadDesc{
+                                        .format = format,
+                                        .pixels = pixels.data(),
+                                        .extent = VkExtent2D{width, height},
+                                        .finalStages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |
+                                                       VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
+                                                       VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                                        .finalAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                                        .name = name,
+                                        .sampler = SamplerSpec{
+                                            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .anisotropyEnable = VK_TRUE,
+                                            .maxAnisotropy = std::min(16.0f, props.limits.maxSamplerAnisotropy),
+                                            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+                                        },
+                                    });
+    if (!uploaded) {
+        return std::unexpected(uploaded.error());
+    }
 
     Texture texture;
-    texture.m_image = std::move(*image);
+    texture.m_image = std::move(uploaded->image);
     texture.m_width = width;
     texture.m_height = height;
-
-    VkSampler sampler{};
-    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler); result != VK_SUCCESS) {
-        return std::unexpected(result);
-    }
-    texture.m_sampler = harmonia::UniqueSampler{ctx.device, sampler};
+    texture.m_sampler = std::move(uploaded->sampler);
 
     if (!name.empty()) {
         ctx.setDebugName(VK_OBJECT_TYPE_SAMPLER, texture.m_sampler.get(), std::string(name).append(".sampler").c_str());
