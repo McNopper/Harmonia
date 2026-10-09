@@ -265,20 +265,23 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
 
     const std::uint32_t iterations = clampIterations(m_settings.iterations);
 
-    const VkImage finalSource = recordSpatialPasses(ctx.cmd,
-                                                    *ctx.hdrBuffer,
-                                                    *ctx.denoised,
-                                                    iterations,
-                                                    groupsX,
-                                                    groupsY,
-                                                    normalGuideView,
-                                                    depthGuideView,
-                                                    hasNormalGuide,
-                                                    hasDepthGuide,
-                                                    motionVecView,
-                                                    gradientView,
-                                                    prevGradientView,
-                                                    hasGradientVariance);
+    const DispatchGrid grid{
+        .iterations = iterations,
+        .groupsX = groupsX,
+        .groupsY = groupsY,
+    };
+    const DenoiseGuides guides{
+        .normalView = normalGuideView,
+        .depthView = depthGuideView,
+        .hasNormal = hasNormalGuide,
+        .hasDepth = hasDepthGuide,
+        .motionVecView = motionVecView,
+        .gradientView = gradientView,
+        .prevGradientView = prevGradientView,
+        .hasGradientVariance = hasGradientVariance,
+    };
+
+    const VkImage finalSource = recordSpatialPasses(ctx.cmd, *ctx.hdrBuffer, *ctx.denoised, grid, guides);
 
     if (finalSource != ctx.denoised->handle()) {
         copyImageRoundTrip(ctx.cmd,
@@ -290,20 +293,7 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     }
 
     if (applyHistory) {
-        recordTemporalHistoryPass(ctx.cmd,
-                                  *ctx.denoised,
-                                  useGradient,
-                                  hasMotionVectors,
-                                  iterations,
-                                  groupsX,
-                                  groupsY,
-                                  normalGuideView,
-                                  depthGuideView,
-                                  hasNormalGuide,
-                                  hasDepthGuide,
-                                  motionVecView,
-                                  gradientView,
-                                  prevGradientView);
+        recordTemporalHistoryPass(ctx.cmd, *ctx.denoised, useGradient, hasMotionVectors, grid, guides);
     }
 
     if (useGradient && applyHistory) {
@@ -402,17 +392,20 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
 VkImage SceneOutputCopyPass::recordSpatialPasses(VkCommandBuffer cmd,
                                                  const Image& hdrBuffer,
                                                  const Image& denoised,
-                                                 std::uint32_t iterations,
-                                                 std::uint32_t groupsX,
-                                                 std::uint32_t groupsY,
-                                                 VkImageView normalGuideView,
-                                                 VkImageView depthGuideView,
-                                                 bool hasNormalGuide,
-                                                 bool hasDepthGuide,
-                                                 VkImageView motionVecView,
-                                                 VkImageView gradientView,
-                                                 VkImageView prevGradientView,
-                                                 bool hasGradientVariance) noexcept {
+                                                 const DispatchGrid& grid,
+                                                 const DenoiseGuides& guides) noexcept {
+    // Unpack the parameter objects into the historical local names (read-only below).
+    const std::uint32_t iterations = grid.iterations;
+    const std::uint32_t groupsX = grid.groupsX;
+    const std::uint32_t groupsY = grid.groupsY;
+    const VkImageView normalGuideView = guides.normalView;
+    const VkImageView depthGuideView = guides.depthView;
+    const bool hasNormalGuide = guides.hasNormal;
+    const bool hasDepthGuide = guides.hasDepth;
+    const VkImageView motionVecView = guides.motionVecView;
+    const VkImageView gradientView = guides.gradientView;
+    const VkImageView prevGradientView = guides.prevGradientView;
+    const bool hasGradientVariance = guides.hasGradientVariance;
     VkImage currentSource = hdrBuffer.handle();
     VkImageView currentSourceView = hdrBuffer.view();
     VkImage finalSource = currentSource;
@@ -668,16 +661,21 @@ void SceneOutputCopyPass::recordTemporalHistoryPass(VkCommandBuffer cmd,
                                                     const Image& denoised,
                                                     bool useGradient,
                                                     bool hasMotionVectors,
-                                                    std::uint32_t iterations,
-                                                    std::uint32_t groupsX,
-                                                    std::uint32_t groupsY,
-                                                    VkImageView normalGuideView,
-                                                    VkImageView depthGuideView,
-                                                    bool hasNormalGuide,
-                                                    bool hasDepthGuide,
-                                                    VkImageView motionVecView,
-                                                    VkImageView gradientView,
-                                                    VkImageView prevGradientView) noexcept {
+                                                    const DispatchGrid& grid,
+                                                    const DenoiseGuides& guides) noexcept {
+    // Unpack the parameter objects into the historical local names (read-only below).
+    // hasGradientVariance is deliberately not unpacked: the temporal pass writes, never
+    // reads, the variance.
+    const std::uint32_t iterations = grid.iterations;
+    const std::uint32_t groupsX = grid.groupsX;
+    const std::uint32_t groupsY = grid.groupsY;
+    const VkImageView normalGuideView = guides.normalView;
+    const VkImageView depthGuideView = guides.depthView;
+    const bool hasNormalGuide = guides.hasNormal;
+    const bool hasDepthGuide = guides.hasDepth;
+    const VkImageView motionVecView = guides.motionVecView;
+    const VkImageView gradientView = guides.gradientView;
+    const VkImageView prevGradientView = guides.prevGradientView;
     const VkDescriptorImageInfo denoisedInfo{
         .sampler = VK_NULL_HANDLE,
         .imageView = denoised.view(),

@@ -64,34 +64,38 @@ class SceneOutputCopyPass final : public IRenderPass {
     void resetHistory(std::uint64_t resetToken) noexcept;
 
     void barrierForComputeRead(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage, bool useGradient) noexcept;
+    /// Guide-image clump shared by the spatial and temporal denoiser passes
+    /// (parameter object).
+    struct DenoiseGuides {
+        VkImageView normalView = VK_NULL_HANDLE;
+        VkImageView depthView = VK_NULL_HANDLE;
+        bool hasNormal = false;
+        bool hasDepth = false;
+        VkImageView motionVecView = VK_NULL_HANDLE;
+        VkImageView gradientView = VK_NULL_HANDLE;
+        VkImageView prevGradientView = VK_NULL_HANDLE;
+        bool hasGradientVariance = false;
+    };
+
+    /// Dispatch-grid clump shared by the spatial and temporal denoiser passes
+    /// (parameter object).
+    struct DispatchGrid {
+        std::uint32_t iterations = 0;
+        std::uint32_t groupsX = 0;
+        std::uint32_t groupsY = 0;
+    };
+
     [[nodiscard]] VkImage recordSpatialPasses(VkCommandBuffer cmd,
                                               const Image& hdrBuffer,
                                               const Image& denoised,
-                                              std::uint32_t iterations,
-                                              std::uint32_t groupsX,
-                                              std::uint32_t groupsY,
-                                              VkImageView normalGuideView,
-                                              VkImageView depthGuideView,
-                                              bool hasNormalGuide,
-                                              bool hasDepthGuide,
-                                              VkImageView motionVecView,
-                                              VkImageView gradientView,
-                                              VkImageView prevGradientView,
-                                              bool hasGradientVariance) noexcept;
+                                              const DispatchGrid& grid,
+                                              const DenoiseGuides& guides) noexcept;
     void recordTemporalHistoryPass(VkCommandBuffer cmd,
                                    const Image& denoised,
                                    bool useGradient,
                                    bool hasMotionVectors,
-                                   std::uint32_t iterations,
-                                   std::uint32_t groupsX,
-                                   std::uint32_t groupsY,
-                                   VkImageView normalGuideView,
-                                   VkImageView depthGuideView,
-                                   bool hasNormalGuide,
-                                   bool hasDepthGuide,
-                                   VkImageView motionVecView,
-                                   VkImageView gradientView,
-                                   VkImageView prevGradientView) noexcept;
+                                   const DispatchGrid& grid,
+                                   const DenoiseGuides& guides) noexcept;
     void recordGradientBlur(VkCommandBuffer cmd,
                             VkExtent2D extent,
                             std::uint32_t iterations,
