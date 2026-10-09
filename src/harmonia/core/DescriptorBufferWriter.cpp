@@ -136,20 +136,28 @@ void DescriptorBufferWriter::writeUniformBuffer(const DeviceContext& ctx, std::u
 }
 
 void DescriptorBufferWriter::writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
-                                                      VkBuffer buffer) {
+                                                      const Buffer& buffer) {
+    writeUniformBufferHandle(ctx, binding, buffer.handle(), buffer.size());
+}
+
+void DescriptorBufferWriter::writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
+                                                      VkBuffer buffer, VkDeviceSize size) {
     if (buffer == VK_NULL_HANDLE) {
         writeUniformBuffer(ctx, binding, 0, VK_WHOLE_SIZE);
         return;
     }
     const VkBufferDeviceAddressInfo addrInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .pNext = nullptr, .buffer = buffer};
-    VkMemoryRequirements memReq{};
-    vkGetBufferMemoryRequirements(ctx.device, buffer, &memReq);
-    writeUniformBuffer(ctx, binding, vkGetBufferDeviceAddress(ctx.device, &addrInfo), memReq.size);
+    writeUniformBuffer(ctx, binding, vkGetBufferDeviceAddress(ctx.device, &addrInfo), size);
 }
 
 void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
-                                                      VkBuffer buffer) {
+                                                      const Buffer& buffer) {
+    writeStorageBufferHandle(ctx, binding, buffer.handle(), buffer.size());
+}
+
+void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
+                                                      VkBuffer buffer, VkDeviceSize size) {
     // VK14 nullDescriptor: a null handle produces a null descriptor (reads return zeros).
     if (buffer == VK_NULL_HANDLE) {
         writeStorageBuffer(ctx, binding, 0, VK_WHOLE_SIZE);
@@ -157,9 +165,7 @@ void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx, 
     }
     const VkBufferDeviceAddressInfo addrInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .pNext = nullptr, .buffer = buffer};
-    VkMemoryRequirements memReq{};
-    vkGetBufferMemoryRequirements(ctx.device, buffer, &memReq);
-    writeStorageBuffer(ctx, binding, vkGetBufferDeviceAddress(ctx.device, &addrInfo), memReq.size);
+    writeStorageBuffer(ctx, binding, vkGetBufferDeviceAddress(ctx.device, &addrInfo), size);
 }
 
 void DescriptorBufferWriter::writeStorageImage(const DeviceContext& ctx, std::uint32_t binding,

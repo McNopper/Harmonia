@@ -126,13 +126,13 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
 }
 
 VkResult Descriptors::updateSceneSet(const DeviceContext& ctx,
-                                     VkBuffer instanceBuffer,
-                                     VkBuffer materialBuffer,
-                                     VkBuffer vertexBuffer,
-                                     VkBuffer indexBuffer,
-                                     VkBuffer lightBuffer,
-                                     VkBuffer emissiveTriangleBuffer,
-                                     VkBuffer emissiveCdfBuffer,
+                                     const Buffer& instanceBuffer,
+                                     const Buffer& materialBuffer,
+                                     const Buffer& vertexBuffer,
+                                     const Buffer& indexBuffer,
+                                     const Buffer& lightBuffer,
+                                     const Buffer& emissiveTriangleBuffer,
+                                     const Buffer& emissiveCdfBuffer,
                                      std::span<const Texture> textures) {
     // MOD1: typed descriptor buffer writes.
     m_sceneWriter.writeStorageBufferHandle(ctx, 0, instanceBuffer);
@@ -158,7 +158,7 @@ VkResult Descriptors::updateEnvMap(const DeviceContext& ctx, VkImageView view, V
     return VK_SUCCESS;
 }
 
-VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf) {
+VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, const Buffer& marginalCdf, const Buffer& conditionalCdf) {
     // MOD1: typed descriptor buffer writes.
     m_sceneWriter.writeStorageBufferHandle(ctx, 8, marginalCdf);
     m_sceneWriter.writeStorageBufferHandle(ctx, 9, conditionalCdf);
@@ -168,7 +168,7 @@ VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer mar
 VkResult Descriptors::updateFrameSet(const DeviceContext& ctx,
                                      VkAccelerationStructureKHR tlas,
                                      VkImageView hdrView,
-                                     VkBuffer cameraBuffer,
+                                     const Buffer& cameraBuffer,
                                      VkImageView gNormalView,
                                      VkImageView gDepthView) {
     // MOD1: set 0 per-frame writes via descriptor buffer.

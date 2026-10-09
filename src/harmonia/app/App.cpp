@@ -535,8 +535,8 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
             if (m_iblProbe->cdfWidth() > 0) {
                 if (const VkResult result =
                         m_descriptors.updateEnvImportance(m_context.deviceContext(),
-                                                          m_iblProbe->marginalCdfBuffer().handle(),
-                                                          m_iblProbe->conditionalCdfBuffer().handle());
+                                                          m_iblProbe->marginalCdfBuffer(),
+                                                          m_iblProbe->conditionalCdfBuffer());
                     result != VK_SUCCESS) {
                     Logger::warn("IBL importance descriptor update failed: VkResult {}", static_cast<int>(result));
                 } else {

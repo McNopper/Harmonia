@@ -45,12 +45,22 @@ public:
     void writeUniformBuffer(const DeviceContext& ctx, std::uint32_t binding, VkDeviceAddress address,
                             VkDeviceSize range);
 
-    /// Write a uniform buffer descriptor at the given binding (from a VkBuffer handle).
-    void writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer);
+    /// Write a uniform buffer descriptor at the given binding. The descriptor range is the
+    /// buffer's true creation size (VUID-VkDescriptorAddressInfoEXT-range-08045: range must be
+    /// <= VkBufferCreateInfo::size — never the rounded memory-requirement size).
+    void writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding, const Buffer& buffer);
 
-    /// Write a storage buffer descriptor at the given binding (from a VkBuffer handle).
-    /// Queries device address + memory size internally.
-    void writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer);
+    /// Raw-handle variant: VK_NULL_HANDLE writes a null descriptor (VK14 nullDescriptor);
+    /// otherwise the caller MUST pass the buffer's creation size (see above).
+    void writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer,
+                                  VkDeviceSize size);
+
+    /// Write a storage buffer descriptor at the given binding (see writeUniformBufferHandle).
+    void writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding, const Buffer& buffer);
+
+    /// Raw-handle variant (see writeUniformBufferHandle).
+    void writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer,
+                                  VkDeviceSize size);
     void writeStorageBuffer(const DeviceContext& ctx, std::uint32_t binding, VkDeviceAddress address,
                             VkDeviceSize range);
 

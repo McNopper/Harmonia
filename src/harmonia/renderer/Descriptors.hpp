@@ -33,22 +33,22 @@ class Descriptors {
     /// 1=materials, 2=vertices, 3=indices, 5=lights, 7=emissive triangles,
     /// 10=emissive power CDF; binding 4 = bindless texture array.
     VkResult updateSceneSet(const DeviceContext& ctx,
-                            VkBuffer instanceBuffer,
-                            VkBuffer materialBuffer,
-                            VkBuffer vertexBuffer,
-                            VkBuffer indexBuffer,
-                            VkBuffer lightBuffer,
-                            VkBuffer emissiveTriangleBuffer,
-                            VkBuffer emissiveCdfBuffer,
+                            const Buffer& instanceBuffer,
+                            const Buffer& materialBuffer,
+                            const Buffer& vertexBuffer,
+                            const Buffer& indexBuffer,
+                            const Buffer& lightBuffer,
+                            const Buffer& emissiveTriangleBuffer,
+                            const Buffer& emissiveCdfBuffer,
                             std::span<const Texture> textures);
     VkResult updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler);
-    VkResult updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf);
+    VkResult updateEnvImportance(const DeviceContext& ctx, const Buffer& marginalCdf, const Buffer& conditionalCdf);
 
     /// MOD1: update set 0 (per-frame AS + images + camera UBO) via descriptor buffer.
     VkResult updateFrameSet(const DeviceContext& ctx,
                             VkAccelerationStructureKHR tlas,
                             VkImageView hdrView,
-                            VkBuffer cameraBuffer,
+                            const Buffer& cameraBuffer,
                             VkImageView gNormalView,
                             VkImageView gDepthView);
 
