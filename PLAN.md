@@ -763,12 +763,12 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
-- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.4** (unchanged); Harmonia
-  @ **v0.7.10**; Hyperion / Theia @ **v0.7.10** (their v0.7.11 releases land together with
-  the regenerated README galleries). Verified: `git ls-remote --tags origin` == `git tag -l`
-  in all five repos, and the `FetchContent` pins resolve (Hyperion/Theia → Harmonia v0.7.10 →
-  Aether v0.7.4 → slang-math v0.3.0). GitHub Releases are published again as of this wave,
-  gated on the dual-OS CI.
+- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.5**; Harmonia @ **v0.7.10**;
+  Hyperion / Theia @ **v0.7.11**. Verified: `git ls-remote --tags origin` == `git tag -l` in
+  all five repos, and the `FetchContent` pins resolve (Hyperion/Theia → Harmonia v0.7.10 →
+  Aether v0.7.4 — content-identical to v0.7.5 — → slang-math v0.3.0). GitHub Releases are
+  published as of this wave, gated on the dual-OS CI. The v0.7.10 tag was moved once
+  (15ddd42 → 0596f40) to include the GCC `-Wextra` fix before anything consumed it.
 - **v0.7.10** (current; slang-math bumped to v0.3.0, Aether unchanged @ v0.7.4): **dual-OS CI
   + refactoring wave + I6 + two validation fixes.** **CI:** `.github/workflows/build.yml` on
   `windows-latest` + `ubuntu-26.04` — pure build for the renderer targets (GPU suites stay
