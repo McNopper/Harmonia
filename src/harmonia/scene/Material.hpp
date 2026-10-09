@@ -108,35 +108,13 @@ class Material {
     /// Slots 0-3 → textureIndices [base_color, normal, ORM, emission];
     /// slots 4-6 → textureIndices2 [coat_normal, tangent, coat_tangent];
     /// slot 7 → textureIndices2.w [opacity] (rasterizer alpha-test map).
+    /// Out-of-range slots are ignored (no write).
     void setTextureIndex(std::uint32_t slot, std::uint32_t idx) noexcept {
-        switch (slot) {
-        case 0:
-            m_gpu.textureIndices.x = idx;
-            break;
-        case 1:
-            m_gpu.textureIndices.y = idx;
-            break;
-        case 2:
-            m_gpu.textureIndices.z = idx;
-            break;
-        case 3:
-            m_gpu.textureIndices.w = idx;
-            break;
-        case 4:
-            m_gpu.textureIndices2.x = idx;
-            break;
-        case 5:
-            m_gpu.textureIndices2.y = idx;
-            break;
-        case 6:
-            m_gpu.textureIndices2.z = idx;
-            break;
-        case 7:
-            m_gpu.textureIndices2.w = idx;
-            break;
-        default:
-            break;
+        if (slot > 7U) {
+            return;
         }
+        sm::uint4& slots = (slot < 4U) ? m_gpu.textureIndices : m_gpu.textureIndices2;
+        slots[static_cast<std::int32_t>(slot & 3U)] = idx;
     }
 
     [[nodiscard]] const GpuMaterial& gpu() const noexcept { return m_gpu; }
