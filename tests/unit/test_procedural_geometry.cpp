@@ -52,7 +52,8 @@ TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
 }
 
 TEST(ProceduralGeometry, MakeBoxRotationTransformsNormals) {
-    const sm::float4x4 rotation = harmonia::Math::makeRotationY(harmonia::Math::kPi * 0.5F);
+    const sm::float4x4 rotation =
+        sm::rotate(sm::float4x4(1.0f), harmonia::Math::kPi * 0.5F, sm::float3{0.0F, 1.0F, 0.0F});
     const harmonia::MeshData mesh = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
     const sm::float3x3 normalTransform = sm::toFloat3x3(rotation);
 
