@@ -40,6 +40,12 @@ struct AppConfig {
     /// Number of scene-referred frames to render before saving in offscreen mode.
     /// For stochastic pipelines, increase this to improve convergence.
     std::uint32_t offscreenFrames = 4;
+    /// Interactive window: accumulation frames per swapchain flip (1 = one render per
+    /// present, the classic cadence). N > 1 converges the DISPLAYED image faster per
+    /// flip on a static/slow camera at the cost of flip rate and input latency;
+    /// accumulation still resets on camera move. The interactive-window analogue of
+    /// --offscreen-frames (which is the headless equivalent).
+    std::uint32_t framesPerFlip = 1;
     /// Presentation-only indirect ambient boost (scene-referred linear units).
     /// Kept at 0.0 for parity fixtures; non-zero values are for interactive
     /// quality tuning only.

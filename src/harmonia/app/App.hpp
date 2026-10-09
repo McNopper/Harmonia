@@ -237,6 +237,8 @@ class App {
     std::uint64_t m_accumViewEpoch = 0;
     bool m_interactiveAccumulation = false;
     std::uint32_t m_frameIndex = 0;
+    /// Interactive flip cadence counter for --frames-per-flip (I6).
+    std::uint32_t m_framesSinceFlip = 0;
     bool m_displayOverlayLogged = false;
     bool m_running = false;
 };

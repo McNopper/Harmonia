@@ -103,7 +103,7 @@ Bernoulli-trial estimator.
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
 | 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — split `gi.comp.slang` into focused kernels | PERF | **next session** | ~16% faster; gates PERF4 |
 | 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **next session** | 1.3–2.0× trace; gated by PERF5 |
-| 5 | **I6: configurable frames-per-flip** (Theia window) | I | **backlog** | CLI flag in shared parser |
+| 5 | **I6: configurable frames-per-flip** (Theia window) | I | **done** | `--frames-per-flip <N>` in the shared parser; N = 1 is the classic cadence (display half gated per flip). Validated: suites + interactive smoke + N=1 control. |
 
 **Shipped (2026-09-25):** C9 bounded VNDF, DN3 converging denoiser, GI-ENH (k≥3 + pairwise
 MIS + forced NEE + Russian roulette), GI-SMS (manifold walk + MNEE +

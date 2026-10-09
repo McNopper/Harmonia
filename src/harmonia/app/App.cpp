@@ -923,7 +923,14 @@ int App::mainLoop() {
         // Save the frame slot before renderSceneReferred advances it.
         const std::uint32_t slot = m_frameSync.currentSlot();
         const std::uint64_t renderValue = renderSceneReferred();
-        presentFrame(slot, renderValue);
+        // I6: --frames-per-flip — N accumulation frames per swapchain flip. The render
+        // half runs every iteration; only the display/present half is gated, so N = 1 is
+        // exactly the classic render-then-present cadence.
+        ++m_framesSinceFlip;
+        if (m_framesSinceFlip >= std::max(m_config.framesPerFlip, 1U)) {
+            m_framesSinceFlip = 0U;
+            presentFrame(slot, renderValue);
+        }
         // Courtesy yield, same rationale as renderOffscreen(). `presentFrame` paces this
         // loop under FIFO present, but with MAILBOX/immediate it does not block and the
         // window then pins the CPU exactly like an offscreen capture. Costs ~nothing.

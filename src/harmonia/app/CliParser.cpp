@@ -209,6 +209,17 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         }
         return true;
     }
+    if (arg == "--frames-per-flip") {
+        if (const char* v = next("--frames-per-flip")) {
+            std::uint32_t frames = 0U;
+            if (!CliParser::parseUint32(v, frames)) {
+                Logger::error("Invalid value for --frames-per-flip: {}", v);
+            } else {
+                config.framesPerFlip = std::max(frames, 1U);
+            }
+        }
+        return true;
+    }
     if (arg == "--indirect-ambient") {
         if (const char* v = next("--indirect-ambient")) {
             config.indirectAmbient = std::stof(v);
