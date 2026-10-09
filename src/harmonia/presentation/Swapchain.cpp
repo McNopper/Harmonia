@@ -127,10 +127,15 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     // TRANSFER_DST_BIT is always supported when the surface supports presentation.
     const VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
+    // MOD6: chaining VkPresentId2KHR at present time requires the swapchain to opt in
+    // (VUID-VkPresentId2KHR-None-10820) — same condition as the per-present ID tagging.
+    const VkSwapchainCreateFlagsKHR swapchainFlags =
+        ctx.presentIdSupported ? VK_SWAPCHAIN_CREATE_PRESENT_ID_2_BIT_KHR : 0u;
+
     const VkSwapchainCreateInfoKHR createInfo{
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .pNext = nullptr,
-        .flags = 0,
+        .flags = swapchainFlags,
         .surface = surface,
         .minImageCount = chooseImageCount(capabilities),
         .imageFormat = swapchain.m_format,
