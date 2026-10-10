@@ -773,13 +773,32 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
-- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.5**; Harmonia @ **v0.7.10**;
-  Hyperion / Theia @ **v0.7.11**. Verified: `git ls-remote --tags origin` == `git tag -l` in
-  all five repos, and the `FetchContent` pins resolve (Hyperion/Theia → Harmonia v0.7.10 →
-  Aether v0.7.4 — content-identical to v0.7.5 — → slang-math v0.3.0). GitHub Releases are
-  published as of this wave, gated on the dual-OS CI. The v0.7.10 tag was moved once
-  (15ddd42 → 0596f40) to include the GCC `-Wextra` fix before anything consumed it.
-- **v0.7.10** (current; slang-math bumped to v0.3.0, Aether unchanged @ v0.7.4): **dual-OS CI
+- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.5**; Harmonia @ **v0.7.11**;
+  Hyperion @ **v0.7.11** (consumes v0.7.11 live); Theia @ **v0.7.12**. Verified:
+  `git ls-remote --tags origin` == `git tag -l` in all five repos, and the `FetchContent` pins
+  resolve (Theia → Harmonia v0.7.11; Hyperion → Harmonia v0.7.10, consuming v0.7.11 live;
+  Harmonia → Aether v0.7.4 — content-identical to v0.7.5 — + slang-math v0.3.0). GitHub
+  Releases are published as of this wave, gated on the dual-OS CI. The v0.7.10 tag was moved
+  once (15ddd42 → 0596f40) to include the GCC `-Wextra` fix before anything consumed it.
+- **v0.7.11** (current; Theia bumped to v0.7.12 with it, Hyperion consumes live; Aether /
+  slang-math unchanged): **VK15 — opacity micromap on the KHR acceleration-structure API.**
+  `VK_KHR_opacity_micromap` is **not** a rename (extension proposal issue 5: "not an exact
+  promotion"): micromaps fold into the AS API (issue 6) — created via
+  `vkCreateAccelerationStructure2KHR` (`type = OPACITY_MICROMAP_KHR`; the MOD5 device-address
+  path, reused through `AccelerationStructure::create`), sized via
+  `vkGetAccelerationStructureBuildSizesKHR` (usage-driven — NULL `pMaxPrimitiveCounts`), built
+  via `vkCmdBuildAccelerationStructuresKHR` with `VK_GEOMETRY_TYPE_MICROMAP_KHR` (NULL range
+  infos), attached via the reshaped `VkAccelerationStructureTrianglesOpacityMicromapKHR` (new
+  KHR sTypes `10006230xx`; usage counts dropped from the BLAS link). The standalone EXT
+  surface is **deleted** (`vkCreateMicromapEXT`/`vkCmdBuildMicromapsEXT`/
+  `vkGetMicromapBuildSizesEXT`, `VkMicromapEXT`, the `MICROMAP_*` buffer-usage bits,
+  `UniqueMicromapEXT`); `Micromap` **is** an `AccelerationStructure`. The dead
+  `vkGetBufferMemoryRequirements` descriptor-range pattern died family-wide with it (Theia's
+  LightCuller/GpuCullPass residuals fixed in v0.7.12). **Verified:** 89/89 ctest on Windows
+  and Linux; `shaderball_checker` **pixel-identical to the EXT-path release gallery (MAD = 0)**
+  in both renderers; **zero validation errors and warnings** (interactive + offscreen, both
+  renderers). PLAN §3 records the remaining Vulkan queue (VK16, VK17+VK5, watchlist).
+- **v0.7.10** (slang-math bumped to v0.3.0, Aether unchanged @ v0.7.4): **dual-OS CI
   + refactoring wave + I6 + two validation fixes.** **CI:** `.github/workflows/build.yml` on
   `windows-latest` + `ubuntu-26.04` — pure build for the renderer targets (GPU suites stay
   local), CPU suites for the base repos; Linux installs the LunarG SDK tarball (cached) and
