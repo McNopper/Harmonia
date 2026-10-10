@@ -120,7 +120,7 @@ struct SupportedFeatures {
     VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetch{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR as{};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
-    VkPhysicalDeviceOpacityMicromapFeaturesEXT omm{};
+    VkPhysicalDeviceOpacityMicromapFeaturesKHR omm{};
     VkPhysicalDeviceMemoryPriorityFeaturesEXT memoryPriority{};
     VkPhysicalDevicePresentIdFeaturesKHR presentIdV1{};
     VkPhysicalDevicePresentWaitFeaturesKHR presentWaitV1{};
@@ -156,7 +156,7 @@ struct SupportedFeatures {
     s.as.pNext = &s.positionFetch;
     s.dgc.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
     s.dgc.pNext = &s.omm;
-    s.omm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT;
+    s.omm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_KHR;
     s.omm.pNext = &s.as;
     s.features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
     s.features14.pNext = &s.dgc;
@@ -208,7 +208,7 @@ struct EnabledFeatures {
     VkPhysicalDeviceFeatures2 features2{};
     VkPhysicalDeviceMeshShaderFeaturesEXT mesh{};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT dgc{};
-    VkPhysicalDeviceOpacityMicromapFeaturesEXT omm{};
+    VkPhysicalDeviceOpacityMicromapFeaturesKHR omm{};
     VkPhysicalDeviceMemoryPriorityFeaturesEXT memoryPriority{};
     VkPhysicalDevicePresentIdFeaturesKHR presentIdV1{};
     VkPhysicalDevicePresentWaitFeaturesKHR presentWaitV1{};
@@ -241,12 +241,12 @@ struct EnabledFeatures {
     features.rt.pNext = &features.omm;
     features.rt.rayTracingPipeline = VK_TRUE;
 
-    // VK_EXT_opacity_micromap: per-microtriangle opacity for alpha-tested
+    // VK_KHR_opacity_micromap: per-microtriangle opacity for alpha-tested
     // geometry, resolved by RT traversal (no any-hit shader). Optional; enabled
     // only when the device advertises it. Sits between rt and rayQuery in the
     // always-on core so the optional present/pageable tail still hangs off
     // rayQuery unchanged.
-    features.omm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT;
+    features.omm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_KHR;
     features.omm.pNext = &features.rayQuery;
     features.omm.micromap = opacityMicromapSupported ? VK_TRUE : VK_FALSE;
 
@@ -489,7 +489,7 @@ struct QueueInfos {
         deviceExtensions.push_back(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
     }
     if (opacityMicromapSupported) {
-        deviceExtensions.push_back(VK_EXT_OPACITY_MICROMAP_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_OPACITY_MICROMAP_EXTENSION_NAME);
     }
     if (pageableMemorySupported) {
         deviceExtensions.push_back(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME);

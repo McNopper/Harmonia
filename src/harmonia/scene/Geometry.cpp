@@ -180,7 +180,7 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& po
     }
 
     // OMM linkage (lives through the synchronous one-shot build below).
-    VkAccelerationStructureTrianglesOpacityMicromapEXT ommLink{};
+    VkAccelerationStructureTrianglesOpacityMicromapKHR ommLink{};
     VkAccelerationStructureGeometryTrianglesDataKHR triangles{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
         .pNext = nullptr,
@@ -199,14 +199,11 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& po
     // the opaque flag, so nothing but cutout meshes pays for it.
     VkGeometryFlagsKHR geometryFlags = m_opacity.alphaTested ? 0 : VK_GEOMETRY_OPAQUE_BIT_KHR;
     if (m_micromap.has_value()) {
-        const auto usage = m_micromap->usage();
-        ommLink.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_TRIANGLES_OPACITY_MICROMAP_EXT;
+        ommLink.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_TRIANGLES_OPACITY_MICROMAP_KHR;
         ommLink.indexType = VK_INDEX_TYPE_UINT32;
-        ommLink.indexBuffer.deviceAddress = m_micromap->indexBufferAddress();
+        ommLink.indexBuffer = m_micromap->indexBufferAddress();
         ommLink.indexStride = sizeof(std::uint32_t);
         ommLink.baseTriangle = 0;
-        ommLink.usageCountsCount = static_cast<std::uint32_t>(usage.size());
-        ommLink.pUsageCounts = usage.data();
         ommLink.micromap = m_micromap->handle();
         triangles.pNext = &ommLink;
         geometryFlags = 0;

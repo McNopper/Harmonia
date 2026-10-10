@@ -122,6 +122,16 @@ extractions; X-03 tools `main()` splits; SM-02 unrolled rows; A-05 `applyKw` tab
 SM6-Aether); SH-02 shared Slang medium-walk module (inside PERF5 only). Closed as rejected:
 SM-01, A-04, HY-02 (RNG parity invariant), H-05b (matrix literals — image identity).
 
+**Vulkan adoption queue (after VK15, shipped v0.7.11):** **VK16** `VK_KHR_device_fault` (+
+`VK_EXT_device_address_binding_report`) — device-lost forensics with fault addresses; then
+**VK17 + VK5** as one cold-start/CI item (`VK_EXT_shader_module_identifier` +
+`VK_KHR_pipeline_binary` — identifier-keyed pipeline binaries, the Theia cold-start win).
+Watchlist unchanged: VK18 `present_timing`; **VK19 `descriptor_heap` — evaluate before any
+further descriptor investment** (MOD1's `descriptor_buffer` is the current foundation); VK20
+`unified_image_layouts`; VK21 `memory_budget`; VK22 next-gen shader model — **gated on
+verifying slang 2026.17 support before any use**. Standing cadence: each release carries at
+least one legacy→modern removal or capability adoption while the dev hardware supports it.
+
 **Excluded:** Neural network techniques (no training).
 
 > **Doctrine:** newer/better replaces old — drop, don't keep alongside. OpenPBR formulas
@@ -465,7 +475,7 @@ revalidation event, not a free upgrade.
 | VK12 | `VK_KHR_present_id2` + `VK_KHR_present_wait2` | present-pacing v2 (supersedes the VK6 v1 pair — richer per-present timing/latency control for the interactive window); adoption = **MOD6** (drop v1) | I, PERF | watchlist (→ MOD6) |
 | VK13 | ~~`VK_KHR_maintenance7`–`maintenance11`~~ | **TRIAGED 2026-09-25: no actionable features** — these are spec clarifications and minor struct additions (layered rendering, depth/stencil clarifications, sync edge cases); nothing our codebase uses or benefits from. | CH | ~~watchlist~~ **closed** |
 | VK14 | ~~`VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives`~~ | **SHIPPED 2026-09-25**: `nullDescriptor` enabled (hard-required) — all dummy resources DELETED (GiPass gradient/motion images, ForwardRenderer env + tile-light buffers). `robustBufferAccess2/ImageAccess2` deliberately NOT enabled (perf cost). Compute derivatives NOT adopted (not used yet). | PERF, CH | ~~watchlist~~ **shipped** |
-| VK15 | `VK_KHR_opacity_micromap` | KHR promotion of the `VK_EXT_opacity_micromap` shipped v0.7.7 — the newer-replaces-old rule: migrate the enable EXT→KHR and drop the EXT name | CH | backlog |
+| VK15 | `VK_KHR_opacity_micromap` | **SHIPPED (v0.7.11)** — and it is **not** a rename (extension proposal issue 5: "not an exact promotion"): the re-issue folds micromaps into the acceleration-structure API (issue 6) — `VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR`, sized via `vkGetAccelerationStructureBuildSizesKHR` (NULL `pMaxPrimitiveCounts`), built via `vkCmdBuildAccelerationStructuresKHR` with `VK_GEOMETRY_TYPE_MICROMAP_KHR` (NULL range infos; usage-driven), new KHR sTypes (10006230xx), reshaped `VkAccelerationStructureTrianglesOpacityMicromapKHR` (usage counts dropped from the BLAS link). The standalone `vkCreateMicromapEXT` surface is **deleted**; `Micromap` is an `AccelerationStructure` (MOD5 device-address creation reused). Proven image-identical on `shaderball_checker` (MAD = 0 vs the EXT-path gallery) with zero validation errors/warnings. | CH | **shipped** |
 | VK16 | `VK_KHR_device_fault` (+ `VK_EXT_device_address_binding_report`) | Device-lost forensics with fault addresses — localizing a crash in a GPU-driven pipeline (DGC + indirect dispatch) that today surfaces only as a bare `VK_ERROR_DEVICE_LOST` | CH | backlog |
 | VK17 | `VK_EXT_shader_module_identifier` | Skip recompiling unchanged shaders (identifier-based reuse) — CI and cold-start win; natural companion to VK5 `pipeline_binary` | PERF, CH | backlog |
 | VK18 | `VK_EXT_present_timing` | Present-timing control beyond the MOD6 `present_id2`/`present_wait2` pair — the next present-pacing step | I | watchlist |

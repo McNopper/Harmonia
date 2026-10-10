@@ -14,8 +14,8 @@ namespace harmonia {
 namespace {
 
 /// Upload a host byte span to a device-local buffer with device-address +
-/// micromap-build-input usage, aligned to 256 bytes (micromap data/triangle
-/// device addresses must be 256-aligned — VUID-vkCmdBuildMicromapsEXT-pInfos-07515).
+/// acceleration-structure-build-input usage, aligned to 256 bytes (micromap
+/// data/triangleArray device addresses must be 256-aligned).
 [[nodiscard]] std::expected<Buffer, VkResult> uploadMicromapInput(const DeviceContext& ctx,
                                                                   const CommandPool& pool,
                                                                   std::span<const std::byte> bytes,
@@ -24,31 +24,10 @@ namespace {
     return Buffer::upload(ctx,
                           pool,
                           bytes,
-                          VK_BUFFER_USAGE_MICROMAP_BUILD_INPUT_READ_ONLY_BIT_EXT |
+                          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
                               VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                           name,
                           kMicromapDataAlignment);
-}
-
-/// Scratch buffer for a micromap build, sized from the build sizes and aligned
-/// to the device's `minAccelerationStructureScratchOffsetAlignment` (the same
-/// property AS-build scratch uses — micromap builds share it).
-[[nodiscard]] std::expected<Buffer, VkResult>
-createMicromapScratch(const DeviceContext& ctx, VkDeviceSize buildScratchSize, std::string_view debugName) {
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR asProps{};
-    asProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
-    VkPhysicalDeviceProperties2 props{};
-    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    props.pNext = &asProps;
-    vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &props);
-
-    const VkDeviceSize padded =
-        std::max<VkDeviceSize>(buildScratchSize + asProps.minAccelerationStructureScratchOffsetAlignment, 16);
-    return Buffer::create(ctx,
-                          padded,
-                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                          VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                          debugName);
 }
 
 } // namespace
@@ -70,9 +49,9 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
     }
 
     // 2) Per-record triangle array. OpacityMicromapTriangle is layout-compatible
-    // with VkMicromapTriangleEXT ({u32 dataOffset, u16 level, u16 format}, 8B).
-    static_assert(sizeof(aether::OpacityMicromapTriangle) == sizeof(VkMicromapTriangleEXT),
-                  "OpacityMicromapTriangle must match VkMicromapTriangleEXT layout");
+    // with VkMicromapTriangleKHR ({u32 dataOffset, u16 level, u16 format}, 8B).
+    static_assert(sizeof(aether::OpacityMicromapTriangle) == sizeof(VkMicromapTriangleKHR),
+                  "OpacityMicromapTriangle must match VkMicromapTriangleKHR layout");
     auto triangleBuffer = uploadMicromapInput(
         ctx,
         pool,
@@ -84,9 +63,8 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
 
     // 3) Per-base-triangle index buffer (record ordinal, or a special encoded
     // as its two's-complement uint32 bit-pattern — glTF/Vulkan convention).
-    // This is consumed by the BLAS build (vkCmdBuildAccelerationStructuresKHR),
-    // NOT the micromap build, so it carries the acceleration-structure build-input
-    // usage (the micromap-build-input flag is only for the data/triangle buffers).
+    // Consumed by the BLAS build through
+    // VkAccelerationStructureTrianglesOpacityMicromapKHR::indexBuffer.
     std::vector<std::uint32_t> indices{};
     indices.reserve(group.micromapIndices.size());
     for (const std::int32_t idx : group.micromapIndices) {
@@ -103,81 +81,73 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
         return std::unexpected(indexBuffer.error());
     }
 
-    // 4) Host-side usage histogram (VkMicromapUsageEXT is {u32,u32,u32} = 12B —
+    // 4) Host-side usage histogram (VkMicromapUsageKHR is {u32,u32,u32} = 12B —
     // NOT layout-compatible with the Aether struct — so build it here).
-    std::vector<VkMicromapUsageEXT> usage{};
+    std::vector<VkMicromapUsageKHR> usage{};
     usage.reserve(group.usage.size());
     for (const auto& u : group.usage) {
-        usage.push_back(VkMicromapUsageEXT{
+        usage.push_back(VkMicromapUsageKHR{
             .count = u.count,
             .subdivisionLevel = static_cast<std::uint32_t>(u.subdivisionLevel),
-            .format = static_cast<std::uint32_t>(u.format),
+            .format = static_cast<VkOpacityMicromapFormatKHR>(u.format),
         });
     }
 
-    // 5) Size the micromap + scratch from the usage histogram.
-    VkMicromapBuildInfoEXT buildInfo{};
-    buildInfo.sType = VK_STRUCTURE_TYPE_MICROMAP_BUILD_INFO_EXT;
-    buildInfo.type = VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT;
-    buildInfo.flags = VK_BUILD_MICROMAP_PREFER_FAST_TRACE_BIT_EXT;
-    buildInfo.mode = VK_BUILD_MICROMAP_MODE_BUILD_EXT;
-    buildInfo.dstMicromap = VK_NULL_HANDLE;
-    buildInfo.usageCountsCount = static_cast<std::uint32_t>(usage.size());
-    buildInfo.pUsageCounts = usage.data();
-    buildInfo.data.deviceAddress = dataBuffer->deviceAddress();
-    buildInfo.scratchData.deviceAddress = 0;
-    buildInfo.triangleArray.deviceAddress = triangleBuffer->deviceAddress();
-    buildInfo.triangleArrayStride = sizeof(VkMicromapTriangleEXT);
+    // 5) VK_KHR_opacity_micromap: micromaps ARE acceleration structures (the
+    // extension proposal's issue 6) — the build input is one
+    // VK_GEOMETRY_TYPE_MICROMAP_KHR geometry whose pNext carries data +
+    // triangle array + usage histogram.
+    VkAccelerationStructureGeometryMicromapDataKHR micromapData{};
+    micromapData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR;
+    micromapData.usageCountsCount = static_cast<std::uint32_t>(usage.size());
+    micromapData.pUsageCounts = usage.data();
+    micromapData.ppUsageCounts = nullptr;
+    micromapData.data = dataBuffer->deviceAddress();
+    micromapData.triangleArray = triangleBuffer->deviceAddress();
+    micromapData.triangleArrayStride = sizeof(VkMicromapTriangleKHR);
 
-    VkMicromapBuildSizesInfoEXT sizes{};
-    sizes.sType = VK_STRUCTURE_TYPE_MICROMAP_BUILD_SIZES_INFO_EXT;
-    vkGetMicromapBuildSizesEXT(ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, &sizes);
-    if (sizes.micromapSize == 0U) {
+    VkAccelerationStructureGeometryKHR geometry{};
+    geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+    geometry.pNext = &micromapData;
+    geometry.geometryType = VK_GEOMETRY_TYPE_MICROMAP_KHR;
+
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
+    buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR;
+    buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.geometryCount = 1;
+    buildInfo.pGeometries = &geometry;
+
+    // Micromap builds are usage-driven — pMaxPrimitiveCounts must be NULL for
+    // VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR.
+    VkAccelerationStructureBuildSizesInfoKHR sizes{};
+    sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+    vkGetAccelerationStructureBuildSizesKHR(
+        ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, nullptr, &sizes);
+    if (sizes.accelerationStructureSize == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
-    // 6) Storage buffer + VkMicromapEXT handle.
-    auto storage = Buffer::create(ctx,
-                                  sizes.micromapSize,
-                                  VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                  base + ".omm.storage");
-    if (!storage) {
-        return std::unexpected(storage.error());
+    // 6) Micromap object + scratch. MOD5: device-address-only creation via
+    // vkCreateAccelerationStructure2KHR — the micromap reuses the exact same path.
+    auto micromap = AccelerationStructure::create(
+        ctx, VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR, sizes.accelerationStructureSize, base + ".omm");
+    if (!micromap) {
+        return std::unexpected(micromap.error());
     }
-
-    const VkMicromapCreateInfoEXT createInfo{
-        .sType = VK_STRUCTURE_TYPE_MICROMAP_CREATE_INFO_EXT,
-        .pNext = nullptr,
-        .createFlags = 0,
-        .buffer = storage->handle(),
-        .offset = 0,
-        .size = sizes.micromapSize,
-        .type = VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT,
-        .deviceAddress = 0,
-    };
-
-    VkMicromapEXT handle{};
-    if (const VkResult result = vkCreateMicromapEXT(ctx.device, &createInfo, nullptr, &handle); result != VK_SUCCESS) {
-        return std::unexpected(result);
-    }
-
-    // 7) Scratch buffer (aligned), then record the build in a one-shot.
-    auto scratch = createMicromapScratch(ctx, sizes.buildScratchSize, base + ".omm.scratch");
+    auto scratch = createAccelerationStructureScratch(ctx, sizes, base + ".omm.scratch");
     if (!scratch) {
         return std::unexpected(scratch.error());
     }
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR asProps{};
-    asProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
-    VkPhysicalDeviceProperties2 props{};
-    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    props.pNext = &asProps;
-    vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &props);
-    const VkDeviceAddress scratchAddress =
-        bufferAlignUp(scratch->deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
 
-    buildInfo.dstMicromap = handle;
-    buildInfo.scratchData.deviceAddress = scratchAddress;
+    // 7) Record the device-side build in a one-shot (no host builds). Micromap
+    // geometry is usage-driven: each ppBuildRangeInfos entry must be NULL for
+    // VK_GEOMETRY_TYPE_MICROMAP_KHR (no per-geometry primitive counts).
+    buildInfo.dstAccelerationStructure = micromap->handle();
+    buildInfo.scratchData.deviceAddress = scratch->alignedAddress;
+
+    const VkAccelerationStructureBuildRangeInfoKHR* rangeInfos[] = {nullptr};
 
     auto buildPool = CommandPool::create(ctx, ctx.graphicsFamily);
     if (!buildPool) {
@@ -187,23 +157,17 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
     if (!cmd) {
         return std::unexpected(cmd.error());
     }
-    vkCmdBuildMicromapsEXT(*cmd, 1, &buildInfo);
+    vkCmdBuildAccelerationStructuresKHR(*cmd, 1, &buildInfo, rangeInfos);
     if (const VkResult result = buildPool->endOneShot(*cmd); result != VK_SUCCESS) {
         return std::unexpected(result);
-    }
-
-    if (!base.empty()) {
-        ctx.setDebugName(VK_OBJECT_TYPE_MICROMAP_EXT, handle, base.c_str());
     }
 
     Micromap out{};
     out.m_dataBuffer = std::move(*dataBuffer);
     out.m_triangleBuffer = std::move(*triangleBuffer);
-    out.m_storageBuffer = std::move(*storage);
-    out.m_scratchBuffer = std::move(*scratch);
     out.m_indexBuffer = std::move(*indexBuffer);
-    out.m_usage = std::move(usage);
-    out.m_handle = UniqueMicromapEXT{ctx.device, handle};
+    out.m_as = std::move(*micromap);
+    out.m_scratch = std::move(*scratch);
     out.m_indexCount = static_cast<std::uint32_t>(indices.size());
 
     Logger::info("MicromapBuilder '{}': {} base triangles ({} records, {}B data), micromap {}B",
@@ -211,7 +175,7 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
                  out.m_indexCount,
                  group.triangles.size(),
                  group.dataBits.size(),
-                 sizes.micromapSize);
+                 sizes.accelerationStructureSize);
     return out;
 }
 

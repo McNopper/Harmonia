@@ -5,24 +5,25 @@
 
 #include <cstdint>
 #include <expected>
-#include <span>
 #include <string_view>
-#include <vector>
 
 #include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
-#include "harmonia/core/VulkanHandle.hpp"
+#include "harmonia/renderer/AccelerationStructure.hpp"
 
 namespace harmonia {
 
-/// Move-only owner of a built opacity micromap (`VkMicromapEXT`) and all the
-/// device buffers it needs: the packed-state `data`, the per-record `triangle`
-/// array, the build `storage` + `scratch`, and the per-base-triangle
-/// `index` buffer that links BLAS triangles to micromap records. A `Micromap`
-/// must outlive any BLAS that references it — `TriangleMesh` owns both, so they
-/// share a lifetime.
+/// Move-only owner of a built opacity micromap and all the device buffers it
+/// needs: the packed-state `data`, the per-record `triangle` array, and the
+/// per-base-triangle `index` buffer that links BLAS triangles to micromap
+/// records. VK_KHR_opacity_micromap folds micromaps into the acceleration-
+/// structure API (the extension proposal's issue 6): the micromap IS an
+/// `AccelerationStructure` with `type = VK_ACCELERATION_STRUCTURE_TYPE_
+/// OPACITY_MICROMAP_KHR`, built through `vkCmdBuildAccelerationStructuresKHR`.
+/// A `Micromap` must outlive any BLAS that references it — `TriangleMesh` owns
+/// both, so they share a lifetime.
 class Micromap {
   public:
     Micromap() = default;
@@ -34,40 +35,35 @@ class Micromap {
     Micromap& operator=(const Micromap&) = delete;
 
     /// The built micromap handle — chain into
-    /// `VkAccelerationStructureTrianglesOpacityMicromapEXT::micromap`.
-    [[nodiscard]] VkMicromapEXT handle() const noexcept { return m_handle.get(); }
+    /// `VkAccelerationStructureTrianglesOpacityMicromapKHR::micromap`.
+    [[nodiscard]] VkAccelerationStructureKHR handle() const noexcept { return m_as.handle(); }
     /// Per-base-triangle index buffer device address
-    /// (`VkAccelerationStructureTrianglesOpacityMicromapEXT::indexBuffer`).
+    /// (`VkAccelerationStructureTrianglesOpacityMicromapKHR::indexBuffer`).
     [[nodiscard]] VkDeviceAddress indexBufferAddress() const noexcept { return m_indexBuffer.deviceAddress(); }
     /// One index per base triangle (the BLAS primitive count).
     [[nodiscard]] std::uint32_t indexCount() const noexcept { return m_indexCount; }
-    /// The converted `VkMicromapUsageEXT` histogram — feed into both
-    /// `VkMicromapBuildInfoEXT::pUsageCounts` and the BLAS-chain struct
-    /// `VkAccelerationStructureTrianglesOpacityMicromapEXT::pUsageCounts`.
-    [[nodiscard]] std::span<const VkMicromapUsageEXT> usage() const noexcept { return m_usage; }
 
   private:
     Buffer m_dataBuffer{};
     Buffer m_triangleBuffer{};
-    Buffer m_storageBuffer{};
-    Buffer m_scratchBuffer{};
     Buffer m_indexBuffer{};
-    std::vector<VkMicromapUsageEXT> m_usage;
-    UniqueMicromapEXT m_handle;
+    AccelerationStructure m_as{};
+    AccelerationStructureScratch m_scratch{};
     std::uint32_t m_indexCount = 0;
     friend class MicromapBuilder;
 };
 
-/// Builds a `VkMicromapEXT` (opacity micromap) from a parsed Aether group,
-/// mirroring the device-side-only `vkCmdBuildAccelerationStructuresKHR` rule
-/// (`vkCmdBuildMicromapsEXT`, no host builds). The capability is probed via
+/// Builds an opacity micromap from a parsed Aether group — device-side-only, via
+/// the VK_KHR_opacity_micromap acceleration-structure path
+/// (`vkCmdBuildAccelerationStructuresKHR` with `VK_GEOMETRY_TYPE_MICROMAP_KHR`;
+/// no host builds). The capability is probed via
 /// `DeviceContext::opacityMicromapSupported`; callers must gate on that.
 class MicromapBuilder {
   public:
     /// Build the micromap for @p group. Uploads the packed-state data, the
-    /// `VkMicromapTriangleEXT` records and the per-triangle index buffer, sizes
-    /// the storage/scratch from `vkGetMicromapBuildSizesEXT`, then records the
-    /// build in a one-shot command buffer.
+    /// `VkMicromapTriangleKHR` records and the per-triangle index buffer, sizes
+    /// the storage/scratch from `vkGetAccelerationStructureBuildSizesKHR`, then
+    /// records the build in a one-shot command buffer.
     [[nodiscard]] static std::expected<Micromap, VkResult> build(const DeviceContext& ctx,
                                                                  const CommandPool& pool,
                                                                  const aether::OpacityMicromapGroup& group,

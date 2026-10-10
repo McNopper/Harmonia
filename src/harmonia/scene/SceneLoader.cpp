@@ -295,16 +295,16 @@ void computeAlphaTested(SceneLoadContext& c, const aether::SceneDesc& desc) {
 }
 
 // Resolve the opacity-micromap references of one mesh: fail fast without
-// VK_EXT_opacity_micromap, parse each referenced .micromap.toml once (dedup by
+// VK_KHR_opacity_micromap, parse each referenced .micromap.toml once (dedup by
 // path) and map OBJ group name -> parsed group. The scene owns the parsed assets.
 [[nodiscard]] std::expected<std::unordered_map<std::string, const aether::OpacityMicromapGroup*>, VkResult>
 resolveMicromaps(SceneLoadContext& c, const aether::MeshDesc& m) {
     // Opacity-micromap references: a scene that uses an OMM requires
-    // VK_EXT_opacity_micromap — there is no opaque fallback (a cutout is not
+    // VK_KHR_opacity_micromap — there is no opaque fallback (a cutout is not
     // an image-identical absent-branch). Fail fast if the device lacks it.
     if (!m.opacityMicromaps.empty() && !c.ctx.opacityMicromapSupported) {
         Logger::error("SceneLoader: mesh '{}' uses opacity_micromaps but the device "
-                      "lacks VK_EXT_opacity_micromap",
+                      "lacks VK_KHR_opacity_micromap",
                       m.name);
         return std::unexpected(VK_ERROR_FEATURE_NOT_PRESENT);
     }

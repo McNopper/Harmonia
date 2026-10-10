@@ -225,7 +225,7 @@ tracked in `PLAN.md` §5.8 — audit refreshed 2026-09-29 (SDK 1.4.363 / driver 
 | `VK_EXT_ray_tracing_invocation_reorder` | `serSupported` | SER reorder hint (Hyperion/Theia RT) |
 | `VK_KHR_ray_tracing_position_fetch` | `positionFetchSupported` | Object-space vertex positions in RT hit shaders (the object-space position-fetch guardrail) |
 | `VK_EXT_device_generated_commands` | `dgcSupported` | GPU-generated mesh draw commands (Theia GD6) |
-| `VK_EXT_opacity_micromap` | `opacityMicromapSupported` | Per-microtriangle opacity for `geometry_opacity` cutouts (C14); scene load fails fast if a mesh needs it and the device lacks it |
+| `VK_KHR_opacity_micromap` | `opacityMicromapSupported` | Per-microtriangle opacity for `geometry_opacity` cutouts (C14); micromaps are acceleration structures (AS-create/build path — VK15); scene load fails fast if a mesh needs it and the device lacks it |
 | `VK_EXT_pageable_device_local_memory` (+ its dep `VK_EXT_memory_priority`) | `pageableMemorySupported` | Driver pageable device-local memory; VMA assigns priorities |
 | `VK_KHR_calibrated_timestamps` | `calibratedTimestampsSupported` | GPUâ†”host clock correlation (`vkGetCalibratedTimestampsKHR`); sampled once at startup (see `App::logGpuClockCalibration`) |
 | `VK_KHR_present_id` + `VK_KHR_present_id2` | `presentIdSupported` | Per-present monotonic ID tagging (MOD6: the v2 API is used; v1 is enabled as its declared dependency) |

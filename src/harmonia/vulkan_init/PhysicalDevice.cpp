@@ -366,7 +366,7 @@ bool PhysicalDevice::hasOpacityMicromapSupport(VkPhysicalDevice device) {
 
     bool extensionAvailable = false;
     for (const VkExtensionProperties& extension : extensions) {
-        if (std::string_view(extension.extensionName) == VK_EXT_OPACITY_MICROMAP_EXTENSION_NAME) {
+        if (std::string_view(extension.extensionName) == VK_KHR_OPACITY_MICROMAP_EXTENSION_NAME) {
             extensionAvailable = true;
             break;
         }
@@ -375,8 +375,8 @@ bool PhysicalDevice::hasOpacityMicromapSupport(VkPhysicalDevice device) {
         return false;
     }
 
-    VkPhysicalDeviceOpacityMicromapFeaturesEXT ommFeatures{};
-    ommFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT;
+    VkPhysicalDeviceOpacityMicromapFeaturesKHR ommFeatures{};
+    ommFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_KHR;
     VkPhysicalDeviceFeatures2 features2{};
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &ommFeatures;
