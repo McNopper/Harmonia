@@ -1,4 +1,4 @@
-#include "harmonia/renderer/MicromapBuilder.hpp"
+#include "harmonia/rt/MicromapBuilder.hpp"
 
 #include <cstddef>
 #include <cstdint>

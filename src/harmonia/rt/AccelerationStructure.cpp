@@ -1,4 +1,4 @@
-#include "harmonia/renderer/AccelerationStructure.hpp"
+#include "harmonia/rt/AccelerationStructure.hpp"
 
 #include <algorithm>
 #include <cstdint>

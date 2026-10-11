@@ -249,9 +249,9 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/core/Image.cpp
     src/harmonia/core/Logger.cpp
     src/harmonia/core/ShaderModule.cpp
-    src/harmonia/renderer/AccelerationStructure.cpp
-    src/harmonia/renderer/MicromapBuilder.cpp
-    src/harmonia/renderer/TlasBuilder.cpp
+    src/harmonia/rt/AccelerationStructure.cpp
+    src/harmonia/rt/MicromapBuilder.cpp
+    src/harmonia/rt/TlasBuilder.cpp
     src/harmonia/renderer/Camera.cpp
     src/harmonia/renderer/Descriptors.cpp
     src/harmonia/renderer/Pipeline.cpp

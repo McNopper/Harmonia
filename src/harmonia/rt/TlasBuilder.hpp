@@ -8,7 +8,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
-#include "harmonia/renderer/AccelerationStructure.hpp"
+#include "harmonia/rt/AccelerationStructure.hpp"
 
 namespace harmonia {
 

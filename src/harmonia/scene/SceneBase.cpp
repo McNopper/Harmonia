@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "harmonia/GpuTypes.hpp"
-#include "harmonia/renderer/TlasBuilder.hpp"
+#include "harmonia/rt/TlasBuilder.hpp"
 
 namespace harmonia {
 

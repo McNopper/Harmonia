@@ -18,7 +18,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
-#include "harmonia/renderer/AccelerationStructure.hpp"
+#include "harmonia/rt/AccelerationStructure.hpp"
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/Light.hpp"

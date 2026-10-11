@@ -1,4 +1,4 @@
-#include "harmonia/renderer/TlasBuilder.hpp"
+#include "harmonia/rt/TlasBuilder.hpp"
 
 #include <cstddef>
 #include <cstdint>
