@@ -132,6 +132,23 @@ further descriptor investment** (MOD1's `descriptor_buffer` is the current found
 verifying slang 2026.17 support before any use**. Standing cadence: each release carries at
 least one legacy→modern removal or capability adoption while the dev hardware supports it.
 
+**Quality track (code-quality-matrix audit 2026-10-11; same queue discipline as the Vulkan
+track).** Core gaps first — the matrix calls coverage *"the refactor safety net … the first
+gap to close"* and we are mid-structural-change:
+**Q1 coverage lane** — llvm-cov on the Clang lane + gcov/lcov on the GCC lane, wired into
+ctest/CI; **Q2 cppcheck** wired alongside clang-tidy (complementary analyzer — note the
+pre-existing empty `tools/cppcheck.supp` artifact in all five repos); **Q3 clang-format gate**
+(`--dry-run --Werror` — the configs exist, no gate); **Q4 SCA** — osv-scanner over the
+`vcpkg.json` manifests (+ free Dependabot/dependency-review-action); **Q5 Python tools lane**
+— Ruff + Bandit (+ mypy) over the 27 `tools/*.py` (Aether's 17 ship the asset pipeline);
+**Q6 CI config lint** — actionlint + yamllint over the five workflows. Baseline tier: `.editorconfig`.
+Optional tier (adopt when called for): libFuzzer targets for Aether's TOML/OBJ/OMM parsers,
+Doxygen, ScanCode (vendored trees), markdownlint/Vale over the 17 AGENTS/PLAN/README files,
+PSScriptAnalyzer (2 scripts). Architecture-rules cell = `tools/check_layers.py` (the layering
+wave). **Architecture item (rasterizer-base constraint):** Harmonia must not assume path
+tracking — split the scene GPU-upload path from the RT-build step so a rasterizer renderer
+can consume `scene` without `rt` (the `rt/` layer is the separable capability).
+
 **Excluded:** Neural network techniques (no training).
 
 > **Doctrine:** newer/better replaces old — drop, don't keep alongside. OpenPBR formulas
@@ -300,8 +317,9 @@ IS/QMC) → safe on the path to Hyperion.
 
 Theia's interactive GI runs on the ReSTIR family. Shipped state: **ReSTIR PT** — one unified
 reservoir driven by the shared path integrator, which **absorbs DI** (`useRestirDi` is forced
-false whenever PT is on, `Theia/src/demo/Application.cpp:460`; the DI candidate path lives
-inside the same reservoir, `GiPass.cpp:780`) — plus spatial-only path reuse (see the §8
+false whenever PT is on — the assignment in `buildGiFrameParams` (`Theia/src/demo/Application.cpp`);
+the DI candidate path lives inside the same reservoir — the reservoir writes in `GiPass.cpp`
+`updateDescriptors`) — plus spatial-only path reuse (see the §8
 no-temporal-merge guardrail) and A-SVGF as an interactive-only presentation stage. The
 2025–26 ReSTIR wave is tracked here; adopt per the **convergence-to-Hyperion invariant**
 (never bias Theia). The SIG 2026 session *"Efficient Sampling: ReSTIR and More"* is the
@@ -577,7 +595,7 @@ the wavefront rewrite.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| SM6-Harmonia | **slang-math v0.3.0 migration slice** — replace the hand-rolled saturate sites (`src/harmonia/scene/Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`, `Texture.cpp`, `CliParser.cpp`, `ColorSpace.cpp`, `IblProbe.cpp`), delete the dead `Math::isNanOrInf` (`src/harmonia/utils/Math.hpp:39`) + duplicate `kPi` constants, `IblProbe` hand-rolled `Mat3` → `sm::float3x3` (`IblProbe.cpp:128-160`), per-component trig in `IblProbe.cpp:280-281,327` / `Light.cpp:90-91` → SM2 functions, `Geometry.cpp` TRS → `sm::trs`, test-mirror `rsqrt` cleanup (`tests/unit/test_math.cpp:73`). `verify-full` + pin bump. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
+| SM6-Harmonia | **slang-math v0.3.0 migration slice** — replace the hand-rolled saturate sites (`src/harmonia/scene/Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`, `Texture.cpp`, `CliParser.cpp`, `ColorSpace.cpp`, `IblProbe.cpp`), delete the duplicate `kPi` constants (the dead `Math::isNanOrInf` was already deleted in H-04), `IblProbe` hand-rolled `Mat3` → `sm::float3x3` (`IblProbe.cpp:128-160`), per-component trig in `IblProbe.cpp` (`extractDominantSun`) / `Light.cpp:90-91` → SM2 functions, `Geometry.cpp` TRS → `sm::trs`, test-mirror `rsqrt` cleanup (`tests/unit/test_math.cpp:73`). `verify-full` + pin bump. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
 
 ---
 
@@ -773,13 +791,27 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
-- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.5**; Harmonia @ **v0.7.11**;
-  Hyperion @ **v0.7.11** (consumes v0.7.11 live); Theia @ **v0.7.12**. Verified:
-  `git ls-remote --tags origin` == `git tag -l` in all five repos, and the `FetchContent` pins
-  resolve (Theia → Harmonia v0.7.11; Hyperion → Harmonia v0.7.10, consuming v0.7.11 live;
-  Harmonia → Aether v0.7.4 — content-identical to v0.7.5 — + slang-math v0.3.0). GitHub
-  Releases are published as of this wave, gated on the dual-OS CI. The v0.7.10 tag was moved
-  once (15ddd42 → 0596f40) to include the GCC `-Wextra` fix before anything consumed it.
+- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.5**; Harmonia @ **v0.7.12**;
+  Hyperion @ **v0.7.12**; Theia @ **v0.7.13**. Verified: `git ls-remote --tags origin` ==
+  `git tag -l` in all five repos, and the `FetchContent` pins resolve (Theia → Harmonia
+  v0.7.12; Hyperion → Harmonia v0.7.12; Harmonia → Aether v0.7.4 — content-identical to
+  v0.7.5 — + slang-math v0.3.0). GitHub Releases are published as of this wave, gated on the
+  dual-OS CI. The v0.7.10 tag was moved once (15ddd42 → 0596f40) to include the GCC `-Wextra`
+  fix before anything consumed it.
+- **v0.7.12** (current; Theia bumped to v0.7.13, Hyperion to v0.7.12): **the layering wave.**
+  New `harmonia/rt/` layer (`AccelerationStructure`/`TlasBuilder`/`MicromapBuilder` promoted
+  out of `renderer/`) breaks the `scene`↔`renderer` cycle — strict DAG: `utils`/`core` →
+  `vulkan_init` → `rt` → `scene` → `renderer`/`pipeline`/`presentation` → `app`. Layered
+  namespaces `harmonia::<layer>` mirror the directories (flat `harmonia::` = the shared
+  vocabulary `DeviceContext`/`GpuTypes`); Hyperion's classes move to `namespace hyperion`
+  (Theia already `theia::`). `tools/check_layers.py` — the architecture-rules cell of the
+  code-quality matrix — enforces the include-graph allowlist + namespace-vs-directory as
+  ctest `test_layers`. **Rasterizer-base constraint recorded:** `rt` stays a separable
+  capability (roadmap item splits the scene upload from the RT-build step). Docs re-verified
+  against the code (layered names; two beyond-EOF line citations re-anchored to symbols; the
+  SM6 notes corrected — `Math::isNanOrInf` was deleted in H-04). **Verified:** 90/90 ctest
+  (incl. `test_layers`) on Windows and Linux; **zero validation errors and warnings**; the
+  full 30-scene gallery regenerated pixel-identical (MAD = 0) across all 60 renders.
 - **v0.7.11** (current; Theia bumped to v0.7.12 with it, Hyperion consumes live; Aether /
   slang-math unchanged): **VK15 — opacity micromap on the KHR acceleration-structure API.**
   `VK_KHR_opacity_micromap` is **not** a rename (extension proposal issue 5: "not an exact

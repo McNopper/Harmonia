@@ -8,10 +8,10 @@ Quick-start context for AI agents so basic facts don't have to be rediscovered e
 ## What this repo is
 
 **Harmonia** is the shared **Vulkan pipeline library** used 1:1 by both renderers.
-It owns the `harmonia::App` host (windowing, swapchain, offscreen capture, arg parsing),
+It owns the `harmonia::app::App` host (windowing, swapchain, offscreen capture, arg parsing),
 the SPIR-V/Slang shader loading (`compile_slang_shaders`, `createShaderModule`), color-space
 utilities, image I/O, tonemapping, the shared `path_integrator.slang` estimator + denoiser
-stage, and the `harmonia::IRenderer` interface.
+stage, and the `harmonia::app::IRenderer` interface.
 
 Pipeline (dependency direction):
 
@@ -69,10 +69,10 @@ an Ã -trous wavelet edge-stopping filter + temporal accumulation â€” a **
 forced off for `--output`/`--no-postfx` (fixed pixel radius â‡’ non-converging; see the two-tier
 output contract in README).
 
-Hyperion/Theia demos are thin subclasses of `harmonia::App` injecting a `harmonia::IRenderer`.
+Hyperion/Theia demos are thin subclasses of `harmonia::app::App` injecting a `harmonia::app::IRenderer`.
 Shaders load from `*_SHADER_DIR`, never CWD.
 
-## CLI flags (parsed by `harmonia::App::applyCommonArg`)
+## CLI flags (parsed by `harmonia::app::App::applyCommonArg`)
 
 These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 

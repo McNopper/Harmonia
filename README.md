@@ -25,9 +25,9 @@ flowchart LR
 
 ## Scope
 
-- **Application host** — `harmonia::App`: window, swapchain, HDR render target,
+- **Application host** — `harmonia::app::App`: window, swapchain, HDR render target,
   tonemap + present loop, IBL probe wiring, scene loading and offscreen (headless)
-  rendering; renderers plug in via the `harmonia::IRenderer` interface
+  rendering; renderers plug in via the `harmonia::app::IRenderer` interface
 - **Vulkan core** — device/context (incl. optional ray-tracing and `VK_EXT_mesh_shader`
   when supported), buffers, images, command pools, queues, barriers, logging, timers
 - **Shared GPU types** — `GpuVertex`, `GpuMaterial`, `GpuLight`, `GpuEmissiveTriangle`,
@@ -59,7 +59,7 @@ flowchart LR
 
 It does **not** contain a renderer or a renderer's GPU scene. Hyperion provides the
 offline path tracer, Theia the real-time forward renderer; both demos are thin
-subclasses of `harmonia::App` that inject their renderer through `harmonia::IRenderer`,
+subclasses of `harmonia::app::App` that inject their renderer through `harmonia::app::IRenderer`,
 and **each renderer owns its own `Scene` and `GpuInstance` layout** — Hyperion's is built
 around index buffers and a ray-tracing pipeline, Theia's around meshlets and mesh shaders.
 Only types and code that are shared **1:1** live here; anything that diverges per renderer
