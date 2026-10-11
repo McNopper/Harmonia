@@ -12,7 +12,7 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 
-namespace harmonia {
+namespace harmonia::pipeline {
 
 struct PassContext;
 
@@ -42,16 +42,16 @@ class AccumulationPass final : public IRenderPass {
     void resetHistory(std::uint64_t resetToken) noexcept;
 
     const DeviceContext* m_ctx = nullptr;
-    UniquePipeline m_pipeline;
-    UniquePipelineLayout m_pipelineLayout;
-    UniqueDescriptorSetLayout m_setLayout;
+    core::UniquePipeline m_pipeline;
+    core::UniquePipelineLayout m_pipelineLayout;
+    core::UniqueDescriptorSetLayout m_setLayout;
 
-    Image m_historyImage{};
+    core::Image m_historyImage{};
     VkExtent2D m_extent{};
     std::uint32_t m_sampleCount = 0;
     std::uint64_t m_lastResetToken = 0;
     bool m_historyFirstUse = true;
 };
 
-} // namespace harmonia
+} // namespace harmonia::pipeline
 #endif // HARMONIA_PIPELINE_ACCUMULATIONPASS_HPP

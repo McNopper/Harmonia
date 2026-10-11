@@ -6,7 +6,7 @@
 #include "harmonia/presentation/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 /// Per-frame target a renderer draws into, supplied by the host (App) each
 /// frame.
@@ -14,7 +14,7 @@ namespace harmonia {
 /// Scene-referred renderers (Hyperion's path tracer, Theia's forward stack)
 /// receive the host's linear HDR image: all values are linear radiometric
 /// quantities in @ref workingColorSpace. The renderer must leave the image in
-/// VK_IMAGE_LAYOUT_GENERAL; the host then runs the shared ToneMapper — the
+/// VK_IMAGE_LAYOUT_GENERAL; the host then runs the shared presentation::ToneMapper — the
 /// glue between the scene-referred and display-referred states — and presents.
 ///
 /// Display-referred renderers (future post-tonemap stage) will instead receive
@@ -24,15 +24,15 @@ struct RenderTarget {
     VkImageView view = VK_NULL_HANDLE;
     VkExtent2D extent = {};
     /// Display-referred output encoding (meaningful post-tonemap).
-    OutputColorSpace colorSpace = OutputColorSpace::eSDR;
+    utils::OutputColorSpace colorSpace = utils::OutputColorSpace::eSDR;
     /// Scene-referred working color space (always linear; meaningful pre-tonemap).
-    ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
+    utils::ColorSpace::WorkingColorSpace workingColorSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020;
 };
 
 /// Minimal renderer interface. Harmonia ships a trivial green-screen default;
 /// Hyperion (offline path tracer) and Theia (real-time forward renderer) plug
 /// in their own implementation, driven by Harmonia's Vulkan context/device,
-/// swapchain, tone mapping and presentation (see harmonia::App).
+/// swapchain, tone mapping and presentation (see harmonia::app::App).
 class IRenderer {
   public:
     IRenderer() = default;
@@ -48,7 +48,7 @@ class IRenderer {
     /// VK_IMAGE_LAYOUT_GENERAL for the host's tonemap pass.
     virtual void record(VkCommandBuffer cmd, const RenderTarget& target) noexcept = 0;
 
-    /// Pipeline stage(s) that produce the renderer's final write into the
+    /// renderer::Pipeline stage(s) that produce the renderer's final write into the
     /// target — used by the host for the pre-tonemap barrier.
     [[nodiscard]] virtual VkPipelineStageFlags2 outputStageMask() const noexcept {
         return VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
@@ -74,5 +74,5 @@ class IRenderer {
     [[nodiscard]] virtual const char* name() const noexcept = 0;
 };
 
-} // namespace harmonia
+} // namespace harmonia::app
 #endif // HARMONIA_APP_IRENDERER_HPP

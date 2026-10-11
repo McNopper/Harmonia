@@ -17,9 +17,9 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
-/// Image-based lighting probe loaded from an equirectangular HDR panorama (EXR).
+/// core::Image-based lighting probe loaded from an equirectangular HDR panorama (EXR).
 ///
 /// The panorama is stored on the GPU as a 2D RGBA32F texture in the scene's
 /// (linear) working color space. The source primaries are read from the EXR
@@ -44,17 +44,17 @@ class IblProbe {
     /// Requires HARMONIA_HAS_OPENEXR; returns VK_ERROR_FEATURE_NOT_PRESENT otherwise.
     [[nodiscard]] static std::expected<IblProbe, VkResult> loadFromEXR(
         const DeviceContext& ctx,
-        const CommandPool& pool,
+        const core::CommandPool& pool,
         const std::filesystem::path& path,
-        harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
 
     [[nodiscard]] VkImageView imageView() const noexcept { return m_image.view(); }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }
     [[nodiscard]] bool isValid() const noexcept { return m_sampler != VK_NULL_HANDLE; }
 
     /// CDF buffers for 2D env importance sampling (valid when cdfWidth() > 0).
-    [[nodiscard]] const Buffer& marginalCdfBuffer() const noexcept { return m_marginalCdf; }
-    [[nodiscard]] const Buffer& conditionalCdfBuffer() const noexcept { return m_conditionalCdf; }
+    [[nodiscard]] const core::Buffer& marginalCdfBuffer() const noexcept { return m_marginalCdf; }
+    [[nodiscard]] const core::Buffer& conditionalCdfBuffer() const noexcept { return m_conditionalCdf; }
     [[nodiscard]] std::uint32_t cdfWidth() const noexcept { return m_cdfWidth; }
     [[nodiscard]] std::uint32_t cdfHeight() const noexcept { return m_cdfHeight; }
 
@@ -80,10 +80,10 @@ class IblProbe {
                                                              std::size_t width,
                                                              std::size_t height,
                                                              bool srcRec2020,
-                                                             harmonia::ColorSpace::WorkingColorSpace workingSpace);
+                                                             harmonia::utils::ColorSpace::WorkingColorSpace workingSpace);
     [[nodiscard]] static VkResult uploadEnvPanorama(IblProbe& probe,
                                                     const DeviceContext& ctx,
-                                                    const CommandPool& pool,
+                                                    const core::CommandPool& pool,
                                                     const std::vector<float>& rgba32f,
                                                     std::size_t width,
                                                     std::size_t height);
@@ -99,11 +99,11 @@ class IblProbe {
                                    double sunAvgSum,
                                    std::size_t sunAvgCount);
 
-    Image m_image{};
-    harmonia::UniqueSampler m_sampler;
+    core::Image m_image{};
+    harmonia::core::UniqueSampler m_sampler;
 
-    Buffer m_marginalCdf{};    ///< (H+1) floats: normalised marginal CDF over rows
-    Buffer m_conditionalCdf{}; ///< H*(W+1) floats: normalised conditional CDF per row
+    core::Buffer m_marginalCdf{};    ///< (H+1) floats: normalised marginal CDF over rows
+    core::Buffer m_conditionalCdf{}; ///< H*(W+1) floats: normalised conditional CDF per row
     std::uint32_t m_cdfWidth{0};
     std::uint32_t m_cdfHeight{0};
 
@@ -111,6 +111,6 @@ class IblProbe {
     float m_sunStrength{0.0f};                   ///< [0,1] concentration of the dominant light
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_IBLPROBE_HPP

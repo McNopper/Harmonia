@@ -17,7 +17,7 @@
 namespace {
 
 [[nodiscard]] sm::float4
-readFirstPixel(harmonia::CommandPool& commandPool, harmonia::Image& image, harmonia::Buffer& readback) {
+readFirstPixel(harmonia::core::CommandPool& commandPool, harmonia::core::Image& image, harmonia::core::Buffer& readback) {
     auto cmd = commandPool.beginOneShot();
     EXPECT_TRUE(cmd.has_value()) << static_cast<int>(cmd.error());
     if (!cmd) {
@@ -62,7 +62,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
     constexpr VkDeviceSize kReadbackBytes =
         static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
 
-    auto hdr = harmonia::Image::create(deviceCtx(),
+    auto hdr = harmonia::core::Image::create(deviceCtx(),
                                        kExtent,
                                        VK_FORMAT_R32G32B32A32_SFLOAT,
                                        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -71,7 +71,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
                                        "test.accum.hdr");
     ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
 
-    auto readback = harmonia::Buffer::create(deviceCtx(),
+    auto readback = harmonia::core::Buffer::create(deviceCtx(),
                                              kReadbackBytes,
                                              VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                              VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -79,7 +79,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
     ASSERT_TRUE(readback.has_value()) << static_cast<int>(readback.error());
     ASSERT_NE(readback->mappedData(), nullptr);
 
-    auto pass = harmonia::AccumulationPass::create(
+    auto pass = harmonia::pipeline::AccumulationPass::create(
         deviceCtx(), kExtent, std::filesystem::path(HARMONIA_SHADER_DIR) / "accumulation.spv");
     ASSERT_TRUE(pass.has_value()) << static_cast<int>(pass.error());
     pass->onResize(kExtent);
@@ -123,7 +123,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
                         VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
                             VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
-        const harmonia::PassContext passContext{
+        const harmonia::pipeline::PassContext passContext{
             .cmd = *cmd,
             .frameIndex = static_cast<std::uint32_t>(frame),
             .extent = kExtent,
@@ -132,7 +132,7 @@ TEST_F(VulkanFixture, AccumulationPass_ComputesRunningAverage) {
             .hdrBuffer = &*hdr,
             .denoised = nullptr,
             .swapchainView = VK_NULL_HANDLE,
-            .colorSpace = harmonia::OutputColorSpace::eSDR,
+            .colorSpace = harmonia::utils::OutputColorSpace::eSDR,
         };
         pass->record(passContext);
         ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
@@ -158,7 +158,7 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
     constexpr VkDeviceSize kReadbackBytes =
         static_cast<VkDeviceSize>(kExtent.width) * kExtent.height * sizeof(sm::float4);
 
-    auto hdr = harmonia::Image::create(deviceCtx(),
+    auto hdr = harmonia::core::Image::create(deviceCtx(),
                                        kExtent,
                                        VK_FORMAT_R32G32B32A32_SFLOAT,
                                        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -167,7 +167,7 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
                                        "test.accum.reset.hdr");
     ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
 
-    auto readback = harmonia::Buffer::create(deviceCtx(),
+    auto readback = harmonia::core::Buffer::create(deviceCtx(),
                                              kReadbackBytes,
                                              VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                              VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -175,7 +175,7 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
     ASSERT_TRUE(readback.has_value()) << static_cast<int>(readback.error());
     ASSERT_NE(readback->mappedData(), nullptr);
 
-    auto pass = harmonia::AccumulationPass::create(
+    auto pass = harmonia::pipeline::AccumulationPass::create(
         deviceCtx(), kExtent, std::filesystem::path(HARMONIA_SHADER_DIR) / "accumulation.spv");
     ASSERT_TRUE(pass.has_value()) << static_cast<int>(pass.error());
     pass->onResize(kExtent);
@@ -219,7 +219,7 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
                         VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
                             VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
-        const harmonia::PassContext passContext{
+        const harmonia::pipeline::PassContext passContext{
             .cmd = *cmd,
             .frameIndex = static_cast<std::uint32_t>(frame),
             .extent = kExtent,
@@ -228,7 +228,7 @@ TEST_F(VulkanFixture, AccumulationPass_ResetTokenInvalidatesHistory) {
             .hdrBuffer = &*hdr,
             .denoised = nullptr,
             .swapchainView = VK_NULL_HANDLE,
-            .colorSpace = harmonia::OutputColorSpace::eSDR,
+            .colorSpace = harmonia::utils::OutputColorSpace::eSDR,
         };
         pass->record(passContext);
         ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);

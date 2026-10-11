@@ -10,7 +10,7 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 namespace {
 constexpr std::size_t kMinBufferSize = 16;
@@ -312,13 +312,13 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
     // MOD2: timeline semaphore replaces VkFence for staging-upload completion.
     VkSemaphore semaphore = VK_NULL_HANDLE;
     if (result == VK_SUCCESS) {
-        result = harmonia::createTimelineSemaphore(m_device, &semaphore);
+        result = harmonia::core::createTimelineSemaphore(m_device, &semaphore);
     }
     if (result == VK_SUCCESS) {
-        result = harmonia::submitOneShot(m_queue, cmd, semaphore, 1);
+        result = harmonia::core::submitOneShot(m_queue, cmd, semaphore, 1);
     }
     if (result == VK_SUCCESS) {
-        result = harmonia::waitTimelineSemaphore(m_device, semaphore, 1);
+        result = harmonia::core::waitTimelineSemaphore(m_device, semaphore, 1);
     }
 
     if (result != VK_SUCCESS) {
@@ -352,4 +352,4 @@ void Buffer::destroy() noexcept {
     m_mapped = nullptr;
 }
 
-} // namespace harmonia
+} // namespace harmonia::core

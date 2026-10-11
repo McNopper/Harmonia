@@ -9,19 +9,19 @@
 
 #include "harmonia/core/Logger.hpp"
 
-namespace harmonia {
+namespace harmonia::rt {
 
 namespace {
 
 /// Upload a host byte span to a device-local buffer with device-address +
 /// acceleration-structure-build-input usage, aligned to 256 bytes (micromap
 /// data/triangleArray device addresses must be 256-aligned).
-[[nodiscard]] std::expected<Buffer, VkResult> uploadMicromapInput(const DeviceContext& ctx,
-                                                                  const CommandPool& pool,
+[[nodiscard]] std::expected<core::Buffer, VkResult> uploadMicromapInput(const DeviceContext& ctx,
+                                                                  const core::CommandPool& pool,
                                                                   std::span<const std::byte> bytes,
                                                                   std::string_view name) {
     constexpr VkDeviceSize kMicromapDataAlignment = 256;
-    return Buffer::upload(ctx,
+    return core::Buffer::upload(ctx,
                           pool,
                           bytes,
                           VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
@@ -33,7 +33,7 @@ namespace {
 } // namespace
 
 std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ctx,
-                                                         const CommandPool& pool,
+                                                         const core::CommandPool& pool,
                                                          const aether::OpacityMicromapGroup& group,
                                                          std::string_view debugName) {
     const std::string base = debugName.empty() ? std::string("omm") : std::string(debugName);
@@ -70,7 +70,7 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
     for (const std::int32_t idx : group.micromapIndices) {
         indices.push_back(static_cast<std::uint32_t>(idx)); // two's-complement for negatives
     }
-    auto indexBuffer = Buffer::upload(ctx,
+    auto indexBuffer = core::Buffer::upload(ctx,
                                       pool,
                                       std::as_bytes(std::span<const std::uint32_t>(indices.data(), indices.size())),
                                       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
@@ -149,7 +149,7 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
 
     const VkAccelerationStructureBuildRangeInfoKHR* rangeInfos[] = {nullptr};
 
-    auto buildPool = CommandPool::create(ctx, ctx.graphicsFamily);
+    auto buildPool = core::CommandPool::create(ctx, ctx.graphicsFamily);
     if (!buildPool) {
         return std::unexpected(buildPool.error());
     }
@@ -170,7 +170,7 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
     out.m_scratch = std::move(*scratch);
     out.m_indexCount = static_cast<std::uint32_t>(indices.size());
 
-    Logger::info("MicromapBuilder '{}': {} base triangles ({} records, {}B data), micromap {}B",
+    core::Logger::info("MicromapBuilder '{}': {} base triangles ({} records, {}B data), micromap {}B",
                  base,
                  out.m_indexCount,
                  group.triangles.size(),
@@ -179,4 +179,4 @@ std::expected<Micromap, VkResult> MicromapBuilder::build(const DeviceContext& ct
     return out;
 }
 
-} // namespace harmonia
+} // namespace harmonia::rt

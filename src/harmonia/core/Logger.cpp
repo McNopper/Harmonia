@@ -4,7 +4,7 @@
 #include <mutex>
 #include <print>
 
-namespace harmonia {
+namespace harmonia::core {
 
 namespace {
 std::mutex& logMutex() {
@@ -49,4 +49,4 @@ void Logger::log(Level level, std::string message) {
     std::fflush(stream);
 }
 
-} // namespace harmonia
+} // namespace harmonia::core

@@ -7,7 +7,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 class CommandPool {
   public:
@@ -31,10 +31,10 @@ class CommandPool {
 
   private:
     VkDevice m_device = VK_NULL_HANDLE;
-    harmonia::UniqueCommandPool m_pool;
+    harmonia::core::UniqueCommandPool m_pool;
     VkQueue m_queue = VK_NULL_HANDLE;
 };
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_COMMANDPOOL_HPP

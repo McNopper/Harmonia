@@ -9,7 +9,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 class CommandPool;
 
@@ -67,6 +67,6 @@ class Buffer {
     void* m_mapped = nullptr;
 };
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_BUFFER_HPP

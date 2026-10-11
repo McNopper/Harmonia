@@ -10,7 +10,7 @@
 
 #include "harmonia/GpuTypes.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Photometric unit for light intensity input.
 enum class IntensityUnit : std::uint32_t {
@@ -90,7 +90,7 @@ class DirectionalLight final : public Light {
     GpuLight toGpu() const noexcept override;
 };
 
-/// Image-based sky / ambient light.
+/// core::Image-based sky / ambient light.
 /// Intensity unit: cd/m² (average sky luminance).
 /// The actual IBL texture is managed separately; this carries the tint and scale.
 class SkyLight final : public Light {
@@ -101,6 +101,6 @@ class SkyLight final : public Light {
     GpuLight toGpu() const noexcept override;
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_LIGHT_HPP

@@ -35,7 +35,7 @@ void expectValidCdf(const std::vector<float>& cdf) {
 // appendSphereEmissive (InstanceRecord::xform.matrix()).
 sm::float4x4
 placement(sm::float3 translation, sm::float3 scale, sm::quaternion rotation = sm::identity<sm::quaternion>()) {
-    harmonia::Xform xform;
+    harmonia::scene::Xform xform;
     xform.translation = translation;
     xform.rotation = rotation;
     xform.scale = scale;
@@ -65,20 +65,20 @@ std::vector<float> cdfSelectionFrequencies(const std::vector<float>& cdf, std::u
 
 TEST(EmissiveCdf, EmptyReturnsSentinel) {
     const std::vector<float> power;
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf(power);
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf(power);
     ASSERT_EQ(cdf.size(), 1u);
     EXPECT_NEAR(cdf.back(), 1.0F, kEpsilon);
 }
 
 TEST(EmissiveCdf, SingleEmitterIsOne) {
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf({42.0F});
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf({42.0F});
     ASSERT_EQ(cdf.size(), 1u);
     EXPECT_NEAR(cdf.front(), 1.0F, kEpsilon);
 }
 
 TEST(EmissiveCdf, EqualPowersAreUniform) {
     // Three equal-power emitters → a uniform selection CDF: [1/3, 2/3, 1].
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf({5.0F, 5.0F, 5.0F});
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf({5.0F, 5.0F, 5.0F});
     ASSERT_EQ(cdf.size(), 3u);
     expectValidCdf(cdf);
     EXPECT_NEAR(cdf[0], 1.0F / 3.0F, kEpsilon);
@@ -87,7 +87,7 @@ TEST(EmissiveCdf, EqualPowersAreUniform) {
 
 TEST(EmissiveCdf, ProportionalToPower) {
     // powers [1, 1, 2] → total 4 → cdf [0.25, 0.5, 1.0].
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf({1.0F, 1.0F, 2.0F});
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf({1.0F, 1.0F, 2.0F});
     ASSERT_EQ(cdf.size(), 3u);
     expectValidCdf(cdf);
     EXPECT_NEAR(cdf[0], 0.25F, kEpsilon);
@@ -97,7 +97,7 @@ TEST(EmissiveCdf, ProportionalToPower) {
 
 TEST(EmissiveCdf, AllZeroPowersFallBackToUniform) {
     // Degenerate/black emitters (all zero power) → uniform CDF so sampling stays valid.
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf({0.0F, 0.0F, 0.0F, 0.0F});
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf({0.0F, 0.0F, 0.0F, 0.0F});
     ASSERT_EQ(cdf.size(), 4u);
     expectValidCdf(cdf);
     for (std::uint32_t i = 0; i < 4u; ++i) {
@@ -108,7 +108,7 @@ TEST(EmissiveCdf, AllZeroPowersFallBackToUniform) {
 TEST(EmissiveCdf, RoundingGuardForcesLastToOne) {
     // Many tiny equal powers can accumulate double-precision drift; the builder pins cdf[N-1]=1.
     std::vector<float> power(1000, 1.0e-3F);
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf(power);
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf(power);
     ASSERT_EQ(cdf.size(), 1000u);
     expectValidCdf(cdf);
 }
@@ -117,7 +117,7 @@ TEST(EmissiveCdf, RoundingGuardForcesLastToOne) {
 // power_i / totalPower. Verify empirically by sampling the CDF with a uniform variate.
 TEST(EmissiveCdf, SamplingMatchesPowerDistribution) {
     const std::vector<float> power{1.0F, 3.0F, 2.0F}; // selection probs {0.1667, 0.5, 0.3333}
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf(power);
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf(power);
     const float total = 6.0F;
 
     const std::uint32_t steps = 10000u;
@@ -148,8 +148,8 @@ TEST(EmissiveCdf, SamplingMatchesPowerDistribution) {
 TEST(SphereEmissive, TaggedWithTheSphereKind) {
     // The tagged union must announce itself as a sphere; the GPU dispatches the whole
     // cone-sampling branch on kind_pad.x == kEmissiveSphere.
-    harmonia::EmissiveData data;
-    const harmonia::SphereEmissive packed = harmonia::appendSphereEmissive(
+    harmonia::scene::EmissiveData data;
+    const harmonia::scene::SphereEmissive packed = harmonia::scene::appendSphereEmissive(
         data, 0.7F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
 
     ASSERT_EQ(data.triangles.size(), 1u);
@@ -161,8 +161,8 @@ TEST(SphereEmissive, TaggedWithTheSphereKind) {
 TEST(SphereEmissive, PacksWorldCentreAndRadius) {
     // v0_area is overloaded for spheres: xyz = world centre, w = world radius. The shader
     // reads it back verbatim, so the round-trip through the instance transform must be exact.
-    harmonia::EmissiveData data;
-    harmonia::appendSphereEmissive(data, 0.7F, placement({1.0F, 2.0F, 3.0F}, {2.0F, 2.0F, 2.0F}), {1.0F, 1.0F, 1.0F});
+    harmonia::scene::EmissiveData data;
+    harmonia::scene::appendSphereEmissive(data, 0.7F, placement({1.0F, 2.0F, 3.0F}, {2.0F, 2.0F, 2.0F}), {1.0F, 1.0F, 1.0F});
 
     ASSERT_EQ(data.triangles.size(), 1u);
     const harmonia::GpuEmissiveTriangle& e = data.triangles.front();
@@ -181,8 +181,8 @@ TEST(SphereEmissive, RadiusIsRotationInvariant) {
     // particular may not trip the non-uniform-scale detection.
     // Unit quaternion: 0.9 rad about normalize(1, 2, -0.5) — a tilt on every axis.
     const sm::quaternion tilt{0.189834F, 0.379668F, -0.094917F, 0.900447F};
-    harmonia::EmissiveData data;
-    const harmonia::SphereEmissive packed = harmonia::appendSphereEmissive(
+    harmonia::scene::EmissiveData data;
+    const harmonia::scene::SphereEmissive packed = harmonia::scene::appendSphereEmissive(
         data, 0.7F, placement({0.0F, 1.0F, 0.0F}, {3.0F, 3.0F, 3.0F}, tilt), {1.0F, 1.0F, 1.0F});
 
     EXPECT_TRUE(packed.uniform);
@@ -193,8 +193,8 @@ TEST(SphereEmissive, PowerIsSphereAreaTimesLuminance) {
     // Power must be 4πr² × luminance(Le) — the same area × luminance unit the triangle
     // branch produces, otherwise the shared CDF ranks the two emitter kinds against
     // incompatible numbers. Rec.2020 luminance of white is exactly 1.
-    harmonia::EmissiveData data;
-    const harmonia::SphereEmissive packed = harmonia::appendSphereEmissive(
+    harmonia::scene::EmissiveData data;
+    const harmonia::scene::SphereEmissive packed = harmonia::scene::appendSphereEmissive(
         data, 0.5F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {2.0F, 2.0F, 2.0F});
 
     const float expected = 4.0F * std::numbers::pi_v<float> * 0.5F * 0.5F * 2.0F;
@@ -205,8 +205,8 @@ TEST(SphereEmissive, PowerIsSphereAreaTimesLuminance) {
 
 TEST(SphereEmissive, PowerUsesRec2020Luminance) {
     // Non-white emission is weighted by the same Rec.2020 coefficients as the triangles.
-    harmonia::EmissiveData data;
-    harmonia::appendSphereEmissive(data, 1.0F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 0.0F, 0.0F});
+    harmonia::scene::EmissiveData data;
+    harmonia::scene::appendSphereEmissive(data, 1.0F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 0.0F, 0.0F});
 
     ASSERT_EQ(data.power.size(), 1u);
     EXPECT_NEAR(data.power.front(), 4.0F * std::numbers::pi_v<float> * 0.2627F, 1.0e-5F);
@@ -215,7 +215,7 @@ TEST(SphereEmissive, PowerUsesRec2020Luminance) {
 TEST(SphereEmissive, IsIncludedInTheEmitterCount) {
     // emissiveTriangleCount is triangles.size(); a sphere must occupy one slot in BOTH
     // arrays or the CDF and the buffer fall out of step and NEE indexes the wrong emitter.
-    harmonia::EmissiveData data;
+    harmonia::scene::EmissiveData data;
     data.triangles.push_back(harmonia::GpuEmissiveTriangle{
         .v0_area = sm::float4{0.0F, 0.0F, 0.0F, 1.0F},
         .edge1_emitR = sm::float4{1.0F, 0.0F, 0.0F, 1.0F},
@@ -225,7 +225,7 @@ TEST(SphereEmissive, IsIncludedInTheEmitterCount) {
     });
     data.power.push_back(1.0F);
 
-    harmonia::appendSphereEmissive(data, 0.7F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
+    harmonia::scene::appendSphereEmissive(data, 0.7F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
 
     ASSERT_EQ(data.triangles.size(), 2u);
     ASSERT_EQ(data.power.size(), data.triangles.size());
@@ -237,8 +237,8 @@ TEST(SphereEmissive, IsIncludedInTheEmitterCount) {
 TEST(SphereEmissive, ZeroScaleIsSkipped) {
     // A collapsed instance has no surface to sample; it must not enter the buffer at all
     // (a radius-0 entry would make the cone solid angle 0 and the pdf infinite).
-    harmonia::EmissiveData data;
-    const harmonia::SphereEmissive packed = harmonia::appendSphereEmissive(
+    harmonia::scene::EmissiveData data;
+    const harmonia::scene::SphereEmissive packed = harmonia::scene::appendSphereEmissive(
         data, 0.7F, placement({0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}), {1.0F, 1.0F, 1.0F});
 
     EXPECT_EQ(packed.radius, 0.0F);
@@ -252,8 +252,8 @@ TEST(SphereEmissive, NonUniformScaleIsSkippedAsUnsupported) {
     // enclosing sphere would hand back a lit point, a normal and a shadow-ray tMax belonging
     // to different geometry than the traced surface, so the emitter is skipped (and reported
     // via the Logger warning in buildEmissiveData) rather than silently mis-sampled.
-    harmonia::EmissiveData data;
-    const harmonia::SphereEmissive packed = harmonia::appendSphereEmissive(
+    harmonia::scene::EmissiveData data;
+    const harmonia::scene::SphereEmissive packed = harmonia::scene::appendSphereEmissive(
         data, 1.0F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 3.0F, 2.0F}), {1.0F, 1.0F, 1.0F});
 
     EXPECT_FALSE(packed.uniform);
@@ -266,8 +266,8 @@ TEST(SphereEmissive, NonUniformScaleIsSkippedAsUnsupported) {
 }
 
 TEST(SphereEmissive, UniformScaleIsNotFlagged) {
-    harmonia::EmissiveData data;
-    const harmonia::SphereEmissive packed = harmonia::appendSphereEmissive(
+    harmonia::scene::EmissiveData data;
+    const harmonia::scene::SphereEmissive packed = harmonia::scene::appendSphereEmissive(
         data, 0.25F, placement({-1.0F, 0.5F, 2.0F}, {4.0F, 4.0F, 4.0F}), {1.0F, 1.0F, 1.0F});
 
     EXPECT_TRUE(packed.uniform);
@@ -278,7 +278,7 @@ TEST(EmissiveCdf, MixedSphereAndTriangleSelectProportionallyToPower) {
     // The single power CDF ranks spheres and triangles together, so their power expressions
     // must share a unit (4πr²·lum vs area·lum). Build a mixed set the way buildEmissiveData
     // does and check the selection frequencies land on power_i / Σpower.
-    harmonia::EmissiveData data;
+    harmonia::scene::EmissiveData data;
 
     // Two unit-luminance triangles of area 2 and 6 (pushed exactly as the triangle branch does).
     const std::vector<float> triAreas{2.0F, 6.0F};
@@ -293,12 +293,12 @@ TEST(EmissiveCdf, MixedSphereAndTriangleSelectProportionallyToPower) {
         data.power.push_back(area); // area × luminance(white) == area
     }
     // One unit-luminance sphere of world radius 1 → power 4π ≈ 12.566.
-    harmonia::appendSphereEmissive(data, 1.0F, placement({0.0F, 3.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
+    harmonia::scene::appendSphereEmissive(data, 1.0F, placement({0.0F, 3.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
 
     ASSERT_EQ(data.triangles.size(), 3u);
     ASSERT_EQ(data.power.size(), 3u);
 
-    const std::vector<float> cdf = harmonia::buildEmissiveCdf(data.power);
+    const std::vector<float> cdf = harmonia::scene::buildEmissiveCdf(data.power);
     ASSERT_EQ(cdf.size(), 3u);
     expectValidCdf(cdf);
 

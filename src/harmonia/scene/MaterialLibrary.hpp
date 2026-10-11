@@ -10,7 +10,7 @@
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/Texture.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Loads an OpenPBR `.materials.toml` material library into GPU-ready Harmonia materials.
 ///
@@ -52,7 +52,7 @@ class MaterialLibrary {
     /// values into @p workingSpace. Returns false only if the file cannot be opened.
     bool
     load(const std::filesystem::path& path,
-         harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+         harmonia::utils::ColorSpace::WorkingColorSpace workingSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
 
     /// Look up a material by name.  Returns std::nullopt if not found.
     [[nodiscard]] std::optional<Material> get(const std::string& name) const;
@@ -77,6 +77,6 @@ class MaterialLibrary {
     std::unordered_map<std::string, MaterialTextureRefs> m_textureRefs;
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_MATERIALLIBRARY_HPP

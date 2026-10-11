@@ -8,10 +8,10 @@
 
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia::Math {
+namespace harmonia::utils::Math {
 inline constexpr float kPi = std::numbers::pi_v<float>;
 inline constexpr float k2Pi = 2.0F * kPi;
 inline constexpr float kInvPi = 1.0F / kPi;
 inline constexpr float kInv2Pi = 1.0F / k2Pi;
-} // namespace harmonia::Math
+} // namespace harmonia::utils::Math
 #endif // HARMONIA_UTILS_MATH_HPP

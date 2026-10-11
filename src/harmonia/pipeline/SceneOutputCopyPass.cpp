@@ -12,7 +12,7 @@
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
 
-namespace harmonia {
+namespace harmonia::pipeline {
 
 namespace {
 struct alignas(16) DenoiserPushConstants {
@@ -132,7 +132,7 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    pass.m_setLayout = UniqueDescriptorSetLayout{ctx.device, setLayout};
+    pass.m_setLayout = core::UniqueDescriptorSetLayout{ctx.device, setLayout};
 
     const VkPushConstantRange pushRange{
         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -153,9 +153,9 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    pass.m_pipelineLayout = UniquePipelineLayout{ctx.device, pipelineLayout};
+    pass.m_pipelineLayout = core::UniquePipelineLayout{ctx.device, pipelineLayout};
 
-    const VkSamplerCreateInfo samplerInfo = makeSamplerCreateInfo({
+    const VkSamplerCreateInfo samplerInfo = core::makeSamplerCreateInfo({
         .magFilter = VK_FILTER_NEAREST,
         .minFilter = VK_FILTER_NEAREST,
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
@@ -165,9 +165,9 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    pass.m_guideSampler = UniqueSampler{ctx.device, guideSampler};
+    pass.m_guideSampler = core::UniqueSampler{ctx.device, guideSampler};
 
-    auto module = createShaderModule(ctx.device, computeSpvPath);
+    auto module = core::createShaderModule(ctx.device, computeSpvPath);
     if (!module) {
         return std::unexpected(module.error());
     }
@@ -197,7 +197,7 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
     if (pipelineResult != VK_SUCCESS) {
         return std::unexpected(pipelineResult);
     }
-    pass.m_pipeline = UniquePipeline{ctx.device, pipeline};
+    pass.m_pipeline = core::UniquePipeline{ctx.device, pipeline};
 
     if (!pass.createWorkImages(extent)) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -311,7 +311,7 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
                                                 VkImage denoisedImage,
                                                 bool useGradient) noexcept {
     const std::array preComputeBarriers{
-        imageBarrier(hdrImage,
+        core::imageBarrier(hdrImage,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -319,21 +319,21 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
                          VK_ACCESS_2_TRANSFER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
-        imageBarrier(denoisedImage,
+        core::imageBarrier(denoisedImage,
                      m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      m_firstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-        imageBarrier(m_workImage.handle(),
+        core::imageBarrier(m_workImage.handle(),
                      m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      m_firstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-        imageBarrier(m_historyImage.handle(),
+        core::imageBarrier(m_historyImage.handle(),
                      m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -343,7 +343,7 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
         // Dummy 1×1 R32G32F image always bound at binding 5; transition UNDEFINED→GENERAL
         // on first use so the descriptor's imageLayout claim is valid even when no real
         // motion-vector pass has run (hasMotionVectors == 0 prevents any actual read).
-        imageBarrier(m_dummyMotionVectors.handle(),
+        core::imageBarrier(m_dummyMotionVectors.handle(),
                      m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -351,7 +351,7 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
-    pipelineBarrier(cmd, preComputeBarriers);
+    core::pipelineBarrier(cmd, preComputeBarriers);
 
     // Gradient/variance buffers (bindings 6/7) → GENERAL for the compute passes.
     // Real full-res images share the history lifetime (UNDEFINED on first use);
@@ -359,14 +359,14 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
     // descriptor binding stays valid without a real read.
     if (useGradient) {
         const std::array gradientBarriers{
-            imageBarrier(m_gradientImage.handle(),
+            core::imageBarrier(m_gradientImage.handle(),
                          m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                          VK_IMAGE_LAYOUT_GENERAL,
                          m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                          m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
                          VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                          VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-            imageBarrier(m_prevGradientImage.handle(),
+            core::imageBarrier(m_prevGradientImage.handle(),
                          m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                          VK_IMAGE_LAYOUT_GENERAL,
                          m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -374,10 +374,10 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
                          VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                          VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         };
-        pipelineBarrier(cmd, gradientBarriers);
+        core::pipelineBarrier(cmd, gradientBarriers);
     } else {
         const std::array dummyGradientBarrier{
-            imageBarrier(m_dummyGradient.handle(),
+            core::imageBarrier(m_dummyGradient.handle(),
                          m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                          VK_IMAGE_LAYOUT_GENERAL,
                          m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -385,13 +385,13 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
                          VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                          VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         };
-        pipelineBarrier(cmd, dummyGradientBarrier);
+        core::pipelineBarrier(cmd, dummyGradientBarrier);
     }
 }
 
 VkImage SceneOutputCopyPass::recordSpatialPasses(VkCommandBuffer cmd,
-                                                 const Image& hdrBuffer,
-                                                 const Image& denoised,
+                                                 const core::Image& hdrBuffer,
+                                                 const core::Image& denoised,
                                                  const DispatchGrid& grid,
                                                  const DenoiseGuides& guides) noexcept {
     // Unpack the parameter objects into the historical local names (read-only below).
@@ -584,7 +584,7 @@ VkImage SceneOutputCopyPass::recordSpatialPasses(VkCommandBuffer cmd,
 
         if (passIndex + 1U < iterations) {
             const std::array passBarrier{
-                imageBarrier(currentSource,
+                core::imageBarrier(currentSource,
                              VK_IMAGE_LAYOUT_GENERAL,
                              VK_IMAGE_LAYOUT_GENERAL,
                              VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -592,7 +592,7 @@ VkImage SceneOutputCopyPass::recordSpatialPasses(VkCommandBuffer cmd,
                              VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                              VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
             };
-            pipelineBarrier(cmd, passBarrier);
+            core::pipelineBarrier(cmd, passBarrier);
         }
     }
 
@@ -606,14 +606,14 @@ void SceneOutputCopyPass::copyImageRoundTrip(VkCommandBuffer cmd,
                                              VkAccessFlags2 preSrcAccess,
                                              VkPipelineStageFlags2 restoreStage) noexcept {
     const std::array copyPrep{
-        imageBarrier(srcImage,
+        core::imageBarrier(srcImage,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      preSrcAccess,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_READ_BIT),
-        imageBarrier(dstImage,
+        core::imageBarrier(dstImage,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -621,7 +621,7 @@ void SceneOutputCopyPass::copyImageRoundTrip(VkCommandBuffer cmd,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_WRITE_BIT),
     };
-    pipelineBarrier(cmd, copyPrep);
+    core::pipelineBarrier(cmd, copyPrep);
 
     const VkImageCopy copyRegion{
         .srcSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0U, 0U, 1U},
@@ -639,14 +639,14 @@ void SceneOutputCopyPass::copyImageRoundTrip(VkCommandBuffer cmd,
                    &copyRegion);
 
     const std::array copyRestore{
-        imageBarrier(srcImage,
+        core::imageBarrier(srcImage,
                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_READ_BIT,
                      restoreStage,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-        imageBarrier(dstImage,
+        core::imageBarrier(dstImage,
                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -654,11 +654,11 @@ void SceneOutputCopyPass::copyImageRoundTrip(VkCommandBuffer cmd,
                      restoreStage,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
-    pipelineBarrier(cmd, copyRestore);
+    core::pipelineBarrier(cmd, copyRestore);
 }
 
 void SceneOutputCopyPass::recordTemporalHistoryPass(VkCommandBuffer cmd,
-                                                    const Image& denoised,
+                                                    const core::Image& denoised,
                                                     bool useGradient,
                                                     bool hasMotionVectors,
                                                     const DispatchGrid& grid,
@@ -859,14 +859,14 @@ void SceneOutputCopyPass::recordGradientBlur(VkCommandBuffer cmd,
             const VkImage gradDstImage = srcIsGradient ? m_prevGradientImage.handle() : m_gradientImage.handle();
 
             const std::array gradPassBarriers{
-                imageBarrier(gradSrcImage,
+                core::imageBarrier(gradSrcImage,
                              VK_IMAGE_LAYOUT_GENERAL,
                              VK_IMAGE_LAYOUT_GENERAL,
                              VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                              VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
                              VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                              VK_ACCESS_2_SHADER_READ_BIT),
-                imageBarrier(gradDstImage,
+                core::imageBarrier(gradDstImage,
                              VK_IMAGE_LAYOUT_GENERAL,
                              VK_IMAGE_LAYOUT_GENERAL,
                              VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -874,7 +874,7 @@ void SceneOutputCopyPass::recordGradientBlur(VkCommandBuffer cmd,
                              VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                              VK_ACCESS_2_SHADER_WRITE_BIT),
             };
-            pipelineBarrier(cmd, gradPassBarriers);
+            core::pipelineBarrier(cmd, gradPassBarriers);
 
             // binding 6 = destination (gGradientVariance, written);
             // binding 7 = source (gPrevGradientVariance, read neighbourhood).
@@ -946,7 +946,7 @@ void SceneOutputCopyPass::recordGradientBlur(VkCommandBuffer cmd,
 
 void SceneOutputCopyPass::restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage) noexcept {
     const std::array restoreBarriers{
-        imageBarrier(hdrImage,
+        core::imageBarrier(hdrImage,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -954,7 +954,7 @@ void SceneOutputCopyPass::restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
                          VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
-        imageBarrier(denoisedImage,
+        core::imageBarrier(denoisedImage,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -962,14 +962,14 @@ void SceneOutputCopyPass::restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
                          VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
-        imageBarrier(m_workImage.handle(),
+        core::imageBarrier(m_workImage.handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-        imageBarrier(m_historyImage.handle(),
+        core::imageBarrier(m_historyImage.handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -977,7 +977,7 @@ void SceneOutputCopyPass::restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
-    pipelineBarrier(cmd, restoreBarriers);
+    core::pipelineBarrier(cmd, restoreBarriers);
 }
 
 void SceneOutputCopyPass::onResize(VkExtent2D extent) noexcept {
@@ -989,7 +989,7 @@ void SceneOutputCopyPass::onResize(VkExtent2D extent) noexcept {
         m_firstUse = true;
         resetHistory(m_lastResetToken + 1U);
     } else {
-        Logger::warn("SceneDenoiserPass work image recreate failed; stage disabled for this extent");
+        core::Logger::warn("SceneDenoiserPass work image recreate failed; stage disabled for this extent");
     }
 }
 
@@ -998,41 +998,41 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
         return false;
     }
 
-    auto history = Image::create(*m_ctx,
+    auto history = core::Image::create(*m_ctx,
                                  extent,
                                  VK_FORMAT_R32G32B32A32_SFLOAT,
                                  VK_IMAGE_USAGE_STORAGE_BIT,
                                  VK_IMAGE_ASPECT_COLOR_BIT,
                                  "harmonia.denoiser.history");
     if (!history) {
-        Logger::error("SceneDenoiserPass history image creation failed: VkResult {}",
+        core::Logger::error("SceneDenoiserPass history image creation failed: VkResult {}",
                       static_cast<int>(history.error()));
         return false;
     }
 
     auto work =
-        Image::create(*m_ctx,
+        core::Image::create(*m_ctx,
                       extent,
                       VK_FORMAT_R32G32B32A32_SFLOAT,
                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                       VK_IMAGE_ASPECT_COLOR_BIT,
                       "harmonia.denoiser.work");
     if (!work) {
-        Logger::error("SceneDenoiserPass work image creation failed: VkResult {}", static_cast<int>(work.error()));
+        core::Logger::error("SceneDenoiserPass work image creation failed: VkResult {}", static_cast<int>(work.error()));
         return false;
     }
 
     // 1×1 R32G32F placeholder bound to binding 5 when no real motion vectors are available.
     // Keeps the push-descriptor set valid (correct format) while hasMotionVectors=0
     // ensures the shader never reads from it.
-    auto dummyMv = Image::create(*m_ctx,
+    auto dummyMv = core::Image::create(*m_ctx,
                                  {1U, 1U},
                                  VK_FORMAT_R32G32_SFLOAT,
                                  VK_IMAGE_USAGE_STORAGE_BIT,
                                  VK_IMAGE_ASPECT_COLOR_BIT,
                                  "harmonia.denoiser.dummyMotionVec");
     if (!dummyMv) {
-        Logger::error("SceneDenoiserPass dummy motion vector image creation failed: VkResult {}",
+        core::Logger::error("SceneDenoiserPass dummy motion vector image creation failed: VkResult {}",
                       static_cast<int>(dummyMv.error()));
         return false;
     }
@@ -1042,10 +1042,10 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
     // TRANSFER for the end-of-frame gradient→prev copy. Only allocated when the
     // gradient path is enabled — otherwise the 1×1 dummy below is bound so the
     // descriptors stay valid without wasting a full-res allocation.
-    Image gradient{};
-    Image prevGradient{};
+    core::Image gradient{};
+    core::Image prevGradient{};
     if (m_settings.useGradient) {
-        auto grad = Image::create(*m_ctx,
+        auto grad = core::Image::create(*m_ctx,
                                   extent,
                                   VK_FORMAT_R32G32_SFLOAT,
                                   VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
@@ -1053,11 +1053,11 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                   "harmonia.denoiser.gradient");
         if (!grad) {
-            Logger::error("SceneDenoiserPass gradient image creation failed: VkResult {}",
+            core::Logger::error("SceneDenoiserPass gradient image creation failed: VkResult {}",
                           static_cast<int>(grad.error()));
             return false;
         }
-        auto prevGrad = Image::create(*m_ctx,
+        auto prevGrad = core::Image::create(*m_ctx,
                                       extent,
                                       VK_FORMAT_R32G32_SFLOAT,
                                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -1065,7 +1065,7 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
                                       VK_IMAGE_ASPECT_COLOR_BIT,
                                       "harmonia.denoiser.prevGradient");
         if (!prevGrad) {
-            Logger::error("SceneDenoiserPass prev-gradient image creation failed: VkResult {}",
+            core::Logger::error("SceneDenoiserPass prev-gradient image creation failed: VkResult {}",
                           static_cast<int>(prevGrad.error()));
             return false;
         }
@@ -1075,14 +1075,14 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
 
     // 1×1 R32G32F placeholder bound to bindings 6/7 when the gradient path is
     // disabled; keeps the push-descriptor set valid without any real read.
-    auto dummyGrad = Image::create(*m_ctx,
+    auto dummyGrad = core::Image::create(*m_ctx,
                                    {1U, 1U},
                                    VK_FORMAT_R32G32_SFLOAT,
                                    VK_IMAGE_USAGE_STORAGE_BIT,
                                    VK_IMAGE_ASPECT_COLOR_BIT,
                                    "harmonia.denoiser.dummyGradient");
     if (!dummyGrad) {
-        Logger::error("SceneDenoiserPass dummy gradient image creation failed: VkResult {}",
+        core::Logger::error("SceneDenoiserPass dummy gradient image creation failed: VkResult {}",
                       static_cast<int>(dummyGrad.error()));
         return false;
     }
@@ -1101,4 +1101,4 @@ void SceneOutputCopyPass::resetHistory(std::uint64_t resetToken) noexcept {
     m_historyFirstUse = true;
 }
 
-} // namespace harmonia
+} // namespace harmonia::pipeline

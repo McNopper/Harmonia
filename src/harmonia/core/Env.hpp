@@ -5,7 +5,7 @@
 #include <optional>
 #include <string>
 
-namespace harmonia {
+namespace harmonia::core {
 
 /// Read an environment variable as an owning string.
 ///
@@ -33,6 +33,6 @@ namespace harmonia {
 #endif
 }
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_ENV_HPP

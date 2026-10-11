@@ -9,7 +9,7 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 namespace {
 
@@ -35,14 +35,14 @@ namespace {
 // no threshold-based type select.
 // flags: 0 = general layered, 2 = glass/dielectric, 3 = mirror (not set here).
 [[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p,
-                                     harmonia::ColorSpace::WorkingColorSpace workingSpace) {
+                                     harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
     const bool srcRec709 = (p.inputColorSpace == aether::MaterialColorSpace::LinRec709);
-    const bool dstRec2020 = (workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+    const bool dstRec2020 = (workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
     const auto cc = [srcRec709, dstRec2020](sm::float3 c) {
         if (srcRec709 && dstRec2020)
-            return harmonia::ColorSpace::rec709ToRec2020(c);
+            return harmonia::utils::ColorSpace::rec709ToRec2020(c);
         if (!srcRec709 && !dstRec2020)
-            return harmonia::ColorSpace::rec2020ToRec709(c);
+            return harmonia::utils::ColorSpace::rec2020ToRec709(c);
         return c; // declared space == working space
     };
 
@@ -108,10 +108,10 @@ namespace {
 
 // ── MaterialLibrary ───────────────────────────────────────────────────────
 
-bool MaterialLibrary::load(const std::filesystem::path& path, harmonia::ColorSpace::WorkingColorSpace workingSpace) {
+bool MaterialLibrary::load(const std::filesystem::path& path, harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
     aether::MaterialLibrary parsed;
     if (!parsed.load(path)) {
-        Logger::error("MaterialLibrary: cannot open '{}'", path.string());
+        core::Logger::error("MaterialLibrary: cannot open '{}'", path.string());
         return false;
     }
 
@@ -130,7 +130,7 @@ bool MaterialLibrary::load(const std::filesystem::path& path, harmonia::ColorSpa
         m_textureRefs.insert_or_assign(name, std::move(refs));
     }
 
-    Logger::info("MaterialLibrary: loaded {} material(s) from '{}'", m_materials.size(), path.filename().string());
+    core::Logger::info("MaterialLibrary: loaded {} material(s) from '{}'", m_materials.size(), path.filename().string());
     return true;
 }
 
@@ -154,4 +154,4 @@ void MaterialLibrary::patchTextureIndex(const std::string& name, std::uint32_t s
         it->second.setTextureIndex(slot, idx);
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

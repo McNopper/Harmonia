@@ -12,7 +12,7 @@
 #include "harmonia/core/Sampler.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 class CommandPool;
 
@@ -37,14 +37,14 @@ struct HostImageUpload {
     UniqueSampler sampler;
 };
 
-/// Vulkan 1.4 hostImageCopy upload + sampler creation, shared by Texture::create and
-/// IblProbe::uploadEnvPanorama: stream host pixels straight into the (optimal-tiling)
+/// Vulkan 1.4 hostImageCopy upload + sampler creation, shared by scene::Texture::create and
+/// scene::IblProbe::uploadEnvPanorama: stream host pixels straight into the (optimal-tiling)
 /// image with vkCopyMemoryToImage — no staging buffer, no device-side copy. Layout path:
 /// UNDEFINED -> GENERAL (queue), host copy into GENERAL, GENERAL -> SHADER_READ_ONLY (queue).
 [[nodiscard]] std::expected<HostImageUpload, VkResult> uploadHostImage(const DeviceContext& ctx,
                                                                       const CommandPool& cmdPool,
                                                                       const HostImageUploadDesc& desc);
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_HOSTIMAGEUPLOAD_HPP

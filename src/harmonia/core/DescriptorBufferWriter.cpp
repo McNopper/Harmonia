@@ -2,7 +2,7 @@
 
 #include "harmonia/core/Logger.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 bool DescriptorBufferWriter::init(const DeviceContext& ctx, VkDescriptorSetLayout setLayout,
                                   std::uint32_t numBindings, const char* name) {
@@ -273,4 +273,4 @@ void DescriptorBufferWriter::bindSets(VkCommandBuffer cmd, VkPipelineBindPoint b
                                        offsets.data());
 }
 
-} // namespace harmonia
+} // namespace harmonia::core

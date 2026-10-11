@@ -9,10 +9,10 @@
 #include <string>
 #include <vma/vk_mem_alloc.h>
 
-namespace harmonia {
+namespace harmonia::scene {
 
 std::expected<Mesh, VkResult>
-Mesh::create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshData& data, std::string_view debugName) {
+Mesh::create(const DeviceContext& ctx, const core::CommandPool& cmdPool, const MeshData& data, std::string_view debugName) {
     if (data.vertices.empty() || data.indices.empty()) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -21,7 +21,7 @@ Mesh::create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshDat
     const auto indexBytes = std::as_bytes(std::span<const std::uint32_t>(data.indices.data(), data.indices.size()));
 
     const std::string baseName = debugName.empty() ? std::string{"mesh"} : std::string{debugName};
-    auto vertexBuffer = Buffer::upload(ctx,
+    auto vertexBuffer = core::Buffer::upload(ctx,
                                        cmdPool,
                                        vertexBytes,
                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
@@ -32,7 +32,7 @@ Mesh::create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshDat
         return std::unexpected(vertexBuffer.error());
     }
 
-    auto indexBuffer = Buffer::upload(ctx,
+    auto indexBuffer = core::Buffer::upload(ctx,
                                       cmdPool,
                                       indexBytes,
                                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
@@ -51,4 +51,4 @@ Mesh::create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshDat
     return mesh;
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

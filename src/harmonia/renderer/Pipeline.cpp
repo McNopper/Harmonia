@@ -12,7 +12,7 @@
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 
-namespace harmonia {
+namespace harmonia::renderer {
 
 std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
                                                    const Descriptors& descriptors,
@@ -30,7 +30,7 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
     };
 
     for (std::size_t i = 0; i < shaderPaths.size(); ++i) {
-        auto module = harmonia::createShaderModule(ctx.device, shaderPaths[i]);
+        auto module = harmonia::core::createShaderModule(ctx.device, shaderPaths[i]);
         if (!module) {
             for (VkShaderModule created : modules) {
                 if (created != VK_NULL_HANDLE) {
@@ -218,8 +218,8 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
     }
 
     Pipeline pipeline;
-    pipeline.m_rtPipeline = harmonia::UniquePipeline{ctx.device, rtPipeline};
+    pipeline.m_rtPipeline = harmonia::core::UniquePipeline{ctx.device, rtPipeline};
     return pipeline;
 }
 
-} // namespace harmonia
+} // namespace harmonia::renderer

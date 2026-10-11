@@ -6,7 +6,7 @@
 
 #include "harmonia/app/AppConfig.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 class CliParser {
   public:
@@ -18,5 +18,5 @@ class CliParser {
     [[nodiscard]] static bool parseRenderQualityArgs(AppConfig& config, int& i, int argc, char* const argv[]);
 };
 
-} // namespace harmonia
+} // namespace harmonia::app
 #endif // HARMONIA_APP_CLIPARSER_HPP

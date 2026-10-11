@@ -6,7 +6,7 @@
 #include <slang-math/slang-math.hpp>
 #include <utility>
 
-namespace harmonia {
+namespace harmonia::renderer {
 
 float Camera::PhysicalCamera::ev100() const noexcept {
     // EV100 = log2(N² × t_inv × 100 / ISO)
@@ -83,4 +83,4 @@ sm::float4x4 Camera::projectionMatrix() const noexcept {
                            std::max(m_params.farPlane, m_params.nearPlane + 0.001f));
 }
 
-} // namespace harmonia
+} // namespace harmonia::renderer

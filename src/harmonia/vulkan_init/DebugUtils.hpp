@@ -5,7 +5,7 @@
 
 #include <expected>
 
-namespace harmonia {
+namespace harmonia::vulkan_init {
 
 class DebugUtils {
   public:
@@ -34,6 +34,6 @@ class DebugUtils {
     VkDebugUtilsMessengerEXT m_messenger{};
 };
 
-} // namespace harmonia
+} // namespace harmonia::vulkan_init
 
 #endif // HARMONIA_VULKAN_INIT_DEBUGUTILS_HPP

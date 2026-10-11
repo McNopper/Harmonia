@@ -10,7 +10,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
-namespace harmonia {
+namespace harmonia::renderer {
 
 class Descriptors;
 
@@ -52,9 +52,9 @@ class Pipeline {
     [[nodiscard]] VkPipeline rtPipeline() const noexcept { return m_rtPipeline; }
 
   private:
-    harmonia::UniquePipeline m_rtPipeline;
+    harmonia::core::UniquePipeline m_rtPipeline;
 };
 
-} // namespace harmonia
+} // namespace harmonia::renderer
 
 #endif // HARMONIA_RENDERER_PIPELINE_HPP

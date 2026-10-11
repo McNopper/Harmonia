@@ -3,7 +3,7 @@
 
 #include <volk/volk.h>
 
-namespace harmonia {
+namespace harmonia::core {
 
 struct SamplerSpec {
     VkFilter magFilter = VK_FILTER_LINEAR;
@@ -40,6 +40,6 @@ struct SamplerSpec {
     };
 }
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_SAMPLER_HPP

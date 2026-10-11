@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <utility>
 
-namespace harmonia {
+namespace harmonia::renderer {
 
 std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ctx) {
     constexpr std::uint32_t kBindlessTextureArraySize = 1024U;
@@ -77,7 +77,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
             result != VK_SUCCESS) {
             return std::unexpected(result);
         }
-        descriptors.m_set0Layout = harmonia::UniqueDescriptorSetLayout{ctx.device, set0Layout};
+        descriptors.m_set0Layout = harmonia::core::UniqueDescriptorSetLayout{ctx.device, set0Layout};
     }
     {
         VkDescriptorSetLayout set1Layout{};
@@ -85,7 +85,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
             result != VK_SUCCESS) {
             return std::unexpected(result);
         }
-        descriptors.m_set1Layout = harmonia::UniqueDescriptorSetLayout{ctx.device, set1Layout};
+        descriptors.m_set1Layout = harmonia::core::UniqueDescriptorSetLayout{ctx.device, set1Layout};
     }
 
     // MOD1: descriptor buffers replace the pool + sets.
@@ -115,7 +115,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
             result != VK_SUCCESS) {
             return std::unexpected(result);
         }
-        descriptors.m_pipelineLayout = harmonia::UniquePipelineLayout{ctx.device, pipelineLayout};
+        descriptors.m_pipelineLayout = harmonia::core::UniquePipelineLayout{ctx.device, pipelineLayout};
     }
 
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptors.m_set0Layout.get(), "harmonia.set0.push");
@@ -126,14 +126,14 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
 }
 
 VkResult Descriptors::updateSceneSet(const DeviceContext& ctx,
-                                     const Buffer& instanceBuffer,
-                                     const Buffer& materialBuffer,
-                                     const Buffer& vertexBuffer,
-                                     const Buffer& indexBuffer,
-                                     const Buffer& lightBuffer,
-                                     const Buffer& emissiveTriangleBuffer,
-                                     const Buffer& emissiveCdfBuffer,
-                                     std::span<const Texture> textures) {
+                                     const core::Buffer& instanceBuffer,
+                                     const core::Buffer& materialBuffer,
+                                     const core::Buffer& vertexBuffer,
+                                     const core::Buffer& indexBuffer,
+                                     const core::Buffer& lightBuffer,
+                                     const core::Buffer& emissiveTriangleBuffer,
+                                     const core::Buffer& emissiveCdfBuffer,
+                                     std::span<const scene::Texture> textures) {
     // MOD1: typed descriptor buffer writes.
     m_sceneWriter.writeStorageBufferHandle(ctx, 0, instanceBuffer);
     m_sceneWriter.writeStorageBufferHandle(ctx, 1, materialBuffer);
@@ -158,7 +158,7 @@ VkResult Descriptors::updateEnvMap(const DeviceContext& ctx, VkImageView view, V
     return VK_SUCCESS;
 }
 
-VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, const Buffer& marginalCdf, const Buffer& conditionalCdf) {
+VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, const core::Buffer& marginalCdf, const core::Buffer& conditionalCdf) {
     // MOD1: typed descriptor buffer writes.
     m_sceneWriter.writeStorageBufferHandle(ctx, 8, marginalCdf);
     m_sceneWriter.writeStorageBufferHandle(ctx, 9, conditionalCdf);
@@ -168,7 +168,7 @@ VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, const Buffer
 VkResult Descriptors::updateFrameSet(const DeviceContext& ctx,
                                      VkAccelerationStructureKHR tlas,
                                      VkImageView hdrView,
-                                     const Buffer& cameraBuffer,
+                                     const core::Buffer& cameraBuffer,
                                      VkImageView gNormalView,
                                      VkImageView gDepthView) {
     // MOD1: set 0 per-frame writes via descriptor buffer.
@@ -185,8 +185,8 @@ VkResult Descriptors::updateFrameSet(const DeviceContext& ctx,
 
 void Descriptors::bindSceneSet(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint) const {
     // MOD1: bind both descriptor buffers (set 0 + set 1).
-    const std::array<const DescriptorBufferWriter*, 2> writers{&m_frameWriter, &m_sceneWriter};
-    DescriptorBufferWriter::bindSets(cmd, bindPoint, m_pipelineLayout, 0, writers);
+    const std::array<const core::DescriptorBufferWriter*, 2> writers{&m_frameWriter, &m_sceneWriter};
+    core::DescriptorBufferWriter::bindSets(cmd, bindPoint, m_pipelineLayout, 0, writers);
 }
 
-} // namespace harmonia
+} // namespace harmonia::renderer

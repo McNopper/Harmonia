@@ -29,6 +29,18 @@ stays renderer-specific (Hyperion = path tracer w/ index buffers + RT; Theia = m
 rasterizer w/ meshlets). GPU-optimized scene upload / instance / meshlet layouts are
 renderer-specific, NOT here.
 
+**Layers & namespaces (enforced):** Harmonia is layered and each layer has its own
+namespace — `harmonia::utils` → `harmonia::core` → `harmonia::vulkan_init` →
+`harmonia::rt` (acceleration structures / micromaps — the separable ray-tracing
+capability) → `harmonia::scene` → `harmonia::renderer` / `harmonia::pipeline` /
+`harmonia::presentation` → `harmonia::app`, plus the flat vocabulary `harmonia::`
+(`DeviceContext`, `GpuTypes`). Includes may only go **down** the graph — the
+`tools/check_layers.py` gate (ctest `test_layers`, label `analysis`) enforces both the
+include matrix and namespace-vs-directory matching. Renderers own their namespaces
+(`theia::`, `hyperion::`); nothing renderer-specific may live in `harmonia::`. Note the
+rasterizer-base constraint: `harmonia::rt` must stay a separable capability — a future
+rasterizer path consumes `scene` without `rt`.
+
 **Material model = OpenPBR Surface** (Academy Software Foundation). The shared OpenPBR BSDF
 (`shaders/bsdf_shared.slang`) â€” diffuse (Fujii/EON), F82 conductor Fresnel (with the
 `F90 = saturate(50Â·F0)` vanishing-interface fade, Lagarde/Frostbite â€” no lobe-weight gates),

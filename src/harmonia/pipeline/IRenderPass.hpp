@@ -3,7 +3,7 @@
 
 #include <volk/volk.h>
 
-namespace harmonia {
+namespace harmonia::pipeline {
 
 struct PassContext;
 
@@ -23,6 +23,6 @@ class IRenderPass {
     [[nodiscard]] virtual const char* name() const noexcept = 0;
 };
 
-} // namespace harmonia
+} // namespace harmonia::pipeline
 
 #endif // HARMONIA_PIPELINE_IRENDERPASS_HPP

@@ -11,7 +11,7 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/presentation/OutputColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::presentation {
 
 class Swapchain {
   public:
@@ -43,24 +43,24 @@ class Swapchain {
     [[nodiscard]] VkImage image(std::uint32_t i) const noexcept;
     [[nodiscard]] VkImageView imageView(std::uint32_t i) const noexcept;
 
-    /// Returns the OutputColorSpace that was negotiated with the display.
+    /// Returns the utils::OutputColorSpace that was negotiated with the display.
     /// Use this to drive the ToneMapper each frame.
-    [[nodiscard]] OutputColorSpace outputColorSpace() const noexcept;
+    [[nodiscard]] utils::OutputColorSpace outputColorSpace() const noexcept;
 
   private:
     const DeviceContext* m_ctx{};
     VkSurfaceKHR m_surface{};
     VkPhysicalDevice m_physicalDevice{};
-    harmonia::UniqueSwapchainKHR m_swapchain;
+    harmonia::core::UniqueSwapchainKHR m_swapchain;
     VkFormat m_format{VK_FORMAT_UNDEFINED};
     VkColorSpaceKHR m_colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
     VkExtent2D m_extent{};
     bool m_preferHDR = true;
     std::uint64_t m_presentId = 0; ///< Monotonic per-present ID for VK_KHR_present_id / present_wait.
     std::vector<VkImage> m_images;
-    std::vector<harmonia::UniqueImageView> m_views;
+    std::vector<harmonia::core::UniqueImageView> m_views;
 };
 
-} // namespace harmonia
+} // namespace harmonia::presentation
 
 #endif // HARMONIA_PRESENTATION_SWAPCHAIN_HPP

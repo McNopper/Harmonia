@@ -7,7 +7,7 @@
 
 #include "harmonia/GpuTypes.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 class Material {
   public:
@@ -126,6 +126,6 @@ class Material {
     bool m_emissiveAsLightSource = true;
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_MATERIAL_HPP

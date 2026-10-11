@@ -13,7 +13,7 @@
 //
 // The tone-mapping (ACES SDR) and the buffer read-back are identical across the two
 // renderers, so the code lives here rather than being duplicated per renderer.
-namespace harmonia::ImageCapture {
+namespace harmonia::presentation::ImageCapture {
 
 // Reads back the working-space linear RGBA32F HDR image, applies the ACES SDR
 // tone map (working space -> Rec.709 linear -> sRGB) and writes an 8-bit RGB PNG.
@@ -21,20 +21,20 @@ namespace harmonia::ImageCapture {
 // The image must be in VK_IMAGE_LAYOUT_GENERAL on entry; it is restored to
 // VK_IMAGE_LAYOUT_GENERAL on return.  Returns false on failure.
 bool savePng(const DeviceContext& ctx,
-             const CommandPool& pool,
-             const Image& hdrImage,
+             const core::CommandPool& pool,
+             const core::Image& hdrImage,
              const std::filesystem::path& path,
-             ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020);
+             utils::ColorSpace::WorkingColorSpace workingSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020);
 
 // Writes the linear HDR RGBA32F image to a 32-bit float RGB EXR, tagging the
 // header with the working space's chromaticities so downstream tools can
 // interpret the primaries.  No-op (with a warning) when OpenEXR support is not
 // compiled in (HARMONIA_HAS_OPENEXR).
 bool saveExr(const DeviceContext& ctx,
-             const CommandPool& pool,
-             const Image& hdrImage,
+             const core::CommandPool& pool,
+             const core::Image& hdrImage,
              const std::filesystem::path& path,
-             ColorSpace::WorkingColorSpace workingSpace = ColorSpace::WorkingColorSpace::LinRec2020);
+             utils::ColorSpace::WorkingColorSpace workingSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020);
 
 // Writes an already display-referred, tone-mapped 8-bit image (the output of the GPU
 // ToneMapper display stage, e.g. an RGBA8/BGRA8 sRGB capture target) straight to an 8-bit
@@ -42,10 +42,10 @@ bool saveExr(const DeviceContext& ctx,
 // window exactly: both go through the same GPU ToneMapper. `swapRB` handles BGRA swapchains.
 // The image must be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL-capable GENERAL on entry.
 bool saveSdrPng(const DeviceContext& ctx,
-                const CommandPool& pool,
-                const Image& sdrImage,
+                const core::CommandPool& pool,
+                const core::Image& sdrImage,
                 const std::filesystem::path& path,
                 bool swapRB);
 
-} // namespace harmonia::ImageCapture
+} // namespace harmonia::presentation::ImageCapture
 #endif // HARMONIA_PRESENTATION_IMAGECAPTURE_HPP

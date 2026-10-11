@@ -10,7 +10,7 @@
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
 
-namespace harmonia {
+namespace harmonia::pipeline {
 
 namespace {
 struct alignas(4) AccumulationPushConstants {
@@ -56,7 +56,7 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    pass.m_setLayout = UniqueDescriptorSetLayout{ctx.device, setLayout};
+    pass.m_setLayout = core::UniqueDescriptorSetLayout{ctx.device, setLayout};
 
     const VkPushConstantRange pushRange{
         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -77,9 +77,9 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    pass.m_pipelineLayout = UniquePipelineLayout{ctx.device, pipelineLayout};
+    pass.m_pipelineLayout = core::UniquePipelineLayout{ctx.device, pipelineLayout};
 
-    auto module = createShaderModule(ctx.device, computeSpvPath);
+    auto module = core::createShaderModule(ctx.device, computeSpvPath);
     if (!module) {
         return std::unexpected(module.error());
     }
@@ -109,7 +109,7 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
     if (pipelineResult != VK_SUCCESS) {
         return std::unexpected(pipelineResult);
     }
-    pass.m_pipeline = UniquePipeline{ctx.device, pipeline};
+    pass.m_pipeline = core::UniquePipeline{ctx.device, pipeline};
 
     if (!pass.createHistoryImage(extent)) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -148,7 +148,7 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
     }
 
     const std::array preComputeBarriers{
-        imageBarrier(ctx.hdrBuffer->handle(),
+        core::imageBarrier(ctx.hdrBuffer->handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -156,7 +156,7 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                          VK_ACCESS_2_TRANSFER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
-        imageBarrier(m_historyImage.handle(),
+        core::imageBarrier(m_historyImage.handle(),
                      m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE
@@ -165,7 +165,7 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
-    pipelineBarrier(ctx.cmd, preComputeBarriers);
+    core::pipelineBarrier(ctx.cmd, preComputeBarriers);
 
     const VkDescriptorImageInfo hdrInfo{
         .sampler = VK_NULL_HANDLE,
@@ -222,14 +222,14 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
     vkCmdDispatch(ctx.cmd, groupsX, groupsY, 1);
 
     const std::array postComputeBarriers{
-        imageBarrier(m_historyImage.handle(),
+        core::imageBarrier(m_historyImage.handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_WRITE_BIT,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_READ_BIT),
-        imageBarrier(ctx.hdrBuffer->handle(),
+        core::imageBarrier(ctx.hdrBuffer->handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -237,7 +237,7 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_WRITE_BIT),
     };
-    pipelineBarrier(ctx.cmd, postComputeBarriers);
+    core::pipelineBarrier(ctx.cmd, postComputeBarriers);
 
     const VkImageCopy copyRegion{
         .srcSubresource =
@@ -267,14 +267,14 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                    &copyRegion);
 
     const std::array restoreBarriers{
-        imageBarrier(m_historyImage.handle(),
+        core::imageBarrier(m_historyImage.handle(),
                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                      VK_ACCESS_2_TRANSFER_READ_BIT,
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-        imageBarrier(ctx.hdrBuffer->handle(),
+        core::imageBarrier(ctx.hdrBuffer->handle(),
                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -283,7 +283,7 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
                      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
                          VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
     };
-    pipelineBarrier(ctx.cmd, restoreBarriers);
+    core::pipelineBarrier(ctx.cmd, restoreBarriers);
 
     if (m_sampleCount < std::numeric_limits<std::uint32_t>::max()) {
         ++m_sampleCount;
@@ -299,7 +299,7 @@ void AccumulationPass::onResize(VkExtent2D extent) noexcept {
         m_extent = extent;
         resetHistory(m_lastResetToken + 1U);
     } else {
-        Logger::warn("AccumulationPass history image recreate failed; accumulation disabled for this extent");
+        core::Logger::warn("AccumulationPass history image recreate failed; accumulation disabled for this extent");
     }
 }
 
@@ -307,14 +307,14 @@ bool AccumulationPass::createHistoryImage(VkExtent2D extent) noexcept {
     if (m_ctx == nullptr) {
         return false;
     }
-    auto history = Image::create(*m_ctx,
+    auto history = core::Image::create(*m_ctx,
                                  extent,
                                  VK_FORMAT_R32G32B32A32_SFLOAT,
                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                                  VK_IMAGE_ASPECT_COLOR_BIT,
                                  "harmonia.accum.history");
     if (!history) {
-        Logger::error("AccumulationPass history image creation failed: VkResult {}", static_cast<int>(history.error()));
+        core::Logger::error("AccumulationPass history image creation failed: VkResult {}", static_cast<int>(history.error()));
         return false;
     }
     m_historyImage = std::move(*history);
@@ -327,4 +327,4 @@ void AccumulationPass::resetHistory(std::uint64_t resetToken) noexcept {
     m_lastResetToken = resetToken;
 }
 
-} // namespace harmonia
+} // namespace harmonia::pipeline

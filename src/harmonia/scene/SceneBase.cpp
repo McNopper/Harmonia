@@ -8,7 +8,7 @@
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/rt/TlasBuilder.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 std::uint32_t SceneBase::addMaterial(Material&& mat) {
     m_materials.push_back(mat);
@@ -34,7 +34,7 @@ std::uint32_t SceneBase::addLight(std::unique_ptr<Light> light) {
 }
 
 std::uint32_t SceneBase::addMesh(const DeviceContext& ctx,
-                                 const CommandPool& pool,
+                                 const core::CommandPool& pool,
                                  MeshData&& data,
                                  const MeshOpacity& opacity,
                                  std::string_view name) {
@@ -54,7 +54,7 @@ const aether::OpacityMicromapData& SceneBase::addOpacityMicromap(aether::Opacity
     return m_ommAssets.back();
 }
 
-VkResult SceneBase::build(const DeviceContext& ctx, const CommandPool& pool) {
+VkResult SceneBase::build(const DeviceContext& ctx, const core::CommandPool& pool) {
     if (m_instances.empty()) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
@@ -74,22 +74,22 @@ std::uint32_t SceneBase::instanceMask(std::size_t /*instanceIndex*/) const {
     return kInstanceMaskAll;
 }
 
-std::expected<Buffer, VkResult> SceneBase::uploadStorageBuffer(const DeviceContext& ctx,
-                                                               const CommandPool& pool,
+std::expected<core::Buffer, VkResult> SceneBase::uploadStorageBuffer(const DeviceContext& ctx,
+                                                               const core::CommandPool& pool,
                                                                std::span<const std::byte> data,
                                                                std::string_view debugName,
                                                                VkBufferUsageFlags usage) {
-    return Buffer::upload(ctx, pool, data, usage, debugName);
+    return core::Buffer::upload(ctx, pool, data, usage, debugName);
 }
 
-VkResult SceneBase::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
+VkResult SceneBase::buildTlas(const DeviceContext& ctx, const core::CommandPool& pool) {
     std::vector<VkAccelerationStructureInstanceKHR> instances(m_instances.size());
     for (std::size_t i = 0; i < m_instances.size(); ++i) {
         const InstanceRecord& inst = m_instances[i];
         instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<std::uint32_t>(i), inst.xform);
         instances[i].mask = instanceMask(i);
     }
-    return harmonia::buildTlas(ctx, pool, instances, m_tlas, m_tlasAddress);
+    return harmonia::rt::buildTlas(ctx, pool, instances, m_tlas, m_tlasAddress);
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

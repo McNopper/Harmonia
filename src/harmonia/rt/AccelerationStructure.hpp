@@ -10,7 +10,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
-namespace harmonia {
+namespace harmonia::rt {
 
 class AccelerationStructure {
   public:
@@ -30,11 +30,11 @@ class AccelerationStructure {
 
     [[nodiscard]] VkAccelerationStructureKHR handle() const noexcept { return m_handle; }
     [[nodiscard]] VkDeviceAddress deviceAddress() const noexcept { return m_deviceAddress; }
-    [[nodiscard]] const Buffer& buffer() const noexcept { return m_buffer; }
+    [[nodiscard]] const core::Buffer& buffer() const noexcept { return m_buffer; }
 
   private:
-    Buffer m_buffer{};
-    harmonia::UniqueAccelerationStructure m_handle;
+    core::Buffer m_buffer{};
+    harmonia::core::UniqueAccelerationStructure m_handle;
     VkDeviceAddress m_deviceAddress{};
 };
 
@@ -43,7 +43,7 @@ class AccelerationStructure {
 /// `alignedAddress` is the scratch base address rounded up to that alignment —
 /// assign directly to `VkAccelerationStructureBuildGeometryInfoKHR::scratchData.deviceAddress`.
 struct AccelerationStructureScratch {
-    Buffer buffer;
+    core::Buffer buffer;
     VkDeviceAddress alignedAddress = 0;
 };
 
@@ -52,6 +52,6 @@ createAccelerationStructureScratch(const DeviceContext& ctx,
                                    const VkAccelerationStructureBuildSizesInfoKHR& sizes,
                                    std::string_view debugName);
 
-} // namespace harmonia
+} // namespace harmonia::rt
 
 #endif // HARMONIA_RENDERER_ACCELERATIONSTRUCTURE_HPP

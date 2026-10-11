@@ -3,7 +3,7 @@
 
 #include <volk/volk.h>
 
-namespace harmonia {
+namespace harmonia::core {
 
 /// Move-only RAII owner for a Vulkan handle destroyed by a device-scoped
 /// vkDestroy* command (signature `void(VkDevice, Handle, const VkAllocationCallbacks*)`).
@@ -77,6 +77,6 @@ using UniqueAccelerationStructure = UniqueHandle<VkAccelerationStructureKHR, &vk
 using UniqueSwapchainKHR = UniqueHandle<VkSwapchainKHR, &vkDestroySwapchainKHR>;
 using UniqueIndirectCommandsLayout = UniqueHandle<VkIndirectCommandsLayoutEXT, &vkDestroyIndirectCommandsLayoutEXT>;
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_VULKANHANDLE_HPP

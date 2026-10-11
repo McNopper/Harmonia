@@ -5,13 +5,13 @@
 #include <string>
 #include <utility>
 
-namespace harmonia {
+namespace harmonia::rt {
 
 std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(const DeviceContext& ctx,
                                                                              VkAccelerationStructureTypeKHR type,
                                                                              VkDeviceSize size,
                                                                              std::string_view debugName) {
-    auto storage = Buffer::create(ctx,
+    auto storage = core::Buffer::create(ctx,
                                   size,
                                   VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
                                       VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
@@ -48,7 +48,7 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    accelerationStructure.m_handle = harmonia::UniqueAccelerationStructure{ctx.device, handle};
+    accelerationStructure.m_handle = harmonia::core::UniqueAccelerationStructure{ctx.device, handle};
 
     if (!debugName.empty()) {
         ctx.setDebugName(VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR,
@@ -70,7 +70,7 @@ createAccelerationStructureScratch(const DeviceContext& ctx,
     props.pNext = &asProps;
     vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &props);
 
-    auto scratch = Buffer::create(
+    auto scratch = core::Buffer::create(
         ctx,
         std::max<VkDeviceSize>(sizes.buildScratchSize + asProps.minAccelerationStructureScratchOffsetAlignment, 16),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
@@ -83,8 +83,8 @@ createAccelerationStructureScratch(const DeviceContext& ctx,
     AccelerationStructureScratch out;
     out.buffer = std::move(*scratch);
     out.alignedAddress =
-        bufferAlignUp(out.buffer.deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
+        core::bufferAlignUp(out.buffer.deviceAddress(), asProps.minAccelerationStructureScratchOffsetAlignment);
     return out;
 }
 
-} // namespace harmonia
+} // namespace harmonia::rt

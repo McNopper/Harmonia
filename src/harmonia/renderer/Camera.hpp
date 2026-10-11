@@ -8,7 +8,7 @@
 
 #include "harmonia/GpuTypes.hpp"
 
-namespace harmonia {
+namespace harmonia::renderer {
 
 class Camera {
   public:
@@ -70,6 +70,6 @@ class Camera {
     Params m_params;
 };
 
-} // namespace harmonia
+} // namespace harmonia::renderer
 
 #endif // HARMONIA_RENDERER_CAMERA_HPP

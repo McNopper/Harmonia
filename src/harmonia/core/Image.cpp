@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace harmonia {
+namespace harmonia::core {
 
 std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
                                              VkExtent2D extent,
@@ -220,4 +220,4 @@ void Image::destroy() noexcept {
     m_mipLevels = 1U;
 }
 
-} // namespace harmonia
+} // namespace harmonia::core

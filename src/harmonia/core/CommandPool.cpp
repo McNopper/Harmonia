@@ -4,7 +4,7 @@
 
 #include "harmonia/core/OneShot.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 namespace {} // namespace
 
@@ -26,7 +26,7 @@ std::expected<CommandPool, VkResult> CommandPool::create(const DeviceContext& ct
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    pool.m_pool = harmonia::UniqueCommandPool{ctx.device, commandPool};
+    pool.m_pool = harmonia::core::UniqueCommandPool{ctx.device, commandPool};
 
     pool.m_device = ctx.device;
     pool.m_queue = ctx.graphicsQueue;
@@ -99,15 +99,15 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
 
     // MOD2: timeline semaphore replaces VkFence for one-shot completion tracking.
     VkSemaphore semaphore = VK_NULL_HANDLE;
-    VkResult result = harmonia::createTimelineSemaphore(m_device, &semaphore);
+    VkResult result = harmonia::core::createTimelineSemaphore(m_device, &semaphore);
     if (result != VK_SUCCESS) {
         free(cmd);
         return result;
     }
 
-    result = harmonia::submitOneShot(m_queue, cmd, semaphore, 1);
+    result = harmonia::core::submitOneShot(m_queue, cmd, semaphore, 1);
     if (result == VK_SUCCESS) {
-        result = harmonia::waitTimelineSemaphore(m_device, semaphore, 1);
+        result = harmonia::core::waitTimelineSemaphore(m_device, semaphore, 1);
     }
 
     vkDestroySemaphore(m_device, semaphore, nullptr);
@@ -115,4 +115,4 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
     return result;
 }
 
-} // namespace harmonia
+} // namespace harmonia::core

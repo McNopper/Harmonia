@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace harmonia {
+namespace harmonia::vulkan_init {
 
 namespace {
 constexpr std::array kRequiredExtensions{
@@ -385,4 +385,4 @@ bool PhysicalDevice::hasOpacityMicromapSupport(VkPhysicalDevice device) {
     return ommFeatures.micromap == VK_TRUE;
 }
 
-} // namespace harmonia
+} // namespace harmonia::vulkan_init

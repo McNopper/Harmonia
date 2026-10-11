@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 
-namespace harmonia::ProceduralGeometry {
+namespace harmonia::scene::ProceduralGeometry {
 MeshData makeBox(sm::float3 halfExtent, const sm::float4x4& transform) {
     struct Face {
         sm::float3 normal;
@@ -127,4 +127,4 @@ SphereAabb makeSphereAabb(sm::float3 center, float radius) noexcept {
         .max = center + extent,
     };
 }
-} // namespace harmonia::ProceduralGeometry
+} // namespace harmonia::scene::ProceduralGeometry

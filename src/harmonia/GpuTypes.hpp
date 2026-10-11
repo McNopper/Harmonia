@@ -133,7 +133,7 @@ struct PushConstants {
     std::uint32_t envImportanceHeight = 0;   ///< CDF grid height for env importance sampling
     std::uint32_t tonemapper = 0;            ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
     std::uint32_t workingColorSpace =
-        0; ///< harmonia::ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
+        0; ///< harmonia::utils::ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.

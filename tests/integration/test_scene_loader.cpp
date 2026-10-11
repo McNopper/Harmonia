@@ -13,22 +13,22 @@
 
 namespace {
 
-class RecordingSceneBuilder final : public harmonia::ISceneBuilder {
+class RecordingSceneBuilder final : public harmonia::scene::ISceneBuilder {
   public:
-    std::uint32_t addMaterial(harmonia::Material&& /*mat*/) override {
+    std::uint32_t addMaterial(harmonia::scene::Material&& /*mat*/) override {
         ++materialCount;
         return static_cast<std::uint32_t>(materialCount - 1);
     }
 
-    std::uint32_t addTexture(harmonia::Texture&& /*texture*/) override {
+    std::uint32_t addTexture(harmonia::scene::Texture&& /*texture*/) override {
         ++textureCount;
         return static_cast<std::uint32_t>(textureCount - 1);
     }
 
     std::uint32_t addMesh(const harmonia::DeviceContext& /*ctx*/,
-                          const harmonia::CommandPool& /*pool*/,
-                          harmonia::MeshData&& data,
-                          const harmonia::MeshOpacity& /*opacity*/,
+                          const harmonia::core::CommandPool& /*pool*/,
+                          harmonia::scene::MeshData&& data,
+                          const harmonia::scene::MeshOpacity& /*opacity*/,
                           std::string_view /*name*/) override {
         if (data.vertices.empty() || data.indices.empty()) {
             return std::numeric_limits<std::uint32_t>::max();
@@ -43,7 +43,7 @@ class RecordingSceneBuilder final : public harmonia::ISceneBuilder {
     }
 
     std::uint32_t addSphereMesh(const harmonia::DeviceContext& /*ctx*/,
-                                const harmonia::CommandPool& /*pool*/,
+                                const harmonia::core::CommandPool& /*pool*/,
                                 float radius,
                                 std::string_view /*name*/) override {
         if (radius <= 0.0F) {
@@ -54,7 +54,7 @@ class RecordingSceneBuilder final : public harmonia::ISceneBuilder {
     }
 
     std::uint32_t
-    addInstance(std::uint32_t /*meshIndex*/, const harmonia::Xform& /*xform*/, std::uint32_t /*materialIdx*/) override {
+    addInstance(std::uint32_t /*meshIndex*/, const harmonia::scene::Xform& /*xform*/, std::uint32_t /*materialIdx*/) override {
         ++instanceCount;
         return static_cast<std::uint32_t>(instanceCount - 1);
     }
@@ -74,13 +74,13 @@ std::filesystem::path assetsDir() {
 TEST(SceneLoader, LoadsRealSceneAndProducesExpectedConfig) {
     RecordingSceneBuilder scene;
     const harmonia::DeviceContext dummyCtx{};
-    const harmonia::CommandPool dummyPool{};
+    const harmonia::core::CommandPool dummyPool{};
 
-    const auto cfg = harmonia::SceneLoader::load(
+    const auto cfg = harmonia::scene::SceneLoader::load(
         assetsDir() / "cornell_classic.scene.toml", assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
-    EXPECT_EQ(cfg->workingColorSpace, harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+    EXPECT_EQ(cfg->workingColorSpace, harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
     ASSERT_TRUE(cfg->spp.has_value());
     EXPECT_EQ(*cfg->spp, 64U);
     ASSERT_TRUE(cfg->maxDepth.has_value());
@@ -112,12 +112,12 @@ TEST(SceneLoader, UnknownTonemapperAndWorkingSpaceFallbackToDefaults) {
 
     RecordingSceneBuilder scene;
     const harmonia::DeviceContext dummyCtx{};
-    const harmonia::CommandPool dummyPool{};
+    const harmonia::core::CommandPool dummyPool{};
 
-    const auto cfg = harmonia::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+    const auto cfg = harmonia::scene::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
-    EXPECT_EQ(cfg->workingColorSpace, harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+    EXPECT_EQ(cfg->workingColorSpace, harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
     EXPECT_FALSE(cfg->tonemapper.has_value());
     ASSERT_TRUE(cfg->spp.has_value());
     EXPECT_EQ(*cfg->spp, 4U);
@@ -150,9 +150,9 @@ TEST(SceneLoader, ParsesStageTogglesFromRenderPresetAndInlineOverride) {
 
     RecordingSceneBuilder scene;
     const harmonia::DeviceContext dummyCtx{};
-    const harmonia::CommandPool dummyPool{};
+    const harmonia::core::CommandPool dummyPool{};
 
-    const auto cfg = harmonia::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+    const auto cfg = harmonia::scene::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
     ASSERT_TRUE(cfg->accumulationStageEnabled.has_value());

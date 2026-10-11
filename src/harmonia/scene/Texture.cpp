@@ -13,10 +13,10 @@
 #include "harmonia/core/Sampler.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
-                                                 const CommandPool& cmdPool,
+                                                 const core::CommandPool& cmdPool,
                                                  std::span<const std::byte> pixels,
                                                  std::uint32_t width,
                                                  std::uint32_t height,
@@ -34,9 +34,9 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     // with vkCopyMemoryToImage - no staging buffer, no device-side copy (shared helper).
     // Layout path: UNDEFINED -> GENERAL (queue), host copy into GENERAL,
     // GENERAL -> SHADER_READ_ONLY (queue). Sampler is REPEAT x3 with anisotropy.
-    auto uploaded = uploadHostImage(ctx,
+    auto uploaded = core::uploadHostImage(ctx,
                                     cmdPool,
-                                    HostImageUploadDesc{
+                                    core::HostImageUploadDesc{
                                         .format = format,
                                         .pixels = pixels.data(),
                                         .extent = VkExtent2D{width, height},
@@ -45,7 +45,7 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
                                                        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
                                         .finalAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
                                         .name = name,
-                                        .sampler = SamplerSpec{
+                                        .sampler = core::SamplerSpec{
                                             .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
                                             .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
                                             .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
@@ -72,10 +72,10 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
 }
 
 std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
-                                                       const CommandPool& cmdPool,
+                                                       const core::CommandPool& cmdPool,
                                                        const std::filesystem::path& path,
                                                        TextureColorSpace colorSpace,
-                                                       harmonia::ColorSpace::WorkingColorSpace workingSpace,
+                                                       harmonia::utils::ColorSpace::WorkingColorSpace workingSpace,
                                                        std::string_view name) {
     const std::string pathStr = path.string();
 
@@ -88,7 +88,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
 
     auto inp = OIIO::ImageInput::open(pathStr, &openConfig);
     if (!inp) {
-        Logger::error("Texture::loadFromFile: OIIO failed to open '{}': {}", pathStr, OIIO::geterror());
+        core::Logger::error("Texture::loadFromFile: OIIO failed to open '{}': {}", pathStr, OIIO::geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     const OIIO::ImageSpec& spec = inp->spec();
@@ -104,7 +104,7 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     // xstride=4: always advance 4 bytes per pixel in our RGBA buffer so the
     // pre-filled alpha byte is not overwritten for 3-channel source images.
     if (!inp->read_image(0, 0, 0, nchans, OIIO::TypeDesc::UINT8, raw.data(), static_cast<OIIO::stride_t>(4))) {
-        Logger::error("Texture::loadFromFile: OIIO read_image failed for '{}': {}", pathStr, inp->geterror());
+        core::Logger::error("Texture::loadFromFile: OIIO read_image failed for '{}': {}", pathStr, inp->geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     inp->close();
@@ -114,16 +114,16 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
     // A texture needs CPU conversion when it is color data whose encoding or
     // primaries differ from the (linear) working color space.
     const bool sameSpace = (colorSpace == TextureColorSpace::LinRec2020Scene &&
-                            workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020) ||
+                            workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020) ||
                            (colorSpace == TextureColorSpace::LinRec709Scene &&
-                            workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec709);
+                            workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec709);
     const bool needsConversion = (colorSpace != TextureColorSpace::Data && !sameSpace);
 
     if (!needsConversion) {
         // Data maps (normal/ORM/roughness) or already in working space — copy verbatim.
         std::memcpy(converted.data(), raw.data(), pixelCount * 4);
     } else {
-        const bool toRec2020 = (workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+        const bool toRec2020 = (workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
         // Convert each pixel: decode transfer function, then primaries → working space.
         for (std::size_t i = 0; i < pixelCount; ++i) {
             const float r = static_cast<float>(raw[i * 4 + 0]) / 255.0f;
@@ -134,17 +134,17 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
             sm::float3 linear{r, g, b};
             switch (colorSpace) {
             case TextureColorSpace::SrgbRec709Scene:
-                linear = harmonia::ColorSpace::srgbToLinearRec709(linear); // decode sRGB OETF
+                linear = harmonia::utils::ColorSpace::srgbToLinearRec709(linear); // decode sRGB OETF
                 if (toRec2020)
-                    linear = harmonia::ColorSpace::rec709ToRec2020(linear);
+                    linear = harmonia::utils::ColorSpace::rec709ToRec2020(linear);
                 break;
             case TextureColorSpace::LinRec709Scene:
                 if (toRec2020)
-                    linear = harmonia::ColorSpace::rec709ToRec2020(linear);
+                    linear = harmonia::utils::ColorSpace::rec709ToRec2020(linear);
                 break;
             case TextureColorSpace::LinRec2020Scene:
                 if (!toRec2020)
-                    linear = harmonia::ColorSpace::rec2020ToRec709(linear);
+                    linear = harmonia::utils::ColorSpace::rec2020ToRec709(linear);
                 break;
             default:
                 break;
@@ -166,4 +166,4 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                   name.empty() ? path.filename().string() : std::string(name));
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

@@ -11,7 +11,7 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/ToneMapping.hpp"
 
-namespace harmonia::ImageCapture {
+namespace harmonia::presentation::ImageCapture {
 namespace {
 
 // Copies the RGBA32F scene-output image (in VK_IMAGE_LAYOUT_GENERAL) into a
@@ -19,14 +19,14 @@ namespace {
 // The source may have been written by shader, color-attachment, or transfer
 // stages depending on whether the host reads the raw HDR target or the copied
 // scene-output buffer.
-[[nodiscard]] std::expected<Buffer, VkResult>
-readBackHdr(const DeviceContext& ctx, const CommandPool& pool, const Image& hdrImage) {
+[[nodiscard]] std::expected<core::Buffer, VkResult>
+readBackHdr(const DeviceContext& ctx, const core::CommandPool& pool, const core::Image& hdrImage) {
     const std::uint32_t width = hdrImage.extent().width;
     const std::uint32_t height = hdrImage.extent().height;
     const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(width) * static_cast<VkDeviceSize>(height) * sizeof(float) * 4U;
 
-    auto readback = Buffer::create(
+    auto readback = core::Buffer::create(
         ctx, byteSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "harmonia.hdr.readback");
     if (!readback) {
         return std::unexpected(readback.error());
@@ -80,10 +80,10 @@ readBackHdr(const DeviceContext& ctx, const CommandPool& pool, const Image& hdrI
 } // namespace
 
 bool savePng(const DeviceContext& ctx,
-             const CommandPool& pool,
-             const Image& hdrImage,
+             const core::CommandPool& pool,
+             const core::Image& hdrImage,
              const std::filesystem::path& path,
-             ColorSpace::WorkingColorSpace workingSpace) {
+             utils::ColorSpace::WorkingColorSpace workingSpace) {
     if (!ctx.isValid() || !hdrImage.isValid()) {
         return false;
     }
@@ -94,14 +94,14 @@ bool savePng(const DeviceContext& ctx,
 
     auto readback = readBackHdr(ctx, pool, hdrImage);
     if (!readback) {
-        Logger::error("ImageCapture::savePng: read-back failed: VkResult {}", static_cast<int>(readback.error()));
+        core::Logger::error("harmonia::presentation::ImageCapture::savePng: read-back failed: VkResult {}", static_cast<int>(readback.error()));
         return false;
     }
 
     // Tone-map (ACES SDR: working space linear -> Rec.709 linear -> sRGB 8-bit) and
     // pack into a contiguous R8G8B8 byte buffer. The ACES path expects linear
     // Rec.2020 input; a Rec.709 working space is up-converted first (exact).
-    const bool upConvert = (workingSpace == ColorSpace::WorkingColorSpace::LinRec709);
+    const bool upConvert = (workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec709);
     const auto* src = static_cast<const float*>(readback->mappedData());
     std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 3U);
 
@@ -110,10 +110,10 @@ bool savePng(const DeviceContext& ctx,
             const std::size_t srcIdx = (static_cast<std::size_t>(y) * width + x) * 4U;
             sm::float3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
             if (upConvert) {
-                hdr = ColorSpace::rec709ToRec2020(hdr);
+                hdr = utils::ColorSpace::rec709ToRec2020(hdr);
             }
-            const sm::float3 sdrLinear = ToneMapping::acesFittedSDR(hdr);
-            const sm::float3 sdrGamma = ColorSpace::linearRec709ToSrgb(sdrLinear);
+            const sm::float3 sdrLinear = harmonia::utils::ToneMapping::acesFittedSDR(hdr);
+            const sm::float3 sdrGamma = utils::ColorSpace::linearRec709ToSrgb(sdrLinear);
             const sm::float3 clamped = sm::clamp(sdrGamma, sm::float3{0.f, 0.f, 0.f}, sm::float3{1.f, 1.f, 1.f});
             const std::size_t dstIdx = (static_cast<std::size_t>(y) * width + x) * 3U;
             pixels[dstIdx + 0] = static_cast<std::uint8_t>(std::lround(clamped.r * 255.f));
@@ -126,20 +126,20 @@ bool savePng(const DeviceContext& ctx,
     OIIO::ImageSpec spec(static_cast<int>(width), static_cast<int>(height), 3, OIIO::TypeDesc::UINT8);
     auto out = OIIO::ImageOutput::create(path.string());
     if (!out || !out->open(path.string(), spec)) {
-        Logger::error("ImageCapture::savePng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        core::Logger::error("harmonia::presentation::ImageCapture::savePng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
         return false;
     }
     out->write_image(OIIO::TypeDesc::UINT8, pixels.data(), OIIO::AutoStride, static_cast<OIIO::stride_t>(stride));
     out->close();
-    Logger::info("Saved tone-mapped PNG to {}", path.string());
+    core::Logger::info("Saved tone-mapped PNG to {}", path.string());
     return true;
 }
 
 bool saveExr([[maybe_unused]] const DeviceContext& ctx,
-             [[maybe_unused]] const CommandPool& pool,
-             [[maybe_unused]] const Image& hdrImage,
+             [[maybe_unused]] const core::CommandPool& pool,
+             [[maybe_unused]] const core::Image& hdrImage,
              const std::filesystem::path& path,
-             [[maybe_unused]] ColorSpace::WorkingColorSpace workingSpace) {
+             [[maybe_unused]] utils::ColorSpace::WorkingColorSpace workingSpace) {
     if (!ctx.isValid() || !hdrImage.isValid()) {
         return false;
     }
@@ -148,7 +148,7 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
 
     auto readback = readBackHdr(ctx, pool, hdrImage);
     if (!readback) {
-        Logger::error("ImageCapture::saveExr: read-back failed: VkResult {}", static_cast<int>(readback.error()));
+        core::Logger::error("harmonia::presentation::ImageCapture::saveExr: read-back failed: VkResult {}", static_cast<int>(readback.error()));
         return false;
     }
 
@@ -158,14 +158,14 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
     // Rec.2020 or Rec.709 primaries + D65 white point, as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
     const float chromaRec2020[8] = {0.708f, 0.292f, 0.170f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.3290f};
     const float chromaRec709[8] = {0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f, 0.3127f, 0.3290f};
-    const float* chroma = (workingSpace == ColorSpace::WorkingColorSpace::LinRec2020) ? chromaRec2020 : chromaRec709;
+    const float* chroma = (workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec2020) ? chromaRec2020 : chromaRec709;
 
     OIIO::ImageSpec spec(w, h, 3, OIIO::TypeDesc::FLOAT);
     spec.attribute("chromaticities", OIIO::TypeDesc(OIIO::TypeDesc::FLOAT, 8), chroma);
 
     auto out = OIIO::ImageOutput::create(path.string());
     if (!out || !out->open(path.string(), spec)) {
-        Logger::error("ImageCapture::saveExr: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        core::Logger::error("harmonia::presentation::ImageCapture::saveExr: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
         return false;
     }
 
@@ -174,13 +174,13 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
     const OIIO::stride_t xstride = static_cast<OIIO::stride_t>(4 * sizeof(float));
     out->write_image(OIIO::TypeDesc::FLOAT, src, xstride);
     out->close();
-    Logger::info("Saved HDR EXR to {}", path.string());
+    core::Logger::info("Saved HDR EXR to {}", path.string());
     return true;
 }
 
 bool saveSdrPng(const DeviceContext& ctx,
-                const CommandPool& pool,
-                const Image& sdrImage,
+                const core::CommandPool& pool,
+                const core::Image& sdrImage,
                 const std::filesystem::path& path,
                 bool swapRB) {
     if (!ctx.isValid() || !sdrImage.isValid()) {
@@ -192,7 +192,7 @@ bool saveSdrPng(const DeviceContext& ctx,
     const std::uint32_t height = sdrImage.extent().height;
     const VkDeviceSize byteSize = static_cast<VkDeviceSize>(width) * height * 4U; // 8-bit RGBA
 
-    auto readback = Buffer::create(
+    auto readback = core::Buffer::create(
         ctx, byteSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "harmonia.sdr.readback");
     if (!readback) {
         return false;
@@ -230,13 +230,13 @@ bool saveSdrPng(const DeviceContext& ctx,
     OIIO::ImageSpec spec(static_cast<int>(width), static_cast<int>(height), 3, OIIO::TypeDesc::UINT8);
     auto out = OIIO::ImageOutput::create(path.string());
     if (!out || !out->open(path.string(), spec)) {
-        Logger::error("ImageCapture::saveSdrPng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        core::Logger::error("harmonia::presentation::ImageCapture::saveSdrPng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
         return false;
     }
     out->write_image(OIIO::TypeDesc::UINT8, pixels.data());
     out->close();
-    Logger::info("Saved tone-mapped PNG (GPU tonemapper) to {}", path.string());
+    core::Logger::info("Saved tone-mapped PNG (GPU tonemapper) to {}", path.string());
     return true;
 }
 
-} // namespace harmonia::ImageCapture
+} // namespace harmonia::presentation::ImageCapture

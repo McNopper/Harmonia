@@ -13,7 +13,7 @@
 #include "harmonia/scene/Mesh.hpp"
 #include "harmonia/scene/Texture.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Abstract sink used by the scene loader to populate a renderer's Scene without
 /// depending on its concrete GPU layout.
@@ -45,7 +45,7 @@ class ISceneBuilder {
     /// flag) and optionally attaches a pre-baked opacity micromap to accelerate
     /// that decision.
     [[nodiscard]] virtual std::uint32_t addMesh(const DeviceContext& ctx,
-                                                const CommandPool& pool,
+                                                const core::CommandPool& pool,
                                                 MeshData&& data,
                                                 const MeshOpacity& opacity,
                                                 std::string_view name) = 0;
@@ -59,7 +59,7 @@ class ISceneBuilder {
     /// Register a unique sphere mesh of @p radius (object space, centred at the
     /// origin). Returns its mesh index, or uint32_max on failure.
     [[nodiscard]] virtual std::uint32_t
-    addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name) = 0;
+    addSphereMesh(const DeviceContext& ctx, const core::CommandPool& pool, float radius, std::string_view name) = 0;
 
     /// Place an instance of mesh @p meshIndex with @p xform and @p materialIdx.
     /// Returns the instance index, or uint32_max on failure.
@@ -67,6 +67,6 @@ class ISceneBuilder {
     addInstance(std::uint32_t meshIndex, const Xform& xform, std::uint32_t materialIdx) = 0;
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_ISCENEBUILDER_HPP

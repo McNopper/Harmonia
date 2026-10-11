@@ -2,7 +2,7 @@
 
 #include "harmonia/core/CommandPool.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 std::expected<HostImageUpload, VkResult> uploadHostImage(const DeviceContext& ctx,
                                                          const CommandPool& cmdPool,
@@ -95,4 +95,4 @@ std::expected<HostImageUpload, VkResult> uploadHostImage(const DeviceContext& ct
     };
 }
 
-} // namespace harmonia
+} // namespace harmonia::core

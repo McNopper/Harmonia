@@ -9,7 +9,7 @@
 //   2. Derive your test fixture from VulkanFixture (basic Vulkan) or
 //      RtFixture (also checks RT extensions are present).
 //
-// One harmonia::Context is created per test binary; tests share it for speed.
+// One harmonia::vulkan_init::Context is created per test binary; tests share it for speed.
 // TearDown() calls vkDeviceWaitIdle so each test starts with a quiescent GPU.
 
 #include <volk/volk.h>
@@ -23,12 +23,12 @@
 
 struct VulkanTestContext {
     SDL_Window* window{};
-    std::unique_ptr<harmonia::Context> context;
-    std::unique_ptr<harmonia::CommandPool> commandPool;
+    std::unique_ptr<harmonia::vulkan_init::Context> context;
+    std::unique_ptr<harmonia::core::CommandPool> commandPool;
 
     [[nodiscard]] bool isValid() const noexcept { return context && commandPool; }
     [[nodiscard]] const harmonia::DeviceContext& deviceCtx() const noexcept { return context->deviceContext(); }
-    [[nodiscard]] const harmonia::PhysicalDeviceInfo& physInfo() const noexcept {
+    [[nodiscard]] const harmonia::vulkan_init::PhysicalDeviceInfo& physInfo() const noexcept {
         return context->physicalDeviceInfo();
     }
 };
@@ -37,7 +37,7 @@ struct VulkanTestContext {
 inline VulkanTestContext* g_vulkanTestCtx = nullptr;
 
 // Base fixture: requires a valid Vulkan context (which in this project always
-// includes RT because harmonia::Context::create() selects only RT-capable devices).
+// includes RT because harmonia::vulkan_init::Context::create() selects only RT-capable devices).
 class VulkanFixture : public ::testing::Test {
   protected:
     void SetUp() override {
@@ -53,11 +53,11 @@ class VulkanFixture : public ::testing::Test {
     }
 
     [[nodiscard]] const harmonia::DeviceContext& deviceCtx() const noexcept { return g_vulkanTestCtx->deviceCtx(); }
-    [[nodiscard]] harmonia::CommandPool& commandPool() const noexcept { return *g_vulkanTestCtx->commandPool; }
+    [[nodiscard]] harmonia::core::CommandPool& commandPool() const noexcept { return *g_vulkanTestCtx->commandPool; }
 };
 
 // Extended fixture: also skips if RT extension functions are not loaded.
-// Use this for tests that exercise harmonia::AccelerationStructure / SBT / PathTracer.
+// Use this for tests that exercise harmonia::rt::AccelerationStructure / SBT / PathTracer.
 class RtFixture : public VulkanFixture {
   protected:
     void SetUp() override {
@@ -67,6 +67,6 @@ class RtFixture : public VulkanFixture {
         }
     }
 
-    [[nodiscard]] const harmonia::PhysicalDeviceInfo& physInfo() const noexcept { return g_vulkanTestCtx->physInfo(); }
+    [[nodiscard]] const harmonia::vulkan_init::PhysicalDeviceInfo& physInfo() const noexcept { return g_vulkanTestCtx->physInfo(); }
 };
 #endif // TESTS_FIXTURES_VULKANTESTFIXTURE_HPP

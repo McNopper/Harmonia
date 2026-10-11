@@ -12,7 +12,7 @@
 #include "harmonia/app/AppConfig.hpp"
 #include "harmonia/core/Logger.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 namespace {
 
@@ -46,7 +46,7 @@ bool CliParser::applyCommonArg(AppConfig& config, int& i, int argc, char* const 
     const std::string_view arg = argv[i];
     const auto next = [&](const char* what) -> const char* {
         if (i + 1 >= argc) {
-            Logger::error("Missing value for {}", what);
+            core::Logger::error("Missing value for {}", what);
             return nullptr;
         }
         return argv[++i];
@@ -119,7 +119,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
     const std::string_view arg = argv[i];
     const auto next = [&](const char* what) -> const char* {
         if (i + 1 >= argc) {
-            Logger::error("Missing value for {}", what);
+            core::Logger::error("Missing value for {}", what);
             return nullptr;
         }
         return argv[++i];
@@ -129,7 +129,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
         if (const char* v = next("--denoiser-strength")) {
             float strength = 0.0F;
             if (!parseFloat(v, strength)) {
-                Logger::error("Invalid value for --denoiser-strength: {}", v);
+                core::Logger::error("Invalid value for --denoiser-strength: {}", v);
             } else {
                 config.denoiser.strength = std::clamp(strength, 0.0F, 1.0F);
             }
@@ -140,7 +140,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
         if (const char* v = next("--denoiser-iterations")) {
             std::uint32_t iterations = 0U;
             if (!CliParser::parseUint32(v, iterations)) {
-                Logger::error("Invalid value for --denoiser-iterations: {}", v);
+                core::Logger::error("Invalid value for --denoiser-iterations: {}", v);
             } else {
                 config.denoiser.iterations = std::clamp(iterations, 1U, 8U);
             }
@@ -151,7 +151,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
         if (const char* v = next("--denoiser-history-blend")) {
             float historyBlend = 0.0F;
             if (!parseFloat(v, historyBlend)) {
-                Logger::error("Invalid value for --denoiser-history-blend: {}", v);
+                core::Logger::error("Invalid value for --denoiser-history-blend: {}", v);
             } else {
                 config.denoiser.historyBlend = std::clamp(historyBlend, 0.0F, 1.0F);
             }
@@ -178,7 +178,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
         if (const char* v = next("--denoiser-gradient-alpha")) {
             float gradientAlpha = 0.0F;
             if (!parseFloat(v, gradientAlpha)) {
-                Logger::error("Invalid value for --denoiser-gradient-alpha: {}", v);
+                core::Logger::error("Invalid value for --denoiser-gradient-alpha: {}", v);
             } else {
                 config.denoiser.gradientAlpha = std::clamp(gradientAlpha, 0.0F, 1.0F);
             }
@@ -192,7 +192,7 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
     const std::string_view arg = argv[i];
     const auto next = [&](const char* what) -> const char* {
         if (i + 1 >= argc) {
-            Logger::error("Missing value for {}", what);
+            core::Logger::error("Missing value for {}", what);
             return nullptr;
         }
         return argv[++i];
@@ -202,7 +202,7 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         if (const char* v = next("--offscreen-frames")) {
             std::uint32_t frames = 0U;
             if (!CliParser::parseUint32(v, frames)) {
-                Logger::error("Invalid value for --offscreen-frames: {}", v);
+                core::Logger::error("Invalid value for --offscreen-frames: {}", v);
             } else {
                 config.offscreenFrames = std::max(frames, 1U);
             }
@@ -213,7 +213,7 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         if (const char* v = next("--frames-per-flip")) {
             std::uint32_t frames = 0U;
             if (!CliParser::parseUint32(v, frames)) {
-                Logger::error("Invalid value for --frames-per-flip: {}", v);
+                core::Logger::error("Invalid value for --frames-per-flip: {}", v);
             } else {
                 config.framesPerFlip = std::max(frames, 1U);
             }
@@ -248,7 +248,7 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         if (const char* v = next("--rng-seed")) {
             std::uint32_t seed = 0U;
             if (!CliParser::parseUint32(v, seed)) {
-                Logger::error("Invalid value for --rng-seed: {}", v);
+                core::Logger::error("Invalid value for --rng-seed: {}", v);
             } else {
                 config.rngSeed = seed;
             }
@@ -258,4 +258,4 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
     return false;
 }
 
-} // namespace harmonia
+} // namespace harmonia::app

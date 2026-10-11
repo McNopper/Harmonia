@@ -17,7 +17,7 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Source color space of a texture asset.
 /// Tokens are ASWF ColorInterop interop IDs (scene-referred set); only the
@@ -56,7 +56,7 @@ class Texture {
 
     /// Upload pre-decoded pixels (RGBA8, already in render color space).
     [[nodiscard]] static std::expected<Texture, VkResult> create(const DeviceContext& ctx,
-                                                                 const CommandPool& cmdPool,
+                                                                 const core::CommandPool& cmdPool,
                                                                  std::span<const std::byte> pixels,
                                                                  std::uint32_t width,
                                                                  std::uint32_t height,
@@ -68,26 +68,26 @@ class Texture {
     /// on the CPU before GPU upload.
     [[nodiscard]] static std::expected<Texture, VkResult> loadFromFile(
         const DeviceContext& ctx,
-        const CommandPool& cmdPool,
+        const core::CommandPool& cmdPool,
         const std::filesystem::path& path,
         TextureColorSpace colorSpace = TextureColorSpace::SrgbRec709Scene,
-        harmonia::ColorSpace::WorkingColorSpace workingSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020,
+        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020,
         std::string_view name = "");
 
-    [[nodiscard]] const Image& image() const noexcept { return m_image; }
+    [[nodiscard]] const core::Image& image() const noexcept { return m_image; }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }
     [[nodiscard]] std::uint32_t width() const noexcept { return m_width; }
     [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
     [[nodiscard]] std::uint32_t mipLevels() const noexcept { return m_mipLevels; }
 
   private:
-    Image m_image{};
-    harmonia::UniqueSampler m_sampler;
+    core::Image m_image{};
+    harmonia::core::UniqueSampler m_sampler;
     std::uint32_t m_width{};
     std::uint32_t m_height{};
     std::uint32_t m_mipLevels{1};
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_TEXTURE_HPP

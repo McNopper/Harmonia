@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <span>
 
-namespace harmonia {
+namespace harmonia::core {
 
 /// MOD2: timeline semaphore for one-shot submits (replaces VkFence — unifies all sync
 /// on one primitive; the frame path already uses timeline semaphores exclusively).
@@ -83,6 +83,6 @@ waitTimelineSemaphore(VkDevice device, VkSemaphore semaphore, std::uint64_t valu
     return vkQueueSubmit2(queue, 1U, &submitInfo, VK_NULL_HANDLE);
 }
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_ONESHOT_HPP

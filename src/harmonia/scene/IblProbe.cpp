@@ -11,16 +11,16 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 namespace {
 constexpr float kRec2020RedPrimariesThreshold = 0.68f;
 } // namespace
 
 std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx,
-                                                        const CommandPool& pool,
+                                                        const core::CommandPool& pool,
                                                         const std::filesystem::path& path,
-                                                        harmonia::ColorSpace::WorkingColorSpace workingSpace) {
+                                                        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
     auto exr = readEXR(path);
     if (!exr) {
         return std::unexpected(exr.error());
@@ -36,7 +36,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
 
     buildImportanceCdf(probe, ctx, rgba32f, exr->width, exr->height);
 
-    Logger::info("IblProbe: loaded '{}' ({}×{})", path.filename().string(), exr->width, exr->height);
+    core::Logger::info("IblProbe: loaded '{}' ({}×{})", path.filename().string(), exr->width, exr->height);
     return probe;
 }
 
@@ -50,7 +50,7 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
 
     auto inp = OIIO::ImageInput::open(path.string(), &openConfig);
     if (!inp) {
-        Logger::error("IblProbe: failed to open '{}': {}", path.string(), OIIO::geterror());
+        core::Logger::error("IblProbe: failed to open '{}': {}", path.string(), OIIO::geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
@@ -68,7 +68,7 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
             if (c + 1 < spec.nchannels)
                 chanDesc += ", ";
         }
-        Logger::info("IblProbe: '{}' {}x{}  nchannels={} [{}]",
+        core::Logger::info("IblProbe: '{}' {}x{}  nchannels={} [{}]",
                      path.filename().string(),
                      width,
                      height,
@@ -92,7 +92,7 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
     const std::size_t nchans = static_cast<std::size_t>(spec.nchannels);
     std::vector<float> allChans(width * height * nchans);
     if (!inp->read_image(0, 0, 0, spec.nchannels, OIIO::TypeDesc::FLOAT, allChans.data())) {
-        Logger::error("IblProbe: read_image failed for '{}': {}", path.string(), inp->geterror());
+        core::Logger::error("IblProbe: read_image failed for '{}': {}", path.string(), inp->geterror());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     inp->close();
@@ -123,7 +123,7 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
                                               std::size_t width,
                                               std::size_t height,
                                               bool srcRec2020,
-                                              harmonia::ColorSpace::WorkingColorSpace workingSpace) {
+                                              harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
     // ── Pick the primaries conversion (source → working space) ───────────────
     // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
     struct Mat3 {
@@ -141,7 +141,7 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
                               -0.1005789f,
                               1.1187297f};
     constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
-    const bool dstRec2020 = (workingSpace == harmonia::ColorSpace::WorkingColorSpace::LinRec2020);
+    const bool dstRec2020 = (workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
     const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
 
     // Clamp non-finite values (e.g. half-float inf from overexposed sun disc) to
@@ -166,7 +166,7 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
 
 VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
                                      const DeviceContext& ctx,
-                                     const CommandPool& pool,
+                                     const core::CommandPool& pool,
                                      const std::vector<float>& rgba32f,
                                      std::size_t width,
                                      std::size_t height) {
@@ -178,9 +178,9 @@ VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
     // stage that may sample the env panorama: fragment (Theia sky pass) and ray tracing
     // (Hyperion). Sampler is REPEAT on U, CLAMP_TO_EDGE on V (default) to avoid pole
     // artefacts.
-    auto uploaded = uploadHostImage(ctx,
+    auto uploaded = core::uploadHostImage(ctx,
                                     pool,
-                                    HostImageUploadDesc{
+                                    core::HostImageUploadDesc{
                                         .format = VK_FORMAT_R32G32B32A32_SFLOAT,
                                         .pixels = rgba32f.data(),
                                         .extent = extent,
@@ -188,7 +188,7 @@ VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
                                                        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
                                         .finalAccess = VK_ACCESS_2_SHADER_READ_BIT,
                                         .name = "ibl.env",
-                                        .sampler = SamplerSpec{
+                                        .sampler = core::SamplerSpec{
                                             .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
                                         },
                                     });
@@ -228,7 +228,7 @@ void IblProbe::extractDominantSun(IblProbe& probe,
             (sunAvgCount > 0) ? static_cast<float>(sunAvgSum / static_cast<double>(sunAvgCount)) : 0.0f;
         const float ratio = (meanAvg > 1e-8f) ? (sunBestAvg / meanAvg) : 0.0f;
         domSunStrength = std::clamp((ratio - 4.0f) / 16.0f, 0.0f, 1.0f);
-        Logger::info("IblProbe: dominant light dir ({:.2f}, {:.2f}, {:.2f}), strength {:.2f} (peak/mean {:.1f})",
+        core::Logger::info("IblProbe: dominant light dir ({:.2f}, {:.2f}, {:.2f}), strength {:.2f} (peak/mean {:.1f})",
                      domSunDir.x,
                      domSunDir.y,
                      domSunDir.z,
@@ -344,7 +344,7 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
 
         // Upload marginal CDF buffer
         const VkDeviceSize margSize = static_cast<VkDeviceSize>(kCdfH + 1) * sizeof(float);
-        auto mBuf = Buffer::create(
+        auto mBuf = core::Buffer::create(
             ctx, margSize,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.marginalCdf");
@@ -355,7 +355,7 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
 
         // Upload conditional CDF buffer
         const VkDeviceSize condSize = static_cast<VkDeviceSize>(kCdfH * (kCdfW + 1)) * sizeof(float);
-        auto cBuf = Buffer::create(ctx,
+        auto cBuf = core::Buffer::create(ctx,
                                    condSize,
                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                                    VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
@@ -368,11 +368,11 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
         if (probe.m_marginalCdf.isValid() && probe.m_conditionalCdf.isValid()) {
             probe.m_cdfWidth = static_cast<std::uint32_t>(kCdfW);
             probe.m_cdfHeight = static_cast<std::uint32_t>(kCdfH);
-            Logger::info("IblProbe: built {}×{} importance CDF (total weight {:.2f})", kCdfW, kCdfH, totalWeight);
+            core::Logger::info("IblProbe: built {}×{} importance CDF (total weight {:.2f})", kCdfW, kCdfH, totalWeight);
         }
     } else {
-        Logger::warn("IblProbe: env map is completely dark — importance sampling disabled");
+        core::Logger::warn("IblProbe: env map is completely dark — importance sampling disabled");
     }
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

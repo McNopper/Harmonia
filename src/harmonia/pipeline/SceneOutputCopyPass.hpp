@@ -12,7 +12,7 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 
-namespace harmonia {
+namespace harmonia::pipeline {
 
 struct PassContext;
 
@@ -31,7 +31,7 @@ struct SceneOutputCopyPassSettings {
 /// Shared denoiser stage operating on scene-referred HDR output before tone mapping.
 class SceneOutputCopyPass final : public IRenderPass {
   public:
-    /// \deprecated Use harmonia::SceneOutputCopyPassSettings directly.
+    /// \deprecated Use harmonia::pipeline::SceneOutputCopyPassSettings directly.
     using Settings = SceneOutputCopyPassSettings;
 
     [[nodiscard]] static std::expected<SceneOutputCopyPass, VkResult>
@@ -86,12 +86,12 @@ class SceneOutputCopyPass final : public IRenderPass {
     };
 
     [[nodiscard]] VkImage recordSpatialPasses(VkCommandBuffer cmd,
-                                              const Image& hdrBuffer,
-                                              const Image& denoised,
+                                              const core::Image& hdrBuffer,
+                                              const core::Image& denoised,
                                               const DispatchGrid& grid,
                                               const DenoiseGuides& guides) noexcept;
     void recordTemporalHistoryPass(VkCommandBuffer cmd,
-                                   const Image& denoised,
+                                   const core::Image& denoised,
                                    bool useGradient,
                                    bool hasMotionVectors,
                                    const DispatchGrid& grid,
@@ -110,17 +110,17 @@ class SceneOutputCopyPass final : public IRenderPass {
     void restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage) noexcept;
 
     const DeviceContext* m_ctx = nullptr;
-    UniquePipeline m_pipeline;
-    UniquePipelineLayout m_pipelineLayout;
-    UniqueDescriptorSetLayout m_setLayout;
-    UniqueSampler m_guideSampler;
+    core::UniquePipeline m_pipeline;
+    core::UniquePipelineLayout m_pipelineLayout;
+    core::UniqueDescriptorSetLayout m_setLayout;
+    core::UniqueSampler m_guideSampler;
 
-    Image m_historyImage{};
-    Image m_workImage{};
-    Image m_dummyMotionVectors{}; ///< 1×1 R32G32F fallback bound to binding 5 when ctx.motionVectorView is null
-    Image m_gradientImage{};      ///< A-SVGF R32G32F gradient/variance (binding 6); full-res, history lifetime
-    Image m_prevGradientImage{};  ///< A-SVGF R32G32F previous gradient/variance (binding 7)
-    Image m_dummyGradient{};      ///< 1×1 R32G32F fallback bound to bindings 6/7 when useGradient is off
+    core::Image m_historyImage{};
+    core::Image m_workImage{};
+    core::Image m_dummyMotionVectors{}; ///< 1×1 R32G32F fallback bound to binding 5 when ctx.motionVectorView is null
+    core::Image m_gradientImage{};      ///< A-SVGF R32G32F gradient/variance (binding 6); full-res, history lifetime
+    core::Image m_prevGradientImage{};  ///< A-SVGF R32G32F previous gradient/variance (binding 7)
+    core::Image m_dummyGradient{};      ///< 1×1 R32G32F fallback bound to bindings 6/7 when useGradient is off
     Settings m_settings;          // Default-initialized (uses NSDMIs from SceneOutputCopyPassSettings)
     VkExtent2D m_extent{};
     std::uint64_t m_lastResetToken = 0U;
@@ -128,5 +128,5 @@ class SceneOutputCopyPass final : public IRenderPass {
     bool m_historyFirstUse = true;
 };
 
-} // namespace harmonia
+} // namespace harmonia::pipeline
 #endif // HARMONIA_PIPELINE_SCENEOUTPUTCOPYPASS_HPP

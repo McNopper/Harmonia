@@ -5,7 +5,7 @@
 
 #include "harmonia/core/Logger.hpp"
 
-namespace harmonia {
+namespace harmonia::vulkan_init {
 
 namespace {
 [[nodiscard]] const char* severityLabel(VkDebugUtilsMessageSeverityFlagBitsEXT severity) noexcept {
@@ -87,9 +87,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtils::debugCallback(VkDebugUtilsMessageSeve
                                          : std::string_view{"(no message)"};
 
     if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        Logger::error("Vulkan {} {}: {}", severityLabel(severity), typeLabel(types), message);
+        core::Logger::error("Vulkan {} {}: {}", severityLabel(severity), typeLabel(types), message);
     } else if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-        Logger::warn("Vulkan {} {}: {}", severityLabel(severity), typeLabel(types), message);
+        core::Logger::warn("Vulkan {} {}: {}", severityLabel(severity), typeLabel(types), message);
     }
     return VK_FALSE;
 }
@@ -102,4 +102,4 @@ void DebugUtils::destroy() noexcept {
     m_messenger = VK_NULL_HANDLE;
 }
 
-} // namespace harmonia
+} // namespace harmonia::vulkan_init

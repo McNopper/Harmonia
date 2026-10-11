@@ -16,13 +16,13 @@
 #include <slang-math/slang-math.hpp>
 #include <string_view>
 
-namespace harmonia::ColorSpace {
+namespace harmonia::utils::ColorSpace {
 
 // ── Working color space ──────────────────────────────────────────────────────
 // The scene-referred space all rendering happens in — always linear; only the
 // primaries differ. Selected per scene ([render] working_color_space, token =
 // ColorInterop interop ID). Assets are converted into it at load time; the
-// ToneMapper converts from it to the display-referred output space.
+// presentation::ToneMapper converts from it to the display-referred output space.
 // Values mirror tonemap.slang's workingColorSpace push constant.
 enum class WorkingColorSpace : std::uint32_t {
     LinRec2020 = 0, ///< "lin_rec2020_scene" — default
@@ -110,5 +110,5 @@ inline constexpr float kPeakLuminanceSDRNits = 100.0f;     // sRGB / Rec.709
     return 1.0f / (1.2f * std::exp2(ev100));
 }
 
-} // namespace harmonia::ColorSpace
+} // namespace harmonia::utils::ColorSpace
 #endif // HARMONIA_UTILS_COLORSPACE_HPP

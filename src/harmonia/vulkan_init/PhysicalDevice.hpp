@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <expected>
 
-namespace harmonia {
+namespace harmonia::vulkan_init {
 
 struct PhysicalDeviceInfo {
     VkPhysicalDevice device{};
@@ -38,6 +38,6 @@ class PhysicalDevice {
     [[nodiscard]] static bool hasOpacityMicromapSupport(VkPhysicalDevice device);
 };
 
-} // namespace harmonia
+} // namespace harmonia::vulkan_init
 
 #endif // HARMONIA_VULKAN_INIT_PHYSICALDEVICE_HPP

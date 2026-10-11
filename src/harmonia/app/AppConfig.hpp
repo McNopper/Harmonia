@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <string>
 
-namespace harmonia {
+namespace harmonia::app {
 
 struct AppConfig {
     struct StagePipeline {
@@ -67,5 +67,5 @@ struct AppConfig {
     bool rngDebug = false;
 };
 
-} // namespace harmonia
+} // namespace harmonia::app
 #endif // HARMONIA_APP_APPCONFIG_HPP

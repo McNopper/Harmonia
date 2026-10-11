@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 
-namespace harmonia::Rng {
+namespace harmonia::utils::Rng {
 
 [[nodiscard]] inline std::uint32_t wangHash(std::uint32_t seed) noexcept {
     seed = (seed ^ 61U) ^ (seed >> 16U);
@@ -40,5 +40,5 @@ namespace harmonia::Rng {
     return sm::float2{nextFloat(state), nextFloat(state)};
 }
 
-} // namespace harmonia::Rng
+} // namespace harmonia::utils::Rng
 #endif // HARMONIA_UTILS_RNG_HPP

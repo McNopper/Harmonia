@@ -7,7 +7,7 @@
 
 #include "harmonia/app/IRenderer.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 /// The default Harmonia renderer: clears the frame to a flat green.
 ///
@@ -26,5 +26,5 @@ class GreenScreenRenderer final : public IRenderer {
     std::array<float, 4> m_clearColor{0.0F, 1.0F, 0.0F, 1.0F};
 };
 
-} // namespace harmonia
+} // namespace harmonia::app
 #endif // HARMONIA_APP_GREENSCREENRENDERER_HPP

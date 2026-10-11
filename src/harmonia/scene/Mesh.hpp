@@ -16,7 +16,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Axis-aligned bounding box (object or world space — caller-established).
 struct Aabb {
@@ -43,20 +43,20 @@ class Mesh {
     ~Mesh() = default;
 
     [[nodiscard]] static std::expected<Mesh, VkResult>
-    create(const DeviceContext& ctx, const CommandPool& cmdPool, const MeshData& data, std::string_view debugName = "");
+    create(const DeviceContext& ctx, const core::CommandPool& cmdPool, const MeshData& data, std::string_view debugName = "");
 
-    [[nodiscard]] const Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
-    [[nodiscard]] const Buffer& indexBuffer() const noexcept { return m_indexBuffer; }
+    [[nodiscard]] const core::Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
+    [[nodiscard]] const core::Buffer& indexBuffer() const noexcept { return m_indexBuffer; }
     [[nodiscard]] std::uint32_t vertexCount() const noexcept { return m_vertexCount; }
     [[nodiscard]] std::uint32_t indexCount() const noexcept { return m_indexCount; }
 
   private:
-    Buffer m_vertexBuffer{};
-    Buffer m_indexBuffer{};
+    core::Buffer m_vertexBuffer{};
+    core::Buffer m_indexBuffer{};
     std::uint32_t m_vertexCount{};
     std::uint32_t m_indexCount{};
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_MESH_HPP

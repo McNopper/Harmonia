@@ -22,7 +22,7 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 #include "harmonia/scene/Texture.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 namespace {
 
@@ -73,14 +73,14 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
                 applyStageTogglesFromTable(renderPreset, cfg);
                 applyPostTonemapOverrideFromTable(renderPreset, cfg);
             } catch (const toml::parse_error&) {
-                Logger::warn("SceneLoader: malformed render preset reference '{}'", *ref);
+                core::Logger::warn("SceneLoader: malformed render preset reference '{}'", *ref);
             }
         }
 
         applyStageTogglesFromTable(*render, cfg);
         applyPostTonemapOverrideFromTable(*render, cfg);
     } catch (const toml::parse_error&) {
-        Logger::warn("SceneLoader: failed to parse '{}' for stage toggles", sceneFile.string());
+        core::Logger::warn("SceneLoader: failed to parse '{}' for stage toggles", sceneFile.string());
     }
 }
 
@@ -142,7 +142,7 @@ using SceneConfig = SceneLoader::SceneConfig;
 struct SceneLoadContext {
     const std::filesystem::path& assetsDir;
     const DeviceContext& ctx;
-    const CommandPool& pool;
+    const core::CommandPool& pool;
     ISceneBuilder& scene;
     SceneConfig& cfg;
     MaterialLibrary lib{};
@@ -166,10 +166,10 @@ struct SceneLoadContext {
 void applyWorkingColorSpace(const aether::SceneDesc& desc, SceneConfig& cfg) {
     // ── Working color space ───────────────────────────────────────────────────
     if (desc.workingColorSpace) {
-        if (const auto ws = harmonia::ColorSpace::parseWorkingColorSpace(*desc.workingColorSpace))
+        if (const auto ws = harmonia::utils::ColorSpace::parseWorkingColorSpace(*desc.workingColorSpace))
             cfg.workingColorSpace = *ws;
         else
-            Logger::warn("SceneLoader: unknown working_color_space '{}' — using lin_rec2020_scene",
+            core::Logger::warn("SceneLoader: unknown working_color_space '{}' — using lin_rec2020_scene",
                          *desc.workingColorSpace);
     }
 }
@@ -181,7 +181,7 @@ void loadMaterialLibraries(const aether::SceneDesc& desc,
     // ── Material libraries ────────────────────────────────────────────────────
     for (const std::string& mtllib : desc.mtllibs) {
         if (!lib.load(assetsDir / mtllib, cfg.workingColorSpace))
-            Logger::warn("SceneLoader: cannot open material library '{}'", mtllib);
+            core::Logger::warn("SceneLoader: cannot open material library '{}'", mtllib);
     }
 }
 
@@ -200,12 +200,12 @@ void applyRenderSettings(const aether::SceneDesc& desc, SceneConfig& cfg) {
         if (const auto it = kTonemappers.find(name); it != kTonemappers.end()) {
             cfg.tonemapper = it->second;
         } else {
-            Logger::warn("SceneLoader: unknown tonemapper '{}' — using default (aces)", name);
+            core::Logger::warn("SceneLoader: unknown tonemapper '{}' — using default (aces)", name);
         }
     }
 }
 
-    // ── Camera ────────────────────────────────────────────────────────────────
+    // ── renderer::Camera ────────────────────────────────────────────────────────────────
     // The camera's placement is a plain TRS transform — identical in shape to an
     // instance's. Forward/up are derived from the rotation quaternion.
 void applyCamera(const aether::CameraDesc& cam, SceneConfig& cfg) {
@@ -257,14 +257,14 @@ void loadMaterialTextures(SceneLoadContext& c, const std::string& matName) {
         auto result =
             Texture::loadFromFile(c.ctx, c.pool, c.assetsDir / relPath, ref->colorSpace, c.cfg.workingColorSpace, matName);
         if (!result) {
-            Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
+            core::Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
             continue;
         }
 
         const std::uint32_t idx = c.scene.addTexture(std::move(*result));
         c.texCache.emplace(relPath, idx);
         c.lib.patchTextureIndex(matName, slot, idx);
-        Logger::info("SceneLoader: loaded texture '{}' (slot {}) → index {}", relPath, slot, idx);
+        core::Logger::info("SceneLoader: loaded texture '{}' (slot {}) → index {}", relPath, slot, idx);
     }
 }
 
@@ -303,7 +303,7 @@ resolveMicromaps(SceneLoadContext& c, const aether::MeshDesc& m) {
     // VK_KHR_opacity_micromap — there is no opaque fallback (a cutout is not
     // an image-identical absent-branch). Fail fast if the device lacks it.
     if (!m.opacityMicromaps.empty() && !c.ctx.opacityMicromapSupported) {
-        Logger::error("SceneLoader: mesh '{}' uses opacity_micromaps but the device "
+        core::Logger::error("SceneLoader: mesh '{}' uses opacity_micromaps but the device "
                       "lacks VK_KHR_opacity_micromap",
                       m.name);
         return std::unexpected(VK_ERROR_FEATURE_NOT_PRESENT);
@@ -319,7 +319,7 @@ resolveMicromaps(SceneLoadContext& c, const aether::MeshDesc& m) {
         if (asset == nullptr) {
             auto parsed = aether::OmmImporter::parse(ommPath);
             if (!parsed) {
-                Logger::error("SceneLoader: cannot parse opacity micromap '{}'", relPath);
+                core::Logger::error("SceneLoader: cannot parse opacity micromap '{}'", relPath);
                 return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }
             asset = &c.scene.addOpacityMicromap(std::move(*parsed));
@@ -332,7 +332,7 @@ resolveMicromaps(SceneLoadContext& c, const aether::MeshDesc& m) {
             }
         }
         if (ommForGroup.find(groupName) == ommForGroup.end()) {
-            Logger::error("SceneLoader: opacity micromap '{}' has no group '{}'", relPath, groupName);
+            core::Logger::error("SceneLoader: opacity micromap '{}' has no group '{}'", relPath, groupName);
             return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
         }
     }
@@ -349,12 +349,12 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
     MicromapGroups& ommForGroup) {
     std::vector<LoadedSubmesh> subs;
     if (m.objPath.empty()) {
-        Logger::warn("SceneLoader: mesh '{}' has empty path — skipping", m.name);
+        core::Logger::warn("SceneLoader: mesh '{}' has empty path — skipping", m.name);
         return std::nullopt;
     }
     auto groups = aether::ObjImporter::parse(c.assetsDir / m.objPath);
     if (!groups) {
-        Logger::error("SceneLoader: cannot open mesh '{}'", m.objPath);
+        core::Logger::error("SceneLoader: cannot open mesh '{}'", m.objPath);
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     for (const aether::MeshGroup& g : *groups) {
@@ -370,7 +370,7 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
         };
         const std::uint32_t idx = c.scene.addMesh(c.ctx, c.pool, std::move(hmesh), opacity, debugName);
         if (idx == std::numeric_limits<std::uint32_t>::max()) {
-            Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
+            core::Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
             return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
         }
         subs.push_back({idx, g.name});
@@ -383,14 +383,14 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
                                                                        const aether::MeshDesc& m) {
     std::vector<LoadedSubmesh> subs;
     if (m.boxHalf == sm::float3{0.0f, 0.0f, 0.0f}) {
-        Logger::warn("SceneLoader: box '{}' has zero half-extents — skipping", m.name);
+        core::Logger::warn("SceneLoader: box '{}' has zero half-extents — skipping", m.name);
         return std::nullopt;
     }
-    MeshData mesh = harmonia::ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
+    MeshData mesh = harmonia::scene::ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
     const std::uint32_t idx = c.scene.addMesh(
         c.ctx, c.pool, std::move(mesh), MeshOpacity{.alphaTested = isAlphaTested(c, m.name, "")}, m.name);
     if (idx == std::numeric_limits<std::uint32_t>::max()) {
-        Logger::error("SceneLoader: failed to upload box '{}'", m.name);
+        core::Logger::error("SceneLoader: failed to upload box '{}'", m.name);
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     subs.push_back({idx, ""});
@@ -402,12 +402,12 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
                                                                           const aether::MeshDesc& m) {
     std::vector<LoadedSubmesh> subs;
     if (m.sphereRadius <= 0.0f) {
-        Logger::warn("SceneLoader: sphere '{}' has radius ≤ 0 — skipping", m.name);
+        core::Logger::warn("SceneLoader: sphere '{}' has radius ≤ 0 — skipping", m.name);
         return std::nullopt;
     }
     const std::uint32_t idx = c.scene.addSphereMesh(c.ctx, c.pool, m.sphereRadius, m.name);
     if (idx == std::numeric_limits<std::uint32_t>::max()) {
-        Logger::error("SceneLoader: failed to upload sphere '{}'", m.name);
+        core::Logger::error("SceneLoader: failed to upload sphere '{}'", m.name);
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     subs.push_back({idx, ""});
@@ -446,7 +446,7 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
     }
     std::vector<LoadedSubmesh> subs = std::move(**arm);
     if (subs.empty()) {
-        Logger::warn("SceneLoader: mesh '{}' produced no geometry — skipping", m.name);
+        core::Logger::warn("SceneLoader: mesh '{}' produced no geometry — skipping", m.name);
     }
     return subs;
 }
@@ -457,7 +457,7 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
     for (const aether::InstanceDesc& inst : desc.instances) {
         auto it = c.meshSubmeshes.find(inst.meshName);
         if (it == c.meshSubmeshes.end()) {
-            Logger::warn("SceneLoader: instance references unknown mesh '{}' — skipping", inst.meshName);
+            core::Logger::warn("SceneLoader: instance references unknown mesh '{}' — skipping", inst.meshName);
             continue;
         }
         const Xform xform = toXform(inst);
@@ -477,7 +477,7 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
             loadMaterialTextures(c, matName);
             const std::uint32_t matIdx = c.scene.addMaterial(c.lib.getOrDefault(matName));
             if (c.scene.addInstance(sub.meshIndex, xform, matIdx) == std::numeric_limits<std::uint32_t>::max()) {
-                Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
+                core::Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
                 return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }
         }
@@ -492,11 +492,11 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
                                                                     const std::filesystem::path& assetsDir,
                                                                     ISceneBuilder& scene,
                                                                     const DeviceContext& ctx,
-                                                                    const CommandPool& pool) {
+                                                                    const core::CommandPool& pool) {
     // Parsing is owned by Aether — SceneLoader only resolves and uploads.
     const std::optional<aether::SceneDesc> desc = aether::SceneParser::parse(sceneFile);
     if (!desc) {
-        Logger::error("SceneLoader: cannot open '{}'", sceneFile.string());
+        core::Logger::error("SceneLoader: cannot open '{}'", sceneFile.string());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
@@ -525,8 +525,8 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
         return std::unexpected(placed.error());
     }
 
-    Logger::info("SceneLoader: loaded '{}'", sceneFile.filename().string());
+    core::Logger::info("SceneLoader: loaded '{}'", sceneFile.filename().string());
     return cfg;
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

@@ -10,7 +10,7 @@
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/Material.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Output of the emissive-triangle builder.
 struct EmissiveData {
@@ -90,5 +90,5 @@ appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4&
 /// Shared so the NEE sampling CDF cannot drift between renderers.
 [[nodiscard]] std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower);
 
-} // namespace harmonia
+} // namespace harmonia::scene
 #endif // HARMONIA_SCENE_EMISSIVEBUILDER_HPP

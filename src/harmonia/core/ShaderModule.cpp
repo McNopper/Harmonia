@@ -5,7 +5,7 @@
 
 #include "harmonia/core/Logger.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 std::expected<std::vector<std::uint32_t>, VkResult> readSpirv(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
@@ -53,4 +53,4 @@ std::expected<VkShaderModule, VkResult> createShaderModule(VkDevice device, cons
     return module;
 }
 
-} // namespace harmonia
+} // namespace harmonia::core

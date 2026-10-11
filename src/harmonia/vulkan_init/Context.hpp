@@ -13,7 +13,7 @@
 #include "harmonia/vulkan_init/DebugUtils.hpp"
 #include "harmonia/vulkan_init/PhysicalDevice.hpp"
 
-namespace harmonia {
+namespace harmonia::vulkan_init {
 
 class Context {
   public:
@@ -49,6 +49,6 @@ class Context {
     bool m_validationEnabled = false;
 };
 
-} // namespace harmonia
+} // namespace harmonia::vulkan_init
 
 #endif // HARMONIA_VULKAN_INIT_CONTEXT_HPP

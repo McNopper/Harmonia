@@ -6,14 +6,14 @@
 
 #include "harmonia/core/Buffer.hpp"
 
-namespace harmonia {
+namespace harmonia::rt {
 
 VkResult buildTlas(const DeviceContext& ctx,
-                   const CommandPool& pool,
+                   const core::CommandPool& pool,
                    std::span<const VkAccelerationStructureInstanceKHR> instances,
                    AccelerationStructure& outTlas,
                    VkDeviceAddress& outAddress) {
-    auto instanceUpload = Buffer::upload(
+    auto instanceUpload = core::Buffer::upload(
         ctx,
         pool,
         std::as_bytes(std::span<const VkAccelerationStructureInstanceKHR>(instances.data(), instances.size())),
@@ -91,4 +91,4 @@ VkResult buildTlas(const DeviceContext& ctx,
     return VK_SUCCESS;
 }
 
-} // namespace harmonia
+} // namespace harmonia::rt

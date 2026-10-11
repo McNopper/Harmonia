@@ -6,7 +6,7 @@
 #include <string_view>
 #include <utility>
 
-namespace harmonia {
+namespace harmonia::core {
 
 class Logger {
   public:
@@ -37,6 +37,6 @@ class Logger {
     static void log(Level level, std::string message);
 };
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_LOGGER_HPP

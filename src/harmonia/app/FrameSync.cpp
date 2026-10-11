@@ -6,7 +6,7 @@
 
 #include "harmonia/core/Logger.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 namespace {
 
@@ -36,14 +36,14 @@ namespace {
 
 } // namespace
 
-bool FrameSync::create(const DeviceContext& ctx, CommandPool& cmdPool, std::uint32_t swapchainImageCount) {
+bool FrameSync::create(const DeviceContext& ctx, core::CommandPool& cmdPool, std::uint32_t swapchainImageCount) {
     m_device = ctx.device;
 
     for (FrameResources& frame : m_frames) {
         auto renderCmd = cmdPool.allocate();
         auto displayCmd = cmdPool.allocate();
         if (!renderCmd || !displayCmd) {
-            Logger::error("Command buffer allocation failed");
+            core::Logger::error("Command buffer allocation failed");
             return false;
         }
         frame.renderCmd = *renderCmd;
@@ -51,17 +51,17 @@ bool FrameSync::create(const DeviceContext& ctx, CommandPool& cmdPool, std::uint
 
         VkSemaphore imageSem{};
         if (createBinarySemaphore(m_device, imageSem) != VK_SUCCESS) {
-            Logger::error("Semaphore creation failed");
+            core::Logger::error("Semaphore creation failed");
             return false;
         }
-        frame.imageAvailable = harmonia::UniqueSemaphore{m_device, imageSem};
+        frame.imageAvailable = harmonia::core::UniqueSemaphore{m_device, imageSem};
     }
 
     m_renderComplete.reserve(swapchainImageCount);
     for (std::uint32_t i = 0; i < swapchainImageCount; ++i) {
         VkSemaphore sem{};
         if (createBinarySemaphore(m_device, sem) != VK_SUCCESS) {
-            Logger::error("renderComplete semaphore creation failed");
+            core::Logger::error("renderComplete semaphore creation failed");
             return false;
         }
         m_renderComplete.emplace_back(m_device, sem);
@@ -69,10 +69,10 @@ bool FrameSync::create(const DeviceContext& ctx, CommandPool& cmdPool, std::uint
 
     VkSemaphore timelineSem{};
     if (createTimelineSemaphore(m_device, timelineSem) != VK_SUCCESS) {
-        Logger::error("Timeline semaphore creation failed");
+        core::Logger::error("Timeline semaphore creation failed");
         return false;
     }
-    m_timelineSemaphore = harmonia::UniqueSemaphore{m_device, timelineSem};
+    m_timelineSemaphore = harmonia::core::UniqueSemaphore{m_device, timelineSem};
 
     m_swapchainLayouts.assign(swapchainImageCount, VK_IMAGE_LAYOUT_UNDEFINED);
     return true;
@@ -94,7 +94,7 @@ void FrameSync::onResize(std::uint32_t swapchainImageCount) noexcept {
     for (std::uint32_t i = 0; i < swapchainImageCount; ++i) {
         VkSemaphore sem{};
         if (createBinarySemaphore(m_device, sem) != VK_SUCCESS) {
-            Logger::error("renderComplete semaphore recreate failed");
+            core::Logger::error("renderComplete semaphore recreate failed");
             return;
         }
         m_renderComplete.emplace_back(m_device, sem);
@@ -130,4 +130,4 @@ void FrameSync::resetSlots() noexcept {
     }
 }
 
-} // namespace harmonia
+} // namespace harmonia::app

@@ -21,7 +21,7 @@
 
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia::ToneMapping {
+namespace harmonia::utils::ToneMapping {
 
 // ── ACES matrices ─────────────────────────────────────────────────────────────
 // Row-major slang-math form, matching ColorSpace.cpp kRec2020_to_AP1 / kAP1_to_Rec2020.
@@ -108,5 +108,5 @@ inline constexpr sm::float3x3 kAP1ToP3 = sm::float3x3(
     return x * (lumTm / lum);
 }
 
-} // namespace harmonia::ToneMapping
+} // namespace harmonia::utils::ToneMapping
 #endif // HARMONIA_UTILS_TONEMAPPING_HPP

@@ -24,7 +24,7 @@
 #include "harmonia/presentation/ImageCapture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 namespace {
 
@@ -47,15 +47,15 @@ void hashCombineU64(std::uint64_t& hash, std::uint64_t value) noexcept {
     hash *= kHashPrime;
 }
 
-class ToneMapStagePass final : public IRenderPass {
+class ToneMapStagePass final : public pipeline::IRenderPass {
   public:
-    explicit ToneMapStagePass(const ToneMapper* toneMapper) : m_toneMapper(toneMapper) {}
+    explicit ToneMapStagePass(const presentation::ToneMapper* toneMapper) : m_toneMapper(toneMapper) {}
 
-    void record(const PassContext& ctx) noexcept override {
+    void record(const pipeline::PassContext& ctx) noexcept override {
         if (m_toneMapper == nullptr || !m_toneMapper->isValid() || ctx.swapchainView == VK_NULL_HANDLE) {
             return;
         }
-        const Image* input = ctx.denoised != nullptr ? ctx.denoised : ctx.hdrBuffer;
+        const core::Image* input = ctx.denoised != nullptr ? ctx.denoised : ctx.hdrBuffer;
         if (input == nullptr) {
             return;
         }
@@ -72,11 +72,11 @@ class ToneMapStagePass final : public IRenderPass {
     [[nodiscard]] const char* name() const noexcept override { return "ToneMapStagePass"; }
 
   private:
-    const ToneMapper* m_toneMapper = nullptr;
+    const presentation::ToneMapper* m_toneMapper = nullptr;
     VkExtent2D m_extent{};
 };
 
-[[nodiscard]] std::string stageList(const std::vector<std::unique_ptr<IRenderPass>>& stages) {
+[[nodiscard]] std::string stageList(const std::vector<std::unique_ptr<pipeline::IRenderPass>>& stages) {
     if (stages.empty()) {
         return "none";
     }
@@ -104,10 +104,10 @@ int App::run(Config&& config) {
         return 1;
     }
     if (!onInitialize()) {
-        Logger::error("Renderer initialization failed");
+        core::Logger::error("Renderer initialization failed");
         return 1;
     }
-    Logger::info("Renderer: {}", renderer().name());
+    core::Logger::info("Renderer: {}", renderer().name());
 
     if (!loadScene(m_config.sceneFile)) {
         return 1;
@@ -123,7 +123,7 @@ int App::run(Config&& config) {
 
 bool App::bootstrap() {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        Logger::error("SDL_Init failed: {}", SDL_GetError());
+        core::Logger::error("SDL_Init failed: {}", SDL_GetError());
         return false;
     }
 
@@ -135,40 +135,40 @@ bool App::bootstrap() {
                          SDL_WINDOW_VULKAN | SDL_WINDOW_HIGH_PIXEL_DENSITY |
                              (m_config.resizable ? SDL_WINDOW_RESIZABLE : 0U) | (offscreen ? SDL_WINDOW_HIDDEN : 0U));
     if (m_window == nullptr) {
-        Logger::error("SDL_CreateWindow failed: {}", SDL_GetError());
+        core::Logger::error("SDL_CreateWindow failed: {}", SDL_GetError());
         return false;
     }
 
-    auto context = Context::create(Context::Config{
+    auto context = vulkan_init::Context::create(vulkan_init::Context::Config{
         .appName = m_config.title,
         .appVersion = VK_MAKE_VERSION(1, 0, 0),
         .enableValidation = m_config.validation,
         .window = m_window,
     });
     if (!context) {
-        Logger::error("Context creation failed: VkResult {}", static_cast<int>(context.error()));
+        core::Logger::error("vulkan_init::Context creation failed: VkResult {}", static_cast<int>(context.error()));
         return false;
     }
     m_context = std::move(*context);
     logGpuClockCalibration();
 
-    auto pool = CommandPool::create(m_context.deviceContext(), m_context.physicalDeviceInfo().graphicsFamily);
+    auto pool = core::CommandPool::create(m_context.deviceContext(), m_context.physicalDeviceInfo().graphicsFamily);
     if (!pool) {
-        Logger::error("CommandPool creation failed: VkResult {}", static_cast<int>(pool.error()));
+        core::Logger::error("core::CommandPool creation failed: VkResult {}", static_cast<int>(pool.error()));
         return false;
     }
     m_commandPool = std::move(*pool);
 
-    auto swapchain = Swapchain::create(m_context.deviceContext(), m_context.surface(), windowPixelExtent(m_window));
+    auto swapchain = presentation::Swapchain::create(m_context.deviceContext(), m_context.surface(), windowPixelExtent(m_window));
     if (!swapchain) {
-        Logger::error("Swapchain creation failed: VkResult {}", static_cast<int>(swapchain.error()));
+        core::Logger::error("presentation::Swapchain creation failed: VkResult {}", static_cast<int>(swapchain.error()));
         return false;
     }
     m_swapchain = std::move(*swapchain);
 
-    auto descriptors = Descriptors::create(m_context.deviceContext());
+    auto descriptors = renderer::Descriptors::create(m_context.deviceContext());
     if (!descriptors) {
-        Logger::error("Descriptor creation failed: VkResult {}", static_cast<int>(descriptors.error()));
+        core::Logger::error("Descriptor creation failed: VkResult {}", static_cast<int>(descriptors.error()));
         return false;
     }
     m_descriptors = std::move(*descriptors);
@@ -230,14 +230,14 @@ void App::logGpuClockCalibration() noexcept {
     }
 
     const double periodNs = m_context.physicalDeviceInfo().properties.properties.limits.timestampPeriod;
-    Logger::info("Calibrated GPU clock: {:.4f} ns/tick, GPU<->host max deviation {} ns", periodNs, maxDeviation);
+    core::Logger::info("Calibrated GPU clock: {:.4f} ns/tick, GPU<->host max deviation {} ns", periodNs, maxDeviation);
 }
 
 bool App::createHdrImage() {
     // Usage covers both renderer families: storage writes (ray/compute) and
     // color-attachment + sampled reads (raster), plus read-back for capture.
     auto hdrImage =
-        Image::create(m_context.deviceContext(),
+        core::Image::create(m_context.deviceContext(),
                       m_swapchain.extent(),
                       VK_FORMAT_R32G32B32A32_SFLOAT,
                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
@@ -245,7 +245,7 @@ bool App::createHdrImage() {
                       VK_IMAGE_ASPECT_COLOR_BIT,
                       "harmonia.hdr");
     if (!hdrImage) {
-        Logger::error("HDR image creation failed: VkResult {}", static_cast<int>(hdrImage.error()));
+        core::Logger::error("HDR image creation failed: VkResult {}", static_cast<int>(hdrImage.error()));
         return false;
     }
     m_hdrImage = std::move(*hdrImage);
@@ -260,14 +260,14 @@ bool App::createDenoisedImage() {
 
     // Scene-output buffer for the shared denoiser stage.
     auto denoisedImage =
-        Image::create(m_context.deviceContext(),
+        core::Image::create(m_context.deviceContext(),
                       m_swapchain.extent(),
                       VK_FORMAT_R32G32B32A32_SFLOAT,
                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                       VK_IMAGE_ASPECT_COLOR_BIT,
                       "harmonia.denoised");
     if (!denoisedImage) {
-        Logger::warn("Denoised image creation failed: VkResult {} — disabling denoiser stage",
+        core::Logger::warn("Denoised image creation failed: VkResult {} — disabling denoiser stage",
                      static_cast<int>(denoisedImage.error()));
         m_denoisedImage = {};
         return true;
@@ -283,10 +283,10 @@ bool App::createToneMapper() {
     }
 
     const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
-    auto toneMapper = ToneMapper::create(
+    auto toneMapper = presentation::ToneMapper::create(
         m_context.deviceContext(), m_swapchain.format(), shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
     if (!toneMapper) {
-        Logger::warn("Tone mapper creation failed: VkResult {} — disabling tonemapper stage",
+        core::Logger::warn("Tone mapper creation failed: VkResult {} — disabling tonemapper stage",
                      static_cast<int>(toneMapper.error()));
         m_toneMapper = {};
         return true;
@@ -303,21 +303,21 @@ void App::rebuildStagePipeline() {
 
     if (m_config.stages.accumulation) {
         const std::filesystem::path shaderPath = std::filesystem::path(HARMONIA_SHADER_DIR) / "accumulation.spv";
-        auto accumulationPass = AccumulationPass::create(m_context.deviceContext(), m_swapchain.extent(), shaderPath);
+        auto accumulationPass = pipeline::AccumulationPass::create(m_context.deviceContext(), m_swapchain.extent(), shaderPath);
         if (accumulationPass) {
-            m_sceneStages.push_back(std::make_unique<AccumulationPass>(std::move(*accumulationPass)));
+            m_sceneStages.push_back(std::make_unique<pipeline::AccumulationPass>(std::move(*accumulationPass)));
         } else {
-            Logger::warn("Accumulation stage unavailable: VkResult {} — disabling accumulation stage",
+            core::Logger::warn("Accumulation stage unavailable: VkResult {} — disabling accumulation stage",
                          static_cast<int>(accumulationPass.error()));
         }
     }
 
     if (m_config.stages.denoiser && m_denoisedImage.isValid()) {
         const std::filesystem::path shaderPath = std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv";
-        auto denoiserPass = SceneOutputCopyPass::create(m_context.deviceContext(),
+        auto denoiserPass = pipeline::SceneOutputCopyPass::create(m_context.deviceContext(),
                                                         m_swapchain.extent(),
                                                         shaderPath,
-                                                        SceneOutputCopyPass::Settings{
+                                                        pipeline::SceneOutputCopyPass::Settings{
                                                             .strength = m_config.denoiser.strength,
                                                             .iterations = m_config.denoiser.iterations,
                                                             .useHistory = m_config.denoiser.useHistory,
@@ -326,20 +326,20 @@ void App::rebuildStagePipeline() {
                                                             .gradientAlpha = m_config.denoiser.gradientAlpha,
                                                         });
         if (denoiserPass) {
-            m_sceneStages.push_back(std::make_unique<SceneOutputCopyPass>(std::move(*denoiserPass)));
+            m_sceneStages.push_back(std::make_unique<pipeline::SceneOutputCopyPass>(std::move(*denoiserPass)));
             m_sceneOutputUsesDenoised = true;
         } else {
-            Logger::warn("Denoiser stage unavailable: VkResult {} — falling back to HDR scene output",
+            core::Logger::warn("Denoiser stage unavailable: VkResult {} — falling back to HDR scene output",
                          static_cast<int>(denoiserPass.error()));
         }
     } else if (m_config.stages.denoiser) {
-        Logger::warn("Denoiser stage enabled but unavailable; falling back to HDR scene output");
+        core::Logger::warn("Denoiser stage enabled but unavailable; falling back to HDR scene output");
     }
 
     if (m_config.stages.tonemapper && m_toneMapper.isValid()) {
         m_displayStages.push_back(std::make_unique<ToneMapStagePass>(&m_toneMapper));
     } else if (m_config.stages.tonemapper) {
-        Logger::warn("Tonemapper stage enabled but unavailable; display tonemapping disabled");
+        core::Logger::warn("Tonemapper stage enabled but unavailable; display tonemapping disabled");
     }
 
     for (const auto& pass : m_sceneStages) {
@@ -349,11 +349,11 @@ void App::rebuildStagePipeline() {
         pass->onResize(m_swapchain.extent());
     }
 
-    Logger::info("Scene stages: {}", stageList(m_sceneStages));
-    Logger::info("Display stages: {}", stageList(m_displayStages));
+    core::Logger::info("Scene stages: {}", stageList(m_sceneStages));
+    core::Logger::info("Display stages: {}", stageList(m_displayStages));
 }
 
-void App::applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig) {
+void App::applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConfig) {
     m_config.stages = m_defaultStages;
     // Two-tier output contract: the denoiser is an INTERACTIVE presentation filter only.
     // An offscreen capture (--output) is the scene-referred *estimator result* — the
@@ -389,7 +389,7 @@ bool App::hasTonemapStage() const noexcept {
     return !m_displayStages.empty();
 }
 
-const Image& App::sceneOutputImage() const noexcept {
+const core::Image& App::sceneOutputImage() const noexcept {
     return m_sceneOutputUsesDenoised ? m_denoisedImage : m_hdrImage;
 }
 
@@ -403,7 +403,7 @@ VkAccessFlags2 App::sceneOutputAccessMask() noexcept {
 
 VkImageView App::denoiserGradientImageView() const noexcept {
     for (const auto& stage : m_sceneStages) {
-        if (auto* pass = dynamic_cast<const SceneOutputCopyPass*>(stage.get())) {
+        if (auto* pass = dynamic_cast<const pipeline::SceneOutputCopyPass*>(stage.get())) {
             return pass->gradientImageView();
         }
     }
@@ -483,23 +483,23 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
     onSceneUnload();
 
     // Aether scene data flows into the renderer through one interface only:
-    // the renderer's ISceneBuilder — identical for Harmonia, Hyperion, Theia.
-    SceneLoader loader;
+    // the renderer's scene::ISceneBuilder — identical for Harmonia, Hyperion, Theia.
+    scene::SceneLoader loader;
     const auto sceneConfig =
         loader.load(resolved, m_config.assetsDir, sceneBuilder(), m_context.deviceContext(), m_commandPool);
     if (!sceneConfig) {
-        Logger::error("Scene load failed: {}", resolved.string());
+        core::Logger::error("Scene load failed: {}", resolved.string());
         return false;
     }
 
     m_workingColorSpace = sceneConfig->workingColorSpace;
     m_tonemapper = sceneConfig->tonemapper.value_or(0U);
     applySceneStageConfig(*sceneConfig);
-    Logger::info("Stage config: accumulation={}, denoiser={}, tonemapper={}",
+    core::Logger::info("Stage config: accumulation={}, denoiser={}, tonemapper={}",
                  m_config.stages.accumulation,
                  m_config.stages.denoiser,
                  m_config.stages.tonemapper);
-    Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}, gradient={}, "
+    core::Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}, gradient={}, "
                  "gradient_alpha={:.3f}",
                  m_config.denoiser.strength,
                  m_config.denoiser.iterations,
@@ -511,26 +511,26 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
         if (*sceneConfig->postTonemapRenderer == "green_screen") {
             m_config.displayOverlay = true;
         } else {
-            Logger::warn("Unsupported post-tonemap renderer '{}' — ignoring", *sceneConfig->postTonemapRenderer);
+            core::Logger::warn("Unsupported post-tonemap renderer '{}' — ignoring", *sceneConfig->postTonemapRenderer);
         }
     }
-    Logger::info("Working color space: {}", ColorSpace::interopId(m_workingColorSpace));
+    core::Logger::info("Working color space: {}", utils::ColorSpace::interopId(m_workingColorSpace));
 
     // IBL environment map (shared descriptor wiring lives here; renderers
     // consume the probe via iblProbe()).
     if (sceneConfig->envMapFile) {
         const auto envPath = m_config.assetsDir / *sceneConfig->envMapFile;
-        auto probe = IblProbe::loadFromEXR(m_context.deviceContext(), m_commandPool, envPath, m_workingColorSpace);
+        auto probe = scene::IblProbe::loadFromEXR(m_context.deviceContext(), m_commandPool, envPath, m_workingColorSpace);
         if (!probe) {
-            Logger::warn("IBL probe load failed for '{}' — using procedural sky", envPath.string());
+            core::Logger::warn("IBL probe load failed for '{}' — using procedural sky", envPath.string());
         } else {
             m_iblProbe = std::move(*probe);
             if (const VkResult result = m_descriptors.updateEnvMap(
                     m_context.deviceContext(), m_iblProbe->imageView(), m_iblProbe->sampler());
                 result != VK_SUCCESS) {
-                Logger::warn("IBL descriptor update failed: VkResult {}", static_cast<int>(result));
+                core::Logger::warn("IBL descriptor update failed: VkResult {}", static_cast<int>(result));
             } else {
-                Logger::info("IBL probe loaded: '{}'", envPath.filename().string());
+                core::Logger::info("IBL probe loaded: '{}'", envPath.filename().string());
             }
             if (m_iblProbe->cdfWidth() > 0) {
                 if (const VkResult result =
@@ -538,9 +538,9 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
                                                           m_iblProbe->marginalCdfBuffer(),
                                                           m_iblProbe->conditionalCdfBuffer());
                     result != VK_SUCCESS) {
-                    Logger::warn("IBL importance descriptor update failed: VkResult {}", static_cast<int>(result));
+                    core::Logger::warn("IBL importance descriptor update failed: VkResult {}", static_cast<int>(result));
                 } else {
-                    Logger::info("IBL importance CDF descriptors updated ({}×{})",
+                    core::Logger::info("IBL importance CDF descriptors updated ({}×{})",
                                  m_iblProbe->cdfWidth(),
                                  m_iblProbe->cdfHeight());
                 }
@@ -549,7 +549,7 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
     }
 
     if (!onSceneLoaded(*sceneConfig)) {
-        Logger::error("Renderer scene setup failed: {}", resolved.string());
+        core::Logger::error("Renderer scene setup failed: {}", resolved.string());
         return false;
     }
 
@@ -577,7 +577,7 @@ std::uint64_t App::renderSceneReferred() {
         .pInheritanceInfo = nullptr,
     };
     if (vkBeginCommandBuffer(renderCmd, &beginInfo) != VK_SUCCESS) {
-        Logger::error("Failed to begin render command buffer");
+        core::Logger::error("Failed to begin render command buffer");
         return m_frameSync.completionValue(slot);
     }
 
@@ -596,7 +596,7 @@ std::uint64_t App::renderSceneReferred() {
     // Default: {renderCmd, VK_NULL_HANDLE} — single-queue path unchanged.
     auto [stagesCmd, asyncWaitSem] = onBeforeSceneStages(renderCmd);
 
-    const PassContext passContext{
+    const pipeline::PassContext passContext{
         .cmd = stagesCmd,
         .frameIndex = m_frameIndex,
         .frameSampleIndex = m_frameIndex,
@@ -623,7 +623,7 @@ std::uint64_t App::renderSceneReferred() {
     }
 
     if (vkEndCommandBuffer(stagesCmd) != VK_SUCCESS) {
-        Logger::error("Failed to end render command buffer");
+        core::Logger::error("Failed to end render command buffer");
         return m_frameSync.completionValue(slot);
     }
 
@@ -647,13 +647,13 @@ std::uint64_t App::renderSceneReferred() {
     const std::span<const VkSemaphoreSubmitInfo> waitSemaphores =
         (asyncWaitSem != VK_NULL_HANDLE) ? std::span<const VkSemaphoreSubmitInfo>{&asyncWait, 1}
                                          : std::span<const VkSemaphoreSubmitInfo>{};
-    if (submitOneShot(m_context.deviceContext().graphicsQueue,
+    if (core::submitOneShot(m_context.deviceContext().graphicsQueue,
                       stagesCmd,
                       VK_NULL_HANDLE,
                       0,
                       waitSemaphores,
                       std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1}) != VK_SUCCESS) {
-        Logger::error("Render queue submit failed");
+        core::Logger::error("Render queue submit failed");
         return m_frameSync.completionValue(slot);
     }
 
@@ -671,7 +671,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
 
     recordDisplayBarriers(m_frameSync.displayCmd(slot), *imageIndex);
 
-    const PassContext displayPassContext{
+    const pipeline::PassContext displayPassContext{
         .cmd = m_frameSync.displayCmd(slot),
         .frameIndex = m_frameIndex,
         .frameSampleIndex = m_frameIndex,
@@ -696,7 +696,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     bool swapchainInGeneral = false;
     if (!hasTonemapStage() && !m_config.displayOverlay) {
         const std::array toGeneral{
-            imageBarrier(m_swapchain.image(*imageIndex),
+            core::imageBarrier(m_swapchain.image(*imageIndex),
                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                          VK_IMAGE_LAYOUT_GENERAL,
                          VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -704,7 +704,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                          VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
-        pipelineBarrier(m_frameSync.displayCmd(slot), toGeneral);
+        core::pipelineBarrier(m_frameSync.displayCmd(slot), toGeneral);
         const VkClearColorValue clear{
             .float32 = {0.0F, 0.0F, 0.0F, 1.0F},
         };
@@ -722,11 +722,11 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
 
     if (m_config.displayOverlay) {
         if (!m_displayOverlayLogged) {
-            Logger::info("Display overlay renderer enabled");
+            core::Logger::info("Display overlay renderer enabled");
             m_displayOverlayLogged = true;
         }
         const std::array displayPreBarriers{
-            imageBarrier(m_swapchain.image(*imageIndex),
+            core::imageBarrier(m_swapchain.image(*imageIndex),
                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                          VK_IMAGE_LAYOUT_GENERAL,
                          VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -734,7 +734,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                          VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
-        pipelineBarrier(m_frameSync.displayCmd(slot), displayPreBarriers);
+        core::pipelineBarrier(m_frameSync.displayCmd(slot), displayPreBarriers);
         swapchainInGeneral = true;
 
         const RenderTarget displayTarget{
@@ -748,7 +748,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     }
 
     const std::array presentBarrier{
-        imageBarrier(m_swapchain.image(*imageIndex),
+        core::imageBarrier(m_swapchain.image(*imageIndex),
                      swapchainInGeneral ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                      swapchainInGeneral ? VK_PIPELINE_STAGE_2_TRANSFER_BIT
@@ -757,7 +757,7 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
                      VK_PIPELINE_STAGE_2_NONE,
                      0),
     };
-    pipelineBarrier(m_frameSync.displayCmd(slot), presentBarrier);
+    core::pipelineBarrier(m_frameSync.displayCmd(slot), presentBarrier);
 
     if (submitDisplay(slot, *imageIndex, renderValue) != VK_SUCCESS) {
         return;
@@ -776,7 +776,7 @@ std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
         return std::nullopt;
     }
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        Logger::error("Swapchain acquire failed: VkResult {}", static_cast<int>(result));
+        core::Logger::error("presentation::Swapchain acquire failed: VkResult {}", static_cast<int>(result));
         return std::nullopt;
     }
 
@@ -788,7 +788,7 @@ std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
         .pInheritanceInfo = nullptr,
     };
     if (vkBeginCommandBuffer(m_frameSync.displayCmd(slot), &beginInfo) != VK_SUCCESS) {
-        Logger::error("Failed to begin display command buffer");
+        core::Logger::error("Failed to begin display command buffer");
         return std::nullopt;
     }
     return imageIndex;
@@ -796,14 +796,14 @@ std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
 
 void App::recordDisplayBarriers(VkCommandBuffer cmd, std::uint32_t imageIndex) noexcept {
     const std::array preToneMapBarriers{
-        imageBarrier(sceneOutputImage().handle(),
+        core::imageBarrier(sceneOutputImage().handle(),
                      VK_IMAGE_LAYOUT_GENERAL,
                      VK_IMAGE_LAYOUT_GENERAL,
                      sceneOutputStageMask(),
                      sceneOutputAccessMask(),
                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                      VK_ACCESS_2_SHADER_READ_BIT),
-        imageBarrier(m_swapchain.image(imageIndex),
+        core::imageBarrier(m_swapchain.image(imageIndex),
                      m_frameSync.swapchainLayout(imageIndex),
                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                      VK_PIPELINE_STAGE_2_NONE,
@@ -811,13 +811,13 @@ void App::recordDisplayBarriers(VkCommandBuffer cmd, std::uint32_t imageIndex) n
                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                      VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
     };
-    pipelineBarrier(cmd, preToneMapBarriers);
+    core::pipelineBarrier(cmd, preToneMapBarriers);
 }
 
 VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::uint64_t renderValue) noexcept {
 
     if (vkEndCommandBuffer(m_frameSync.displayCmd(slot)) != VK_SUCCESS) {
-        Logger::error("Failed to end display command buffer");
+        core::Logger::error("Failed to end display command buffer");
         return VK_ERROR_UNKNOWN;
     }
 
@@ -862,14 +862,14 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
             .deviceIndex = 0,
         },
     }};
-    const VkResult result = submitOneShot(m_context.deviceContext().graphicsQueue,
+    const VkResult result = core::submitOneShot(m_context.deviceContext().graphicsQueue,
                                           m_frameSync.displayCmd(slot),
                                           VK_NULL_HANDLE,
                                           0,
                                           waitInfos,
                                           signalInfos);
     if (result != VK_SUCCESS) {
-        Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
+        core::Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
         return result;
     }
 
@@ -888,13 +888,13 @@ void App::presentAndHandleResize(std::uint32_t imageIndex) noexcept {
         return;
     }
     if (result != VK_SUCCESS) {
-        Logger::error("Present failed: VkResult {}", static_cast<int>(result));
+        core::Logger::error("Present failed: VkResult {}", static_cast<int>(result));
     }
     m_frameSync.setSwapchainLayout(imageIndex, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
 
 int App::mainLoop() {
-    Logger::info("Interactive render loop");
+    core::Logger::info("Interactive render loop");
     std::uint64_t lastTick = SDL_GetTicksNS();
 
     while (m_running) {
@@ -943,13 +943,13 @@ int App::mainLoop() {
 
 int App::renderOffscreen() {
     const std::uint32_t frameCount = offscreenFrameCount();
-    Logger::info("Offscreen render: {} frame(s) -> {}", frameCount, m_config.outputFile.string());
+    core::Logger::info("Offscreen render: {} frame(s) -> {}", frameCount, m_config.outputFile.string());
 
     // Headless capture is a batch job: run it BELOW_NORMAL so every other process on the
     // machine preempts it automatically and stays responsive. This is the actual
     // mechanism -- the per-frame yield below is only a hint (see the comment there).
     // Restored to the previous class on return, so an interactive session is unaffected.
-    ScopedBackgroundPriority backgroundPriority;
+    core::ScopedBackgroundPriority backgroundPriority;
 
     for (std::uint32_t i = 0; i < frameCount; ++i) {
         renderSceneReferred();
@@ -972,7 +972,7 @@ int App::renderOffscreen() {
 
     // Scene-referred linear EXR (chromaticities-tagged, untonemapped) when not a bare .png.
     if (!isPng) {
-        ok = ImageCapture::saveExr(
+        ok = harmonia::presentation::ImageCapture::saveExr(
             m_context.deviceContext(), m_commandPool, sceneOutputImage(), m_config.outputFile, m_workingColorSpace);
     }
 
@@ -993,11 +993,11 @@ int App::renderOffscreen() {
                                                                     m_tonemapper,
                                                                     m_workingColorSpace)) {
         // Capture image is VK_FORMAT_R8G8B8A8_UNORM (RGBA) — no channel swap needed.
-        ok = ImageCapture::saveSdrPng(
+        ok = harmonia::presentation::ImageCapture::saveSdrPng(
                  m_context.deviceContext(), m_commandPool, m_offscreen.captureImage(), pngPath, /*swapRB=*/false) &&
              ok;
     } else {
-        ok = ImageCapture::savePng(
+        ok = harmonia::presentation::ImageCapture::savePng(
                  m_context.deviceContext(), m_commandPool, sceneOutputImage(), pngPath, m_workingColorSpace) &&
              ok;
     }
@@ -1006,7 +1006,7 @@ int App::renderOffscreen() {
 
 bool App::saveExr(const std::filesystem::path& path) {
     vkDeviceWaitIdle(m_context.deviceContext().device);
-    return ImageCapture::saveExr(
+    return harmonia::presentation::ImageCapture::saveExr(
         m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
 }
 
@@ -1030,7 +1030,7 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
         .height = h,
     };
     if (m_swapchain.recreate(newExtent) != VK_SUCCESS) {
-        Logger::error("Swapchain recreate failed");
+        core::Logger::error("presentation::Swapchain recreate failed");
         return;
     }
     // Recreate per-image render-complete semaphores + reset layout tracking for the new
@@ -1085,4 +1085,4 @@ void App::shutdown() noexcept {
     }
 }
 
-} // namespace harmonia
+} // namespace harmonia::app

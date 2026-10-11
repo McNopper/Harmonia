@@ -13,7 +13,7 @@
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/rt/AccelerationStructure.hpp"
 
-namespace harmonia {
+namespace harmonia::rt {
 
 /// Move-only owner of a built opacity micromap and all the device buffers it
 /// needs: the packed-state `data`, the per-record `triangle` array, and the
@@ -22,7 +22,7 @@ namespace harmonia {
 /// structure API (the extension proposal's issue 6): the micromap IS an
 /// `AccelerationStructure` with `type = VK_ACCELERATION_STRUCTURE_TYPE_
 /// OPACITY_MICROMAP_KHR`, built through `vkCmdBuildAccelerationStructuresKHR`.
-/// A `Micromap` must outlive any BLAS that references it — `TriangleMesh` owns
+/// A `Micromap` must outlive any BLAS that references it — `scene::TriangleMesh` owns
 /// both, so they share a lifetime.
 class Micromap {
   public:
@@ -44,9 +44,9 @@ class Micromap {
     [[nodiscard]] std::uint32_t indexCount() const noexcept { return m_indexCount; }
 
   private:
-    Buffer m_dataBuffer{};
-    Buffer m_triangleBuffer{};
-    Buffer m_indexBuffer{};
+    core::Buffer m_dataBuffer{};
+    core::Buffer m_triangleBuffer{};
+    core::Buffer m_indexBuffer{};
     AccelerationStructure m_as{};
     AccelerationStructureScratch m_scratch{};
     std::uint32_t m_indexCount = 0;
@@ -65,11 +65,11 @@ class MicromapBuilder {
     /// the storage/scratch from `vkGetAccelerationStructureBuildSizesKHR`, then
     /// records the build in a one-shot command buffer.
     [[nodiscard]] static std::expected<Micromap, VkResult> build(const DeviceContext& ctx,
-                                                                 const CommandPool& pool,
+                                                                 const core::CommandPool& pool,
                                                                  const aether::OpacityMicromapGroup& group,
                                                                  std::string_view debugName = "");
 };
 
-} // namespace harmonia
+} // namespace harmonia::rt
 
 #endif // HARMONIA_RENDERER_MICROMAPBUILDER_HPP

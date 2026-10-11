@@ -12,7 +12,7 @@
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/scene/Texture.hpp"
 
-namespace harmonia {
+namespace harmonia::renderer {
 
 class Descriptors {
   public:
@@ -29,26 +29,26 @@ class Descriptors {
 
     /// Populate the path-tracer scene descriptor set (set 1) from raw GPU buffers and
     /// scene textures. Scene-type-agnostic so each renderer can build its own Scene and
-    /// still reuse Harmonia's shared descriptor layout. Buffer bindings: 0=instances,
+    /// still reuse Harmonia's shared descriptor layout. core::Buffer bindings: 0=instances,
     /// 1=materials, 2=vertices, 3=indices, 5=lights, 7=emissive triangles,
     /// 10=emissive power CDF; binding 4 = bindless texture array.
     VkResult updateSceneSet(const DeviceContext& ctx,
-                            const Buffer& instanceBuffer,
-                            const Buffer& materialBuffer,
-                            const Buffer& vertexBuffer,
-                            const Buffer& indexBuffer,
-                            const Buffer& lightBuffer,
-                            const Buffer& emissiveTriangleBuffer,
-                            const Buffer& emissiveCdfBuffer,
-                            std::span<const Texture> textures);
+                            const core::Buffer& instanceBuffer,
+                            const core::Buffer& materialBuffer,
+                            const core::Buffer& vertexBuffer,
+                            const core::Buffer& indexBuffer,
+                            const core::Buffer& lightBuffer,
+                            const core::Buffer& emissiveTriangleBuffer,
+                            const core::Buffer& emissiveCdfBuffer,
+                            std::span<const scene::Texture> textures);
     VkResult updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler);
-    VkResult updateEnvImportance(const DeviceContext& ctx, const Buffer& marginalCdf, const Buffer& conditionalCdf);
+    VkResult updateEnvImportance(const DeviceContext& ctx, const core::Buffer& marginalCdf, const core::Buffer& conditionalCdf);
 
     /// MOD1: update set 0 (per-frame AS + images + camera UBO) via descriptor buffer.
     VkResult updateFrameSet(const DeviceContext& ctx,
                             VkAccelerationStructureKHR tlas,
                             VkImageView hdrView,
-                            const Buffer& cameraBuffer,
+                            const core::Buffer& cameraBuffer,
                             VkImageView gNormalView,
                             VkImageView gDepthView);
 
@@ -60,14 +60,14 @@ class Descriptors {
     [[nodiscard]] VkPipelineLayout pipelineLayout() const noexcept { return m_pipelineLayout; }
 
   private:
-    harmonia::UniqueDescriptorSetLayout m_set0Layout;
-    harmonia::UniqueDescriptorSetLayout m_set1Layout;
+    harmonia::core::UniqueDescriptorSetLayout m_set0Layout;
+    harmonia::core::UniqueDescriptorSetLayout m_set1Layout;
     /// MOD1: descriptor buffer writers replace the pool + sets.
-    DescriptorBufferWriter m_frameWriter;  ///< set 0: per-frame AS + images + camera UBO
-    DescriptorBufferWriter m_sceneWriter;  ///< set 1: scene buffers + bindless textures
-    harmonia::UniquePipelineLayout m_pipelineLayout;
+    core::DescriptorBufferWriter m_frameWriter;  ///< set 0: per-frame AS + images + camera UBO
+    core::DescriptorBufferWriter m_sceneWriter;  ///< set 1: scene buffers + bindless textures
+    harmonia::core::UniquePipelineLayout m_pipelineLayout;
 };
 
-} // namespace harmonia
+} // namespace harmonia::renderer
 
 #endif // HARMONIA_RENDERER_DESCRIPTORS_HPP

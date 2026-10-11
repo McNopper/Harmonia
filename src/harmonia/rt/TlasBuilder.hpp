@@ -10,7 +10,7 @@
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/rt/AccelerationStructure.hpp"
 
-namespace harmonia {
+namespace harmonia::rt {
 
 /// Build a top-level acceleration structure (TLAS) from a pre-prepared instance array.
 ///
@@ -23,10 +23,10 @@ namespace harmonia {
 /// On success, @p outTlas holds the built AS and @p outAddress its device address.
 /// Returns VK_SUCCESS or the failing VkResult.
 [[nodiscard]] VkResult buildTlas(const DeviceContext& ctx,
-                                 const CommandPool& pool,
+                                 const core::CommandPool& pool,
                                  std::span<const VkAccelerationStructureInstanceKHR> instances,
                                  AccelerationStructure& outTlas,
                                  VkDeviceAddress& outAddress);
 
-} // namespace harmonia
+} // namespace harmonia::rt
 #endif // HARMONIA_RENDERER_TLASBUILDER_HPP

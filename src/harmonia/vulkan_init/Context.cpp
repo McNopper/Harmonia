@@ -9,7 +9,7 @@
 #include <vector>
 #include <vma/vk_mem_alloc.h>
 
-namespace harmonia {
+namespace harmonia::vulkan_init {
 
 namespace {
 [[nodiscard]] bool validationEnabled(bool requested) noexcept {
@@ -334,7 +334,7 @@ struct EnabledFeatures {
     features.features2.features.fragmentStoresAndAtomics = VK_TRUE;
     features.features2.features.independentBlend = VK_TRUE;
 
-    // Mesh/task shaders are optional: required by Theia's rasterizer, unused by Hyperion's
+    // scene::Mesh/task shaders are optional: required by Theia's rasterizer, unused by Hyperion's
     // path tracer. Enable them only when the device advertises support so the shared device
     // creation works on GPUs without VK_EXT_mesh_shader.
     features.mesh.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
@@ -826,4 +826,4 @@ void Context::destroy() noexcept {
     m_validationEnabled = false;
 }
 
-} // namespace harmonia
+} // namespace harmonia::vulkan_init

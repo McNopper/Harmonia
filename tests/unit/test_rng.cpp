@@ -5,23 +5,23 @@
 #include "harmonia/utils/Rng.hpp"
 
 TEST(Rng, ComposeSeedIsDeterministicForSameInputs) {
-    const std::uint32_t a = harmonia::Rng::composeSeed({17U, 42U}, 9U, 3U, 1234U);
-    const std::uint32_t b = harmonia::Rng::composeSeed({17U, 42U}, 9U, 3U, 1234U);
+    const std::uint32_t a = harmonia::utils::Rng::composeSeed({17U, 42U}, 9U, 3U, 1234U);
+    const std::uint32_t b = harmonia::utils::Rng::composeSeed({17U, 42U}, 9U, 3U, 1234U);
     EXPECT_EQ(a, b);
 }
 
 TEST(Rng, ComposeSeedSeparatesPixelFrameAndBounceAxes) {
-    const std::uint32_t base = harmonia::Rng::composeSeed({8U, 9U}, 4U, 2U, 99U);
-    EXPECT_NE(base, harmonia::Rng::composeSeed({9U, 9U}, 4U, 2U, 99U));
-    EXPECT_NE(base, harmonia::Rng::composeSeed({8U, 10U}, 4U, 2U, 99U));
-    EXPECT_NE(base, harmonia::Rng::composeSeed({8U, 9U}, 5U, 2U, 99U));
-    EXPECT_NE(base, harmonia::Rng::composeSeed({8U, 9U}, 4U, 3U, 99U));
+    const std::uint32_t base = harmonia::utils::Rng::composeSeed({8U, 9U}, 4U, 2U, 99U);
+    EXPECT_NE(base, harmonia::utils::Rng::composeSeed({9U, 9U}, 4U, 2U, 99U));
+    EXPECT_NE(base, harmonia::utils::Rng::composeSeed({8U, 10U}, 4U, 2U, 99U));
+    EXPECT_NE(base, harmonia::utils::Rng::composeSeed({8U, 9U}, 5U, 2U, 99U));
+    EXPECT_NE(base, harmonia::utils::Rng::composeSeed({8U, 9U}, 4U, 3U, 99U));
 }
 
 TEST(Rng, NextFloatStaysInUnitInterval) {
-    std::uint32_t state = harmonia::Rng::composeSeed({3U, 7U}, 1U, 0U, 5U);
+    std::uint32_t state = harmonia::utils::Rng::composeSeed({3U, 7U}, 1U, 0U, 5U);
     for (int i = 0; i < 10000; ++i) {
-        const float value = harmonia::Rng::nextFloat(state);
+        const float value = harmonia::utils::Rng::nextFloat(state);
         EXPECT_GE(value, 0.0F);
         EXPECT_LT(value, 1.0F);
     }
@@ -34,9 +34,9 @@ TEST(Rng, FirstSamplesDecorrelateAcrossPixelsAndFrames) {
     for (std::uint32_t y = 0; y < 4U; ++y) {
         for (std::uint32_t x = 0; x < 4U; ++x) {
             for (std::uint32_t frame = 0; frame < 4U; ++frame) {
-                std::uint32_t state = harmonia::Rng::composeSeed({x, y}, frame, 0U, 0x12345678U);
+                std::uint32_t state = harmonia::utils::Rng::composeSeed({x, y}, frame, 0U, 0x12345678U);
                 const std::uint32_t fingerprint =
-                    static_cast<std::uint32_t>(harmonia::Rng::nextFloat(state) * 16777216.0F);
+                    static_cast<std::uint32_t>(harmonia::utils::Rng::nextFloat(state) * 16777216.0F);
                 EXPECT_TRUE(fingerprints.insert(fingerprint).second);
             }
         }

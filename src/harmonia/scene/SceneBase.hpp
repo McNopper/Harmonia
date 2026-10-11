@@ -26,7 +26,7 @@
 #include "harmonia/scene/Mesh.hpp"
 #include "harmonia/scene/Texture.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Non-renderer-specific base for both Hyperion::Scene and Theia::Scene.
 ///
@@ -58,7 +58,7 @@ class SceneBase : public ISceneBuilder {
     /// Registers a unique triangle mesh (object space). Shared because it is
     /// identical across renderers (a plain TriangleMesh upload).
     [[nodiscard]] std::uint32_t addMesh(const DeviceContext& ctx,
-                                        const CommandPool& pool,
+                                        const core::CommandPool& pool,
                                         MeshData&& data,
                                         const MeshOpacity& opacity,
                                         std::string_view name = "") override;
@@ -77,10 +77,10 @@ class SceneBase : public ISceneBuilder {
     // ── Build (shared orchestration) ────────────────────────────────────────
 
     /// Uploads scene buffers (buildSceneBuffers), builds one BLAS per unique mesh,
-    /// then builds the TLAS (buildTlas). Shared because this orchestration and the
+    /// then builds the TLAS (rt::buildTlas). Shared because this orchestration and the
     /// per-mesh BLAS loop are identical across renderers; only the two virtual hooks
     /// diverge. Returns VK_ERROR_INITIALIZATION_FAILED when no instances were added.
-    VkResult build(const DeviceContext& ctx, const CommandPool& pool);
+    VkResult build(const DeviceContext& ctx, const core::CommandPool& pool);
 
     // ── Accessors (read-only) ────────────────────────────────────────────────
 
@@ -92,14 +92,14 @@ class SceneBase : public ISceneBuilder {
     /// Renderer-specific GPU buffer upload (vertices/indices/materials/emissive/…).
     /// Diverges: Hyperion lays out an index buffer + analytic spheres; Theia builds
     /// meshlets + per-instance visibility masks.
-    virtual VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) = 0;
+    virtual VkResult buildSceneBuffers(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
 
-    VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool);
+    VkResult buildTlas(const DeviceContext& ctx, const core::CommandPool& pool);
 
     virtual std::uint32_t instanceMask(std::size_t instanceIndex) const;
 
-    [[nodiscard]] static std::expected<Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
-                                                                             const CommandPool& pool,
+    [[nodiscard]] static std::expected<core::Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
+                                                                             const core::CommandPool& pool,
                                                                              std::span<const std::byte> data,
                                                                              std::string_view debugName,
                                                                              VkBufferUsageFlags usage);
@@ -114,9 +114,9 @@ class SceneBase : public ISceneBuilder {
     /// into them until `buildBlas`, so the storage must never reallocate.
     std::deque<aether::OpacityMicromapData> m_ommAssets;
 
-    AccelerationStructure m_tlas{};
+    rt::AccelerationStructure m_tlas{};
     VkDeviceAddress m_tlasAddress{};
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 #endif // HARMONIA_SCENE_SCENEBASE_HPP

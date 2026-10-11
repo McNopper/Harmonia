@@ -8,9 +8,11 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
+class Image;
+} // namespace harmonia::core
 
-class Image; // forward — avoids pulling in the full header
+namespace harmonia::pipeline {
 
 /// Per-frame context passed to every IRenderPass::record() call.
 /// Each pass reads only the fields it needs.
@@ -30,21 +32,21 @@ struct PassContext {
     std::uint64_t denoiserResetToken = 0U;
 
     /// Outputs from PathTracer — all in VK_IMAGE_LAYOUT_GENERAL.
-    const Image* hdrBuffer = nullptr; ///< accumulated HDR radiance
+    const core::Image* hdrBuffer = nullptr; ///< accumulated HDR radiance
     VkImageView gNormalView = VK_NULL_HANDLE;
     VkImageView gDepthView = VK_NULL_HANDLE;
     VkImageView transparentNormalView = VK_NULL_HANDLE; ///< D0: first transparent-interface normal
     VkImageView transparentDepthView = VK_NULL_HANDLE;  ///< D0: first transparent-interface depth
     VkImageView motionVectorView = VK_NULL_HANDLE;      ///< D0 future: interactive temporal reprojection
 
-    /// Denoiser output (null if denoiser was not run; ToneMapper falls back to hdrBuffer).
-    const Image* denoised = nullptr;
+    /// Denoiser output (null if denoiser was not run; presentation::ToneMapper falls back to hdrBuffer).
+    const core::Image* denoised = nullptr;
 
-    /// Swapchain image view for the current frame (only needed by ToneMapper).
+    /// presentation::Swapchain image view for the current frame (only needed by presentation::ToneMapper).
     VkImageView swapchainView = VK_NULL_HANDLE;
-    OutputColorSpace colorSpace = OutputColorSpace::eSDR;
+    utils::OutputColorSpace colorSpace = utils::OutputColorSpace::eSDR;
     std::uint32_t tonemapper = 0;
-    harmonia::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020;
+    harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
 };
 
 inline constexpr std::uint32_t kComputeGroupSize = 8U;
@@ -54,6 +56,6 @@ inline constexpr std::uint32_t kComputeGroupSize = 8U;
     return (extent + (groupSize - 1U)) / groupSize;
 }
 
-} // namespace harmonia
+} // namespace harmonia::pipeline
 
 #endif // HARMONIA_PIPELINE_PASSCONTEXT_HPP

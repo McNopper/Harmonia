@@ -1,6 +1,6 @@
 #include "harmonia/app/GreenScreenRenderer.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 void GreenScreenRenderer::record(VkCommandBuffer cmd, const RenderTarget& target) noexcept {
     // The host hands us the target image in VK_IMAGE_LAYOUT_GENERAL. A plain
@@ -22,4 +22,4 @@ void GreenScreenRenderer::onResize(VkExtent2D /*extent*/) noexcept {
     // Nothing extent-dependent to recreate.
 }
 
-} // namespace harmonia
+} // namespace harmonia::app

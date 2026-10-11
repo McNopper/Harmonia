@@ -12,7 +12,7 @@
 #include "harmonia/presentation/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::presentation {
 
 class ToneMapper {
   public:
@@ -33,16 +33,16 @@ class ToneMapper {
 
     /// Record the tone-mapping draw into cmd.
     /// The swapchain image must already be in VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL.
-    /// colorSpace must match the swapchain's active OutputColorSpace.
+    /// colorSpace must match the swapchain's active utils::OutputColorSpace.
     /// workingSpace is the scene-referred space of hdrView's contents — the
     /// tone mapper is the glue converting it to the display-referred output.
     void record(VkCommandBuffer cmd,
                 VkImageView hdrView,
                 VkImageView swapchainView,
                 VkExtent2D extent,
-                OutputColorSpace colorSpace,
-                harmonia::ColorSpace::WorkingColorSpace workingSpace =
-                    harmonia::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
+                utils::OutputColorSpace colorSpace,
+                harmonia::utils::ColorSpace::WorkingColorSpace workingSpace =
+                    harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
 
     /// Overload that also selects the SDR/Display-P3 tone-mapping operator
     /// (matches tonemap.slang: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable). Used by
@@ -53,20 +53,20 @@ class ToneMapper {
                 VkImageView hdrView,
                 VkImageView swapchainView,
                 VkExtent2D extent,
-                OutputColorSpace colorSpace,
+                utils::OutputColorSpace colorSpace,
                 std::uint32_t tonemapper,
-                harmonia::ColorSpace::WorkingColorSpace workingSpace =
-                    harmonia::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
+                harmonia::utils::ColorSpace::WorkingColorSpace workingSpace =
+                    harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
 
     [[nodiscard]] bool isValid() const noexcept { return m_pipeline != VK_NULL_HANDLE; }
 
   private:
-    harmonia::UniquePipeline m_pipeline;
-    harmonia::UniquePipelineLayout m_pipelineLayout;
-    harmonia::UniqueDescriptorSetLayout m_setLayout; ///< Push descriptor set layout (must outlive all CBs using it).
+    harmonia::core::UniquePipeline m_pipeline;
+    harmonia::core::UniquePipelineLayout m_pipelineLayout;
+    harmonia::core::UniqueDescriptorSetLayout m_setLayout; ///< Push descriptor set layout (must outlive all CBs using it).
     VkFormat m_attachmentFormat{VK_FORMAT_UNDEFINED};
 };
 
-} // namespace harmonia
+} // namespace harmonia::presentation
 
 #endif // HARMONIA_PRESENTATION_TONEMAPPER_HPP

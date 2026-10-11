@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <span>
 
-namespace harmonia {
+namespace harmonia::core {
 
 /// Builds a color-aspect VkImageMemoryBarrier2 (single mip/layer).
 [[nodiscard]] inline VkImageMemoryBarrier2 imageBarrier(VkImage image,
@@ -55,5 +55,5 @@ inline void pipelineBarrier(VkCommandBuffer cmd, std::span<const VkImageMemoryBa
     vkCmdPipelineBarrier2(cmd, &dependencyInfo);
 }
 
-} // namespace harmonia
+} // namespace harmonia::core
 #endif // HARMONIA_CORE_BARRIER_HPP

@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-namespace harmonia {
+namespace harmonia::presentation {
 
 namespace {
 constexpr std::uint64_t kWaitForever = UINT64_MAX;
@@ -159,7 +159,7 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    swapchain.m_swapchain = harmonia::UniqueSwapchainKHR{ctx.device, swapchainHandle};
+    swapchain.m_swapchain = harmonia::core::UniqueSwapchainKHR{ctx.device, swapchainHandle};
 
     std::uint32_t imageCount = 0;
     result = vkGetSwapchainImagesKHR(ctx.device, swapchain.m_swapchain, &imageCount, nullptr);
@@ -306,21 +306,21 @@ VkImageView Swapchain::imageView(std::uint32_t i) const noexcept {
     return i < m_views.size() ? m_views[i] : VK_NULL_HANDLE;
 }
 
-OutputColorSpace Swapchain::outputColorSpace() const noexcept {
+utils::OutputColorSpace Swapchain::outputColorSpace() const noexcept {
     switch (m_colorSpace) {
     case VK_COLOR_SPACE_HDR10_ST2084_EXT:
-        return OutputColorSpace::eHDR10;
+        return utils::OutputColorSpace::eHDR10;
     case VK_COLOR_SPACE_HDR10_HLG_EXT:
-        return OutputColorSpace::eHLG;
+        return utils::OutputColorSpace::eHLG;
     case VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT:
-        return OutputColorSpace::eScRGB;
+        return utils::OutputColorSpace::eScRGB;
     case VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT:
-        return OutputColorSpace::eDisplayP3;
+        return utils::OutputColorSpace::eDisplayP3;
     case VK_COLOR_SPACE_BT709_LINEAR_EXT:
-        return OutputColorSpace::eSDRLinear;
+        return utils::OutputColorSpace::eSDRLinear;
     default:
-        return OutputColorSpace::eSDR;
+        return utils::OutputColorSpace::eSDR;
     }
 }
 
-} // namespace harmonia
+} // namespace harmonia::presentation

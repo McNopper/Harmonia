@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace harmonia::ColorSpace {
+namespace harmonia::utils::ColorSpace {
 
 // ── Rec.2020 ↔ Rec.709 ───────────────────────────────────────────────────────
 // Matrices from ITU-R BT.2087 / IEC 61966-2-1
@@ -124,4 +124,4 @@ sm::float3 hlgOetf(sm::float3 E) noexcept {
     return {hlgOetf(E.r), hlgOetf(E.g), hlgOetf(E.b)};
 }
 
-} // namespace harmonia::ColorSpace
+} // namespace harmonia::utils::ColorSpace

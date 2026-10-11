@@ -11,7 +11,7 @@
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 /// Frame synchronisation for the App render loop (R8/CH9): owns the double-buffered frame
 /// slots (per-slot command buffers + acquire semaphore + timeline completion value), the
@@ -32,7 +32,7 @@ class FrameSync {
 
     /// Allocate per-slot command buffers + acquire semaphores, per-image render-complete
     /// semaphores, and the timeline semaphore. Returns false on allocation failure.
-    [[nodiscard]] bool create(const DeviceContext& ctx, CommandPool& cmdPool, std::uint32_t swapchainImageCount);
+    [[nodiscard]] bool create(const DeviceContext& ctx, core::CommandPool& cmdPool, std::uint32_t swapchainImageCount);
     /// Release all owned sync resources. (Command buffers are pool-owned and not freed here.)
     void destroy() noexcept;
     /// Re-create per-image render-complete semaphores for a new swapchain image count and
@@ -79,19 +79,19 @@ class FrameSync {
     struct FrameResources {
         VkCommandBuffer renderCmd{};
         VkCommandBuffer displayCmd{};
-        harmonia::UniqueSemaphore imageAvailable;
+        harmonia::core::UniqueSemaphore imageAvailable;
         std::uint64_t completionValue{};
     };
 
     VkDevice m_device{};
     std::array<FrameResources, kFrameSlots> m_frames{};
-    std::vector<harmonia::UniqueSemaphore> m_renderComplete;
-    harmonia::UniqueSemaphore m_timelineSemaphore;
+    std::vector<harmonia::core::UniqueSemaphore> m_renderComplete;
+    harmonia::core::UniqueSemaphore m_timelineSemaphore;
     std::uint64_t m_nextTimelineValue = 1;
     std::uint32_t m_currentFrame = 0;
     std::vector<VkImageLayout> m_swapchainLayouts;
 };
 
-} // namespace harmonia
+} // namespace harmonia::app
 
 #endif // HARMONIA_APP_FRAMESYNC_HPP

@@ -12,7 +12,7 @@
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 /// Loads a scene definition file (.scene.toml).
 ///
@@ -60,12 +60,12 @@ class SceneLoader {
         std::optional<std::filesystem::path> envMapFile; ///< equirect EXR IBL path (relative to assetsDir)
         std::optional<std::uint32_t> tonemapper;         ///< Tonemapper enum value; std::nullopt → eACES default
         std::optional<std::string> postTonemapRenderer;  ///< display-referred renderer token
-        std::optional<bool> accumulationStageEnabled;    ///< std::nullopt → App default
-        std::optional<bool> denoiserStageEnabled;        ///< std::nullopt → App default
-        std::optional<bool> tonemapperStageEnabled;      ///< std::nullopt → App default
+        std::optional<bool> accumulationStageEnabled;    ///< std::nullopt → app::App default
+        std::optional<bool> denoiserStageEnabled;        ///< std::nullopt → app::App default
+        std::optional<bool> tonemapperStageEnabled;      ///< std::nullopt → app::App default
         /// Scene-referred working color space all assets were converted into
         /// ([render] working_color_space; default linear Rec.2020).
-        harmonia::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020;
+        harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
     };
 
     /// Populate @p scene from @p sceneFile.
@@ -77,9 +77,9 @@ class SceneLoader {
                                                                    const std::filesystem::path& assetsDir,
                                                                    ISceneBuilder& scene,
                                                                    const DeviceContext& ctx,
-                                                                   const CommandPool& pool);
+                                                                   const core::CommandPool& pool);
 };
 
-} // namespace harmonia
+} // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_SCENELOADER_HPP

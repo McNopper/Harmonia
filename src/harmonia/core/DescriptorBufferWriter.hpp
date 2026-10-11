@@ -12,7 +12,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/DeviceContext.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 /// MOD1: Descriptor buffer writer — wraps VK_EXT_descriptor_buffer descriptor
 /// generation and layout so passes write typed descriptors into a flat GPU buffer
@@ -126,6 +126,6 @@ private:
     VkDeviceSize m_accelStructDescSize = 0;
 };
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_DESCRIPTORBUFFERWRITER_HPP

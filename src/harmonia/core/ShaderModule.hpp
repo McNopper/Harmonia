@@ -8,7 +8,7 @@
 #include <filesystem>
 #include <vector>
 
-namespace harmonia {
+namespace harmonia::core {
 
 /// Reads a SPIR-V binary from disk. Pass an absolute path — shader binaries
 /// are compiled at build time by compile_slang_shaders (CompileShaders.cmake)
@@ -22,5 +22,5 @@ namespace harmonia {
 [[nodiscard]] std::expected<VkShaderModule, VkResult> createShaderModule(VkDevice device,
                                                                          const std::filesystem::path& path);
 
-} // namespace harmonia
+} // namespace harmonia::core
 #endif // HARMONIA_CORE_SHADERMODULE_HPP

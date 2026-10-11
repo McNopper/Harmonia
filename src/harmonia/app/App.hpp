@@ -35,7 +35,7 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/vulkan_init/Context.hpp"
 
-namespace harmonia {
+namespace harmonia::app {
 
 /// Shared application host for Harmonia-based renderers.
 ///
@@ -44,12 +44,12 @@ namespace harmonia {
 /// linear HDR working-space image, frame synchronisation (double-buffered
 /// timeline + per-image binary semaphores), the tonemap/present display pass,
 /// resize handling, offscreen capture (scene-referred EXR + tonemapped PNG)
-/// and scene-file plumbing (SceneLoader, working color space, tonemapper,
+/// and scene-file plumbing (scene::SceneLoader, working color space, tonemapper,
 /// IBL probe).
 ///
 /// The pipeline contract: the injected IRenderer produces a *linear* image in
 /// the scene-referred working color space (Rec.2020 or Rec.709 primaries);
-/// the host's shared ToneMapper is the glue that converts it to the
+/// the host's shared presentation::ToneMapper is the glue that converts it to the
 /// display-referred output (HDR10/HLG/scRGB/P3/SDR). Hyperion and Theia only
 /// implement the hooks below and inject their renderer.
 class App {
@@ -74,9 +74,9 @@ class App {
     /// Theia's forward stack). Valid after onInitialize() succeeded.
     [[nodiscard]] virtual IRenderer& renderer() noexcept = 0;
 
-    /// The renderer's scene the SceneLoader streams geometry into. Called
+    /// The renderer's scene the scene::SceneLoader streams geometry into. Called
     /// during every loadScene(); recreate the scene in onSceneUnload().
-    [[nodiscard]] virtual ISceneBuilder& sceneBuilder() noexcept = 0;
+    [[nodiscard]] virtual scene::ISceneBuilder& sceneBuilder() noexcept = 0;
 
     /// Create renderer-specific resources (pipelines, passes, ...). Called
     /// once after the host bootstrap (context, swapchain, descriptors,
@@ -86,7 +86,7 @@ class App {
     /// Build renderer-side scene state (acceleration structures, descriptor
     /// updates, camera, IBL wiring via iblProbe()). The scene geometry has
     /// already been streamed into sceneBuilder().
-    [[nodiscard]] virtual bool onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) = 0;
+    [[nodiscard]] virtual bool onSceneLoaded(const scene::SceneLoader::SceneConfig& sceneConfig) = 0;
 
     /// Tear down scene state before a (re)load. Default: no-op. The host has
     /// already waited for the device to idle.
@@ -145,14 +145,14 @@ class App {
     void resetAccumulation() noexcept { ++m_accumViewEpoch; }
 
     [[nodiscard]] SDL_Window* window() const noexcept { return m_window; }
-    [[nodiscard]] Context& context() noexcept { return m_context; }
+    [[nodiscard]] vulkan_init::Context& context() noexcept { return m_context; }
     [[nodiscard]] const DeviceContext& deviceContext() const noexcept { return m_context.deviceContext(); }
-    [[nodiscard]] const CommandPool& commandPool() const noexcept { return m_commandPool; }
-    [[nodiscard]] Swapchain& swapchain() noexcept { return m_swapchain; }
-    [[nodiscard]] Descriptors& descriptors() noexcept { return m_descriptors; }
-    [[nodiscard]] Image& hdrImage() noexcept { return m_hdrImage; }
-    [[nodiscard]] const std::optional<IblProbe>& iblProbe() const noexcept { return m_iblProbe; }
-    [[nodiscard]] ColorSpace::WorkingColorSpace workingColorSpace() const noexcept { return m_workingColorSpace; }
+    [[nodiscard]] const core::CommandPool& commandPool() const noexcept { return m_commandPool; }
+    [[nodiscard]] presentation::Swapchain& swapchain() noexcept { return m_swapchain; }
+    [[nodiscard]] renderer::Descriptors& descriptors() noexcept { return m_descriptors; }
+    [[nodiscard]] core::Image& hdrImage() noexcept { return m_hdrImage; }
+    [[nodiscard]] const std::optional<scene::IblProbe>& iblProbe() const noexcept { return m_iblProbe; }
+    [[nodiscard]] utils::ColorSpace::WorkingColorSpace workingColorSpace() const noexcept { return m_workingColorSpace; }
     [[nodiscard]] std::uint32_t tonemapper() const noexcept { return m_tonemapper; }
     [[nodiscard]] std::uint32_t frameIndex() const noexcept { return m_frameIndex; }
 
@@ -195,39 +195,39 @@ class App {
     /// GPU<->host clock relationship and log it (exercises the extension's entry points).
     void logGpuClockCalibration() noexcept;
     void rebuildStagePipeline();
-    void applySceneStageConfig(const SceneLoader::SceneConfig& sceneConfig);
+    void applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConfig);
     [[nodiscard]] bool hasTonemapStage() const noexcept;
     [[nodiscard]] std::filesystem::path resolveScenePath(const std::filesystem::path& sceneFile) const;
     /// Current scene-output source for presentation/capture (HDR fallback when
     /// denoiser stage is disabled or unavailable).
-    [[nodiscard]] const Image& sceneOutputImage() const noexcept;
+    [[nodiscard]] const core::Image& sceneOutputImage() const noexcept;
     [[nodiscard]] VkPipelineStageFlags2 sceneOutputStageMask() noexcept;
     [[nodiscard]] VkAccessFlags2 sceneOutputAccessMask() noexcept;
     [[nodiscard]] std::uint64_t accumulationResetToken() const noexcept;
     /// Reset token for the A-SVGF temporal denoiser. Changes only on scene/resize/config
     /// changes — NOT on camera movement — so the denoiser can reproject history via motion
-    /// vectors across camera motion (A-SVGF / SVGF design). AccumulationPass uses the
+    /// vectors across camera motion (A-SVGF / SVGF design). pipeline::AccumulationPass uses the
     /// separate accumulationResetToken which does change on camera movement.
     [[nodiscard]] std::uint64_t denoiserResetToken() const noexcept;
 
     Config m_config{};
     Config::StagePipeline m_defaultStages{};
     SDL_Window* m_window{};
-    Context m_context{};
-    CommandPool m_commandPool{};
-    Swapchain m_swapchain{};
-    Descriptors m_descriptors{};
-    ToneMapper m_toneMapper{};
-    OffscreenCapture m_offscreen; // offscreen-only: SDR capture (ToneMapper + 8-bit image)
-    Image m_hdrImage{};
-    Image m_denoisedImage{};
-    std::vector<std::unique_ptr<IRenderPass>> m_sceneStages;
-    std::vector<std::unique_ptr<IRenderPass>> m_displayStages;
+    vulkan_init::Context m_context{};
+    core::CommandPool m_commandPool{};
+    presentation::Swapchain m_swapchain{};
+    renderer::Descriptors m_descriptors{};
+    presentation::ToneMapper m_toneMapper{};
+    OffscreenCapture m_offscreen; // offscreen-only: SDR capture (presentation::ToneMapper + 8-bit image)
+    core::Image m_hdrImage{};
+    core::Image m_denoisedImage{};
+    std::vector<std::unique_ptr<pipeline::IRenderPass>> m_sceneStages;
+    std::vector<std::unique_ptr<pipeline::IRenderPass>> m_displayStages;
     bool m_sceneOutputUsesDenoised = false;
     GreenScreenRenderer m_displayRenderer{};
-    std::optional<IblProbe> m_iblProbe;
+    std::optional<scene::IblProbe> m_iblProbe;
 
-    ColorSpace::WorkingColorSpace m_workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
+    utils::ColorSpace::WorkingColorSpace m_workingColorSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020;
     std::uint32_t m_tonemapper = 0;
 
     FrameSync m_frameSync;
@@ -243,5 +243,5 @@ class App {
     bool m_running = false;
 };
 
-} // namespace harmonia
+} // namespace harmonia::app
 #endif // HARMONIA_APP_APP_HPP

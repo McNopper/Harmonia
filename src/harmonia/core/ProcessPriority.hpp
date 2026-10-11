@@ -17,7 +17,7 @@
 #    include <sys/types.h>
 #endif
 
-namespace harmonia {
+namespace harmonia::core {
 
 /// Background CPU priority for long batch jobs (headless/offscreen capture).
 ///
@@ -55,7 +55,7 @@ namespace harmonia {
 /// process does hold CAP_SYS_NICE), and `restored()` reports whether it actually happened.
 ///
 /// Consequence for callers: use this only where the process is a one-shot batch job that
-/// exits immediately afterwards -- which is exactly `App::renderOffscreen()`. Do NOT wrap
+/// exits immediately afterwards -- which is exactly `app::App::renderOffscreen()`. Do NOT wrap
 /// it around a long-lived interactive loop, or the process stays deprioritised forever.
 ///
 /// Deliberately NOT the heavier "background" modes: `PROCESS_MODE_BACKGROUND_BEGIN` on
@@ -129,6 +129,6 @@ private:
     bool m_restored{false};
 };
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_PROCESSPRIORITY_HPP

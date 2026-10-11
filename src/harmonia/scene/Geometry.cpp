@@ -14,15 +14,15 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 
 namespace {
 [[nodiscard]] VkResult buildSingleBlas(const DeviceContext& ctx,
-                                       const CommandPool& fallbackPool,
+                                       const core::CommandPool& fallbackPool,
                                        std::string_view debugName,
                                        VkAccelerationStructureGeometryKHR& geometry,
                                        VkAccelerationStructureBuildRangeInfoKHR& rangeInfo,
-                                       AccelerationStructure& outBlas,
+                                       rt::AccelerationStructure& outBlas,
                                        VkAccelerationStructureKHR& outHandle) {
     if (outBlas.handle() != VK_NULL_HANDLE) {
         outHandle = outBlas.handle();
@@ -53,7 +53,7 @@ namespace {
     vkGetAccelerationStructureBuildSizesKHR(
         ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, &primitiveCount, &sizeInfo);
 
-    auto blas = AccelerationStructure::create(ctx,
+    auto blas = rt::AccelerationStructure::create(ctx,
                                               VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
                                               sizeInfo.accelerationStructureSize,
                                               std::string(debugName).append(".blas"));
@@ -61,16 +61,16 @@ namespace {
         return blas.error();
     }
 
-    auto scratch = createAccelerationStructureScratch(ctx, sizeInfo, std::string(debugName).append(".scratch"));
+    auto scratch = rt::createAccelerationStructureScratch(ctx, sizeInfo, std::string(debugName).append(".scratch"));
     if (!scratch) {
         return scratch.error();
     }
 
-    auto buildPool = CommandPool::create(ctx, ctx.graphicsFamily);
+    auto buildPool = core::CommandPool::create(ctx, ctx.graphicsFamily);
     if (!buildPool) {
         return buildPool.error();
     }
-    const CommandPool& commandPool = *buildPool;
+    const core::CommandPool& commandPool = *buildPool;
     (void)fallbackPool;
 
     buildInfo.dstAccelerationStructure = blas->handle();
@@ -134,7 +134,7 @@ Aabb worldAabbFromInstance(const Aabb& object, const Xform& xform) noexcept {
 }
 
 std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(const DeviceContext& ctx,
-                                                                            const CommandPool& pool,
+                                                                            const core::CommandPool& pool,
                                                                             MeshData&& data,
                                                                             const MeshOpacity& opacity,
                                                                             std::string_view debugName) {
@@ -151,16 +151,16 @@ std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(cons
     return triangleMesh;
 }
 
-VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& pool) {
+VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) {
     const std::uint32_t primitiveCount = m_mesh.indexCount() / 3;
     const std::uint32_t maxVertex = m_mesh.vertexCount() == 0 ? 0U : m_mesh.vertexCount() - 1U;
 
     // Bake the opacity micromap (if authored) before building the BLAS — the OMM
     // handle + index buffer chain into the triangles descriptor.
     if (m_opacity.micromap != nullptr && !m_micromap.has_value()) {
-        auto built = MicromapBuilder::build(ctx, pool, *m_opacity.micromap, m_debugName);
+        auto built = rt::MicromapBuilder::build(ctx, pool, *m_opacity.micromap, m_debugName);
         if (!built) {
-            Logger::error("TriangleMesh '{}': opacity-micromap build failed (VkResult {})",
+            core::Logger::error("TriangleMesh '{}': opacity-micromap build failed (VkResult {})",
                           m_debugName,
                           static_cast<int>(built.error()));
             return built.error();
@@ -169,7 +169,7 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const CommandPool& po
             // One micromap index per BLAS primitive, in the same order — the bake
             // walks the OBJ group's triangles exactly as the importer does. A
             // mismatch means the cached OMM is stale against the mesh.
-            Logger::error("TriangleMesh '{}': opacity micromap has {} indices but the BLAS has {} triangles "
+            core::Logger::error("TriangleMesh '{}': opacity micromap has {} indices but the BLAS has {} triangles "
                           "(stale bake — re-run tools/omm_bake.py)",
                           m_debugName,
                           built->indexCount(),
@@ -239,11 +239,11 @@ VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(std::uint32_t inst
     };
 }
 
-const Buffer& TriangleMesh::vertexBuffer() const noexcept {
+const core::Buffer& TriangleMesh::vertexBuffer() const noexcept {
     return m_mesh.vertexBuffer();
 }
 
-const Buffer& TriangleMesh::indexBuffer() const noexcept {
+const core::Buffer& TriangleMesh::indexBuffer() const noexcept {
     return m_mesh.indexBuffer();
 }
 
@@ -276,14 +276,14 @@ Aabb TriangleMesh::objectAabb() const noexcept {
 }
 
 std::expected<std::unique_ptr<Sphere>, VkResult>
-Sphere::create(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view debugName) {
+Sphere::create(const DeviceContext& ctx, const core::CommandPool& pool, float radius, std::string_view debugName) {
     if (radius <= 0.0f) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
     // Object-space AABB centred at the origin; placement (translation/scale) is
     // the instance transform's job via the TLAS.
-    const auto aabb = harmonia::ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, radius);
+    const auto aabb = harmonia::scene::ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, radius);
     const VkAabbPositionsKHR vkAabb{
         .minX = aabb.min.x,
         .minY = aabb.min.y,
@@ -293,7 +293,7 @@ Sphere::create(const DeviceContext& ctx, const CommandPool& pool, float radius, 
         .maxZ = aabb.max.z,
     };
 
-    auto aabbBuffer = Buffer::upload(ctx,
+    auto aabbBuffer = core::Buffer::upload(ctx,
                                      pool,
                                      std::as_bytes(std::span<const VkAabbPositionsKHR>(&vkAabb, 1)),
                                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
@@ -310,7 +310,7 @@ Sphere::create(const DeviceContext& ctx, const CommandPool& pool, float radius, 
     return sphere;
 }
 
-VkResult Sphere::buildBlas(const DeviceContext& ctx, const CommandPool& pool) {
+VkResult Sphere::buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) {
     VkAccelerationStructureGeometryKHR geometry{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
         .pNext = nullptr,
@@ -345,7 +345,7 @@ VkAccelerationStructureInstanceKHR Sphere::makeInstance(std::uint32_t instanceCu
         .instanceCustomIndex = instanceCustomIndex,
         .mask = kInstanceMaskAll,
         // Two hit-group records per geometry kind (radiance, shadow); procedural
-        // geometry is the second pair. See Pipeline::kHitGroupCount.
+        // geometry is the second pair. See renderer::Pipeline::kHitGroupCount.
         .instanceShaderBindingTableRecordOffset = 2,
         .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
         .accelerationStructureReference = m_accelerationStructure.deviceAddress(),
@@ -357,8 +357,8 @@ float Sphere::radius() const noexcept {
 }
 
 Aabb Sphere::objectAabb() const noexcept {
-    const auto aabb = harmonia::ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, m_radius);
+    const auto aabb = harmonia::scene::ProceduralGeometry::makeSphereAabb(sm::float3{0.0f, 0.0f, 0.0f}, m_radius);
     return Aabb{.min = aabb.min, .max = aabb.max};
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

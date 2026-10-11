@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <numbers>
 
-namespace harmonia {
+namespace harmonia::scene {
 
 namespace {
 
@@ -132,4 +132,4 @@ GpuLight SkyLight::toGpu() const noexcept {
     return g;
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene

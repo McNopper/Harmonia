@@ -8,9 +8,9 @@
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 
-namespace harmonia {
+namespace harmonia::presentation {
 
-using harmonia::createShaderModule;
+using harmonia::core::createShaderModule;
 
 std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
                                                        VkFormat swapchainFormat,
@@ -43,7 +43,7 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         r != VK_SUCCESS) {
         return std::unexpected(r);
     }
-    mapper.m_setLayout = harmonia::UniqueDescriptorSetLayout{ctx.device, setLayout};
+    mapper.m_setLayout = harmonia::core::UniqueDescriptorSetLayout{ctx.device, setLayout};
 
     // Push constant range covers the full PushConstants block at fragment stage.
     // Offsets used: outputColorSpace (20), tonemapper (44), workingColorSpace (48).
@@ -66,16 +66,16 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
     if (layoutResult != VK_SUCCESS) {
         return std::unexpected(layoutResult);
     }
-    mapper.m_pipelineLayout = harmonia::UniquePipelineLayout{ctx.device, pipelineLayout};
+    mapper.m_pipelineLayout = harmonia::core::UniquePipelineLayout{ctx.device, pipelineLayout};
     // NOTE: setLayout must NOT be destroyed here. The Vulkan spec requires that
     // push descriptor set layouts remain valid for the lifetime of any command
     // buffer that calls vkCmdPushDescriptorSet with a pipeline layout using them.
 
-    auto vertModule = createShaderModule(ctx.device, vertSpvPath);
+    auto vertModule = core::createShaderModule(ctx.device, vertSpvPath);
     if (!vertModule) {
         return std::unexpected(vertModule.error());
     }
-    auto fragModule = createShaderModule(ctx.device, fragSpvPath);
+    auto fragModule = core::createShaderModule(ctx.device, fragSpvPath);
     if (!fragModule) {
         vkDestroyShaderModule(ctx.device, *vertModule, nullptr);
         return std::unexpected(fragModule.error());
@@ -239,7 +239,7 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
     }
-    mapper.m_pipeline = harmonia::UniquePipeline{ctx.device, pipeline};
+    mapper.m_pipeline = harmonia::core::UniquePipeline{ctx.device, pipeline};
 
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, mapper.m_pipeline.get(), "harmonia.tonemapPipeline");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mapper.m_pipelineLayout.get(), "harmonia.tonemapPipelineLayout");
@@ -251,8 +251,8 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkImageView hdrView,
                         VkImageView swapchainView,
                         VkExtent2D extent,
-                        OutputColorSpace colorSpace,
-                        harmonia::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
+                        utils::OutputColorSpace colorSpace,
+                        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;
@@ -345,9 +345,9 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkImageView hdrView,
                         VkImageView swapchainView,
                         VkExtent2D extent,
-                        OutputColorSpace colorSpace,
+                        utils::OutputColorSpace colorSpace,
                         std::uint32_t tonemapper,
-                        harmonia::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
+                        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;
@@ -365,4 +365,4 @@ void ToneMapper::record(VkCommandBuffer cmd,
     record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace);
 }
 
-} // namespace harmonia
+} // namespace harmonia::presentation

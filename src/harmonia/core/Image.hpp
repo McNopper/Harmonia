@@ -7,7 +7,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 
-namespace harmonia {
+namespace harmonia::core {
 
 class Image {
   public:
@@ -57,6 +57,6 @@ class Image {
     std::uint32_t m_mipLevels = 1U;
 };
 
-} // namespace harmonia
+} // namespace harmonia::core
 
 #endif // HARMONIA_CORE_IMAGE_HPP

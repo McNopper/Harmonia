@@ -13,7 +13,7 @@
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/Mesh.hpp"
 
-namespace harmonia {
+namespace harmonia::scene {
 namespace {
 
 /// Relative spread the three transformed sphere axes may show and still count as a uniform
@@ -155,7 +155,7 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
                 continue; // degenerate (zero-scale) sphere — nothing was appended
             }
             if (!packed.uniform && warnedEllipsoids.emplace(inst.meshIndex, inst.materialIndex).second) {
-                Logger::warn("Emissive analytic sphere has a non-uniform instance scale "
+                core::Logger::warn("Emissive analytic sphere has a non-uniform instance scale "
                              "(instance {}, mesh {}, material {}): transformed radii "
                              "({:.6g}, {:.6g}, {:.6g}) describe an ellipsoid, which neither "
                              "the object-space sphere intersection nor the uniform-cone NEE "
@@ -204,4 +204,4 @@ std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower) {
     return cdf;
 }
 
-} // namespace harmonia
+} // namespace harmonia::scene
