@@ -122,6 +122,16 @@ extractions; X-03 tools `main()` splits; SM-02 unrolled rows; A-05 `applyKw` tab
 SM6-Aether); SH-02 shared Slang medium-walk module (inside PERF5 only). Closed as rejected:
 SM-01, A-04, HY-02 (RNG parity invariant), H-05b (matrix literals — image identity).
 
+**Smell harvest (check-arch 1.2.0, 2026-10-15; report-only proxies — queue items for the
+review cadence, never auto-findings):**
+- **large modules (review for an internal split at the next touch):** `scene` 3356 lines /
+  22 files (the family's largest here — the **AR1** split is also the size fix), `app` 2200,
+  `core` 2047, `pipeline` 1712, `vulkan_init` 1458, `presentation` 1125. Review verdict
+  first: split only where a seam is real, otherwise record accepted. `theia/renderer`
+  (5093 lines) is tracked in Theia's PLAN.
+- **accepted by design:** hub `harmonia` (fan-in 8 — the shared vocabulary) and hub
+  `app` (fan-out 8 — the host) are *supposed* to be hubs; no action.
+
 **Vulkan adoption queue (after VK15, shipped v0.7.11):** **VK16** `VK_KHR_device_fault` (+
 `VK_EXT_device_address_binding_report`) — device-lost forensics with fault addresses; then
 **VK17 + VK5** as one cold-start/CI item (`VK_EXT_shader_module_identifier` +
@@ -150,7 +160,9 @@ engine (the per-repo check_layers scripts are retired; local gate, not CI).
 **Architecture track (structural work — split from features 2026-10-11, sequenced BEFORE the
 feature pillar):** **AR1 scene/RT-build split** — separate the scene GPU-upload path from the
 RT-build step so a rasterizer renderer can consume `scene` without `rt` (the rasterizer-base
-constraint; `rt/` is already a separable layer, this makes the seam real). **AR2 CMake target
+constraint; `rt/` is already a separable layer, this makes the seam real). Measured
+reinforcement: `harmonia/scene` is the repo's largest module (3356 lines / 22 files — the
+check-arch `large module` proxy), so the split doubles as the size fix. **AR2 CMake target
 split** — `harmonia_core` / `harmonia_rt` / `harmonia_scene` / … object libraries with
 `target_link_libraries` expressing the layer DAG, so upward includes become *link* errors
 (the `ARCHITECTURE.md` contracts gate the includes; this is the build-system half, deferred from the
