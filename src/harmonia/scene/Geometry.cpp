@@ -93,16 +93,16 @@ namespace {
 }
 } // namespace
 
-sm::float4x4 Xform::matrix() const noexcept {
+sm::float4x4 Transform::matrix() const noexcept {
     return sm::translate(sm::float4x4(1.0f), translation) * sm::toFloat4x4(rotation) *
            sm::scale(sm::float4x4(1.0f), scale);
 }
 
-sm::float4x4 Xform::inverseMatrix() const noexcept {
+sm::float4x4 Transform::inverseMatrix() const noexcept {
     return sm::inverse(matrix());
 }
 
-VkTransformMatrixKHR Xform::toVkTransform() const noexcept {
+VkTransformMatrixKHR Transform::toVkTransform() const noexcept {
     const sm::float4x4 transform = matrix();
     return VkTransformMatrixKHR{{
         {transform[0][0], transform[0][1], transform[0][2], transform[0][3]},
@@ -111,8 +111,8 @@ VkTransformMatrixKHR Xform::toVkTransform() const noexcept {
     }};
 }
 
-Aabb worldAabbFromInstance(const Aabb& object, const Xform& xform) noexcept {
-    const sm::float4x4 m = xform.matrix();
+Aabb worldAabbFromInstance(const Aabb& object, const Transform& transform) noexcept {
+    const sm::float4x4 m = transform.matrix();
     const sm::float3 corners[8]{
         {object.min.x, object.min.y, object.min.z},
         {object.min.x, object.min.y, object.max.z},
@@ -228,9 +228,9 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
 }
 
 VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(std::uint32_t instanceCustomIndex,
-                                                              const Xform& xform) const noexcept {
+                                                              const Transform& transform) const noexcept {
     return VkAccelerationStructureInstanceKHR{
-        .transform = xform.toVkTransform(),
+        .transform = transform.toVkTransform(),
         .instanceCustomIndex = instanceCustomIndex,
         .mask = kInstanceMaskAll,
         .instanceShaderBindingTableRecordOffset = 0,
@@ -339,9 +339,9 @@ VkResult Sphere::buildBlas(const DeviceContext& ctx, const core::CommandPool& po
 }
 
 VkAccelerationStructureInstanceKHR Sphere::makeInstance(std::uint32_t instanceCustomIndex,
-                                                        const Xform& xform) const noexcept {
+                                                        const Transform& transform) const noexcept {
     return VkAccelerationStructureInstanceKHR{
-        .transform = xform.toVkTransform(),
+        .transform = transform.toVkTransform(),
         .instanceCustomIndex = instanceCustomIndex,
         .mask = kInstanceMaskAll,
         // Two hit-group records per geometry kind (radiance, shadow); procedural

@@ -53,7 +53,7 @@ class SceneBase : public ISceneBuilder {
     /// Records an instance placement (mesh index + transform + material). Shared
     /// because it is pure bookkeeping — no GPU work until build().
     [[nodiscard]] std::uint32_t
-    addInstance(std::uint32_t meshIndex, const Xform& xform, std::uint32_t materialIdx) override;
+    addInstance(std::uint32_t meshIndex, const Transform& transform, std::uint32_t materialIdx) override;
 
     /// Registers a unique triangle mesh (object space). Shared because it is
     /// identical across renderers (a plain TriangleMesh upload).

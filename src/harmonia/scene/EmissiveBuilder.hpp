@@ -63,7 +63,7 @@ struct SphereEmissive {
 /// Split out of `buildEmissiveData` so the packing rules are unit-testable without a
 /// Vulkan device (a `Sphere` geometry can only be created against one).
 SphereEmissive
-appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4& xformMat, sm::float3 emission);
+appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4& transformMat, sm::float3 emission);
 
 /// Build the emissive-triangle buffer and its power vector from the scene.
 ///

@@ -30,20 +30,20 @@ constexpr float kSphereAxisTolerance = 1.0e-3F;
 } // namespace
 
 SphereEmissive
-appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4& xformMat, sm::float3 emission) {
+appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4& transformMat, sm::float3 emission) {
     SphereEmissive packed;
 
     // The analytic sphere lives at the object-space origin; the instance transform places
     // it.  The intersection shader runs in OBJECT space, so a non-uniform scale produces a
     // genuine ellipsoid — measure all three transformed radius axes instead of assuming the
     // x axis speaks for the other two.
-    const sm::float3 worldCenter = static_cast<sm::float3>(xformMat * sm::float4(0.0F, 0.0F, 0.0F, 1.0F));
+    const sm::float3 worldCenter = static_cast<sm::float3>(transformMat * sm::float4(0.0F, 0.0F, 0.0F, 1.0F));
     const sm::float3 axisX =
-        static_cast<sm::float3>(xformMat * sm::float4(objectRadius, 0.0F, 0.0F, 1.0F)) - worldCenter;
+        static_cast<sm::float3>(transformMat * sm::float4(objectRadius, 0.0F, 0.0F, 1.0F)) - worldCenter;
     const sm::float3 axisY =
-        static_cast<sm::float3>(xformMat * sm::float4(0.0F, objectRadius, 0.0F, 1.0F)) - worldCenter;
+        static_cast<sm::float3>(transformMat * sm::float4(0.0F, objectRadius, 0.0F, 1.0F)) - worldCenter;
     const sm::float3 axisZ =
-        static_cast<sm::float3>(xformMat * sm::float4(0.0F, 0.0F, objectRadius, 1.0F)) - worldCenter;
+        static_cast<sm::float3>(transformMat * sm::float4(0.0F, 0.0F, objectRadius, 1.0F)) - worldCenter;
     packed.axisLengths = sm::float3{sm::length(axisX), sm::length(axisY), sm::length(axisZ)};
 
     const float maxAxis = std::max({packed.axisLengths.x, packed.axisLengths.y, packed.axisLengths.z});
@@ -108,7 +108,7 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
         const Geometry* geom = meshes[inst.meshIndex].get();
 
         // The mesh lives in object space; the instance transform places it.
-        const sm::float4x4 xformMat = inst.xform.matrix();
+        const sm::float4x4 transformMat = inst.transform.matrix();
         const sm::float3 emission = static_cast<sm::float3>(gpuMat.emissionColorLum) *
                                     gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
 
@@ -125,9 +125,9 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
                 const sm::float3 lv1 = verts[idxBuf[t * 3 + 1]].position;
                 const sm::float3 lv2 = verts[idxBuf[t * 3 + 2]].position;
 
-                const sm::float3 wv0 = static_cast<sm::float3>(xformMat * sm::float4(lv0, 1.0F));
-                const sm::float3 wv1 = static_cast<sm::float3>(xformMat * sm::float4(lv1, 1.0F));
-                const sm::float3 wv2 = static_cast<sm::float3>(xformMat * sm::float4(lv2, 1.0F));
+                const sm::float3 wv0 = static_cast<sm::float3>(transformMat * sm::float4(lv0, 1.0F));
+                const sm::float3 wv1 = static_cast<sm::float3>(transformMat * sm::float4(lv1, 1.0F));
+                const sm::float3 wv2 = static_cast<sm::float3>(transformMat * sm::float4(lv2, 1.0F));
 
                 const sm::float3 edge1 = wv1 - wv0;
                 const sm::float3 edge2 = wv2 - wv0;
@@ -150,7 +150,7 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
                 result.power.push_back(area * std::max(emissionLuminance(emission), 0.0F));
             }
         } else if (const auto* sphere = dynamic_cast<const Sphere*>(geom)) {
-            const SphereEmissive packed = appendSphereEmissive(result, sphere->radius(), xformMat, emission);
+            const SphereEmissive packed = appendSphereEmissive(result, sphere->radius(), transformMat, emission);
             if (packed.radius <= 0.0F) {
                 continue; // degenerate (zero-scale) sphere — nothing was appended
             }

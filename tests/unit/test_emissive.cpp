@@ -32,14 +32,14 @@ void expectValidCdf(const std::vector<float>& cdf) {
 }
 
 // Object→world matrix for an instance placement, mirroring what buildEmissiveData feeds
-// appendSphereEmissive (InstanceRecord::xform.matrix()).
+// appendSphereEmissive (InstanceRecord::transform.matrix()).
 sm::float4x4
 placement(sm::float3 translation, sm::float3 scale, sm::quaternion rotation = sm::identity<sm::quaternion>()) {
-    harmonia::scene::Xform xform;
-    xform.translation = translation;
-    xform.rotation = rotation;
-    xform.scale = scale;
-    return xform.matrix();
+    harmonia::scene::Transform transform;
+    transform.translation = translation;
+    transform.rotation = rotation;
+    transform.scale = scale;
+    return transform.matrix();
 }
 
 // Inverse-CDF lookup with a stratified variate, matching the GPU binary search's semantics

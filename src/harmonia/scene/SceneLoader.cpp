@@ -84,9 +84,9 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
     }
 }
 
-// Build an Xform (object→world, glTF T × R × S) from a parsed instance's TRS.
-[[nodiscard]] Xform toXform(const aether::InstanceDesc& inst) {
-    return Xform{.translation = inst.translation, .rotation = inst.rotation, .scale = inst.scale};
+// Build an Transform (object→world, glTF T × R × S) from a parsed instance's TRS.
+[[nodiscard]] Transform toTransform(const aether::InstanceDesc& inst) {
+    return Transform{.translation = inst.translation, .rotation = inst.rotation, .scale = inst.scale};
 }
 
 // Convert Aether's renderer-agnostic object-space mesh into Harmonia's GpuVertex
@@ -460,7 +460,7 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
             core::Logger::warn("SceneLoader: instance references unknown mesh '{}' — skipping", inst.meshName);
             continue;
         }
-        const Xform xform = toXform(inst);
+        const Transform transform = toTransform(inst);
 
         for (const LoadedSubmesh& sub : it->second) {
             // Material priority: per-group override > whole-instance override > default.
@@ -476,7 +476,7 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
 
             loadMaterialTextures(c, matName);
             const std::uint32_t matIdx = c.scene.addMaterial(c.lib.getOrDefault(matName));
-            if (c.scene.addInstance(sub.meshIndex, xform, matIdx) == std::numeric_limits<std::uint32_t>::max()) {
+            if (c.scene.addInstance(sub.meshIndex, transform, matIdx) == std::numeric_limits<std::uint32_t>::max()) {
                 core::Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
                 return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }

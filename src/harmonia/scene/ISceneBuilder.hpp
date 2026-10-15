@@ -61,10 +61,10 @@ class ISceneBuilder {
     [[nodiscard]] virtual std::uint32_t
     addSphereMesh(const DeviceContext& ctx, const core::CommandPool& pool, float radius, std::string_view name) = 0;
 
-    /// Place an instance of mesh @p meshIndex with @p xform and @p materialIdx.
+    /// Place an instance of mesh @p meshIndex with @p transform and @p materialIdx.
     /// Returns the instance index, or uint32_max on failure.
     [[nodiscard]] virtual std::uint32_t
-    addInstance(std::uint32_t meshIndex, const Xform& xform, std::uint32_t materialIdx) = 0;
+    addInstance(std::uint32_t meshIndex, const Transform& transform, std::uint32_t materialIdx) = 0;
 };
 
 } // namespace harmonia::scene

@@ -25,7 +25,7 @@ namespace harmonia::scene {
 /// A transform belongs to an *instance*, not a mesh: one mesh can be placed many
 /// times with different transforms (true GPU instancing). `toVkTransform()` packs
 /// it into the 3×4 matrix a TLAS instance carries.
-struct Xform {
+struct Transform {
     sm::float3 translation = {0.0f, 0.0f, 0.0f};
     sm::quaternion rotation = sm::identity<sm::quaternion>();
     sm::float3 scale = {1.0f, 1.0f, 1.0f};
@@ -41,7 +41,7 @@ struct Xform {
 /// owns the shared BLAS, so N instances of one mesh share one BLAS.
 struct InstanceRecord {
     std::uint32_t meshIndex = 0;
-    Xform xform{};
+    Transform transform{};
     std::uint32_t materialIndex = 0;
 };
 
@@ -56,7 +56,7 @@ class Geometry {
 
     virtual VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
     [[nodiscard]] virtual VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                          const Xform& xform) const noexcept = 0;
+                                                                          const Transform& transform) const noexcept = 0;
 
     /// Object-space axis-aligned bounding box of this geometry. Returned to the
     /// renderers, which derive a per-instance world-space AABB via
@@ -71,11 +71,11 @@ class Geometry {
     VkAccelerationStructureKHR m_blas = VK_NULL_HANDLE;
 };
 
-/// Transform an object-space AABB to world space under @p xform. Applies the
+/// Transform an object-space AABB to world space under @p transform. Applies the
 /// TRS matrix to all 8 corners and re-bounds — correct under non-uniform scale
 /// (unlike transforming half-extents). Used per-instance to build the world-AABB
 /// SSBO consumed by the renderers' cull / ray-reject phases.
-[[nodiscard]] Aabb worldAabbFromInstance(const Aabb& object, const Xform& xform) noexcept;
+[[nodiscard]] Aabb worldAabbFromInstance(const Aabb& object, const Transform& transform) noexcept;
 
 /// How a mesh's geometry resolves OpenPBR `geometry_opacity` during traversal.
 struct MeshOpacity {
@@ -104,7 +104,7 @@ class TriangleMesh final : public Geometry {
 
     VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                  const Xform& xform) const noexcept override;
+                                                                  const Transform& transform) const noexcept override;
     [[nodiscard]] Aabb objectAabb() const noexcept override;
 
     [[nodiscard]] const core::Buffer& vertexBuffer() const noexcept;
@@ -131,7 +131,7 @@ class Sphere final : public Geometry {
 
     VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) override;
     [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                  const Xform& xform) const noexcept override;
+                                                                  const Transform& transform) const noexcept override;
     [[nodiscard]] Aabb objectAabb() const noexcept override;
 
     [[nodiscard]] float radius() const noexcept;

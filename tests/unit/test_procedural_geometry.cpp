@@ -94,7 +94,7 @@ TEST(ProceduralGeometry, MakeSphereAabbWithOffsetMatchesExpectedBounds) {
 
 TEST(WorldAabbFromInstance, IdentityTransformPreservesBounds) {
     const harmonia::scene::Aabb object{.min = {-1.0F, -2.0F, -3.0F}, .max = {4.0F, 5.0F, 6.0F}};
-    const harmonia::scene::Xform identity{};
+    const harmonia::scene::Transform identity{};
     const auto world = harmonia::scene::worldAabbFromInstance(object, identity);
     EXPECT_NEAR(world.min.x, -1.0F, kEpsilon);
     EXPECT_NEAR(world.min.y, -2.0F, kEpsilon);
@@ -106,8 +106,8 @@ TEST(WorldAabbFromInstance, IdentityTransformPreservesBounds) {
 
 TEST(WorldAabbFromInstance, TranslationShiftsBounds) {
     const harmonia::scene::Aabb object{.min = {-1.0F, -1.0F, -1.0F}, .max = {1.0F, 1.0F, 1.0F}};
-    const harmonia::scene::Xform xform{.translation = {10.0F, 20.0F, 30.0F}};
-    const auto world = harmonia::scene::worldAabbFromInstance(object, xform);
+    const harmonia::scene::Transform transform{.translation = {10.0F, 20.0F, 30.0F}};
+    const auto world = harmonia::scene::worldAabbFromInstance(object, transform);
     EXPECT_NEAR(world.min.x, 9.0F, kEpsilon);
     EXPECT_NEAR(world.max.x, 11.0F, kEpsilon);
     EXPECT_NEAR(world.min.z, 29.0F, kEpsilon);
@@ -116,8 +116,8 @@ TEST(WorldAabbFromInstance, TranslationShiftsBounds) {
 
 TEST(WorldAabbFromInstance, UniformScaleExpandsBounds) {
     const harmonia::scene::Aabb object{.min = {-1.0F, -1.0F, -1.0F}, .max = {1.0F, 1.0F, 1.0F}};
-    const harmonia::scene::Xform xform{.scale = {2.0F, 2.0F, 2.0F}};
-    const auto world = harmonia::scene::worldAabbFromInstance(object, xform);
+    const harmonia::scene::Transform transform{.scale = {2.0F, 2.0F, 2.0F}};
+    const auto world = harmonia::scene::worldAabbFromInstance(object, transform);
     EXPECT_NEAR(world.min.x, -2.0F, kEpsilon);
     EXPECT_NEAR(world.max.x, 2.0F, kEpsilon);
     EXPECT_NEAR(world.min.y, -2.0F, kEpsilon);
@@ -128,8 +128,8 @@ TEST(WorldAabbFromInstance, NonUniformScaleReboundsCorrectly) {
     // Non-uniform scale is the case corner-transform (not half-extent) handling
     // is required for: scaling x by 2 and y by 0.5 must re-bound, not just scale.
     const harmonia::scene::Aabb object{.min = {-1.0F, -1.0F, -1.0F}, .max = {1.0F, 1.0F, 1.0F}};
-    const harmonia::scene::Xform xform{.scale = {2.0F, 0.5F, 1.0F}};
-    const auto world = harmonia::scene::worldAabbFromInstance(object, xform);
+    const harmonia::scene::Transform transform{.scale = {2.0F, 0.5F, 1.0F}};
+    const auto world = harmonia::scene::worldAabbFromInstance(object, transform);
     EXPECT_NEAR(world.min.x, -2.0F, kEpsilon);
     EXPECT_NEAR(world.max.x, 2.0F, kEpsilon);
     EXPECT_NEAR(world.min.y, -0.5F, kEpsilon);
@@ -141,8 +141,8 @@ TEST(WorldAabbFromInstance, RotationSwapsAxes) {
     // (0,0,0)→(2,1,4) maps to (-2,0,-4)→(0,1,0), proving corners (not half-extents)
     // are transformed and re-bound.
     const harmonia::scene::Aabb object{.min = {0.0F, 0.0F, 0.0F}, .max = {2.0F, 1.0F, 4.0F}};
-    const harmonia::scene::Xform xform{.rotation = sm::angleAxis(harmonia::utils::Math::kPi, sm::float3{0.0F, 1.0F, 0.0F})};
-    const auto world = harmonia::scene::worldAabbFromInstance(object, xform);
+    const harmonia::scene::Transform transform{.rotation = sm::angleAxis(harmonia::utils::Math::kPi, sm::float3{0.0F, 1.0F, 0.0F})};
+    const auto world = harmonia::scene::worldAabbFromInstance(object, transform);
     EXPECT_NEAR(world.min.x, -2.0F, kEpsilon);
     EXPECT_NEAR(world.max.x, 0.0F, kEpsilon);
     EXPECT_NEAR(world.min.y, 0.0F, kEpsilon);

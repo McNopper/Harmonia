@@ -21,9 +21,9 @@ std::uint32_t SceneBase::addTexture(Texture&& texture) {
     return idx;
 }
 
-std::uint32_t SceneBase::addInstance(std::uint32_t meshIndex, const Xform& xform, std::uint32_t materialIdx) {
+std::uint32_t SceneBase::addInstance(std::uint32_t meshIndex, const Transform& transform, std::uint32_t materialIdx) {
     const std::uint32_t idx = static_cast<std::uint32_t>(m_instances.size());
-    m_instances.push_back(InstanceRecord{.meshIndex = meshIndex, .xform = xform, .materialIndex = materialIdx});
+    m_instances.push_back(InstanceRecord{.meshIndex = meshIndex, .transform = transform, .materialIndex = materialIdx});
     return idx;
 }
 
@@ -86,7 +86,7 @@ VkResult SceneBase::buildTlas(const DeviceContext& ctx, const core::CommandPool&
     std::vector<VkAccelerationStructureInstanceKHR> instances(m_instances.size());
     for (std::size_t i = 0; i < m_instances.size(); ++i) {
         const InstanceRecord& inst = m_instances[i];
-        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<std::uint32_t>(i), inst.xform);
+        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<std::uint32_t>(i), inst.transform);
         instances[i].mask = instanceMask(i);
     }
     return harmonia::rt::buildTlas(ctx, pool, instances, m_tlas, m_tlasAddress);

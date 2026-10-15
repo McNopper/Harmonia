@@ -36,6 +36,7 @@ ALLOWED = {
 INC = re.compile(r'#include\s+[<"]harmonia/([\w]+)/')
 INC_FILE = re.compile(r'#include\s+[<"]harmonia/([\w./-]+)[>"]')
 NS_OPEN = re.compile(r'^namespace\s+(harmonia(?:::\w+)*)\s*\{')
+FORBIDDEN_INC = re.compile(r'#include\s+[<"](theia|hyperion)/')
 
 
 def layer_of(path):
@@ -78,6 +79,8 @@ def main():
                 m = NS_OPEN.match(line)
                 if m:
                     opens.add(m.group(1))
+                if FORBIDDEN_INC.match(line):
+                    violations.append(f'{p}: renderer include (theia/hyperion) in the shared library')
             # The file must open its own layer's namespace (nested module
             # namespaces like harmonia::utils::Math count for their layer).
             # Forward-declaration blocks of other layers are fine.

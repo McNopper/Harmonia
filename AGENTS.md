@@ -27,7 +27,10 @@ flowchart LR
 **Split rule:** code shared 1:1 between renderers goes in Harmonia. Code that diverges
 stays renderer-specific (Hyperion = path tracer w/ index buffers + RT; Theia = mesh-shader
 rasterizer w/ meshlets). GPU-optimized scene upload / instance / meshlet layouts are
-renderer-specific, NOT here.
+renderer-specific, NOT here. Aether's CPU types (`Aabb`, `MeshData`, `MaterialLibrary`)
+are the file-format vocabulary; `harmonia::scene` deliberately owns the GPU-side twins
+(`sm::float3`-based `Aabb`, `GpuVertex`-carrying `MeshData`) — the translation happens at
+scene load (`SceneLoader`), so the file-format library and the GPU library stay decoupled.
 
 **Layers & namespaces (enforced):** Harmonia is layered and each layer has its own
 namespace — `harmonia::utils` → `harmonia::core` → `harmonia::vulkan_init` →
@@ -36,8 +39,10 @@ capability) → `harmonia::scene` → `harmonia::renderer` / `harmonia::pipeline
 `harmonia::presentation` → `harmonia::app`, plus the flat vocabulary `harmonia::`
 (`DeviceContext`, `GpuTypes`). Includes may only go **down** the graph — the
 `tools/check_layers.py` gate (ctest `test_layers`, label `analysis`) enforces all three:
-the include matrix, namespace-vs-directory matching, and **no include cycles** (file-level
-SCC detection — catches same-layer header cycles the pairwise matrix cannot see).
+the include matrix, namespace-vs-directory matching, **no include cycles** (file-level
+SCC detection — catches same-layer header cycles the pairwise matrix cannot see), and
+any `theia/`/`hyperion/` include — **Hyperion and Theia are siblings: both depend on
+Harmonia, never on each other**.
 Renderers own their namespaces
 (`theia::`, `hyperion::`); nothing renderer-specific may live in `harmonia::`. Note the
 rasterizer-base constraint: `harmonia::rt` must stay a separable capability — a future
