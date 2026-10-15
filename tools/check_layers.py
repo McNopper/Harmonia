@@ -34,6 +34,7 @@ ALLOWED = {
 }
 
 INC = re.compile(r'#include\s+"harmonia/([\w]+)/')
+INC_FILE = re.compile(r'#include\s+"harmonia/([\w./-]+)"')
 NS = re.compile(r'^namespace harmonia(?::(\w+))?\s*\{')
 
 
@@ -49,12 +50,15 @@ def main():
         return 77
     violations = []
     edges = {}
+    file_adj = {}
     for dirpath, _, files in os.walk(SRC):
         for f in sorted(files):
             if not f.endswith(('.hpp', '.cpp')):
                 continue
             p = os.path.join(dirpath, f)
             src_layer = layer_of(p)
+            me = os.path.relpath(p, SRC).replace(os.sep, '/')
+            file_adj.setdefault(me, set())
             ns_seen = None
             for line in io_lines(p):
                 m = INC.match(line)
@@ -66,11 +70,21 @@ def main():
                     edges[(src_layer, dst)] += 1
                     if dst not in ALLOWED[src_layer]:
                         violations.append(f'{p}: layer {src_layer} must not include harmonia/{dst}/')
+                m = INC_FILE.match(line)
+                if m:
+                    file_adj.setdefault(m.group(1), set())
+                    if m.group(1) != me:
+                        file_adj[me].add(m.group(1))
                 m = NS.match(line)
                 if m and ns_seen is None:
                     ns_seen = m.group(1) or 'root'
             if ns_seen is not None and ns_seen != src_layer:
                 violations.append(f'{p}: namespace harmonia::{ns_seen} does not match layer {src_layer}')
+    # Same-layer header cycles: the matrix gates layer pairs, not files inside
+    # one layer - detect cycles as file-level strongly-connected components.
+    for comp in scc(sorted(file_adj), file_adj):
+        if len(comp) > 1:
+            violations.append('include cycle: ' + ' <-> '.join(sorted(comp)))
     if report:
         print('measured include edges:')
         for (a, b), n in sorted(edges.items()):
@@ -80,8 +94,52 @@ def main():
         for v in violations:
             print('  ' + v)
         return 1
-    print(f'layers clean ({len(edges)} distinct include edges)')
+    print(f'layers clean ({len(edges)} distinct include edges, no cycles)')
     return 0
+
+
+def scc(nodes, adj):
+    """Tarjan, iterative: strongly-connected components over the file graph."""
+    idx, low, on, stack, out = {}, {}, set(), [], []
+    counter = [0]
+    for start in nodes:
+        if start in idx:
+            continue
+        work = [(start, iter(sorted(adj.get(start, ()))))]
+        idx[start] = low[start] = counter[0]
+        counter[0] += 1
+        stack.append(start)
+        on.add(start)
+        while work:
+            v, it = work[-1]
+            advanced = False
+            for w in it:
+                if w not in idx:
+                    idx[w] = low[w] = counter[0]
+                    counter[0] += 1
+                    stack.append(w)
+                    on.add(w)
+                    work.append((w, iter(sorted(adj.get(w, ())))))
+                    advanced = True
+                    break
+                elif w in on:
+                    low[v] = min(low[v], idx[w])
+            if advanced:
+                continue
+            work.pop()
+            if work:
+                pv = work[-1][0]
+                low[pv] = min(low[pv], low[v])
+            if low[v] == idx[v]:
+                comp = []
+                while True:
+                    w = stack.pop()
+                    on.discard(w)
+                    comp.append(w)
+                    if w == v:
+                        break
+                out.append(comp)
+    return out
 
 
 def io_lines(p):

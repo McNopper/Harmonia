@@ -35,8 +35,10 @@ namespace — `harmonia::utils` → `harmonia::core` → `harmonia::vulkan_init`
 capability) → `harmonia::scene` → `harmonia::renderer` / `harmonia::pipeline` /
 `harmonia::presentation` → `harmonia::app`, plus the flat vocabulary `harmonia::`
 (`DeviceContext`, `GpuTypes`). Includes may only go **down** the graph — the
-`tools/check_layers.py` gate (ctest `test_layers`, label `analysis`) enforces both the
-include matrix and namespace-vs-directory matching. Renderers own their namespaces
+`tools/check_layers.py` gate (ctest `test_layers`, label `analysis`) enforces all three:
+the include matrix, namespace-vs-directory matching, and **no include cycles** (file-level
+SCC detection — catches same-layer header cycles the pairwise matrix cannot see).
+Renderers own their namespaces
 (`theia::`, `hyperion::`); nothing renderer-specific may live in `harmonia::`. Note the
 rasterizer-base constraint: `harmonia::rt` must stay a separable capability — a future
 rasterizer path consumes `scene` without `rt`.
