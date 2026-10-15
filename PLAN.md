@@ -129,9 +129,11 @@ review cadence, never auto-findings):**
   `core` 2047, `pipeline` 1712, `vulkan_init` 1458, `presentation` 1125. Review verdict
   first: split only where a seam is real, otherwise record accepted. `theia/renderer`
   (5093 lines) is tracked in Theia's PLAN.
-- **bloat queue (check-arch `header_size`, standing rule):** `app/App.cpp` 1088 lines,
-  `pipeline/SceneOutputCopyPass.cpp` 1104 lines — extraction candidates (H-07); promote
-  `header_size: error` in the contract once drained.
+- **bloat queue (check-arch `header_size`): DRAINED (2026-10-15).** `App.cpp` split into
+  `App.cpp` (592) + `AppOffscreen.cpp` (203) + `AppPresent.cpp` (360); `SceneOutputCopyPass.cpp`
+  split into `SceneOutputCopyPass.cpp` (401) + `SceneOutputCopyPassDenoise.cpp` (696) with a
+  detail header for the shared constants. `header_size: error` promoted in the contract — a file
+  over the lines limit is now a hard gate.
 ### Refactoring technique guide (refactoring.guru catalog)
 
 The queue above, organized by the catalog's technique groups
