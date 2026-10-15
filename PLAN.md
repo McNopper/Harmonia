@@ -799,14 +799,30 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
-- **Tagged on GitHub:** slang-math @ **v0.3.0**; Aether @ **v0.7.5**; Harmonia @ **v0.7.12**;
-  Hyperion @ **v0.7.12**; Theia @ **v0.7.13**. Verified: `git ls-remote --tags origin` ==
+- **Tagged on GitHub:** slang-math @ **v0.3.1**; Aether @ **v0.7.6**; Harmonia @ **v0.7.13**;
+  Hyperion @ **v0.7.13**; Theia @ **v0.7.14**. Verified: `git ls-remote --tags origin` ==
   `git tag -l` in all five repos, and the `FetchContent` pins resolve (Theia → Harmonia
-  v0.7.12; Hyperion → Harmonia v0.7.12; Harmonia → Aether v0.7.4 — content-identical to
-  v0.7.5 — + slang-math v0.3.0). GitHub Releases are published as of this wave, gated on the
-  dual-OS CI. The v0.7.10 tag was moved once (15ddd42 → 0596f40) to include the GCC `-Wextra`
-  fix before anything consumed it.
-- **v0.7.12** (current; Theia bumped to v0.7.13, Hyperion to v0.7.12): **the layering wave.**
+  v0.7.13; Hyperion → Harmonia v0.7.13; Harmonia → Aether v0.7.6 + slang-math v0.3.1).
+  GitHub Releases are published as of this wave, gated on the dual-OS CI. The v0.7.10 tag
+  was moved once (15ddd42 → 0596f40) to include the GCC `-Wextra` fix before anything
+  consumed it.
+- **v0.7.13** (current; Theia bumped to v0.7.14, Hyperion to v0.7.13): **code-health wave 2
+  — the arch gate, family-wide.** `tools/check_layers.py` hardened: the namespace check was
+  a no-op for layered files (single-colon regex bug — only root-vocabulary files were ever
+  validated), now every file must open its own layer namespace (nested modules count;
+  forward-decl blocks of other layers are fine); **file-level SCC cycle detection** catches
+  same-layer header cycles the pairwise matrix cannot see; angle-bracket project includes
+  are counted; **renderer isolation** — any `theia/`/`hyperion/` include fails the gate
+  (the renderers are siblings: both depend on Harmonia, never on each other).
+  `scene::Xform` → **`Transform`** (the code-health review's only abbreviation-flagged
+  name; type + `xform` member + `toTransform`), and the legacy
+  `presentation/OutputColorSpace.hpp` forwarding shim is gone (its comment even pointed at
+  the wrong repo). AGENTS documents the sibling-isolation invariant and the deliberate
+  Aether seam (file-format vs GPU-side `Aabb`/`MeshData` twins). The same gate discipline
+  landed in all five repos. **Verified:** 88/88 ctest (-LE analysis) + `test_layers` on
+  Windows; full Linux chain green; zero validation errors and warnings; 3-scene smoke
+  renders at release settings **pixel-identical (MAD = 0)** to the gallery.
+- **v0.7.12** (Theia bumped to v0.7.13, Hyperion to v0.7.12): **the layering wave.**
   New `harmonia/rt/` layer (`AccelerationStructure`/`TlasBuilder`/`MicromapBuilder` promoted
   out of `renderer/`) breaks the `scene`↔`renderer` cycle — strict DAG: `utils`/`core` →
   `vulkan_init` → `rt` → `scene` → `renderer`/`pipeline`/`presentation` → `app`. Layered
