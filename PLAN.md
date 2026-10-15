@@ -129,6 +129,53 @@ review cadence, never auto-findings):**
   `core` 2047, `pipeline` 1712, `vulkan_init` 1458, `presentation` 1125. Review verdict
   first: split only where a seam is real, otherwise record accepted. `theia/renderer`
   (5093 lines) is tracked in Theia's PLAN.
+### Architecture lens (game-engine-arch) - layer assignment 2026-10-15
+
+The family mapped onto the engine hint sets (A runtime map for the family, C renderer
+stack for Theia/Harmonia, D path-tracer stack for Hyperion). Proposal, mirrored from the
+measured include graphs - every module landed in a designed home; the interesting rows
+are the straddlers and the empty bands.
+
+| Module | Band (hint set) | Confidence |
+|---|---|---|
+| `slang-math` (`sm`) | A: core systems - math library / C: shading foundation | certain |
+| Aether `types` + `format` | A: resources (asset formats, resource manager) | certain |
+| Aether tools (`blender_to_aether`, `mtlx_to_aether`, `omm_bake`) | tools & pipeline (side band, not shipped) | certain |
+| `harmonia` root (`DeviceContext`, `GpuTypes`) | C: RHI/backend (device, handles) | certain |
+| `harmonia::utils` | A: core systems | certain |
+| `harmonia::core` | C: RHI/backend (buffers, images, command pools, barriers, shader modules) | certain |
+| `harmonia::vulkan_init` | C: RHI device creation / A: platform independence | certain |
+| `harmonia::rt` | D: acceleration structures (separable capability by design) | certain |
+| `harmonia::scene` graph/media | C: scene representation for drawing | certain |
+| `harmonia::scene` loader | A: resources + C: scene representation | certain |
+| `harmonia::scene` builders (`IblProbe`, `EmissiveBuilder`, `ProceduralGeometry`) | straddles A: resources / C: render features | likely |
+| `harmonia::renderer` (Camera, Descriptors, Pipeline) | C: RHI + C: application (cameras) | certain |
+| `harmonia::pipeline` passes (Accumulation, SceneOutputCopy+Denoise) | C: render features (post) - straddles presentation (the denoiser is a presentation stage) | certain |
+| `harmonia::presentation` (Swapchain, ToneMapper, ImageCapture) | straddles C: RHI swapchain / C: post / A: profiling (capture) | likely |
+| `harmonia::app` (windowing, frame loop, offscreen) | C: application + A: front end/platform | likely |
+| Theia `scene` | C: scene representation | certain |
+| `theia::renderer` + `theia::pipelines` | C: frame orchestration + RHI seam | certain |
+| `theia::cull` (GpuCull, LightCuller, HiZ, GpuDrivenState) | C: frame orchestration (culling, GPU-driven indirect) | certain |
+| `theia::postfx` (TAA, MotionVector) | C: render features (post/TAA) | certain |
+| `theia::gi` (GiPass, Pairing, EnvImportance) | C: render features (GI) | certain |
+| `theia::camera` | C: application (cameras) | certain |
+| Theia `demo` (+ queued ComputeRig) | C: application + A: front end (the ComputeRig is the frame-orchestration seed) | certain |
+| Hyperion `scene` | D: scene description | certain |
+| Hyperion `PathTracer` + SBT | D: integrator / light transport | certain |
+| shared `shaders/` (OpenPBR BSDF, path integrator, denoiser) | C: shading & material system + D: integrator | certain |
+
+**Straddling:** `harmonia::presentation` (RHI swapchain / post / capture), `harmonia::app`
+(front end / platform), `IblProbe` (resources / render feature), the queued ComputeRig
+(frame orchestration seed). All are true couplings, not drawing mistakes.
+**Unhomed A-bands** (curiosity, never a defect): gameplay foundations, animation (ANI track
+would straddle bands per the runtime map), audio, physics, HID (SDL via `harmonia::app`),
+multiplayer, front end (the demos are GUI-less by design), scene-graph band (Theia's cull
+covers it; Harmonia is GPU-driven by design).
+**Revisit if:** a new effect type lands (render-features band grows); HUD/menus appear (a
+front-end band would be new); ANI1 animation starts (it straddles - plan its band then);
+PERF5 megakernel->wavefront (the hint-D integrator-structure decision); VR/other
+presentation (presentation band).
+
 - **bloat queue (check-arch `header_size`): DRAINED (2026-10-15).** `App.cpp` split into
   `App.cpp` (592) + `AppOffscreen.cpp` (203) + `AppPresent.cpp` (360); `SceneOutputCopyPass.cpp`
   split into `SceneOutputCopyPass.cpp` (401) + `SceneOutputCopyPassDenoise.cpp` (696) with a
