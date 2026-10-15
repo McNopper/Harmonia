@@ -189,6 +189,22 @@ presentation (presentation band).
 
 ### Refactoring technique guide (refactoring.guru catalog)
 
+**Categorization v2 - work fronts by band (2026-10-15).** The track IDs below stay the
+addressing scheme; the batching view is the engine band each item lands in (per the
+architecture lens). Five fronts, sequenced by coupling:
+
+| Front (band) | Items | Note |
+|---|---|---|
+| 1 scene description & representation | AR1, BV, NH1, NH2, META1/2, A-01, A-03, A-05 | one seam (Aether + `harmonia/scene`), one contract change, one review |
+| 2 frame orchestration | ComputeRig, theia/pipelines class, T-03, X-02 | internal order: pipelines class -> ComputeRig -> T-03 (each builds the face the next needs) |
+| 3 integrator & shading | GI-SMS, PERF4, SM6-*, H-05, SH-02 | SM6-* version-gated on slang-math v0.4.0 |
+| 4 RHI & platform | VK16, VK17+VK5, AR2 | quietest band |
+| 5 hygiene & tooling (side band) | Q1-Q6, X-01, X-03, A-02, T-04 | cross-cutting; Q1 (coverage) is the precondition for front-2 surgery |
+
+Two-sided calls handed to the owner: T-04 may dissolve for free inside front 1 (the upload
+path restructures anyway); X-02 filed front 2 (orchestration-serving) but is RHI-shaped.
+Sequencing note: Q1 lands before front 2 - the safety net precedes the surgery.
+
 **Status quo (2026-10-15):** the file-level bloat queue is drained and `header_size: error`
 is the standing gate; the frame-orchestration band is split (`theia/renderer` 795 +
 pipelines/cull/postfx/gi/depth/camera modules). **Open, in sequence:** AR1 scene/RT split
