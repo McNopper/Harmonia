@@ -78,6 +78,7 @@ namespace_module: .hpp
 namespace_require:
 unresolved: info
 within_layer: deny              # undeclared same-layer edges: violations
+kind: library                   # public API surface: volume judged per file
 smells: report                 # refactoring-catalog proxies: report-only review signals
 
 layer vocabulary
