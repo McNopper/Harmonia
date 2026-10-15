@@ -129,6 +129,9 @@ review cadence, never auto-findings):**
   `core` 2047, `pipeline` 1712, `vulkan_init` 1458, `presentation` 1125. Review verdict
   first: split only where a seam is real, otherwise record accepted. `theia/renderer`
   (5093 lines) is tracked in Theia's PLAN.
+- **bloat queue (check-arch `header_size`, standing rule):** `app/App.cpp` 1088 lines,
+  `pipeline/SceneOutputCopyPass.cpp` 1104 lines — extraction candidates (H-07); promote
+  `header_size: error` in the contract once drained.
 - **accepted by design:** hub `harmonia` (fan-in 8 — the shared vocabulary) and hub
   `app` (fan-out 8 — the host) are *supposed* to be hubs; no action.
 
