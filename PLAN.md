@@ -132,6 +132,27 @@ review cadence, never auto-findings):**
 - **bloat queue (check-arch `header_size`, standing rule):** `app/App.cpp` 1088 lines,
   `pipeline/SceneOutputCopyPass.cpp` 1104 lines — extraction candidates (H-07); promote
   `header_size: error` in the contract once drained.
+### Refactoring technique guide (refactoring.guru catalog)
+
+The queue above, organized by the catalog's technique groups
+(https://refactoring.guru/refactoring/catalog). Each item names its technique;
+the smell names in parentheses are the catalog smells the check-arch proxies
+stand for (hub = Shotgun Surgery/Divergent Change, pass-through = Middle Man,
+island = Speculative Generality/Dead Code, large module/header = Large Class).
+
+| Catalog group | Techniques | Our items |
+|---|---|---|
+| **Composing Methods** | Extract Method; Replace Method with Method Object | the bloat queue (`app/App.cpp` 1088, `pipeline/SceneOutputCopyPass.cpp` 1104, Theia's `ForwardRenderer.cpp` 1342, `demo/Application.cpp` 1089); H-07 `create()`/`record()` extractions |
+| **Moving Features between Objects** | Extract Class; Move Method/Move Field; Remove Middle Man | AR1 scene/RT split (Extract Class at module scale — `scene` 3356 lines); CH-T1 `theia/renderer` split (Extract Class); T-03 barrier helper (Extract Method into `core` + Move Method; kills the 8—pass Duplicate Code); X-02 shared buffer uploads (Move Method); T-04 `Scene::uploadBuffer` (Remove Middle Man); A-01 `_obj_transform` dedup (Extract + Move Method); SH-02 shared Slang medium-walk module |
+| **Organizing Data** | Replace Data Value with Object; Replace Magic Number with Symbolic Constant | H-05 color-space decision core; SM-02 unrolled rows |
+| **Simplifying Conditional Expressions** | Replace Nested Conditional with Guard Clauses | A-03 `parseMesh` guard clause |
+| **Simplifying Method Calls** | Parameterize Method; Rename Method; Introduce Parameter Object | A-02 OBJ-transform CLI unification; A-05 `applyKw` tables (mind SM6-Aether) |
+| **Dealing with Generalization** | Form Template Method | (the pass `record()` scaffolds, if T-03's helper proves structural rather than a free function) |
+
+Execution rules: one technique per pass, compile + test after each; the
+contracts' `smells: report` re-runs are the progress meter; promote a smell's
+underlying fact into `ARCHITECTURE.md` when the review verdict is in.
+
 - **accepted by design:** hub `harmonia` (fan-in 8 — the shared vocabulary) and hub
   `app` (fan-out 8 — the host) are *supposed* to be hubs; no action.
 
