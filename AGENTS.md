@@ -37,9 +37,11 @@ namespace — `harmonia::utils` → `harmonia::core` → `harmonia::vulkan_init`
 `harmonia::rt` (acceleration structures / micromaps — the separable ray-tracing
 capability) → `harmonia::scene` → `harmonia::renderer` / `harmonia::pipeline` /
 `harmonia::presentation` → `harmonia::app`, plus the flat vocabulary `harmonia::`
-(`DeviceContext`, `GpuTypes`). Includes may only go **down** the graph — the
-`tools/check_layers.py` gate (ctest `test_layers`, label `analysis`) enforces all three:
-the include matrix, namespace-vs-directory matching, **no include cycles** (file-level
+(`DeviceContext`, `GpuTypes`). Includes may only go **down** the graph — the checked-in `ARCHITECTURE.md`
+contract (the check-arch reflexion gate; ctest `test_arch` runs the vendored
+`tools/check_arch.py` engine — label `analysis`, registered only where the skill exists,
+local not CI) enforces the DAG, declared edges only (default deny), **no include cycles**
+(file-level
 SCC detection — catches same-layer header cycles the pairwise matrix cannot see), and
 any `theia/`/`hyperion/` include — **Hyperion and Theia are siblings: both depend on
 Harmonia, never on each other**.

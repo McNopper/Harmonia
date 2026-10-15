@@ -144,8 +144,8 @@ pre-existing empty `tools/cppcheck.supp` artifact in all five repos); **Q3 clang
 **Q6 CI config lint** — actionlint + yamllint over the five workflows. Baseline tier: `.editorconfig`.
 Optional tier (adopt when called for): libFuzzer targets for Aether's TOML/OBJ/OMM parsers,
 Doxygen, ScanCode (vendored trees), markdownlint/Vale over the 17 AGENTS/PLAN/README files,
-PSScriptAnalyzer (2 scripts). Architecture-rules cell = `tools/check_layers.py` (the layering
-wave).
+PSScriptAnalyzer (2 scripts). Architecture-rules cell = the checked-in `ARCHITECTURE.md` contracts + the check-arch
+engine (the per-repo check_layers scripts are retired; local gate, not CI).
 
 **Architecture track (structural work — split from features 2026-10-11, sequenced BEFORE the
 feature pillar):** **AR1 scene/RT-build split** — separate the scene GPU-upload path from the
@@ -153,7 +153,7 @@ RT-build step so a rasterizer renderer can consume `scene` without `rt` (the ras
 constraint; `rt/` is already a separable layer, this makes the seam real). **AR2 CMake target
 split** — `harmonia_core` / `harmonia_rt` / `harmonia_scene` / … object libraries with
 `target_link_libraries` expressing the layer DAG, so upward includes become *link* errors
-(`check_layers` already gates the includes; this is the build-system half, deferred from the
+(the `ARCHITECTURE.md` contracts gate the includes; this is the build-system half, deferred from the
 layering wave). **Rule:** feature work (§6 node hierarchy / animation / bounding volumes)
 starts after the architecture track — features land *on* the structure, not alongside it.
 
