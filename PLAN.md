@@ -166,7 +166,11 @@ are the straddlers and the empty bands.
 
 **Straddling:** `harmonia::presentation` (RHI swapchain / post / capture), `harmonia::app`
 (front end / platform), `IblProbe` (resources / render feature), the queued ComputeRig
-(frame orchestration seed). All are true couplings, not drawing mistakes.
+(frame orchestration seed). All are true couplings, not drawing mistakes. Resolution
+pattern for the app-side straddlers (game-engine-arch narrow-face doctrine): the demo
+reaches into the renderer/GI passes through a **narrow face** - a draw-op list, a render
+proxy, command submission - never direct calls into the passes or the device; the queued
+ComputeRig and the `theia/pipelines` class promotion are exactly that face.
 **Unhomed A-bands** (curiosity, never a defect): gameplay foundations, animation (ANI track
 would straddle bands per the runtime map), audio, physics, HID (SDL via `harmonia::app`),
 multiplayer, front end (the demos are GUI-less by design), scene-graph band (Theia's cull
