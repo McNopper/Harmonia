@@ -269,12 +269,15 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/presentation/ImageCapture.cpp
     src/harmonia/pipeline/AccumulationPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPass.cpp
+    src/harmonia/pipeline/SceneOutputCopyPassDenoise.cpp
     src/harmonia/presentation/Swapchain.cpp
     src/harmonia/presentation/ToneMapper.cpp
     src/harmonia/vulkan_init/Context.cpp
     src/harmonia/vulkan_init/PhysicalDevice.cpp
     src/harmonia/vulkan_init/DebugUtils.cpp
     src/harmonia/app/App.cpp
+    src/harmonia/app/AppOffscreen.cpp
+    src/harmonia/app/AppPresent.cpp
     src/harmonia/app/CliParser.cpp
     src/harmonia/app/FrameSync.cpp
     src/harmonia/app/OffscreenCapture.cpp

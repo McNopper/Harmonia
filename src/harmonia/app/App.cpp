@@ -1,4 +1,5 @@
 #include "harmonia/app/App.hpp"
+#include "harmonia/app/AppDetail.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -26,18 +27,6 @@
 
 namespace harmonia::app {
 
-namespace {
-
-/// Drawable size in pixels (high-DPI aware) — the swapchain extent source.
-[[nodiscard]] VkExtent2D windowPixelExtent(SDL_Window* window) {
-    int width = 0;
-    int height = 0;
-    SDL_GetWindowSizeInPixels(window, &width, &height);
-    return VkExtent2D{
-        .width = static_cast<std::uint32_t>(std::max(width, 1)),
-        .height = static_cast<std::uint32_t>(std::max(height, 1)),
-    };
-}
 
 constexpr std::uint64_t kHashSeed = 1469598103934665603ULL;
 constexpr std::uint64_t kHashPrime = 1099511628211ULL;
@@ -90,7 +79,6 @@ class ToneMapStagePass final : public pipeline::IRenderPass {
     return out.str();
 }
 
-} // namespace
 
 App::~App() {
     shutdown();

@@ -1,6 +1,6 @@
-# AppOffscreen.cpp - the offscreen-capture path of App: scene-referred
-# rendering, the offscreen frame loop, and EXR/PNG export. Methods of
-# harmonia::app::App split out of App.cpp (TU split, no behavior change).
+// AppOffscreen.cpp - the offscreen-capture path of App: scene-referred
+// rendering, the offscreen frame loop, and EXR/PNG export. Methods of
+// harmonia::app::App split out of App.cpp (TU split, no behavior change).
 #include "harmonia/app/App.hpp"
 #include <algorithm>
 #include <bit>

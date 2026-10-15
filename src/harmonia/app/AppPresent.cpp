@@ -1,7 +1,8 @@
-# AppPresent.cpp - the interactive display path of App: frame acquire,
-# present barriers/submit, resize handling, and the main loop. Methods
-# of harmonia::app::App split out of App.cpp (TU split, no behavior change).
+// AppPresent.cpp - the interactive display path of App: frame acquire,
+// present barriers/submit, resize handling, and the main loop. Methods
+// of harmonia::app::App split out of App.cpp (TU split, no behavior change).
 #include "harmonia/app/App.hpp"
+#include "harmonia/app/AppDetail.hpp"
 #include <algorithm>
 #include <bit>
 #include <charconv>
