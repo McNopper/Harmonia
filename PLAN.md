@@ -183,6 +183,17 @@ presentation (presentation band).
   over the lines limit is now a hard gate.
 ### Refactoring technique guide (refactoring.guru catalog)
 
+### Refactoring technique guide (refactoring.guru catalog)
+
+**Status quo (2026-10-15):** the file-level bloat queue is drained and `header_size: error`
+is the standing gate; the frame-orchestration band is split (`theia/renderer` 795 +
+pipelines/cull/postfx/gi/depth/camera modules). **Open, in sequence:** AR1 scene/RT split
+(also the `harmonia/scene` 3356-line size fix) -> AR2 CMake target DAG -> Extract Class the
+demo ComputeRig + promote `theia/pipelines` to a real class (clears the last two report-only
+signals: `demo` large + `theia/pipelines` orphan) -> the consider-tier list below, one
+technique per commit with render proofs. Accepted-by-design (no action): the two `harmonia`
+hubs, Theia's pass-through chain, slang-math island (`kind: library`).
+
 The queue above, organized by the catalog's technique groups
 (https://refactoring.guru/refactoring/catalog). Each item names its technique;
 the smell names in parentheses are the catalog smells the check-arch proxies
