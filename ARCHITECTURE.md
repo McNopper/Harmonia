@@ -73,8 +73,8 @@ forbidden: theia, hyperion
 quotes_relative: true
 repo_fallback: false
 cycles: true
-namespace_root:
-namespace_module:
+namespace_root: .hpp
+namespace_module: .hpp
 namespace_require:
 unresolved: info
 

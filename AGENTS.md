@@ -42,8 +42,10 @@ contract (the check-arch reflexion gate; ctest `test_arch` runs the vendored
 `tools/check_arch.py` engine — label `analysis`, registered only where the skill exists,
 local not CI) enforces the DAG, declared edges only (default deny), **no include cycles**
 (file-level
-SCC detection — catches same-layer header cycles the pairwise matrix cannot see), and
-any `theia/`/`hyperion/` include — **Hyperion and Theia are siblings: both depend on
+SCC detection — catches same-layer header cycles the pairwise matrix cannot see), the
+**namespace law** — headers open their module's namespace (the root vocabulary opens
+`harmonia`; nested modules like `harmonia::utils::Math` count) — and any
+`theia/`/`hyperion/` include — **Hyperion and Theia are siblings: both depend on
 Harmonia, never on each other**.
 Renderers own their namespaces
 (`theia::`, `hyperion::`); nothing renderer-specific may live in `harmonia::`. Note the
