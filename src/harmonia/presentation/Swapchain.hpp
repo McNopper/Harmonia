@@ -9,7 +9,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
-#include "harmonia/presentation/OutputColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 
 namespace harmonia::presentation {
 

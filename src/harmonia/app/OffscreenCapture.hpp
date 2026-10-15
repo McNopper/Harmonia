@@ -8,7 +8,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
-#include "harmonia/presentation/OutputColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 #include "harmonia/presentation/ToneMapper.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 

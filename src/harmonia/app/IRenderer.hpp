@@ -3,7 +3,7 @@
 
 #include <volk/volk.h>
 
-#include "harmonia/presentation/OutputColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 namespace harmonia::app {

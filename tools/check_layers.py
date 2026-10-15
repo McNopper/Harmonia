@@ -33,9 +33,9 @@ ALLOWED = {
                      'presentation', 'vulkan_init', 'root'},
 }
 
-INC = re.compile(r'#include\s+"harmonia/([\w]+)/')
-INC_FILE = re.compile(r'#include\s+"harmonia/([\w./-]+)"')
-NS = re.compile(r'^namespace harmonia(?::(\w+))?\s*\{')
+INC = re.compile(r'#include\s+[<"]harmonia/([\w]+)/')
+INC_FILE = re.compile(r'#include\s+[<"]harmonia/([\w./-]+)[>"]')
+NS_OPEN = re.compile(r'^namespace\s+(harmonia(?:::\w+)*)\s*\{')
 
 
 def layer_of(path):
@@ -59,7 +59,7 @@ def main():
             src_layer = layer_of(p)
             me = os.path.relpath(p, SRC).replace(os.sep, '/')
             file_adj.setdefault(me, set())
-            ns_seen = None
+            opens = set()
             for line in io_lines(p):
                 m = INC.match(line)
                 if m:
@@ -75,11 +75,16 @@ def main():
                     file_adj.setdefault(m.group(1), set())
                     if m.group(1) != me:
                         file_adj[me].add(m.group(1))
-                m = NS.match(line)
-                if m and ns_seen is None:
-                    ns_seen = m.group(1) or 'root'
-            if ns_seen is not None and ns_seen != src_layer:
-                violations.append(f'{p}: namespace harmonia::{ns_seen} does not match layer {src_layer}')
+                m = NS_OPEN.match(line)
+                if m:
+                    opens.add(m.group(1))
+            # The file must open its own layer's namespace (nested module
+            # namespaces like harmonia::utils::Math count for their layer).
+            # Forward-declaration blocks of other layers are fine.
+            layer_ns = 'harmonia' if src_layer == 'root' else f'harmonia::{src_layer}'
+            opens_own = any(o == layer_ns or o.startswith(layer_ns + '::') for o in opens)
+            if not opens_own and (f.endswith('.hpp') or opens):
+                violations.append(f'{p}: never opens namespace {layer_ns}')
     # Same-layer header cycles: the matrix gates layer pairs, not files inside
     # one layer - detect cycles as file-level strongly-connected components.
     for comp in scc(sorted(file_adj), file_adj):
