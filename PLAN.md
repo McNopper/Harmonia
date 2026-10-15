@@ -207,11 +207,13 @@ Sequencing note: Q1 lands before front 2 - the safety net precedes the surgery.
 
 **Status quo (2026-10-15):** the file-level bloat queue is drained and `header_size: error`
 is the standing gate; the frame-orchestration band is split (`theia/renderer` 795 +
-pipelines/cull/postfx/gi/depth/camera modules). **Open, in sequence:** AR1 scene/RT split
-(also the `harmonia/scene` 3356-line size fix) -> AR2 CMake target DAG -> Extract Class the
-demo ComputeRig + promote `theia/pipelines` to a real class (clears the last two report-only
-signals: `demo` large + `theia/pipelines` orphan) -> the consider-tier list below, one
-technique per commit with render proofs. Accepted-by-design (no action): the two `harmonia`
+pipelines/cull/postfx/gi/depth/camera modules). **Open, by front (see categorization v2 below):** front 1 opens with AR1 (scene/RT split -
+also the `harmonia/scene` 3356-line size fix) and batches BV/NH1/NH2/META1-2 plus the Aether
+hygiene items; Q1 (coverage) lands before front-2 surgery; front 2 = promote `theia/pipelines`
+to a real class -> Extract the demo ComputeRig -> T-03 barrier helper (clears the last two
+report-only signals: `demo` large + `theia/pipelines` orphan); front 3 = GI-SMS/PERF4 (SM6-*
+waits on slang-math v0.4.0); front 4 = AR2 + the VK queue; front 5 = consider-tier and CI
+hygiene. One technique per commit with render proofs. Accepted-by-design (no action): the two `harmonia`
 hubs, Theia's pass-through chain, slang-math island (`kind: library`).
 
 The queue above, organized by the catalog's technique groups
