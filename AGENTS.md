@@ -232,6 +232,12 @@ The CPU records commands only; it never reads back GPU-side state to determine c
   `VK_KHR_ray_query`, `VK_KHR_deferred_host_operations`: hard-required (the RT paths have
   no fallback).
 
+**Coverage lane (Clang/GCC configures only):** configure a separate build with
+`-DHARMONIA_COVERAGE=ON` (e.g. `-B build/coverage`), then run `python tools/coverage.py` - it
+builds the instrumented tree, runs the tests with `LLVM_PROFILE_FILE` set, merges the
+profiles and prints the llvm-cov report for `src/` (gcc builds report via gcov; exit 77
+when the LLVM tools are missing). Not wired into CI yet.
+
 Further capability candidates (verified present on the dev GPU, not yet adopted) are
 tracked in `PLAN.md` §5.8 — audit refreshed 2026-09-29 (SDK 1.4.363 / driver 617.14).
 - **VMA allocator flag:** `VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT` must be set alongside
