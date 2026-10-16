@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "harmonia/GpuTypes.hpp"
-#include "harmonia/rt/TlasBuilder.hpp"
 
 namespace harmonia::scene {
 
@@ -41,11 +40,11 @@ std::uint32_t SceneBase::addMesh(const DeviceContext& ctx,
     const std::uint32_t meshIndex = static_cast<std::uint32_t>(m_meshes.size());
     const std::string debugName = name.empty() ? std::string{"mesh."} + std::to_string(meshIndex) : std::string{name};
 
-    auto mesh = TriangleMesh::create(ctx, pool, std::move(data), opacity, debugName);
+    auto mesh = createTriangleMesh(ctx, pool, std::move(data), opacity, debugName);
     if (!mesh) {
         return std::numeric_limits<std::uint32_t>::max();
     }
-    m_meshes.push_back(std::move(*mesh));
+    m_meshes.push_back(std::move(mesh));
     return meshIndex;
 }
 
@@ -67,7 +66,7 @@ VkResult SceneBase::build(const DeviceContext& ctx, const core::CommandPool& poo
             return result;
         }
     }
-    return buildTlas(ctx, pool);
+    return finishBuild(ctx, pool);
 }
 
 std::uint32_t SceneBase::instanceMask(std::size_t /*instanceIndex*/) const {
@@ -80,16 +79,6 @@ std::expected<core::Buffer, VkResult> SceneBase::uploadStorageBuffer(const Devic
                                                                std::string_view debugName,
                                                                VkBufferUsageFlags usage) {
     return core::Buffer::upload(ctx, pool, data, usage, debugName);
-}
-
-VkResult SceneBase::buildTlas(const DeviceContext& ctx, const core::CommandPool& pool) {
-    std::vector<VkAccelerationStructureInstanceKHR> instances(m_instances.size());
-    for (std::size_t i = 0; i < m_instances.size(); ++i) {
-        const InstanceRecord& inst = m_instances[i];
-        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<std::uint32_t>(i), inst.transform);
-        instances[i].mask = instanceMask(i);
-    }
-    return harmonia::rt::buildTlas(ctx, pool, instances, m_tlas, m_tlasAddress);
 }
 
 } // namespace harmonia::scene

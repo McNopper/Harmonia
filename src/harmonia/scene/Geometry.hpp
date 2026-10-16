@@ -14,8 +14,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
-#include "harmonia/rt/AccelerationStructure.hpp"
-#include "harmonia/rt/MicromapBuilder.hpp"
+#include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/scene/Mesh.hpp"
 
 namespace harmonia::scene {
@@ -92,55 +91,6 @@ struct MeshOpacity {
     /// The pointee must outlive `buildBlas`; the built `rt::Micromap` then owns its
     /// device buffers.
     const aether::OpacityMicromapGroup* micromap = nullptr;
-};
-
-class TriangleMesh final : public Geometry {
-  public:
-    [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult> create(const DeviceContext& ctx,
-                                                                                       const core::CommandPool& pool,
-                                                                                       MeshData&& data,
-                                                                                       const MeshOpacity& opacity = {},
-                                                                                       std::string_view debugName = "");
-
-    VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                  const Transform& transform) const noexcept override;
-    [[nodiscard]] Aabb objectAabb() const noexcept override;
-
-    [[nodiscard]] const core::Buffer& vertexBuffer() const noexcept;
-    [[nodiscard]] const core::Buffer& indexBuffer() const noexcept;
-    [[nodiscard]] std::uint32_t vertexCount() const noexcept;
-    [[nodiscard]] std::uint32_t indexCount() const noexcept;
-    [[nodiscard]] const MeshData& data() const noexcept;
-
-  private:
-    MeshData m_data{};
-    Mesh m_mesh{};
-    rt::AccelerationStructure m_accelerationStructure{};
-    MeshOpacity m_opacity{};            ///< cutout participation; micromap baked in buildBlas.
-    std::optional<rt::Micromap> m_micromap; ///< built OMM, owns its device buffers.
-    std::string m_debugName{};
-};
-
-class Sphere final : public Geometry {
-  public:
-    /// Analytic sphere of @p radius centred at the object-space origin. Placement
-    /// is the instance transform's job (translation/scale via the TLAS).
-    [[nodiscard]] static std::expected<std::unique_ptr<Sphere>, VkResult>
-    create(const DeviceContext& ctx, const core::CommandPool& pool, float radius, std::string_view debugName = "");
-
-    VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                  const Transform& transform) const noexcept override;
-    [[nodiscard]] Aabb objectAabb() const noexcept override;
-
-    [[nodiscard]] float radius() const noexcept;
-
-  private:
-    float m_radius = 0.0f;
-    core::Buffer m_aabbBuffer{};
-    rt::AccelerationStructure m_accelerationStructure{};
-    std::string m_debugName{};
 };
 
 } // namespace harmonia::scene

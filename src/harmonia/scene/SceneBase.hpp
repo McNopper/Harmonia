@@ -18,7 +18,6 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
-#include "harmonia/rt/AccelerationStructure.hpp"
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/Light.hpp"
@@ -34,12 +33,13 @@ namespace harmonia::scene {
 /// depend on the GPU layout (addMaterial / addTexture / addLight / addInstance /
 /// addMesh / build) and owns the corresponding storage vectors.  Renderer-specific
 /// work (addSphereMesh, buildSceneBuffers) is deferred to the derived class via the
-/// protected virtual hooks below; the TLAS build skeleton is shared, with only the
-/// per-instance visibility mask diverging (instanceMask).
+/// protected virtual hooks below; the ray-tracing build (BLAS + TLAS) is provided
+/// by the harmonia::scene_rt module, which the derived scenes call from
+/// finishBuild.
 ///
-/// Storage follows the mesh/instance split: `m_meshes` holds unique geometry
-/// (each owning one BLAS) and `m_instances` holds the placements (mesh index +
-/// transform + material).  N instances of one mesh share that mesh's BLAS.
+/// Storage follows the mesh/instance split: `m_meshes` holds unique geometry and
+/// `m_instances` holds the placements (mesh index + transform + material).
+/// N instances of one mesh share that mesh's BLAS.
 class SceneBase : public ISceneBuilder {
   public:
     // ── ISceneBuilder (partial) ──────────────────────────────────────────────
@@ -76,10 +76,12 @@ class SceneBase : public ISceneBuilder {
 
     // ── Build (shared orchestration) ────────────────────────────────────────
 
-    /// Uploads scene buffers (buildSceneBuffers), builds one BLAS per unique mesh,
-    /// then builds the TLAS (rt::buildTlas). Shared because this orchestration and the
-    /// per-mesh BLAS loop are identical across renderers; only the two virtual hooks
-    /// diverge. Returns VK_ERROR_INITIALIZATION_FAILED when no instances were added.
+    /// Uploads scene buffers (buildSceneBuffers), builds one BLAS per unique mesh
+    /// (via the mesh's own buildBlas), then hands the fully uploaded scene to the
+    /// finishBuild hook - which the scene_rt module backs with the TLAS build.
+    /// Shared because this orchestration is identical across renderers; only the
+    /// virtual hooks diverge. Returns VK_ERROR_INITIALIZATION_FAILED when no
+    /// instances were added.
     VkResult build(const DeviceContext& ctx, const core::CommandPool& pool);
 
     // ── Accessors (read-only) ────────────────────────────────────────────────
@@ -88,15 +90,25 @@ class SceneBase : public ISceneBuilder {
     [[nodiscard]] const std::vector<std::unique_ptr<Geometry>>& meshes() const noexcept { return m_meshes; }
     [[nodiscard]] const std::vector<InstanceRecord>& instances() const noexcept { return m_instances; }
 
+    /// Per-instance visibility mask for the TLAS instance (the scene_rt TLAS
+    /// build reads it). Defaults to "visible to all".
+    virtual std::uint32_t instanceMask(std::size_t instanceIndex) const;
+
   protected:
     /// Renderer-specific GPU buffer upload (vertices/indices/materials/emissive/…).
     /// Diverges: Hyperion lays out an index buffer + analytic spheres; Theia builds
     /// meshlets + per-instance visibility masks.
     virtual VkResult buildSceneBuffers(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
 
-    VkResult buildTlas(const DeviceContext& ctx, const core::CommandPool& pool);
+    /// Creates the concrete (scene_rt) triangle-mesh implementation. Hook, because
+    /// the scene module stays free of ray-tracing types.
+    [[nodiscard]] virtual std::unique_ptr<Geometry>
+    createTriangleMesh(const DeviceContext& ctx, const core::CommandPool& pool, MeshData&& data,
+                       const MeshOpacity& opacity, std::string_view name) = 0;
 
-    virtual std::uint32_t instanceMask(std::size_t instanceIndex) const;
+    /// Called by build() after the scene buffers and the per-mesh BLAS builds: the
+    /// scene_rt module builds the TLAS here and the derived scene stores it.
+    virtual VkResult finishBuild(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
 
     [[nodiscard]] static std::expected<core::Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
                                                                              const core::CommandPool& pool,
@@ -105,7 +117,7 @@ class SceneBase : public ISceneBuilder {
                                                                              VkBufferUsageFlags usage);
 
     std::vector<Material> m_materials;
-    std::vector<std::unique_ptr<Geometry>> m_meshes; ///< unique meshes (one BLAS each)
+    std::vector<std::unique_ptr<Geometry>> m_meshes; ///< unique meshes
     std::vector<InstanceRecord> m_instances;         ///< placements referencing m_meshes
     std::vector<std::unique_ptr<Light>> m_lights;
     std::vector<Texture> m_textures;
@@ -113,9 +125,6 @@ class SceneBase : public ISceneBuilder {
     /// references into these and meshes keep `OpacityMicromapGroup*` pointers
     /// into them until `buildBlas`, so the storage must never reallocate.
     std::deque<aether::OpacityMicromapData> m_ommAssets;
-
-    rt::AccelerationStructure m_tlas{};
-    VkDeviceAddress m_tlasAddress{};
 };
 
 } // namespace harmonia::scene

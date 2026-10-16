@@ -1,5 +1,5 @@
-#ifndef HARMONIA_SCENE_EMISSIVEBUILDER_HPP
-#define HARMONIA_SCENE_EMISSIVEBUILDER_HPP
+#ifndef HARMONIA_SCENE_RT_EMISSIVEBUILDER_HPP
+#define HARMONIA_SCENE_RT_EMISSIVEBUILDER_HPP
 
 #include <cstdint>
 #include <memory>
@@ -10,7 +10,7 @@
 #include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene/Material.hpp"
 
-namespace harmonia::scene {
+namespace harmonia::scene_rt {
 
 /// Output of the emissive-triangle builder.
 struct EmissiveData {
@@ -78,9 +78,9 @@ appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4&
 /// @param instances   Instance placements (mesh index + transform + material).
 /// @param materials   Host material list for emissive-as-light-source checks.
 /// @param gpuMaterials GPU material list for emission colour/luminance lookup.
-[[nodiscard]] EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& meshes,
-                                             const std::vector<InstanceRecord>& instances,
-                                             const std::vector<Material>& materials,
+[[nodiscard]] EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<harmonia::scene::Geometry>>& meshes,
+                                             const std::vector<harmonia::scene::InstanceRecord>& instances,
+                                             const std::vector<harmonia::scene::Material>& materials,
                                              const std::vector<GpuMaterial>& gpuMaterials);
 
 /// Build a power-proportional selection CDF for emissive-triangle NEE:
@@ -90,5 +90,5 @@ appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4&
 /// Shared so the NEE sampling CDF cannot drift between renderers.
 [[nodiscard]] std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower);
 
-} // namespace harmonia::scene
-#endif // HARMONIA_SCENE_EMISSIVEBUILDER_HPP
+} // namespace harmonia::scene_rt
+#endif // HARMONIA_SCENE_RT_EMISSIVEBUILDER_HPP

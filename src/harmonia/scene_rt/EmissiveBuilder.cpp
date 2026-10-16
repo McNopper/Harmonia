@@ -1,4 +1,4 @@
-#include "harmonia/scene/EmissiveBuilder.hpp"
+#include "harmonia/scene_rt/EmissiveBuilder.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,9 +11,13 @@
 
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/Geometry.hpp"
+#include "harmonia/scene_rt/TriangleMesh.hpp"
+#include "harmonia/scene_rt/Sphere.hpp"
 #include "harmonia/scene/Mesh.hpp"
 
-namespace harmonia::scene {
+namespace harmonia::scene_rt {
+
+using namespace harmonia::scene;
 namespace {
 
 /// Relative spread the three transformed sphere axes may show and still count as a uniform
@@ -204,4 +208,4 @@ std::vector<float> buildEmissiveCdf(const std::vector<float>& emissivePower) {
     return cdf;
 }
 
-} // namespace harmonia::scene
+} // namespace harmonia::scene_rt

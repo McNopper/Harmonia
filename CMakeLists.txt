@@ -256,7 +256,6 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/renderer/Descriptors.cpp
     src/harmonia/renderer/Pipeline.cpp
     src/harmonia/scene/Geometry.cpp
-    src/harmonia/scene/EmissiveBuilder.cpp
     src/harmonia/scene/IblProbe.cpp
     src/harmonia/scene/Light.cpp
     src/harmonia/scene/Mesh.cpp
@@ -264,6 +263,13 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/scene/ProceduralGeometry.cpp
     src/harmonia/scene/SceneBase.cpp
     src/harmonia/scene/SceneLoader.cpp
+    src/harmonia/scene_rt/TriangleMesh.hpp
+    src/harmonia/scene_rt/Sphere.hpp
+    src/harmonia/scene_rt/EmissiveBuilder.hpp
+    src/harmonia/scene_rt/SceneRt.hpp
+    src/harmonia/scene_rt/GeometryRt.cpp
+    src/harmonia/scene_rt/SceneRt.cpp
+    src/harmonia/scene_rt/EmissiveBuilder.cpp
     src/harmonia/scene/Texture.cpp
     src/harmonia/utils/ColorSpace.cpp
     src/harmonia/presentation/ImageCapture.cpp

@@ -17,8 +17,10 @@ block-beta
     host["host"]:10
     space
     passes["passes"]:11
-    scene["scene"]:5
+    scene_rt["scene_rt"]:5
     space:6
+    scene["scene"]:4
+    space:7
     rt["rt"]:3
     space:8
     low_level["low_level"]:3
@@ -43,21 +45,21 @@ block-beta
 
 ```mermaid
 block-beta
-    columns 14
+    columns 18
     harmonia_app["harmonia/app"]:10
-    space:4
+    space:8
     harmonia_renderer["harmonia/renderer"]:5
-    space:9
-    harmonia_scene["harmonia/scene"]:5
-    space:9
+    harmonia_scene_rt["harmonia/scene_rt"]:5
+    space:8
     harmonia_pipeline["harmonia/pipeline"]:4
     harmonia_presentation["harmonia/presentation"]:4
     harmonia_rt["harmonia/rt"]:3
+    harmonia_scene["harmonia/scene"]:4
     harmonia_vulkan_init["harmonia/vulkan_init"]:3
     harmonia_core["harmonia/core"]:3
-    space:11
+    space:15
     harmonia_utils["harmonia/utils"]:2
-    space:12
+    space:16
 ```
 <!-- check_arch: diagram END -->
 
@@ -88,6 +90,7 @@ layer core
 layer low_level
 layer rt
 layer scene
+layer scene_rt
 layer passes
 layer host
 
@@ -97,6 +100,7 @@ module harmonia/core in core
 module harmonia/vulkan_init in low_level
 module harmonia/rt in rt
 module harmonia/scene in scene
+module harmonia/scene_rt in scene_rt
 module harmonia/renderer in passes
 module harmonia/pipeline in passes
 module harmonia/presentation in passes
@@ -112,7 +116,10 @@ allow harmonia/rt -> harmonia/core
 allow harmonia/scene -> harmonia
 allow harmonia/scene -> harmonia/utils
 allow harmonia/scene -> harmonia/core
-allow harmonia/scene -> harmonia/rt
+allow harmonia/scene_rt -> harmonia/scene
+allow harmonia/scene_rt -> harmonia/rt
+allow harmonia/scene_rt -> harmonia/core
+allow harmonia/scene_rt -> harmonia
 allow harmonia/renderer -> harmonia
 allow harmonia/renderer -> harmonia/utils
 allow harmonia/renderer -> harmonia/core
