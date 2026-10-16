@@ -263,7 +263,17 @@ set(HARMONIA_ENTRY_SHADERS
     tonemap.slang
 )
 
-set(HARMONIA_LIBRARY_SOURCES
+# Layered targets (AR2): the include-DAG of ARCHITECTURE.md expressed as
+# target_link_libraries - an upward include is now a COMPILE error, a
+# cross-layer link a LINK error. Bottom-up; harmonia::harmonia stays the
+# consumer-facing alias (now the app-layer target).
+set(HARMONIA_vocab_SOURCES
+    src/harmonia/vma_impl.cpp
+)
+set(HARMONIA_utils_SOURCES
+    src/harmonia/utils/ColorSpace.cpp
+)
+set(HARMONIA_core_SOURCES
     src/harmonia/core/Buffer.cpp
     src/harmonia/core/CommandPool.cpp
     src/harmonia/core/DescriptorBufferWriter.cpp
@@ -271,12 +281,18 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/core/Image.cpp
     src/harmonia/core/Logger.cpp
     src/harmonia/core/ShaderModule.cpp
+)
+set(HARMONIA_low_level_SOURCES
+    src/harmonia/vulkan_init/Context.cpp
+    src/harmonia/vulkan_init/PhysicalDevice.cpp
+    src/harmonia/vulkan_init/DebugUtils.cpp
+)
+set(HARMONIA_rt_SOURCES
     src/harmonia/rt/AccelerationStructure.cpp
     src/harmonia/rt/MicromapBuilder.cpp
     src/harmonia/rt/TlasBuilder.cpp
-    src/harmonia/renderer/Camera.cpp
-    src/harmonia/renderer/Descriptors.cpp
-    src/harmonia/renderer/Pipeline.cpp
+)
+set(HARMONIA_scene_SOURCES
     src/harmonia/scene/Geometry.cpp
     src/harmonia/scene/IblProbe.cpp
     src/harmonia/scene/Light.cpp
@@ -285,6 +301,9 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/scene/ProceduralGeometry.cpp
     src/harmonia/scene/SceneBase.cpp
     src/harmonia/scene/SceneLoader.cpp
+    src/harmonia/scene/Texture.cpp
+)
+set(HARMONIA_scene_rt_SOURCES
     src/harmonia/scene_rt/TriangleMesh.hpp
     src/harmonia/scene_rt/Sphere.hpp
     src/harmonia/scene_rt/EmissiveBuilder.hpp
@@ -292,17 +311,19 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/scene_rt/GeometryRt.cpp
     src/harmonia/scene_rt/SceneRt.cpp
     src/harmonia/scene_rt/EmissiveBuilder.cpp
-    src/harmonia/scene/Texture.cpp
-    src/harmonia/utils/ColorSpace.cpp
-    src/harmonia/presentation/ImageCapture.cpp
+)
+set(HARMONIA_passes_SOURCES
+    src/harmonia/renderer/Camera.cpp
+    src/harmonia/renderer/Descriptors.cpp
+    src/harmonia/renderer/Pipeline.cpp
     src/harmonia/pipeline/AccumulationPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPassDenoise.cpp
+    src/harmonia/presentation/ImageCapture.cpp
     src/harmonia/presentation/Swapchain.cpp
     src/harmonia/presentation/ToneMapper.cpp
-    src/harmonia/vulkan_init/Context.cpp
-    src/harmonia/vulkan_init/PhysicalDevice.cpp
-    src/harmonia/vulkan_init/DebugUtils.cpp
+)
+set(HARMONIA_app_SOURCES
     src/harmonia/app/App.cpp
     src/harmonia/app/AppOffscreen.cpp
     src/harmonia/app/AppPresent.cpp
@@ -310,7 +331,6 @@ set(HARMONIA_LIBRARY_SOURCES
     src/harmonia/app/FrameSync.cpp
     src/harmonia/app/OffscreenCapture.cpp
     src/harmonia/app/GreenScreenRenderer.cpp
-    src/harmonia/vma_impl.cpp
 )
 
 # Volk — compiled from the Vulkan SDK source.
@@ -341,20 +361,61 @@ set(COMPILE_SLANG_SHADER_ROOT "${HARMONIA_SHADER_SOURCE_DIR}")
 compile_slang_shaders(harmonia_shaders "${HARMONIA_SHADER_OUTPUT_DIR}" ${HARMONIA_ENTRY_SHADERS})
 unset(COMPILE_SLANG_SHADER_ROOT)
 
-add_library(harmonia_lib STATIC ${HARMONIA_LIBRARY_SOURCES})
-add_library(harmonia::harmonia ALIAS harmonia_lib)
-add_dependencies(harmonia_lib harmonia_shaders)
+add_library(harmonia_vocab STATIC ${HARMONIA_vocab_SOURCES})
+add_library(harmonia::vocab ALIAS harmonia_vocab)
+add_library(harmonia_utils STATIC ${HARMONIA_utils_SOURCES})
+add_library(harmonia::utils ALIAS harmonia_utils)
+target_link_libraries(harmonia_utils PUBLIC harmonia::vocab slang-math)
+add_library(harmonia_core STATIC ${HARMONIA_core_SOURCES})
+add_library(harmonia::core ALIAS harmonia_core)
+target_link_libraries(harmonia_core PUBLIC harmonia::utils volk)
+add_library(harmonia_low_level STATIC ${HARMONIA_low_level_SOURCES})
+add_library(harmonia::low_level ALIAS harmonia_low_level)
+target_link_libraries(harmonia_low_level PUBLIC harmonia::core)
+add_library(harmonia_rt STATIC ${HARMONIA_rt_SOURCES})
+add_library(harmonia::rt ALIAS harmonia_rt)
+target_link_libraries(harmonia_rt PUBLIC harmonia::core aether)
+add_library(harmonia_scene STATIC ${HARMONIA_scene_SOURCES})
+add_library(harmonia::scene ALIAS harmonia_scene)
+target_link_libraries(harmonia_scene PUBLIC harmonia::rt aether
+    PRIVATE OpenImageIO::OpenImageIO tomlplusplus::tomlplusplus)
+add_library(harmonia_scene_rt STATIC ${HARMONIA_scene_rt_SOURCES})
+add_library(harmonia::scene_rt ALIAS harmonia_scene_rt)
+target_link_libraries(harmonia_scene_rt PUBLIC harmonia::scene harmonia::rt)
+add_library(harmonia_passes STATIC ${HARMONIA_passes_SOURCES})
+add_library(harmonia::passes ALIAS harmonia_passes)
+target_link_libraries(harmonia_passes PUBLIC harmonia::scene harmonia::core OpenImageIO::OpenImageIO)
+add_library(harmonia_app STATIC ${HARMONIA_app_SOURCES})
+add_library(harmonia::app_layer ALIAS harmonia_app)
+target_link_libraries(harmonia_app PUBLIC harmonia::passes harmonia::scene_rt)
+add_dependencies(harmonia_app harmonia_shaders)
+add_library(harmonia::harmonia ALIAS harmonia_app)
 
-target_include_directories(harmonia_lib
+target_include_directories(harmonia_vocab
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
-target_link_libraries(harmonia_lib
-    PUBLIC harmonia_project_options harmonia_vulkan_sdk volk aether::aether slang-math::slang-math OpenImageIO::OpenImageIO
+target_link_libraries(harmonia_vocab
+    PUBLIC harmonia_project_options harmonia_vulkan_sdk volk
+)
+target_link_libraries(harmonia_utils
+    PUBLIC slang-math::slang-math
+)
+target_link_libraries(harmonia_core
+    PUBLIC
+)
+target_link_libraries(harmonia_scene
+    PUBLIC aether::aether
+)
+target_link_libraries(harmonia_scene_rt
+    PUBLIC tomlplusplus::tomlplusplus
+)
+target_link_libraries(harmonia_app
+    PUBLIC harmonia_project_options harmonia_vulkan_sdk harmonia::low_level
     PRIVATE tomlplusplus::tomlplusplus
 )
 
-target_compile_definitions(harmonia_lib
+target_compile_definitions(harmonia_app
     PUBLIC HARMONIA_SHADER_DIR=\"${HARMONIA_SHADER_OUTPUT_DIR}\"
            VK_ENABLE_BETA_EXTENSIONS # propagate to consumers (Hyperion/Theia) — OMM types are beta-flagged
 )

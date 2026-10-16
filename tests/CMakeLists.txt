@@ -15,7 +15,7 @@ add_executable(harmonia_unit_tests
 )
 
 target_link_libraries(harmonia_unit_tests
-    PRIVATE harmonia_lib harmonia_project_options GTest::gtest GTest::gtest_main
+    PRIVATE harmonia::harmonia harmonia::low_level harmonia_project_options GTest::gtest GTest::gtest_main
 )
 
 gtest_discover_tests(harmonia_unit_tests PROPERTIES RUN_SERIAL TRUE)
@@ -37,7 +37,7 @@ add_executable(harmonia_component_tests
 )
 
 target_link_libraries(harmonia_component_tests
-    PRIVATE harmonia_lib harmonia_project_options GTest::gtest
+    PRIVATE harmonia::harmonia harmonia::low_level harmonia_project_options GTest::gtest
 )
 
 target_include_directories(harmonia_component_tests PRIVATE
@@ -56,7 +56,7 @@ add_executable(harmonia_integration_tests
 )
 
 target_link_libraries(harmonia_integration_tests
-    PRIVATE harmonia_lib harmonia_project_options GTest::gtest
+    PRIVATE harmonia::harmonia harmonia::low_level harmonia_project_options GTest::gtest
 )
 
 target_include_directories(harmonia_integration_tests PRIVATE
