@@ -207,7 +207,11 @@ Sequencing note: Q1 lands before front 2 - the safety net precedes the surgery.
 
 **Status quo (2026-10-15):** the file-level bloat queue is drained and `header_size: error`
 is the standing gate; the frame-orchestration band is split (`theia/renderer` 795 +
-pipelines/cull/postfx/gi/depth/camera modules). **Open, by front (see categorization v2 below):** front 1 opens with AR1 (scene/RT split -
+pipelines/cull/postfx/gi/depth/camera modules). **Front 1 progress:** AR1 is EXECUTED (2026-10-15) - the scene module is rt-free, the
+contract edge scene->rt is removed (gate-enforced), and the BLAS/OMM/TLAS builds live in the
+new harmonia/scene_rt module; the renderers implement the createTriangleMesh/finishBuild
+hooks and own their TLAS. Remaining in front 1: BV/NH1/NH2/META1-2 + the Aether hygiene
+items. Still open by front (see categorization v2 below): front 1 opens with AR1 (scene/RT split -
 also the `harmonia/scene` 3356-line size fix) and batches BV/NH1/NH2/META1-2 plus the Aether
 hygiene items; Q1 (coverage) lands before front-2 surgery; front 2 = promote `theia/pipelines`
 to a real class -> Extract the demo ComputeRig -> T-03 barrier helper (clears the last two
