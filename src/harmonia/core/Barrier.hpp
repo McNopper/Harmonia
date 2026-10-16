@@ -15,7 +15,10 @@ namespace harmonia::core {
                                                         VkPipelineStageFlags2 srcStage,
                                                         VkAccessFlags2 srcAccess,
                                                         VkPipelineStageFlags2 dstStage,
-                                                        VkAccessFlags2 dstAccess) noexcept {
+                                                        VkAccessFlags2 dstAccess,
+                                                        VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                        std::uint32_t srcQueueFamily = VK_QUEUE_FAMILY_IGNORED,
+                                                        std::uint32_t dstQueueFamily = VK_QUEUE_FAMILY_IGNORED) noexcept {
     return VkImageMemoryBarrier2{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
         .pNext = nullptr,
@@ -25,12 +28,12 @@ namespace harmonia::core {
         .dstAccessMask = dstAccess,
         .oldLayout = oldLayout,
         .newLayout = newLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .srcQueueFamilyIndex = srcQueueFamily,
+        .dstQueueFamilyIndex = dstQueueFamily,
         .image = image,
         .subresourceRange =
             VkImageSubresourceRange{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .aspectMask = aspectMask,
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
