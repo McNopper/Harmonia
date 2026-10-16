@@ -256,6 +256,11 @@ least one legacy→modern removal or capability adoption while the dev hardware 
 track).** Core gaps first — the matrix calls coverage *"the refactor safety net … the first
 gap to close"* and we are mid-structural-change:
 **Q1 coverage lane** — llvm-cov on the Clang lane + gcov/lcov on the GCC lane, wired into
+  Status (2026-10-15): lane implemented - per-repo `<PREFIX>_COVERAGE` option +
+  `tools/coverage.py` orchestrator (instrumented configure/build, ctest with
+  LLVM_PROFILE_FILE, llvm-profdata merge, llvm-cov report for src/); clang-cl lane
+  verified on slang-math (90.65% lines) and Aether (83.48%); gcc --coverage wired;
+  CI job follow-up.
 ctest/CI; **Q2 cppcheck** wired alongside clang-tidy (complementary analyzer — note the
 pre-existing empty `tools/cppcheck.supp` artifact in all five repos); **Q3 clang-format gate**
 (`--dry-run --Werror` — the configs exist, no gate); **Q4 SCA** — osv-scanner over the
