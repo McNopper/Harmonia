@@ -217,7 +217,13 @@ hygiene items; Q1 (coverage) lands before front-2 surgery; front 2 = promote `th
 to a real class -> Extract the demo ComputeRig -> T-03 barrier helper (clears the last two
 report-only signals: `demo` large + `theia/pipelines` orphan); front 3 = GI-SMS/PERF4 (SM6-*
 waits on slang-math v0.4.0); front 4 = AR2 + the VK queue; front 5 = consider-tier and CI
-hygiene. One technique per commit with render proofs. Accepted-by-design (no action): the two `harmonia`
+hygiene. One technique per commit with render proofs. Review verdicts (2026-10-15): T-04 REJECTED (Theia PLAN) - the uploadBuffer Middle Man is a
+deliberate expected-API -> VkResult adapter at 17 call sites; X-03 REJECTED - the tools
+inventory shows no oversized mains (compare_renders.py: 20 factored functions + a 132-line
+orchestrating main; the big files are the check_arch engine, A-04-rejected omm_bake, and
+check_tidy queued under X-01).
+
+Accepted-by-design (no action): the two `harmonia`
 hubs, Theia's pass-through chain, slang-math island (`kind: library`).
 
 The queue above, organized by the catalog's technique groups
