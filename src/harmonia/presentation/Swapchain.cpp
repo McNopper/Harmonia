@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 
+#include "harmonia/core/Logger.hpp"
+
 namespace harmonia::presentation {
 
 namespace {
@@ -112,6 +114,17 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         chosenFormat = findSurfaceFormat(VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
     if (!chosenFormat)
         chosenFormat = &formats.front();
+
+    // H-05 seam guard: the last-resort `formats.front()` fallback above can hand
+    // us a color space the ToneMapper has no encoding for (e.g. Display-P3
+    // LINEAR). Presenting it through the sRGB tonemap path would silently apply
+    // the wrong transfer function — refuse the swapchain instead.
+    if (!mapOutputColorSpace(chosenFormat->colorSpace)) {
+        core::Logger::error("Swapchain: surface color space {} has no OutputColorSpace tonemap encoding — refusing a "
+                            "swapchain that would present with the wrong transfer function",
+                            static_cast<int>(chosenFormat->colorSpace));
+        return std::unexpected(VK_ERROR_FORMAT_NOT_SUPPORTED);
+    }
 
     swapchain.m_format = chosenFormat->format;
     swapchain.m_colorSpace = chosenFormat->colorSpace;
@@ -307,7 +320,13 @@ VkImageView Swapchain::imageView(std::uint32_t i) const noexcept {
 }
 
 utils::OutputColorSpace Swapchain::outputColorSpace() const noexcept {
-    switch (m_colorSpace) {
+    // Swapchain::create refuses color spaces without a tonemap encoding (H-05
+    // seam guard), so the fallback is unreachable for a live swapchain.
+    return mapOutputColorSpace(m_colorSpace).value_or(utils::OutputColorSpace::eSDR);
+}
+
+std::optional<utils::OutputColorSpace> mapOutputColorSpace(VkColorSpaceKHR colorSpace) noexcept {
+    switch (colorSpace) {
     case VK_COLOR_SPACE_HDR10_ST2084_EXT:
         return utils::OutputColorSpace::eHDR10;
     case VK_COLOR_SPACE_HDR10_HLG_EXT:
@@ -318,8 +337,10 @@ utils::OutputColorSpace Swapchain::outputColorSpace() const noexcept {
         return utils::OutputColorSpace::eDisplayP3;
     case VK_COLOR_SPACE_BT709_LINEAR_EXT:
         return utils::OutputColorSpace::eSDRLinear;
-    default:
+    case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
         return utils::OutputColorSpace::eSDR;
+    default:
+        return std::nullopt;
     }
 }
 

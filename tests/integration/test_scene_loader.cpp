@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -5,6 +6,7 @@
 #include <limits>
 #include <slang-math/slang-math.hpp>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -97,16 +99,12 @@ TEST(SceneLoader, LoadsRealSceneAndProducesExpectedConfig) {
     EXPECT_GE(scene.instanceCount, 3U);
 }
 
-TEST(SceneLoader, UnknownTonemapperAndWorkingSpaceFallbackToDefaults) {
-    const std::filesystem::path dir = std::filesystem::temp_directory_path() / "harmonia_scene_loader_fallback";
+TEST(SceneLoader, UnknownTonemapperStillFallsBackToDefault) {
+    const std::filesystem::path dir = std::filesystem::temp_directory_path() / "harmonia_scene_loader_tonemap_fallback";
     std::filesystem::create_directories(dir);
     const std::filesystem::path scenePath = dir / "fallback.scene.toml";
     {
         std::ofstream out(scenePath);
-        out << "[render]\n";
-        out << "working_color_space = \"lin_unknown_scene\"\n";
-        out << "samples_per_pixel = 4\n";
-        out << "max_depth = 2\n\n";
         out << "[tonemap]\n";
         out << "tonemapper = \"unknown_tonemap\"\n";
     }
@@ -118,14 +116,38 @@ TEST(SceneLoader, UnknownTonemapperAndWorkingSpaceFallbackToDefaults) {
     const auto cfg = harmonia::scene::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
 
     ASSERT_TRUE(cfg.has_value());
-    EXPECT_EQ(cfg->workingColorSpace, harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
     EXPECT_FALSE(cfg->tonemapper.has_value());
-    ASSERT_TRUE(cfg->spp.has_value());
-    EXPECT_EQ(*cfg->spp, 4U);
-    ASSERT_TRUE(cfg->maxDepth.has_value());
-    EXPECT_EQ(*cfg->maxDepth, 2U);
 
     std::filesystem::remove_all(dir);
+}
+
+// H-05 rejection test: the working color space is always scene-referred linear.
+// An unknown token (typo) or a display-referred space (srgb_rec709_scene) must
+// abort the scene load — silently defaulting would render the scene in a color
+// space the assets were never converted into.
+TEST(SceneLoader, UnsupportedWorkingColorSpaceFailsSceneLoad) {
+    const std::array rejectedTokens{"lin_unknown_scene", "srgb_rec709_scene"};
+    for (const std::string_view token : rejectedTokens) {
+        const std::filesystem::path dir =
+            std::filesystem::temp_directory_path() / "harmonia_scene_loader_working_space_reject";
+        std::filesystem::create_directories(dir);
+        const std::filesystem::path scenePath = dir / "reject.scene.toml";
+        {
+            std::ofstream out(scenePath);
+            out << "[render]\n";
+            out << "working_color_space = \"" << token << "\"\n";
+        }
+
+        RecordingSceneBuilder scene;
+        const harmonia::DeviceContext dummyCtx{};
+        const harmonia::core::CommandPool dummyPool{};
+
+        const auto cfg = harmonia::scene::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+
+        ASSERT_FALSE(cfg.has_value()) << "working_color_space = '" << token << "' must fail the scene load";
+
+        std::filesystem::remove_all(dir);
+    }
 }
 
 TEST(SceneLoader, ParsesStageTogglesFromRenderPresetAndInlineOverride) {

@@ -163,15 +163,27 @@ struct SceneLoadContext {
     return mat && mat->gpu().opacityFlagsPad.x < 1.0f;
 }
 
-void applyWorkingColorSpace(const aether::SceneDesc& desc, SceneConfig& cfg) {
-    // ── Working color space ───────────────────────────────────────────────────
+/// H-05 seam guard: resolve the scene's working color space. The working space
+/// is always scene-referred linear — an unknown token (typo, or a
+/// display-referred space such as srgb_rec709_scene) aborts the load with a
+/// precise diagnostic instead of silently defaulting, which would render the
+/// scene in a color space the assets were not converted into.
+[[nodiscard]] std::expected<void, VkResult>
+applyWorkingColorSpace(const aether::SceneDesc& desc, const std::filesystem::path& sceneFile, SceneConfig& cfg) {
     if (desc.workingColorSpace) {
-        if (const auto ws = harmonia::utils::ColorSpace::parseWorkingColorSpace(*desc.workingColorSpace))
+        if (const auto ws = harmonia::utils::ColorSpace::parseWorkingColorSpace(*desc.workingColorSpace)) {
             cfg.workingColorSpace = *ws;
-        else
-            core::Logger::warn("SceneLoader: unknown working_color_space '{}' — using lin_rec2020_scene",
-                               *desc.workingColorSpace);
+        } else {
+            core::Logger::error(
+                "SceneLoader: unsupported working_color_space '{}' in '{}' — the working color space must be "
+                "scene-referred linear ('lin_rec2020_scene' or 'lin_rec709_scene'); display-referred and "
+                "unknown spaces are rejected",
+                *desc.workingColorSpace,
+                sceneFile.string());
+            return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+        }
     }
+    return {};
 }
 
 void loadMaterialLibraries(const aether::SceneDesc& desc,
@@ -495,7 +507,9 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
     parseRenderStageToggles(sceneFile, cfg);
     SceneLoadContext c{assetsDir, ctx, pool, scene, cfg};
 
-    applyWorkingColorSpace(*desc, cfg);
+    if (auto workingSpace = applyWorkingColorSpace(*desc, sceneFile, cfg); !workingSpace) {
+        return std::unexpected(workingSpace.error());
+    }
     loadMaterialLibraries(*desc, assetsDir, cfg, c.lib);
     applyRenderSettings(*desc, cfg);
     applyCamera(desc->camera, cfg);

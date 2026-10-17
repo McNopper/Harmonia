@@ -3,7 +3,12 @@
 #include <OpenImageIO/imageio.h>
 #include <cmath>
 #include <cstdint>
+#include <format>
+#include <memory>
+#include <optional>
 #include <slang-math/slang-math.hpp>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "harmonia/core/Buffer.hpp"
@@ -79,6 +84,26 @@ readBackHdr(const DeviceContext& ctx, const core::CommandPool& pool, const core:
 
 } // namespace
 
+std::optional<std::string> sceneExrContainerViolation(const std::filesystem::path& path) {
+    // OIIO resolves the writer from the file extension; no file is opened here.
+    const OIIO::ImageOutput::unique_ptr out = OIIO::ImageOutput::create(path.string());
+    if (!out) {
+        return std::format("no OpenImageIO writer for '{}' — the scene-referred capture must be written "
+                           "as OpenEXR (scene-linear float, chromaticities-tagged)",
+                           path.string());
+    }
+    const char* formatName = out->format_name();
+    if (std::string_view(formatName) != "openexr") {
+        return std::format("'{}' resolves to the '{}' writer, but the scene-referred capture must be "
+                           "written as OpenEXR — a '{}' container cannot carry the scene-linear "
+                           "chromaticities metadata or full float precision",
+                           path.string(),
+                           formatName,
+                           formatName);
+    }
+    return std::nullopt;
+}
+
 bool savePng(const DeviceContext& ctx,
              const core::CommandPool& pool,
              const core::Image& hdrImage,
@@ -143,6 +168,14 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
              [[maybe_unused]] const core::Image& hdrImage,
              const std::filesystem::path& path,
              [[maybe_unused]] utils::ColorSpace::WorkingColorSpace workingSpace) {
+    // H-05 seam guard: refuse containers that cannot honour the scene-referred
+    // EXR contract BEFORE any device work — the artifact would silently lose
+    // float precision and the chromaticities metadata parity tools rely on.
+    if (const auto violation = sceneExrContainerViolation(path)) {
+        core::Logger::error("harmonia::presentation::ImageCapture::saveExr: {}", *violation);
+        return false;
+    }
+
     if (!ctx.isValid() || !hdrImage.isValid()) {
         return false;
     }
@@ -173,6 +206,18 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
         core::Logger::error("harmonia::presentation::ImageCapture::saveExr: OIIO failed to open '{}': {}",
                             path.string(),
                             OIIO::geterror());
+        return false;
+    }
+
+    // H-05 seam guard: the scene-linear contract rides on the chromaticities
+    // header — refuse an EXR the writer would produce without it (a downstream
+    // tool would have to guess the primaries).
+    if (out->spec().find_attribute("chromaticities") == nullptr) {
+        core::Logger::error(
+            "harmonia::presentation::ImageCapture::saveExr: writer dropped the scene-linear chromaticities "
+            "attribute for '{}' — refusing an untagged EXR",
+            path.string());
+        out->close();
         return false;
     }
 

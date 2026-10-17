@@ -342,7 +342,10 @@ void App::rebuildStagePipeline() {
     core::Logger::info("Display stages: {}", stageList(m_displayStages));
 }
 
-void App::applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConfig) {
+/// Applies the scene's stage toggles on top of the CLI defaults and enforces
+/// the two-tier output contract. Returns false (with a precise diagnostic) on
+/// a contract violation — @ref App::loadScene aborts the scene load.
+bool App::applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConfig) {
     m_config.stages = m_defaultStages;
     // Two-tier output contract: the denoiser is an INTERACTIVE presentation filter only.
     // An offscreen capture (--output) is the scene-referred *estimator result* — the
@@ -372,6 +375,22 @@ void App::applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConf
     if (sceneConfig.tonemapperStageEnabled.has_value()) {
         m_config.stages.tonemapper = *sceneConfig.tonemapperStageEnabled;
     }
+
+    // H-05 seam guard: explicit scene config "wins" above — but a denoiser
+    // enabled for an offscreen capture / --no-postfx run violates the two-tier
+    // output contract: the EXR (and the matching PNG) must be the raw
+    // scene-referred estimator result, not a presentation-filtered image.
+    // Refuse the configuration instead of silently writing a filtered artifact.
+    if ((m_config.noPostfx || !m_config.outputFile.empty()) && m_config.stages.denoiser) {
+        core::Logger::error(
+            "Scene config enables the denoiser stage while {} is active — the two-tier output contract "
+            "requires the raw scene-referred estimator result (the shared denoiser is a presentation-only "
+            "filter with a fixed pixel radius that never converges). Remove 'enable_denoiser_stage' (or the "
+            "'[render] stages.denoiser' toggle) from the scene / render preset.",
+            !m_config.outputFile.empty() ? "--output" : "--no-postfx");
+        return false;
+    }
+    return true;
 }
 
 bool App::hasTonemapStage() const noexcept {
@@ -483,7 +502,9 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
 
     m_workingColorSpace = sceneConfig->workingColorSpace;
     m_tonemapper = sceneConfig->tonemapper.value_or(0U);
-    applySceneStageConfig(*sceneConfig);
+    if (!applySceneStageConfig(*sceneConfig)) {
+        return false;
+    }
     core::Logger::info("Stage config: accumulation={}, denoiser={}, tonemapper={}",
                        m_config.stages.accumulation,
                        m_config.stages.denoiser,
@@ -513,6 +534,15 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
         auto probe =
             scene::IblProbe::loadFromEXR(m_context.deviceContext(), m_commandPool, envPath, m_workingColorSpace);
         if (!probe) {
+            if (probe.error() == VK_ERROR_FORMAT_NOT_SUPPORTED) {
+                // H-05 seam guard: an encoding-rejected environment map must not
+                // silently degrade to the procedural sky — the rendered image
+                // would differ massively from the authored intent (and from any
+                // parity reference). Fail the scene load instead.
+                core::Logger::error("IBL probe rejected for '{}' (non-linear or non-EXR input) — scene load aborted",
+                                    envPath.string());
+                return false;
+            }
             core::Logger::warn("IBL probe load failed for '{}' — using procedural sky", envPath.string());
         } else {
             m_iblProbe = std::move(*probe);

@@ -2,6 +2,8 @@
 #define HARMONIA_PRESENTATION_IMAGECAPTURE_HPP
 
 #include <filesystem>
+#include <optional>
+#include <string>
 
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
@@ -35,6 +37,15 @@ bool saveExr(const DeviceContext& ctx,
              const core::Image& hdrImage,
              const std::filesystem::path& path,
              utils::ColorSpace::WorkingColorSpace workingSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020);
+
+// H-05 seam guard — scene-referred EXR container contract.
+// The offscreen capture contract defines the EXR artifact as the pre-tonemap
+// scene-referred image, chromaticities-tagged so parity tools interpret the
+// primaries. Returns a diagnostic when @p path resolves to a non-OpenEXR
+// OpenImageIO writer (PNG, Radiance .hdr, ...): such a container cannot carry
+// the chromaticities metadata or full float precision, so it must not silently
+// pass for the scene-referred artifact. Empty when the write may proceed.
+[[nodiscard]] std::optional<std::string> sceneExrContainerViolation(const std::filesystem::path& path);
 
 // Writes an already display-referred, tone-mapped 8-bit image (the output of the GPU
 // ToneMapper display stage, e.g. an RGBA8/BGRA8 sRGB capture target) straight to an 8-bit

@@ -5,6 +5,7 @@ include(GoogleTest)
 # ---------------------------------------------------------------------------
 add_executable(harmonia_unit_tests
     unit/test_colorspace.cpp
+    unit/test_colorspace_seams.cpp
     unit/test_app_args.cpp
     unit/test_tonemap.cpp
     unit/test_math.cpp
@@ -53,6 +54,7 @@ add_executable(harmonia_integration_tests
     integration/main.cpp
     integration/test_context.cpp
     integration/test_scene_loader.cpp
+    integration/test_ibl_probe_encoding.cpp
 )
 
 target_link_libraries(harmonia_integration_tests

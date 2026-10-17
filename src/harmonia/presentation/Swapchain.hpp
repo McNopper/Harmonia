@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <vector>
 
 #include "harmonia/DeviceContext.hpp"
@@ -12,6 +13,17 @@
 #include "harmonia/utils/OutputColorSpace.hpp"
 
 namespace harmonia::presentation {
+
+/// Map a Vulkan surface color space to the display-referred OutputColorSpace
+/// the ToneMapper encodes for.
+///
+/// H-05 seam guard: the shared ToneMapper ships an encoding per OutputColorSpace
+/// and nothing else. A surface color space outside that set (e.g. Display-P3
+/// LINEAR) has no correct tonemap encoding — presenting it through the sRGB path
+/// would silently apply the wrong transfer function, so the swapchain creation
+/// refuses it (@ref Swapchain::create) instead of defaulting. Returns nullopt
+/// for unmapped color spaces.
+[[nodiscard]] std::optional<utils::OutputColorSpace> mapOutputColorSpace(VkColorSpaceKHR colorSpace) noexcept;
 
 class Swapchain {
   public:

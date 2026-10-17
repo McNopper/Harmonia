@@ -64,7 +64,8 @@ class SceneLoader {
         std::optional<bool> denoiserStageEnabled;        ///< std::nullopt → app::App default
         std::optional<bool> tonemapperStageEnabled;      ///< std::nullopt → app::App default
         /// Scene-referred working color space all assets were converted into
-        /// ([render] working_color_space; default linear Rec.2020).
+        /// ([render] working_color_space; default linear Rec.2020). Unknown or
+        /// display-referred tokens abort the scene load (H-05 seam guard).
         harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace =
             harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
     };
@@ -72,8 +73,10 @@ class SceneLoader {
     /// Populate @p scene from @p sceneFile.
     /// Asset paths are resolved relative to @p assetsDir.
     /// Returns a SceneConfig with camera / render overrides on success,
-    /// or VK_ERROR_INITIALIZATION_FAILED if the file cannot be opened or a
-    /// referenced asset fails to load.
+    /// or VK_ERROR_INITIALIZATION_FAILED if the file cannot be opened, a
+    /// referenced asset fails to load, or [render] working_color_space is not a
+    /// scene-referred linear token (H-05: unknown / display-referred spaces are
+    /// rejected, never silently defaulted).
     [[nodiscard]] static std::expected<SceneConfig, VkResult> load(const std::filesystem::path& sceneFile,
                                                                    const std::filesystem::path& assetsDir,
                                                                    ISceneBuilder& scene,

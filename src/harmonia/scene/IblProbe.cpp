@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <string_view>
 #include <utility>
 
 #include "harmonia/core/Buffer.hpp"
@@ -15,6 +16,14 @@ namespace harmonia::scene {
 
 namespace {
 constexpr float kRec2020RedPrimariesThreshold = 0.68f;
+
+/// H-05 seam guard: tokens OpenImageIO may tag a genuinely scene-linear file
+/// with. Everything else (sRGB, Rec709, gamma encodings, ...) is a
+/// display-referred encoding and rejected as IBL input.
+[[nodiscard]] bool isSceneLinearToken(std::string_view oiioColorSpace) noexcept {
+    return oiioColorSpace == "linear" || oiioColorSpace == "scene_linear" || oiioColorSpace == "lin_rec709_scene" ||
+           oiioColorSpace == "lin_rec2020_scene";
+}
 } // namespace
 
 std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx,
@@ -57,6 +66,31 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
     const OIIO::ImageSpec& spec = inp->spec();
     const std::size_t width = static_cast<std::size_t>(spec.width);
     const std::size_t height = static_cast<std::size_t>(spec.height);
+
+    // ── H-05 seam guard: IBL input encoding contract ─────────────────────────
+    // Environment panoramas are scene-referred LINEAR radiance. OIIO happily
+    // opens any container, and a display-referred input (an LDR PNG/JPEG or a
+    // Radiance .hdr, or an EXR explicitly tagged with a gamma encoding) would
+    // be sampled as if its code values were linear radiance — silently wrong
+    // lighting. Reject such inputs before any conversion or GPU upload.
+    const std::string_view formatName = inp->format_name();
+    if (formatName != "openexr") {
+        core::Logger::error(
+            "IblProbe: '{}' is a {} file — environment panoramas must be OpenEXR (scene-referred linear); "
+            "display-referred containers would be sampled as linear radiance",
+            path.string(),
+            formatName);
+        return std::unexpected(VK_ERROR_FORMAT_NOT_SUPPORTED);
+    }
+    const char* oiioColorSpace = spec.get_string_attribute("oiio:ColorSpace");
+    if (oiioColorSpace != nullptr && oiioColorSpace[0] != '\0' && !isSceneLinearToken(oiioColorSpace)) {
+        core::Logger::error(
+            "IblProbe: '{}' declares non-linear encoding oiio:ColorSpace='{}' — environment panoramas must "
+            "be linear-encoded (EXR defaults to linear when the attribute is absent)",
+            path.string(),
+            oiioColorSpace);
+        return std::unexpected(VK_ERROR_FORMAT_NOT_SUPPORTED);
+    }
 
     // ── Diagnostic: log channel layout so misloads are immediately visible ────
     {

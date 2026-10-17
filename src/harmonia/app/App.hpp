@@ -197,7 +197,10 @@ class App {
     /// GPU<->host clock relationship and log it (exercises the extension's entry points).
     void logGpuClockCalibration() noexcept;
     void rebuildStagePipeline();
-    void applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConfig);
+    /// Applies the scene's stage toggles on top of the CLI defaults; enforces
+    /// the two-tier output contract (no denoiser for --output / --no-postfx).
+    /// Returns false on a contract violation — the scene load is aborted.
+    [[nodiscard]] bool applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConfig);
     [[nodiscard]] bool hasTonemapStage() const noexcept;
     [[nodiscard]] std::filesystem::path resolveScenePath(const std::filesystem::path& sceneFile) const;
     /// Current scene-output source for presentation/capture (HDR fallback when
