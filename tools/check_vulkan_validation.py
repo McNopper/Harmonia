@@ -112,7 +112,7 @@ def _run_offscreen(label: str, cmd: list[str]) -> RunResult:
 
 
 def _run_window(label: str, cmd: list[str], seconds: int) -> RunResult:
-    cmd = cmd + []  # window mode = same args minus --output (added by caller)
+    # window mode = same args minus --output (added by caller)
     t0 = time.perf_counter()
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

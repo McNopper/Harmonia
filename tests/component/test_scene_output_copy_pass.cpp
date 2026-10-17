@@ -19,15 +19,16 @@
 
 namespace {
 
-[[nodiscard]] std::vector<sm::float4>
-readRgbaImage(const harmonia::DeviceContext& deviceCtx, harmonia::core::CommandPool& commandPool, harmonia::core::Image& image) {
+[[nodiscard]] std::vector<sm::float4> readRgbaImage(const harmonia::DeviceContext& deviceCtx,
+                                                    harmonia::core::CommandPool& commandPool,
+                                                    harmonia::core::Image& image) {
     const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(sm::float4);
     auto readback = harmonia::core::Buffer::create(deviceCtx,
-                                             byteSize,
-                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                             VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                             "test.sceneoutput.readback");
+                                                   byteSize,
+                                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                   "test.sceneoutput.readback");
     EXPECT_TRUE(readback.has_value()) << static_cast<int>(readback.error());
     if (!readback) {
         return {};
@@ -78,10 +79,10 @@ void uploadRgbaImage(const harmonia::DeviceContext& deviceCtx,
     const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(sm::float4);
     auto staging = harmonia::core::Buffer::create(deviceCtx,
-                                            byteSize,
-                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                            "test.sceneoutput.staging.rgba");
+                                                  byteSize,
+                                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                  "test.sceneoutput.staging.rgba");
     ASSERT_TRUE(staging.has_value()) << static_cast<int>(staging.error());
     staging->uploadData(pixels.data(), byteSize);
 
@@ -121,10 +122,10 @@ void uploadDepthImage(const harmonia::DeviceContext& deviceCtx,
     const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(image.extent().width) * image.extent().height * sizeof(float);
     auto staging = harmonia::core::Buffer::create(deviceCtx,
-                                            byteSize,
-                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                            "test.sceneoutput.staging.depth");
+                                                  byteSize,
+                                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                  "test.sceneoutput.staging.depth");
     ASSERT_TRUE(staging.has_value()) << static_cast<int>(staging.error());
     staging->uploadData(pixels.data(), byteSize);
 
@@ -169,37 +170,37 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
     static_cast<void>(kRgbaBytes);
 
     auto hdr = harmonia::core::Image::create(deviceCtx(),
-                                       kExtent,
-                                       VK_FORMAT_R32G32B32A32_SFLOAT,
-                                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                       VK_IMAGE_ASPECT_COLOR_BIT,
-                                       "test.sceneoutput.hdr");
+                                             kExtent,
+                                             VK_FORMAT_R32G32B32A32_SFLOAT,
+                                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                             VK_IMAGE_ASPECT_COLOR_BIT,
+                                             "test.sceneoutput.hdr");
     ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
 
     auto denoised = harmonia::core::Image::create(deviceCtx(),
-                                            kExtent,
-                                            VK_FORMAT_R32G32B32A32_SFLOAT,
-                                            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                            VK_IMAGE_ASPECT_COLOR_BIT,
-                                            "test.sceneoutput.denoised");
+                                                  kExtent,
+                                                  VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                  VK_IMAGE_ASPECT_COLOR_BIT,
+                                                  "test.sceneoutput.denoised");
     ASSERT_TRUE(denoised.has_value()) << static_cast<int>(denoised.error());
 
     auto gNormal = harmonia::core::Image::create(deviceCtx(),
-                                           kExtent,
-                                           VK_FORMAT_R32G32B32A32_SFLOAT,
-                                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                           VK_IMAGE_ASPECT_COLOR_BIT,
-                                           "test.sceneoutput.gnormal");
+                                                 kExtent,
+                                                 VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                 VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                 VK_IMAGE_ASPECT_COLOR_BIT,
+                                                 "test.sceneoutput.gnormal");
     ASSERT_TRUE(gNormal.has_value()) << static_cast<int>(gNormal.error());
 
     auto gDepth = harmonia::core::Image::create(deviceCtx(),
-                                          kExtent,
-                                          VK_FORMAT_R32_SFLOAT,
-                                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                          VK_IMAGE_ASPECT_COLOR_BIT,
-                                          "test.sceneoutput.gdepth");
+                                                kExtent,
+                                                VK_FORMAT_R32_SFLOAT,
+                                                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                VK_IMAGE_ASPECT_COLOR_BIT,
+                                                "test.sceneoutput.gdepth");
     ASSERT_TRUE(gDepth.has_value()) << static_cast<int>(gDepth.error());
 
     std::vector<sm::float4> hdrPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
@@ -223,15 +224,16 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_ReducesNoiseAndPreservesDepthEdge) {
     uploadRgbaImage(deviceCtx(), commandPool(), *gNormal, normalPixels);
     uploadDepthImage(deviceCtx(), commandPool(), *gDepth, depthPixels);
 
-    auto pass = harmonia::pipeline::SceneOutputCopyPass::create(deviceCtx(),
-                                                      kExtent,
-                                                      std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv",
-                                                      harmonia::pipeline::SceneOutputCopyPass::Settings{
-                                                          .strength = 0.75F,
-                                                          .iterations = 3U,
-                                                          .useHistory = false,
-                                                          .historyBlend = 0.1F,
-                                                      });
+    auto pass =
+        harmonia::pipeline::SceneOutputCopyPass::create(deviceCtx(),
+                                                        kExtent,
+                                                        std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv",
+                                                        harmonia::pipeline::SceneOutputCopyPass::Settings{
+                                                            .strength = 0.75F,
+                                                            .iterations = 3U,
+                                                            .useHistory = false,
+                                                            .historyBlend = 0.1F,
+                                                        });
     ASSERT_TRUE(pass.has_value()) << static_cast<int>(pass.error());
     pass->onResize(kExtent);
 
@@ -301,12 +303,12 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_NoOpWhenDenoiserOutputMissing) {
     constexpr VkClearColorValue kClear{.float32 = {0.25F, 0.5F, 0.75F, 1.0F}};
 
     auto hdr = harmonia::core::Image::create(deviceCtx(),
-                                       kExtent,
-                                       VK_FORMAT_R32G32B32A32_SFLOAT,
-                                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                       VK_IMAGE_ASPECT_COLOR_BIT,
-                                       "test.sceneoutput.noop.hdr");
+                                             kExtent,
+                                             VK_FORMAT_R32G32B32A32_SFLOAT,
+                                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                             VK_IMAGE_ASPECT_COLOR_BIT,
+                                             "test.sceneoutput.noop.hdr");
     ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
 
     auto pass = harmonia::pipeline::SceneOutputCopyPass::create(

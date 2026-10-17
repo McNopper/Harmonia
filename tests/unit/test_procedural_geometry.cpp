@@ -54,7 +54,8 @@ TEST(ProceduralGeometry, MakeBoxIdentityProducesValidBoxMesh) {
 TEST(ProceduralGeometry, MakeBoxRotationTransformsNormals) {
     const sm::float4x4 rotation =
         sm::rotate(sm::float4x4(1.0f), harmonia::utils::Math::kPi * 0.5F, sm::float3{0.0F, 1.0F, 0.0F});
-    const harmonia::scene::MeshData mesh = harmonia::scene::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
+    const harmonia::scene::MeshData mesh =
+        harmonia::scene::ProceduralGeometry::makeBox(sm::float3(1.0F, 1.0F, 1.0F), rotation);
     const sm::float3x3 normalTransform = sm::toFloat3x3(rotation);
 
     const std::array expectedDirections{
@@ -141,7 +142,8 @@ TEST(WorldAabbFromInstance, RotationSwapsAxes) {
     // (0,0,0)→(2,1,4) maps to (-2,0,-4)→(0,1,0), proving corners (not half-extents)
     // are transformed and re-bound.
     const harmonia::scene::Aabb object{.min = {0.0F, 0.0F, 0.0F}, .max = {2.0F, 1.0F, 4.0F}};
-    const harmonia::scene::Transform transform{.rotation = sm::angleAxis(harmonia::utils::Math::kPi, sm::float3{0.0F, 1.0F, 0.0F})};
+    const harmonia::scene::Transform transform{
+        .rotation = sm::angleAxis(harmonia::utils::Math::kPi, sm::float3{0.0F, 1.0F, 0.0F})};
     const auto world = harmonia::scene::worldAabbFromInstance(object, transform);
     EXPECT_NEAR(world.min.x, -2.0F, kEpsilon);
     EXPECT_NEAR(world.max.x, 0.0F, kEpsilon);

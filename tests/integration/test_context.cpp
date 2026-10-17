@@ -44,8 +44,8 @@ TEST(Context, CreateContext) {
         GTEST_SKIP() << "SDL video initialization failed: " << SDL_GetError();
     }
 
-    std::unique_ptr<SDL_Window, WindowDeleter> window(
-        SDL_CreateWindow("Harmonia harmonia::vulkan_init::Context Test", 64, 64, SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN));
+    std::unique_ptr<SDL_Window, WindowDeleter> window(SDL_CreateWindow(
+        "Harmonia harmonia::vulkan_init::Context Test", 64, 64, SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN));
     if (!window) {
         GTEST_SKIP() << "Failed to create Vulkan test window: " << SDL_GetError();
     }

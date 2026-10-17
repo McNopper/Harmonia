@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "harmonia/GpuTypes.hpp"
-#include "harmonia/scene_rt/EmissiveBuilder.hpp"
 #include "harmonia/scene/Geometry.hpp"
+#include "harmonia/scene_rt/EmissiveBuilder.hpp"
 
 namespace {
 
@@ -162,7 +162,8 @@ TEST(SphereEmissive, PacksWorldCentreAndRadius) {
     // v0_area is overloaded for spheres: xyz = world centre, w = world radius. The shader
     // reads it back verbatim, so the round-trip through the instance transform must be exact.
     harmonia::scene_rt::EmissiveData data;
-    harmonia::scene_rt::appendSphereEmissive(data, 0.7F, placement({1.0F, 2.0F, 3.0F}, {2.0F, 2.0F, 2.0F}), {1.0F, 1.0F, 1.0F});
+    harmonia::scene_rt::appendSphereEmissive(
+        data, 0.7F, placement({1.0F, 2.0F, 3.0F}, {2.0F, 2.0F, 2.0F}), {1.0F, 1.0F, 1.0F});
 
     ASSERT_EQ(data.triangles.size(), 1u);
     const harmonia::GpuEmissiveTriangle& e = data.triangles.front();
@@ -206,7 +207,8 @@ TEST(SphereEmissive, PowerIsSphereAreaTimesLuminance) {
 TEST(SphereEmissive, PowerUsesRec2020Luminance) {
     // Non-white emission is weighted by the same Rec.2020 coefficients as the triangles.
     harmonia::scene_rt::EmissiveData data;
-    harmonia::scene_rt::appendSphereEmissive(data, 1.0F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 0.0F, 0.0F});
+    harmonia::scene_rt::appendSphereEmissive(
+        data, 1.0F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 0.0F, 0.0F});
 
     ASSERT_EQ(data.power.size(), 1u);
     EXPECT_NEAR(data.power.front(), 4.0F * std::numbers::pi_v<float> * 0.2627F, 1.0e-5F);
@@ -225,7 +227,8 @@ TEST(SphereEmissive, IsIncludedInTheEmitterCount) {
     });
     data.power.push_back(1.0F);
 
-    harmonia::scene_rt::appendSphereEmissive(data, 0.7F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
+    harmonia::scene_rt::appendSphereEmissive(
+        data, 0.7F, placement({0.0F, 0.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
 
     ASSERT_EQ(data.triangles.size(), 2u);
     ASSERT_EQ(data.power.size(), data.triangles.size());
@@ -293,7 +296,8 @@ TEST(EmissiveCdf, MixedSphereAndTriangleSelectProportionallyToPower) {
         data.power.push_back(area); // area × luminance(white) == area
     }
     // One unit-luminance sphere of world radius 1 → power 4π ≈ 12.566.
-    harmonia::scene_rt::appendSphereEmissive(data, 1.0F, placement({0.0F, 3.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
+    harmonia::scene_rt::appendSphereEmissive(
+        data, 1.0F, placement({0.0F, 3.0F, 0.0F}, {1.0F, 1.0F, 1.0F}), {1.0F, 1.0F, 1.0F});
 
     ASSERT_EQ(data.triangles.size(), 3u);
     ASSERT_EQ(data.power.size(), 3u);

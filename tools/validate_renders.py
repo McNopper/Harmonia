@@ -222,7 +222,7 @@ def main() -> int:
                 heatmap_dir=args.heatmap_dir,
                 emit_heatmap=not args.no_heatmap,
             )
-        except Exception as exc:  # noqa: BLE001 - surface the failure, don't hide it
+        except Exception as exc:  # surface the failure, don't hide it
             print(f"{scene:24} FAIL  {exc}")
             if args.fail_fast:
                 return 1

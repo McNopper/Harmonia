@@ -67,6 +67,8 @@ class RtFixture : public VulkanFixture {
         }
     }
 
-    [[nodiscard]] const harmonia::vulkan_init::PhysicalDeviceInfo& physInfo() const noexcept { return g_vulkanTestCtx->physInfo(); }
+    [[nodiscard]] const harmonia::vulkan_init::PhysicalDeviceInfo& physInfo() const noexcept {
+        return g_vulkanTestCtx->physInfo();
+    }
 };
 #endif // TESTS_FIXTURES_VULKANTESTFIXTURE_HPP

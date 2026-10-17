@@ -486,10 +486,7 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray,
     cand_ch = extract_channel(cand, channel)
 
     # Optional spatial mask (boolean HxW). When None, all pixels are used.
-    if mask is None:
-        mask_ch = np.ones(ref_ch.shape, dtype=bool)
-    else:
-        mask_ch = mask
+    mask_ch = np.ones(ref_ch.shape, dtype=bool) if mask is None else mask
 
     diff = np.abs(ref_ch - cand_ch)
     signed = cand_ch - ref_ch
@@ -734,8 +731,10 @@ def main() -> int:
         except ValueError:
             sys.exit("ERROR: --mask-box must be X0,Y0,X1,Y1 in [0,1]")
         H, W = ref.shape[:2]
-        ix0 = max(0, min(int(x0 * W), W - 1)); ix1 = max(ix0 + 1, min(int(x1 * W), W))
-        iy0 = max(0, min(int(y0 * H), H - 1)); iy1 = max(iy0 + 1, min(int(y1 * H), H))
+        ix0 = max(0, min(int(x0 * W), W - 1))
+        ix1 = max(ix0 + 1, min(int(x1 * W), W))
+        iy0 = max(0, min(int(y0 * H), H - 1))
+        iy1 = max(iy0 + 1, min(int(y1 * H), H))
         mask2d = np.zeros((H, W), dtype=bool)
         mask2d[iy0:iy1, ix0:ix1] = True
         print(f"Mask-box  : [{iy0}:{iy1}, {ix0}:{ix1}]  ({(iy1-iy0)*(ix1-ix0)} px)")

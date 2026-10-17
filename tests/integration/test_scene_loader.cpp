@@ -53,8 +53,9 @@ class RecordingSceneBuilder final : public harmonia::scene::ISceneBuilder {
         return static_cast<std::uint32_t>(meshCount + sphereMeshCount - 1);
     }
 
-    std::uint32_t
-    addInstance(std::uint32_t /*meshIndex*/, const harmonia::scene::Transform& /*transform*/, std::uint32_t /*materialIdx*/) override {
+    std::uint32_t addInstance(std::uint32_t /*meshIndex*/,
+                              const harmonia::scene::Transform& /*transform*/,
+                              std::uint32_t /*materialIdx*/) override {
         ++instanceCount;
         return static_cast<std::uint32_t>(instanceCount - 1);
     }

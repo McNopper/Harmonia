@@ -137,7 +137,7 @@ def main() -> int:
         pairwise.append((n_a, n_b, d))
         print(f"  Theia@{n_a:>5} vs Theia@{n_b:>5}: mean_diff = {d:7.3f}")
 
-    # If we have ≥3 scales, test the 1/√N rate: each 4× frames should halve the
+    # If we have ≥3 scales, test the 1/√N rate: each 4x frames should halve the
     # L1 distance between consecutive accumulations.
     rate_ok = True
     if len(scales) >= 3:
@@ -147,7 +147,7 @@ def main() -> int:
             _, n_b, d_b = pairwise[i + 1]
             ratio = d_b / d_a if d_a > 1e-6 else float("nan")
             # The theoretical rate is 1/√N for L2/MSE; for L1 it's the same 1/√N.
-            # So 4× frames → ½ the diff. Allow [0.30, 0.85] as a generous pass band:
+            # So 4x frames → ½ the diff. Allow [0.30, 0.85] as a generous pass band:
             # the lower bound rejects sub-1/√N improvement (correlated samples,
             # i.e. bias masquerading as variance); the upper rejects ~no improvement.
             ok = 0.30 <= ratio <= 0.85
