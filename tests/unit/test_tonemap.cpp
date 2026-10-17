@@ -118,7 +118,7 @@ TEST(AcesToneMap, SDRFittedOutputInGamutRange) {
         EXPECT_FALSE(std::isnan(out.x));
         EXPECT_FALSE(std::isnan(out.y));
         EXPECT_FALSE(std::isnan(out.z));
-        const sm::float3 clamped = sm::clamp(out, 0.f, 1.f);
+        const sm::float3 clamped = sm::saturate(out);
         EXPECT_GE(clamped.x, 0.f);
         EXPECT_LE(clamped.x, 1.f);
     }
