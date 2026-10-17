@@ -1,9 +1,11 @@
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
+
 #include <algorithm>
 #include <array>
 #include <bit>
 #include <cstdint>
 #include <utility>
+
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
@@ -275,7 +277,6 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     m_historyFirstUse = false;
 }
 
-
 void SceneOutputCopyPass::onResize(VkExtent2D extent) noexcept {
     if (extent.width == 0U || extent.height == 0U) {
         return;
@@ -295,26 +296,27 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
     }
 
     auto history = core::Image::create(*m_ctx,
-                                 extent,
-                                 VK_FORMAT_R32G32B32A32_SFLOAT,
-                                 VK_IMAGE_USAGE_STORAGE_BIT,
-                                 VK_IMAGE_ASPECT_COLOR_BIT,
-                                 "harmonia.denoiser.history");
+                                       extent,
+                                       VK_FORMAT_R32G32B32A32_SFLOAT,
+                                       VK_IMAGE_USAGE_STORAGE_BIT,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       "harmonia.denoiser.history");
     if (!history) {
         core::Logger::error("SceneDenoiserPass history image creation failed: VkResult {}",
-                      static_cast<int>(history.error()));
+                            static_cast<int>(history.error()));
         return false;
     }
 
-    auto work =
-        core::Image::create(*m_ctx,
-                      extent,
-                      VK_FORMAT_R32G32B32A32_SFLOAT,
-                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                      VK_IMAGE_ASPECT_COLOR_BIT,
-                      "harmonia.denoiser.work");
+    auto work = core::Image::create(*m_ctx,
+                                    extent,
+                                    VK_FORMAT_R32G32B32A32_SFLOAT,
+                                    VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                        VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                    VK_IMAGE_ASPECT_COLOR_BIT,
+                                    "harmonia.denoiser.work");
     if (!work) {
-        core::Logger::error("SceneDenoiserPass work image creation failed: VkResult {}", static_cast<int>(work.error()));
+        core::Logger::error("SceneDenoiserPass work image creation failed: VkResult {}",
+                            static_cast<int>(work.error()));
         return false;
     }
 
@@ -322,14 +324,14 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
     // Keeps the push-descriptor set valid (correct format) while hasMotionVectors=0
     // ensures the shader never reads from it.
     auto dummyMv = core::Image::create(*m_ctx,
-                                 {1U, 1U},
-                                 VK_FORMAT_R32G32_SFLOAT,
-                                 VK_IMAGE_USAGE_STORAGE_BIT,
-                                 VK_IMAGE_ASPECT_COLOR_BIT,
-                                 "harmonia.denoiser.dummyMotionVec");
+                                       {1U, 1U},
+                                       VK_FORMAT_R32G32_SFLOAT,
+                                       VK_IMAGE_USAGE_STORAGE_BIT,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       "harmonia.denoiser.dummyMotionVec");
     if (!dummyMv) {
         core::Logger::error("SceneDenoiserPass dummy motion vector image creation failed: VkResult {}",
-                      static_cast<int>(dummyMv.error()));
+                            static_cast<int>(dummyMv.error()));
         return false;
     }
 
@@ -342,27 +344,27 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
     core::Image prevGradient{};
     if (m_settings.useGradient) {
         auto grad = core::Image::create(*m_ctx,
-                                  extent,
-                                  VK_FORMAT_R32G32_SFLOAT,
-                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                  VK_IMAGE_ASPECT_COLOR_BIT,
-                                  "harmonia.denoiser.gradient");
+                                        extent,
+                                        VK_FORMAT_R32G32_SFLOAT,
+                                        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                        VK_IMAGE_ASPECT_COLOR_BIT,
+                                        "harmonia.denoiser.gradient");
         if (!grad) {
             core::Logger::error("SceneDenoiserPass gradient image creation failed: VkResult {}",
-                          static_cast<int>(grad.error()));
+                                static_cast<int>(grad.error()));
             return false;
         }
         auto prevGrad = core::Image::create(*m_ctx,
-                                      extent,
-                                      VK_FORMAT_R32G32_SFLOAT,
-                                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                      VK_IMAGE_ASPECT_COLOR_BIT,
-                                      "harmonia.denoiser.prevGradient");
+                                            extent,
+                                            VK_FORMAT_R32G32_SFLOAT,
+                                            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                            VK_IMAGE_ASPECT_COLOR_BIT,
+                                            "harmonia.denoiser.prevGradient");
         if (!prevGrad) {
             core::Logger::error("SceneDenoiserPass prev-gradient image creation failed: VkResult {}",
-                          static_cast<int>(prevGrad.error()));
+                                static_cast<int>(prevGrad.error()));
             return false;
         }
         gradient = std::move(*grad);
@@ -372,14 +374,14 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
     // 1×1 R32G32F placeholder bound to bindings 6/7 when the gradient path is
     // disabled; keeps the push-descriptor set valid without any real read.
     auto dummyGrad = core::Image::create(*m_ctx,
-                                   {1U, 1U},
-                                   VK_FORMAT_R32G32_SFLOAT,
-                                   VK_IMAGE_USAGE_STORAGE_BIT,
-                                   VK_IMAGE_ASPECT_COLOR_BIT,
-                                   "harmonia.denoiser.dummyGradient");
+                                         {1U, 1U},
+                                         VK_FORMAT_R32G32_SFLOAT,
+                                         VK_IMAGE_USAGE_STORAGE_BIT,
+                                         VK_IMAGE_ASPECT_COLOR_BIT,
+                                         "harmonia.denoiser.dummyGradient");
     if (!dummyGrad) {
         core::Logger::error("SceneDenoiserPass dummy gradient image creation failed: VkResult {}",
-                      static_cast<int>(dummyGrad.error()));
+                            static_cast<int>(dummyGrad.error()));
         return false;
     }
 
@@ -391,7 +393,6 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
     m_dummyGradient = std::move(*dummyGrad);
     return true;
 }
-
 
 void SceneOutputCopyPass::resetHistory(std::uint64_t resetToken) noexcept {
     m_lastResetToken = resetToken;

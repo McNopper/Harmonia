@@ -8,9 +8,9 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
-#include "harmonia/utils/OutputColorSpace.hpp"
 #include "harmonia/presentation/ToneMapper.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 
 namespace harmonia::app {
 

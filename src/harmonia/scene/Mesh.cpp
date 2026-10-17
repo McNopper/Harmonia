@@ -11,8 +11,10 @@
 
 namespace harmonia::scene {
 
-std::expected<Mesh, VkResult>
-Mesh::create(const DeviceContext& ctx, const core::CommandPool& cmdPool, const MeshData& data, std::string_view debugName) {
+std::expected<Mesh, VkResult> Mesh::create(const DeviceContext& ctx,
+                                           const core::CommandPool& cmdPool,
+                                           const MeshData& data,
+                                           std::string_view debugName) {
     if (data.vertices.empty() || data.indices.empty()) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -22,23 +24,23 @@ Mesh::create(const DeviceContext& ctx, const core::CommandPool& cmdPool, const M
 
     const std::string baseName = debugName.empty() ? std::string{"mesh"} : std::string{debugName};
     auto vertexBuffer = core::Buffer::upload(ctx,
-                                       cmdPool,
-                                       vertexBytes,
-                                       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-                                           VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-                                       baseName + ".vertices");
+                                             cmdPool,
+                                             vertexBytes,
+                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                 VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                                                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+                                             baseName + ".vertices");
     if (!vertexBuffer) {
         return std::unexpected(vertexBuffer.error());
     }
 
     auto indexBuffer = core::Buffer::upload(ctx,
-                                      cmdPool,
-                                      indexBytes,
-                                      VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                          VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-                                          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-                                      baseName + ".indices");
+                                            cmdPool,
+                                            indexBytes,
+                                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                                                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+                                            baseName + ".indices");
     if (!indexBuffer) {
         return std::unexpected(indexBuffer.error());
     }

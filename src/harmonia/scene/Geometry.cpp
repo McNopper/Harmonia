@@ -1,5 +1,7 @@
 #include "harmonia/scene/Geometry.hpp"
+
 #include <volk/volk.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>

@@ -94,7 +94,8 @@ bool savePng(const DeviceContext& ctx,
 
     auto readback = readBackHdr(ctx, pool, hdrImage);
     if (!readback) {
-        core::Logger::error("harmonia::presentation::ImageCapture::savePng: read-back failed: VkResult {}", static_cast<int>(readback.error()));
+        core::Logger::error("harmonia::presentation::ImageCapture::savePng: read-back failed: VkResult {}",
+                            static_cast<int>(readback.error()));
         return false;
     }
 
@@ -126,7 +127,9 @@ bool savePng(const DeviceContext& ctx,
     OIIO::ImageSpec spec(static_cast<int>(width), static_cast<int>(height), 3, OIIO::TypeDesc::UINT8);
     auto out = OIIO::ImageOutput::create(path.string());
     if (!out || !out->open(path.string(), spec)) {
-        core::Logger::error("harmonia::presentation::ImageCapture::savePng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        core::Logger::error("harmonia::presentation::ImageCapture::savePng: OIIO failed to open '{}': {}",
+                            path.string(),
+                            OIIO::geterror());
         return false;
     }
     out->write_image(OIIO::TypeDesc::UINT8, pixels.data(), OIIO::AutoStride, static_cast<OIIO::stride_t>(stride));
@@ -148,7 +151,8 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
 
     auto readback = readBackHdr(ctx, pool, hdrImage);
     if (!readback) {
-        core::Logger::error("harmonia::presentation::ImageCapture::saveExr: read-back failed: VkResult {}", static_cast<int>(readback.error()));
+        core::Logger::error("harmonia::presentation::ImageCapture::saveExr: read-back failed: VkResult {}",
+                            static_cast<int>(readback.error()));
         return false;
     }
 
@@ -158,14 +162,17 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
     // Rec.2020 or Rec.709 primaries + D65 white point, as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
     const float chromaRec2020[8] = {0.708f, 0.292f, 0.170f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.3290f};
     const float chromaRec709[8] = {0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f, 0.3127f, 0.3290f};
-    const float* chroma = (workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec2020) ? chromaRec2020 : chromaRec709;
+    const float* chroma =
+        (workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec2020) ? chromaRec2020 : chromaRec709;
 
     OIIO::ImageSpec spec(w, h, 3, OIIO::TypeDesc::FLOAT);
     spec.attribute("chromaticities", OIIO::TypeDesc(OIIO::TypeDesc::FLOAT, 8), chroma);
 
     auto out = OIIO::ImageOutput::create(path.string());
     if (!out || !out->open(path.string(), spec)) {
-        core::Logger::error("harmonia::presentation::ImageCapture::saveExr: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        core::Logger::error("harmonia::presentation::ImageCapture::saveExr: OIIO failed to open '{}': {}",
+                            path.string(),
+                            OIIO::geterror());
         return false;
     }
 
@@ -230,7 +237,9 @@ bool saveSdrPng(const DeviceContext& ctx,
     OIIO::ImageSpec spec(static_cast<int>(width), static_cast<int>(height), 3, OIIO::TypeDesc::UINT8);
     auto out = OIIO::ImageOutput::create(path.string());
     if (!out || !out->open(path.string(), spec)) {
-        core::Logger::error("harmonia::presentation::ImageCapture::saveSdrPng: OIIO failed to open '{}': {}", path.string(), OIIO::geterror());
+        core::Logger::error("harmonia::presentation::ImageCapture::saveSdrPng: OIIO failed to open '{}': {}",
+                            path.string(),
+                            OIIO::geterror());
         return false;
     }
     out->write_image(OIIO::TypeDesc::UINT8, pixels.data());

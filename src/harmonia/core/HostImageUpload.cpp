@@ -4,9 +4,8 @@
 
 namespace harmonia::core {
 
-std::expected<HostImageUpload, VkResult> uploadHostImage(const DeviceContext& ctx,
-                                                         const CommandPool& cmdPool,
-                                                         const HostImageUploadDesc& desc) {
+std::expected<HostImageUpload, VkResult>
+uploadHostImage(const DeviceContext& ctx, const CommandPool& cmdPool, const HostImageUploadDesc& desc) {
     auto image = Image::create(ctx,
                                desc.extent,
                                desc.format,

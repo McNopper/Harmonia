@@ -145,9 +145,8 @@ VkResult Descriptors::updateSceneSet(const DeviceContext& ctx,
 
     // Bind each scene texture to binding 4 (bindless combined image sampler array).
     for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(textures.size()); ++i) {
-        m_sceneWriter.writeCombinedImageSampler(ctx, 4, i, textures[i].sampler(),
-                                                 textures[i].image().view(),
-                                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        m_sceneWriter.writeCombinedImageSampler(
+            ctx, 4, i, textures[i].sampler(), textures[i].image().view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
     return VK_SUCCESS;
 }
@@ -158,7 +157,9 @@ VkResult Descriptors::updateEnvMap(const DeviceContext& ctx, VkImageView view, V
     return VK_SUCCESS;
 }
 
-VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, const core::Buffer& marginalCdf, const core::Buffer& conditionalCdf) {
+VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx,
+                                          const core::Buffer& marginalCdf,
+                                          const core::Buffer& conditionalCdf) {
     // MOD1: typed descriptor buffer writes.
     m_sceneWriter.writeStorageBufferHandle(ctx, 8, marginalCdf);
     m_sceneWriter.writeStorageBufferHandle(ctx, 9, conditionalCdf);

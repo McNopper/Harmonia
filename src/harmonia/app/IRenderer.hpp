@@ -3,8 +3,8 @@
 
 #include <volk/volk.h>
 
-#include "harmonia/utils/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 
 namespace harmonia::app {
 

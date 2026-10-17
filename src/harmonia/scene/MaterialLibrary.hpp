@@ -50,9 +50,9 @@ class MaterialLibrary {
 
     /// Load material definitions from a .materials.toml file, converting color
     /// values into @p workingSpace. Returns false only if the file cannot be opened.
-    bool
-    load(const std::filesystem::path& path,
-         harmonia::utils::ColorSpace::WorkingColorSpace workingSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
+    bool load(const std::filesystem::path& path,
+              harmonia::utils::ColorSpace::WorkingColorSpace workingSpace =
+                  harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
 
     /// Look up a material by name.  Returns std::nullopt if not found.
     [[nodiscard]] std::optional<Material> get(const std::string& name) const;

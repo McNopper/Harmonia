@@ -42,7 +42,8 @@ class Descriptors {
                             const core::Buffer& emissiveCdfBuffer,
                             std::span<const scene::Texture> textures);
     VkResult updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler);
-    VkResult updateEnvImportance(const DeviceContext& ctx, const core::Buffer& marginalCdf, const core::Buffer& conditionalCdf);
+    VkResult
+    updateEnvImportance(const DeviceContext& ctx, const core::Buffer& marginalCdf, const core::Buffer& conditionalCdf);
 
     /// MOD1: update set 0 (per-frame AS + images + camera UBO) via descriptor buffer.
     VkResult updateFrameSet(const DeviceContext& ctx,
@@ -63,8 +64,8 @@ class Descriptors {
     harmonia::core::UniqueDescriptorSetLayout m_set0Layout;
     harmonia::core::UniqueDescriptorSetLayout m_set1Layout;
     /// MOD1: descriptor buffer writers replace the pool + sets.
-    core::DescriptorBufferWriter m_frameWriter;  ///< set 0: per-frame AS + images + camera UBO
-    core::DescriptorBufferWriter m_sceneWriter;  ///< set 1: scene buffers + bindless textures
+    core::DescriptorBufferWriter m_frameWriter; ///< set 0: per-frame AS + images + camera UBO
+    core::DescriptorBufferWriter m_sceneWriter; ///< set 1: scene buffers + bindless textures
     harmonia::core::UniquePipelineLayout m_pipelineLayout;
 };
 

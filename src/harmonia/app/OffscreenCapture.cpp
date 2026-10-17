@@ -30,22 +30,23 @@ bool OffscreenCapture::tonemapToCaptureImage(const DeviceContext& ctx,
 
     if (m_captureToneMapper.isValid() == false) {
         const std::filesystem::path shaderDir = HARMONIA_SHADER_DIR;
-        auto toneMapper =
-            presentation::ToneMapper::create(ctx, kCaptureFormat, shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
+        auto toneMapper = presentation::ToneMapper::create(
+            ctx, kCaptureFormat, shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
         if (!toneMapper) {
-            core::Logger::error("Capture tone mapper creation failed: VkResult {}", static_cast<int>(toneMapper.error()));
+            core::Logger::error("Capture tone mapper creation failed: VkResult {}",
+                                static_cast<int>(toneMapper.error()));
             return false;
         }
         m_captureToneMapper = std::move(*toneMapper);
     }
 
     auto img = core::Image::create(ctx,
-                             extent,
-                             kCaptureFormat,
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                 VK_IMAGE_USAGE_SAMPLED_BIT,
-                             VK_IMAGE_ASPECT_COLOR_BIT,
-                             "harmonia.displayCapture");
+                                   extent,
+                                   kCaptureFormat,
+                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                       VK_IMAGE_USAGE_SAMPLED_BIT,
+                                   VK_IMAGE_ASPECT_COLOR_BIT,
+                                   "harmonia.displayCapture");
     if (!img) {
         core::Logger::error("Display capture image creation failed: VkResult {}", static_cast<int>(img.error()));
         return false;
@@ -59,19 +60,19 @@ bool OffscreenCapture::tonemapToCaptureImage(const DeviceContext& ctx,
 
     const std::array preBarriers{
         core::imageBarrier(sceneOutput.handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     srcStage,
-                     srcAccess,
-                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           srcStage,
+                           srcAccess,
+                           VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT),
         core::imageBarrier(m_displayCaptureImage.handle(),
-                     VK_IMAGE_LAYOUT_UNDEFINED,
-                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_NONE,
-                     0,
-                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_UNDEFINED,
+                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                           VK_PIPELINE_STAGE_2_NONE,
+                           0,
+                           VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                           VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
     };
     core::pipelineBarrier(*cmd, preBarriers);
 
@@ -85,12 +86,12 @@ bool OffscreenCapture::tonemapToCaptureImage(const DeviceContext& ctx,
 
     const std::array postBarriers{
         core::imageBarrier(m_displayCaptureImage.handle(),
-                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_READ_BIT),
+                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                           VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_READ_BIT),
     };
     core::pipelineBarrier(*cmd, postBarriers);
 

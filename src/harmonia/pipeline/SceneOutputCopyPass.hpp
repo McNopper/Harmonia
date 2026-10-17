@@ -121,7 +121,7 @@ class SceneOutputCopyPass final : public IRenderPass {
     core::Image m_gradientImage{};      ///< A-SVGF R32G32F gradient/variance (binding 6); full-res, history lifetime
     core::Image m_prevGradientImage{};  ///< A-SVGF R32G32F previous gradient/variance (binding 7)
     core::Image m_dummyGradient{};      ///< 1×1 R32G32F fallback bound to bindings 6/7 when useGradient is off
-    Settings m_settings;          // Default-initialized (uses NSDMIs from SceneOutputCopyPassSettings)
+    Settings m_settings;                // Default-initialized (uses NSDMIs from SceneOutputCopyPassSettings)
     VkExtent2D m_extent{};
     std::uint64_t m_lastResetToken = 0U;
     bool m_firstUse = true;

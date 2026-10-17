@@ -108,7 +108,8 @@ namespace {
 
 // ── MaterialLibrary ───────────────────────────────────────────────────────
 
-bool MaterialLibrary::load(const std::filesystem::path& path, harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
+bool MaterialLibrary::load(const std::filesystem::path& path,
+                           harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
     aether::MaterialLibrary parsed;
     if (!parsed.load(path)) {
         core::Logger::error("MaterialLibrary: cannot open '{}'", path.string());
@@ -130,7 +131,8 @@ bool MaterialLibrary::load(const std::filesystem::path& path, harmonia::utils::C
         m_textureRefs.insert_or_assign(name, std::move(refs));
     }
 
-    core::Logger::info("MaterialLibrary: loaded {} material(s) from '{}'", m_materials.size(), path.filename().string());
+    core::Logger::info(
+        "MaterialLibrary: loaded {} material(s) from '{}'", m_materials.size(), path.filename().string());
     return true;
 }
 

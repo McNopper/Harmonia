@@ -1,8 +1,6 @@
 // AppPresent.cpp - the interactive display path of App: frame acquire,
 // present barriers/submit, resize handling, and the main loop. Methods
 // of harmonia::app::App split out of App.cpp (TU split, no behavior change).
-#include "harmonia/app/App.hpp"
-#include "harmonia/app/AppDetail.hpp"
 #include <algorithm>
 #include <bit>
 #include <charconv>
@@ -16,6 +14,9 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+
+#include "harmonia/app/App.hpp"
+#include "harmonia/app/AppDetail.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
@@ -62,12 +63,12 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     if (!hasTonemapStage() && !m_config.displayOverlay) {
         const std::array toGeneral{
             core::imageBarrier(m_swapchain.image(*imageIndex),
-                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                               VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                               VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
         core::pipelineBarrier(m_frameSync.displayCmd(slot), toGeneral);
         const VkClearColorValue clear{
@@ -92,12 +93,12 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
         }
         const std::array displayPreBarriers{
             core::imageBarrier(m_swapchain.image(*imageIndex),
-                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                         VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                               VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                               VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT),
         };
         core::pipelineBarrier(m_frameSync.displayCmd(slot), displayPreBarriers);
         swapchainInGeneral = true;
@@ -114,13 +115,13 @@ void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
 
     const std::array presentBarrier{
         core::imageBarrier(m_swapchain.image(*imageIndex),
-                     swapchainInGeneral ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                     VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                     swapchainInGeneral ? VK_PIPELINE_STAGE_2_TRANSFER_BIT
-                                        : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     swapchainInGeneral ? VK_ACCESS_2_TRANSFER_WRITE_BIT : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_NONE,
-                     0),
+                           swapchainInGeneral ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                           swapchainInGeneral ? VK_PIPELINE_STAGE_2_TRANSFER_BIT
+                                              : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                           swapchainInGeneral ? VK_ACCESS_2_TRANSFER_WRITE_BIT : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_NONE,
+                           0),
     };
     core::pipelineBarrier(m_frameSync.displayCmd(slot), presentBarrier);
 
@@ -162,19 +163,19 @@ std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
 void App::recordDisplayBarriers(VkCommandBuffer cmd, std::uint32_t imageIndex) noexcept {
     const std::array preToneMapBarriers{
         core::imageBarrier(sceneOutputImage().handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     sceneOutputStageMask(),
-                     sceneOutputAccessMask(),
-                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           sceneOutputStageMask(),
+                           sceneOutputAccessMask(),
+                           VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT),
         core::imageBarrier(m_swapchain.image(imageIndex),
-                     m_frameSync.swapchainLayout(imageIndex),
-                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_NONE,
-                     0,
-                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
+                           m_frameSync.swapchainLayout(imageIndex),
+                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                           VK_PIPELINE_STAGE_2_NONE,
+                           0,
+                           VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                           VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT),
     };
     core::pipelineBarrier(cmd, preToneMapBarriers);
 }
@@ -228,11 +229,11 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
         },
     }};
     const VkResult result = core::submitOneShot(m_context.deviceContext().graphicsQueue,
-                                          m_frameSync.displayCmd(slot),
-                                          VK_NULL_HANDLE,
-                                          0,
-                                          waitInfos,
-                                          signalInfos);
+                                                m_frameSync.displayCmd(slot),
+                                                VK_NULL_HANDLE,
+                                                0,
+                                                waitInfos,
+                                                signalInfos);
     if (result != VK_SUCCESS) {
         core::Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
         return result;
@@ -306,7 +307,6 @@ int App::mainLoop() {
     return 0;
 }
 
-
 void App::handleResize(std::uint32_t w, std::uint32_t h) {
     if (w == 0U || h == 0U || m_context.deviceContext().device == VK_NULL_HANDLE) {
         return;
@@ -355,7 +355,5 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
     renderer().onResize(m_swapchain.extent());
     onResized(m_swapchain.extent());
 }
-
-
 
 } // namespace harmonia::app

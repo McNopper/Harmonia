@@ -3,17 +3,18 @@
 // barrier choreography and the image round-trip. Methods of
 // harmonia::pipeline::SceneOutputCopyPass split out of SceneOutputCopyPass.cpp
 // (TU split, no behavior change).
-#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>
 #include <cstdint>
 #include <utility>
+
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
+#include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/pipeline/SceneOutputCopyPassDetail.hpp"
 
 namespace harmonia::pipeline {
@@ -24,44 +25,44 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
                                                 bool useGradient) noexcept {
     const std::array preComputeBarriers{
         core::imageBarrier(hdrImage,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                           VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT),
         core::imageBarrier(denoisedImage,
-                     m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     m_firstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           m_firstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         core::imageBarrier(m_workImage.handle(),
-                     m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     m_firstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           m_firstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         core::imageBarrier(m_historyImage.handle(),
-                     m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     m_historyFirstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           m_historyFirstUse ? 0U : VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         // Dummy 1×1 R32G32F image always bound at binding 5; transition UNDEFINED→GENERAL
         // on first use so the descriptor's imageLayout claim is valid even when no real
         // motion-vector pass has run (hasMotionVectors == 0 prevents any actual read).
         core::imageBarrier(m_dummyMotionVectors.handle(),
-                     m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     m_firstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           m_firstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
     core::pipelineBarrier(cmd, preComputeBarriers);
 
@@ -72,30 +73,30 @@ void SceneOutputCopyPass::barrierForComputeRead(VkCommandBuffer cmd,
     if (useGradient) {
         const std::array gradientBarriers{
             core::imageBarrier(m_gradientImage.handle(),
-                         m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                         m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                               m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                               VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
             core::imageBarrier(m_prevGradientImage.handle(),
-                         m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                         m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                               m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                               VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         };
         core::pipelineBarrier(cmd, gradientBarriers);
     } else {
         const std::array dummyGradientBarrier{
             core::imageBarrier(m_dummyGradient.handle(),
-                         m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                         VK_IMAGE_LAYOUT_GENERAL,
-                         m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                         m_firstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
-                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                               m_firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               m_firstUse ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               m_firstUse ? 0U : (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                               VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         };
         core::pipelineBarrier(cmd, dummyGradientBarrier);
     }
@@ -297,12 +298,12 @@ VkImage SceneOutputCopyPass::recordSpatialPasses(VkCommandBuffer cmd,
         if (passIndex + 1U < iterations) {
             const std::array passBarrier{
                 core::imageBarrier(currentSource,
-                             VK_IMAGE_LAYOUT_GENERAL,
-                             VK_IMAGE_LAYOUT_GENERAL,
-                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                             VK_ACCESS_2_SHADER_WRITE_BIT,
-                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                             VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                                   VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_SHADER_WRITE_BIT,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
             };
             core::pipelineBarrier(cmd, passBarrier);
         }
@@ -319,19 +320,19 @@ void SceneOutputCopyPass::copyImageRoundTrip(VkCommandBuffer cmd,
                                              VkPipelineStageFlags2 restoreStage) noexcept {
     const std::array copyPrep{
         core::imageBarrier(srcImage,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     preSrcAccess,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_READ_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           preSrcAccess,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_READ_BIT),
         core::imageBarrier(dstImage,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     preSrcAccess,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           preSrcAccess,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT),
     };
     core::pipelineBarrier(cmd, copyPrep);
 
@@ -352,19 +353,19 @@ void SceneOutputCopyPass::copyImageRoundTrip(VkCommandBuffer cmd,
 
     const std::array copyRestore{
         core::imageBarrier(srcImage,
-                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_READ_BIT,
-                     restoreStage,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_READ_BIT,
+                           restoreStage,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         core::imageBarrier(dstImage,
-                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                     restoreStage,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                           restoreStage,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
     core::pipelineBarrier(cmd, copyRestore);
 }
@@ -572,19 +573,19 @@ void SceneOutputCopyPass::recordGradientBlur(VkCommandBuffer cmd,
 
             const std::array gradPassBarriers{
                 core::imageBarrier(gradSrcImage,
-                             VK_IMAGE_LAYOUT_GENERAL,
-                             VK_IMAGE_LAYOUT_GENERAL,
-                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                             VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
-                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                             VK_ACCESS_2_SHADER_READ_BIT),
+                                   VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_SHADER_READ_BIT),
                 core::imageBarrier(gradDstImage,
-                             VK_IMAGE_LAYOUT_GENERAL,
-                             VK_IMAGE_LAYOUT_GENERAL,
-                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                             VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
-                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                             VK_ACCESS_2_SHADER_WRITE_BIT),
+                                   VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_SHADER_WRITE_BIT),
             };
             core::pipelineBarrier(cmd, gradPassBarriers);
 
@@ -659,38 +660,37 @@ void SceneOutputCopyPass::recordGradientBlur(VkCommandBuffer cmd,
 void SceneOutputCopyPass::restoreBarriers(VkCommandBuffer cmd, VkImage hdrImage, VkImage denoisedImage) noexcept {
     const std::array restoreBarriers{
         core::imageBarrier(hdrImage,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT,
-                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
-                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT,
+                           VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
         core::imageBarrier(denoisedImage,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
-                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
         core::imageBarrier(m_workImage.handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         core::imageBarrier(m_historyImage.handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
     core::pipelineBarrier(cmd, restoreBarriers);
 }
-
 
 } // namespace harmonia::pipeline

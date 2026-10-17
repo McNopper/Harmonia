@@ -4,8 +4,10 @@
 
 namespace harmonia::core {
 
-bool DescriptorBufferWriter::init(const DeviceContext& ctx, VkDescriptorSetLayout setLayout,
-                                  std::uint32_t numBindings, const char* name) {
+bool DescriptorBufferWriter::init(const DeviceContext& ctx,
+                                  VkDescriptorSetLayout setLayout,
+                                  std::uint32_t numBindings,
+                                  const char* name) {
     // Query descriptor buffer properties.
     VkPhysicalDeviceDescriptorBufferPropertiesEXT props{};
     props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
@@ -30,13 +32,15 @@ bool DescriptorBufferWriter::init(const DeviceContext& ctx, VkDescriptorSetLayou
     }
 
     // Create a host-visible descriptor buffer.
-    auto buf = Buffer::create(ctx, std::max<VkDeviceSize>(m_layoutSize, 256),
-                              VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
-                                  VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                              VMA_MEMORY_USAGE_AUTO_PREFER_HOST, name);
+    auto buf =
+        Buffer::create(ctx,
+                       std::max<VkDeviceSize>(m_layoutSize, 256),
+                       VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                       name);
     if (!buf) {
-        Logger::error("DescriptorBufferWriter: failed to create buffer '{}': VkResult {}", name,
-                      static_cast<int>(buf.error()));
+        Logger::error(
+            "DescriptorBufferWriter: failed to create buffer '{}': VkResult {}", name, static_cast<int>(buf.error()));
         return false;
     }
     m_buffer = std::move(*buf);
@@ -65,42 +69,46 @@ void DescriptorBufferWriter::writeRaw(VkDeviceSize offset, const void* data, std
     std::memcpy(static_cast<std::uint8_t*>(m_buffer.mappedData()) + offset, data, size);
 }
 
-void DescriptorBufferWriter::writeDescriptor(const DeviceContext& ctx, const VkDescriptorGetInfoEXT& info,
-                                             std::uint32_t type, VkDeviceSize offset) {
+void DescriptorBufferWriter::writeDescriptor(const DeviceContext& ctx,
+                                             const VkDescriptorGetInfoEXT& info,
+                                             std::uint32_t type,
+                                             VkDeviceSize offset) {
     VkDeviceSize descSize = 0;
     switch (type) {
-        case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-            descSize = m_storageBufDescSize;
-            break;
-        case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-            descSize = m_uniformBufDescSize;
-            break;
-        case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-            descSize = m_storageImgDescSize;
-            break;
-        case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-            descSize = m_sampledImgDescSize;
-            break;
-        case VK_DESCRIPTOR_TYPE_SAMPLER:
-            descSize = m_samplerDescSize;
-            break;
-        case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-            descSize = m_combinedImgSamplerDescSize;
-            break;
-        case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-            descSize = m_accelStructDescSize;
-            break;
-        default:
-            Logger::error("DescriptorBufferWriter: unsupported descriptor type {}", type);
-            return;
+    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+        descSize = m_storageBufDescSize;
+        break;
+    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+        descSize = m_uniformBufDescSize;
+        break;
+    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+        descSize = m_storageImgDescSize;
+        break;
+    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+        descSize = m_sampledImgDescSize;
+        break;
+    case VK_DESCRIPTOR_TYPE_SAMPLER:
+        descSize = m_samplerDescSize;
+        break;
+    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+        descSize = m_combinedImgSamplerDescSize;
+        break;
+    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+        descSize = m_accelStructDescSize;
+        break;
+    default:
+        Logger::error("DescriptorBufferWriter: unsupported descriptor type {}", type);
+        return;
     }
     alignas(16) std::uint8_t data[256] = {};
     vkGetDescriptorEXT(ctx.device, &info, descSize, data);
     writeRaw(offset, data, descSize);
 }
 
-void DescriptorBufferWriter::writeStorageBuffer(const DeviceContext& ctx, std::uint32_t binding,
-                                                VkDeviceAddress address, VkDeviceSize range) {
+void DescriptorBufferWriter::writeStorageBuffer(const DeviceContext& ctx,
+                                                std::uint32_t binding,
+                                                VkDeviceAddress address,
+                                                VkDeviceSize range) {
     const VkDescriptorAddressInfoEXT addrInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT,
         .pNext = nullptr,
@@ -117,8 +125,10 @@ void DescriptorBufferWriter::writeStorageBuffer(const DeviceContext& ctx, std::u
     writeDescriptor(ctx, info, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, bindingOffset(binding));
 }
 
-void DescriptorBufferWriter::writeUniformBuffer(const DeviceContext& ctx, std::uint32_t binding,
-                                                VkDeviceAddress address, VkDeviceSize range) {
+void DescriptorBufferWriter::writeUniformBuffer(const DeviceContext& ctx,
+                                                std::uint32_t binding,
+                                                VkDeviceAddress address,
+                                                VkDeviceSize range) {
     const VkDescriptorAddressInfoEXT addrInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT,
         .pNext = nullptr,
@@ -135,13 +145,16 @@ void DescriptorBufferWriter::writeUniformBuffer(const DeviceContext& ctx, std::u
     writeDescriptor(ctx, info, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, bindingOffset(binding));
 }
 
-void DescriptorBufferWriter::writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
+void DescriptorBufferWriter::writeUniformBufferHandle(const DeviceContext& ctx,
+                                                      std::uint32_t binding,
                                                       const Buffer& buffer) {
     writeUniformBufferHandle(ctx, binding, buffer.handle(), buffer.size());
 }
 
-void DescriptorBufferWriter::writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
-                                                      VkBuffer buffer, VkDeviceSize size) {
+void DescriptorBufferWriter::writeUniformBufferHandle(const DeviceContext& ctx,
+                                                      std::uint32_t binding,
+                                                      VkBuffer buffer,
+                                                      VkDeviceSize size) {
     if (buffer == VK_NULL_HANDLE) {
         writeUniformBuffer(ctx, binding, 0, VK_WHOLE_SIZE);
         return;
@@ -151,13 +164,16 @@ void DescriptorBufferWriter::writeUniformBufferHandle(const DeviceContext& ctx, 
     writeUniformBuffer(ctx, binding, vkGetBufferDeviceAddress(ctx.device, &addrInfo), size);
 }
 
-void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
+void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx,
+                                                      std::uint32_t binding,
                                                       const Buffer& buffer) {
     writeStorageBufferHandle(ctx, binding, buffer.handle(), buffer.size());
 }
 
-void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding,
-                                                      VkBuffer buffer, VkDeviceSize size) {
+void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx,
+                                                      std::uint32_t binding,
+                                                      VkBuffer buffer,
+                                                      VkDeviceSize size) {
     // VK14 nullDescriptor: a null handle produces a null descriptor (reads return zeros).
     if (buffer == VK_NULL_HANDLE) {
         writeStorageBuffer(ctx, binding, 0, VK_WHOLE_SIZE);
@@ -168,8 +184,10 @@ void DescriptorBufferWriter::writeStorageBufferHandle(const DeviceContext& ctx, 
     writeStorageBuffer(ctx, binding, vkGetBufferDeviceAddress(ctx.device, &addrInfo), size);
 }
 
-void DescriptorBufferWriter::writeStorageImage(const DeviceContext& ctx, std::uint32_t binding,
-                                               VkImageView imageView, VkImageLayout layout) {
+void DescriptorBufferWriter::writeStorageImage(const DeviceContext& ctx,
+                                               std::uint32_t binding,
+                                               VkImageView imageView,
+                                               VkImageLayout layout) {
     const VkDescriptorImageInfo imgInfo{VK_NULL_HANDLE, imageView, layout};
     const VkDescriptorGetInfoEXT info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT,
@@ -180,8 +198,10 @@ void DescriptorBufferWriter::writeStorageImage(const DeviceContext& ctx, std::ui
     writeDescriptor(ctx, info, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, bindingOffset(binding));
 }
 
-void DescriptorBufferWriter::writeSampledImage(const DeviceContext& ctx, std::uint32_t binding,
-                                               VkImageView imageView, VkImageLayout layout) {
+void DescriptorBufferWriter::writeSampledImage(const DeviceContext& ctx,
+                                               std::uint32_t binding,
+                                               VkImageView imageView,
+                                               VkImageLayout layout) {
     const VkDescriptorImageInfo imgInfo{VK_NULL_HANDLE, imageView, layout};
     const VkDescriptorGetInfoEXT info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT,
@@ -202,9 +222,12 @@ void DescriptorBufferWriter::writeSampler(const DeviceContext& ctx, std::uint32_
     writeDescriptor(ctx, info, VK_DESCRIPTOR_TYPE_SAMPLER, bindingOffset(binding));
 }
 
-void DescriptorBufferWriter::writeCombinedImageSampler(const DeviceContext& ctx, std::uint32_t binding,
-                                                       std::uint32_t arrayElement, VkSampler sampler,
-                                                       VkImageView imageView, VkImageLayout layout) {
+void DescriptorBufferWriter::writeCombinedImageSampler(const DeviceContext& ctx,
+                                                       std::uint32_t binding,
+                                                       std::uint32_t arrayElement,
+                                                       VkSampler sampler,
+                                                       VkImageView imageView,
+                                                       VkImageLayout layout) {
     const VkDescriptorImageInfo imgInfo{sampler, imageView, layout};
     const VkDescriptorGetInfoEXT info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT,
@@ -213,11 +236,14 @@ void DescriptorBufferWriter::writeCombinedImageSampler(const DeviceContext& ctx,
         .data = {.pCombinedImageSampler = &imgInfo},
     };
     // Array elements are consecutive: offset = bindingOffset + arrayElement * descriptorSize.
-    writeDescriptor(ctx, info, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    writeDescriptor(ctx,
+                    info,
+                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                     bindingOffset(binding) + arrayElement * m_combinedImgSamplerDescSize);
 }
 
-void DescriptorBufferWriter::writeAccelerationStructure(const DeviceContext& ctx, std::uint32_t binding,
+void DescriptorBufferWriter::writeAccelerationStructure(const DeviceContext& ctx,
+                                                        std::uint32_t binding,
                                                         VkAccelerationStructureKHR as) {
     // VkDescriptorDataEXT::accelerationStructure is a VkDeviceAddress, not a handle.
     const VkAccelerationStructureDeviceAddressInfoKHR addrInfo{
@@ -234,7 +260,9 @@ void DescriptorBufferWriter::writeAccelerationStructure(const DeviceContext& ctx
     writeDescriptor(ctx, info, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, bindingOffset(binding));
 }
 
-void DescriptorBufferWriter::bind(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipelineLayout layout,
+void DescriptorBufferWriter::bind(VkCommandBuffer cmd,
+                                  VkPipelineBindPoint bindPoint,
+                                  VkPipelineLayout layout,
                                   std::uint32_t firstSet) const {
     const VkDescriptorBufferBindingInfoEXT bindingInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,
@@ -248,10 +276,13 @@ void DescriptorBufferWriter::bind(VkCommandBuffer cmd, VkPipelineBindPoint bindP
     vkCmdSetDescriptorBufferOffsetsEXT(cmd, bindPoint, layout, firstSet, 1, &bufferIndex, &offset);
 }
 
-void DescriptorBufferWriter::bindSets(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipelineLayout layout,
-                                       std::uint32_t firstSet,
-                                       std::span<const DescriptorBufferWriter* const> writers) {
-    if (writers.empty()) return;
+void DescriptorBufferWriter::bindSets(VkCommandBuffer cmd,
+                                      VkPipelineBindPoint bindPoint,
+                                      VkPipelineLayout layout,
+                                      std::uint32_t firstSet,
+                                      std::span<const DescriptorBufferWriter* const> writers) {
+    if (writers.empty())
+        return;
     // Bind all descriptor buffers.
     std::vector<VkDescriptorBufferBindingInfoEXT> bindingInfos;
     bindingInfos.reserve(writers.size());
@@ -267,9 +298,14 @@ void DescriptorBufferWriter::bindSets(VkCommandBuffer cmd, VkPipelineBindPoint b
     // Set offsets: each writer is one set at offset 0 in its own buffer.
     std::vector<std::uint32_t> bufferIndices(writers.size());
     std::vector<VkDeviceSize> offsets(writers.size(), 0);
-    for (std::size_t i = 0; i < writers.size(); ++i) bufferIndices[i] = static_cast<std::uint32_t>(i);
-    vkCmdSetDescriptorBufferOffsetsEXT(cmd, bindPoint, layout, firstSet,
-                                       static_cast<std::uint32_t>(writers.size()), bufferIndices.data(),
+    for (std::size_t i = 0; i < writers.size(); ++i)
+        bufferIndices[i] = static_cast<std::uint32_t>(i);
+    vkCmdSetDescriptorBufferOffsetsEXT(cmd,
+                                       bindPoint,
+                                       layout,
+                                       firstSet,
+                                       static_cast<std::uint32_t>(writers.size()),
+                                       bufferIndices.data(),
                                        offsets.data());
 }
 

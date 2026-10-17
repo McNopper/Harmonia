@@ -9,8 +9,8 @@
 #include <span>
 #include <vector>
 
-#include "harmonia/core/Buffer.hpp"
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/Buffer.hpp"
 
 namespace harmonia::core {
 
@@ -28,22 +28,21 @@ namespace harmonia::core {
 /// The set layout must have VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT.
 /// The pipeline must have VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT.
 class DescriptorBufferWriter {
-public:
+  public:
     /// Initialize: query descriptor sizes + binding offsets, create the descriptor buffer.
     /// @param ctx Device context (for device + physicalDevice + allocator)
     /// @param setLayout The descriptor set layout (must have DESCRIPTOR_BUFFER_BIT)
     /// @param numBindings Number of bindings in the set layout (max binding index + 1)
     /// @param name Buffer debug name
     /// @return true on success
-    bool init(const DeviceContext& ctx, VkDescriptorSetLayout setLayout, std::uint32_t numBindings,
-              const char* name);
+    bool init(const DeviceContext& ctx, VkDescriptorSetLayout setLayout, std::uint32_t numBindings, const char* name);
 
     /// Release the descriptor buffer.
     void shutdown();
 
     /// Write a uniform buffer descriptor at the given binding.
-    void writeUniformBuffer(const DeviceContext& ctx, std::uint32_t binding, VkDeviceAddress address,
-                            VkDeviceSize range);
+    void
+    writeUniformBuffer(const DeviceContext& ctx, std::uint32_t binding, VkDeviceAddress address, VkDeviceSize range);
 
     /// Write a uniform buffer descriptor at the given binding. The descriptor range is the
     /// buffer's true creation size (VUID-VkDescriptorAddressInfoEXT-range-08045: range must be
@@ -52,32 +51,34 @@ public:
 
     /// Raw-handle variant: VK_NULL_HANDLE writes a null descriptor (VK14 nullDescriptor);
     /// otherwise the caller MUST pass the buffer's creation size (see above).
-    void writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer,
-                                  VkDeviceSize size);
+    void writeUniformBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer, VkDeviceSize size);
 
     /// Write a storage buffer descriptor at the given binding (see writeUniformBufferHandle).
     void writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding, const Buffer& buffer);
 
     /// Raw-handle variant (see writeUniformBufferHandle).
-    void writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer,
-                                  VkDeviceSize size);
-    void writeStorageBuffer(const DeviceContext& ctx, std::uint32_t binding, VkDeviceAddress address,
-                            VkDeviceSize range);
+    void writeStorageBufferHandle(const DeviceContext& ctx, std::uint32_t binding, VkBuffer buffer, VkDeviceSize size);
+    void
+    writeStorageBuffer(const DeviceContext& ctx, std::uint32_t binding, VkDeviceAddress address, VkDeviceSize range);
 
     /// Write a storage image descriptor at the given binding.
-    void writeStorageImage(const DeviceContext& ctx, std::uint32_t binding, VkImageView imageView,
-                           VkImageLayout layout);
+    void
+    writeStorageImage(const DeviceContext& ctx, std::uint32_t binding, VkImageView imageView, VkImageLayout layout);
 
     /// Write a sampled image descriptor at the given binding.
-    void writeSampledImage(const DeviceContext& ctx, std::uint32_t binding, VkImageView imageView,
-                           VkImageLayout layout);
+    void
+    writeSampledImage(const DeviceContext& ctx, std::uint32_t binding, VkImageView imageView, VkImageLayout layout);
 
     /// Write a sampler descriptor at the given binding.
     void writeSampler(const DeviceContext& ctx, std::uint32_t binding, VkSampler sampler);
 
     /// Write a combined image sampler descriptor at the given binding + array element.
-    void writeCombinedImageSampler(const DeviceContext& ctx, std::uint32_t binding, std::uint32_t arrayElement,
-                                   VkSampler sampler, VkImageView imageView, VkImageLayout layout);
+    void writeCombinedImageSampler(const DeviceContext& ctx,
+                                   std::uint32_t binding,
+                                   std::uint32_t arrayElement,
+                                   VkSampler sampler,
+                                   VkImageView imageView,
+                                   VkImageLayout layout);
 
     /// Write an acceleration structure descriptor at the given binding.
     void writeAccelerationStructure(const DeviceContext& ctx, std::uint32_t binding, VkAccelerationStructureKHR as);
@@ -85,14 +86,17 @@ public:
     /// Bind the descriptor buffer for the given set range.
     /// @param firstSet First set index in the pipeline layout
     /// @param setCount Number of sets (always 1 for a single-set writer)
-    void bind(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipelineLayout layout,
-              std::uint32_t firstSet = 0) const;
+    void
+    bind(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, std::uint32_t firstSet = 0) const;
 
     /// Bind multiple descriptor buffer writers as consecutive sets.
     /// @param writers Array of writer pointers (each provides one set)
     /// @param firstSet First set index in the pipeline layout
-    static void bindSets(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipelineLayout layout,
-                         std::uint32_t firstSet, std::span<const DescriptorBufferWriter* const> writers);
+    static void bindSets(VkCommandBuffer cmd,
+                         VkPipelineBindPoint bindPoint,
+                         VkPipelineLayout layout,
+                         std::uint32_t firstSet,
+                         std::span<const DescriptorBufferWriter* const> writers);
 
     /// Get the device address of the descriptor buffer (for advanced use).
     [[nodiscard]] VkDeviceAddress deviceAddress() const { return m_buffer.deviceAddress(); }
@@ -103,7 +107,7 @@ public:
     /// Get the total layout size (bytes) of the descriptor buffer.
     [[nodiscard]] VkDeviceSize layoutSize() const { return m_layoutSize; }
 
-private:
+  private:
     /// Get the offset for a binding.
     [[nodiscard]] VkDeviceSize bindingOffset(std::uint32_t binding) const;
 
@@ -111,7 +115,9 @@ private:
     void writeRaw(VkDeviceSize offset, const void* data, std::size_t size);
 
     /// Generate a descriptor via vkGetDescriptorEXT and write it at the given offset.
-    void writeDescriptor(const DeviceContext& ctx, const VkDescriptorGetInfoEXT& info, std::uint32_t type,
+    void writeDescriptor(const DeviceContext& ctx,
+                         const VkDescriptorGetInfoEXT& info,
+                         std::uint32_t type,
                          VkDeviceSize offset);
 
     Buffer m_buffer;

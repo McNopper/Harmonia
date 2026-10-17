@@ -146,9 +146,9 @@ struct SceneLoadContext {
     ISceneBuilder& scene;
     SceneConfig& cfg;
     MaterialLibrary lib{};
-    std::unordered_map<std::string, std::uint32_t> texCache{};          // relPath → texture index
-    std::unordered_map<std::string, bool> meshAlphaTested{};            // whole-mesh material
-    std::unordered_set<std::string> groupAlphaTested{};                 // "<mesh>\0<group>"
+    std::unordered_map<std::string, std::uint32_t> texCache{}; // relPath → texture index
+    std::unordered_map<std::string, bool> meshAlphaTested{};   // whole-mesh material
+    std::unordered_set<std::string> groupAlphaTested{};        // "<mesh>\0<group>"
     std::unordered_map<std::string, std::vector<LoadedSubmesh>> meshSubmeshes{};
 };
 
@@ -170,7 +170,7 @@ void applyWorkingColorSpace(const aether::SceneDesc& desc, SceneConfig& cfg) {
             cfg.workingColorSpace = *ws;
         else
             core::Logger::warn("SceneLoader: unknown working_color_space '{}' — using lin_rec2020_scene",
-                         *desc.workingColorSpace);
+                               *desc.workingColorSpace);
     }
 }
 
@@ -205,9 +205,9 @@ void applyRenderSettings(const aether::SceneDesc& desc, SceneConfig& cfg) {
     }
 }
 
-    // ── renderer::Camera ────────────────────────────────────────────────────────────────
-    // The camera's placement is a plain TRS transform — identical in shape to an
-    // instance's. Forward/up are derived from the rotation quaternion.
+// ── renderer::Camera ────────────────────────────────────────────────────────────────
+// The camera's placement is a plain TRS transform — identical in shape to an
+// instance's. Forward/up are derived from the rotation quaternion.
 void applyCamera(const aether::CameraDesc& cam, SceneConfig& cfg) {
     if (cam.translation)
         cfg.cameraPos = *cam.translation;
@@ -254,8 +254,8 @@ void loadMaterialTextures(SceneLoadContext& c, const std::string& matName) {
             continue;
         }
 
-        auto result =
-            Texture::loadFromFile(c.ctx, c.pool, c.assetsDir / relPath, ref->colorSpace, c.cfg.workingColorSpace, matName);
+        auto result = Texture::loadFromFile(
+            c.ctx, c.pool, c.assetsDir / relPath, ref->colorSpace, c.cfg.workingColorSpace, matName);
         if (!result) {
             core::Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
             continue;
@@ -288,9 +288,7 @@ void computeAlphaTested(SceneLoadContext& c, const aether::SceneDesc& desc) {
     }
 }
 
-[[nodiscard]] bool isAlphaTested(const SceneLoadContext& c,
-                                 const std::string& meshName,
-                                 const std::string& groupName) {
+[[nodiscard]] bool isAlphaTested(const SceneLoadContext& c, const std::string& meshName, const std::string& groupName) {
     return c.meshAlphaTested.contains(meshName) || c.groupAlphaTested.contains(meshName + '\0' + groupName);
 }
 
@@ -304,8 +302,8 @@ resolveMicromaps(SceneLoadContext& c, const aether::MeshDesc& m) {
     // an image-identical absent-branch). Fail fast if the device lacks it.
     if (!m.opacityMicromaps.empty() && !c.ctx.opacityMicromapSupported) {
         core::Logger::error("SceneLoader: mesh '{}' uses opacity_micromaps but the device "
-                      "lacks VK_KHR_opacity_micromap",
-                      m.name);
+                            "lacks VK_KHR_opacity_micromap",
+                            m.name);
         return std::unexpected(VK_ERROR_FEATURE_NOT_PRESENT);
     }
     // Resolve each referenced .micromap.toml once (dedup by path) and map
@@ -343,10 +341,8 @@ resolveMicromaps(SceneLoadContext& c, const aether::MeshDesc& m) {
 using MicromapGroups = std::unordered_map<std::string, const aether::OpacityMicromapGroup*>;
 using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
 
-[[nodiscard]] std::expected<ImportedSubmeshes, VkResult> importObjectMesh(
-    SceneLoadContext& c,
-    const aether::MeshDesc& m,
-    MicromapGroups& ommForGroup) {
+[[nodiscard]] std::expected<ImportedSubmeshes, VkResult>
+importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups& ommForGroup) {
     std::vector<LoadedSubmesh> subs;
     if (m.objPath.empty()) {
         core::Logger::warn("SceneLoader: mesh '{}' has empty path — skipping", m.name);
@@ -376,11 +372,9 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
         subs.push_back({idx, g.name});
     }
     return subs;
-
 }
 
-[[nodiscard]] std::expected<ImportedSubmeshes, VkResult> importBoxMesh(SceneLoadContext& c,
-                                                                       const aether::MeshDesc& m) {
+[[nodiscard]] std::expected<ImportedSubmeshes, VkResult> importBoxMesh(SceneLoadContext& c, const aether::MeshDesc& m) {
     std::vector<LoadedSubmesh> subs;
     if (m.boxHalf == sm::float3{0.0f, 0.0f, 0.0f}) {
         core::Logger::warn("SceneLoader: box '{}' has zero half-extents — skipping", m.name);
@@ -395,7 +389,6 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
     }
     subs.push_back({idx, ""});
     return subs;
-
 }
 
 [[nodiscard]] std::expected<ImportedSubmeshes, VkResult> importSphereMesh(SceneLoadContext& c,
@@ -412,15 +405,13 @@ using ImportedSubmeshes = std::optional<std::vector<LoadedSubmesh>>;
     }
     subs.push_back({idx, ""});
     return subs;
-
 }
 
 // ── Meshes: import each declared mesh ONCE (object space) ─────────
 // Records, per declared mesh name, the registered sub-mesh indices (+ OBJ
 // group names for material resolution). Instances reference these.
 // nullopt = the import arm warned and skipped the mesh.
-[[nodiscard]] std::expected<ImportedSubmeshes, VkResult> importMesh(SceneLoadContext& c,
-                                                                    const aether::MeshDesc& m) {
+[[nodiscard]] std::expected<ImportedSubmeshes, VkResult> importMesh(SceneLoadContext& c, const aether::MeshDesc& m) {
     auto ommForGroup = resolveMicromaps(c, m);
     if (!ommForGroup) {
         return std::unexpected(ommForGroup.error());

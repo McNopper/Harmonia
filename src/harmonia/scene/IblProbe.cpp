@@ -69,11 +69,11 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
                 chanDesc += ", ";
         }
         core::Logger::info("IblProbe: '{}' {}x{}  nchannels={} [{}]",
-                     path.filename().string(),
-                     width,
-                     height,
-                     spec.nchannels,
-                     chanDesc);
+                           path.filename().string(),
+                           width,
+                           height,
+                           spec.nchannels,
+                           chanDesc);
     }
     // Absent attribute = Rec.709 primaries (OpenEXR spec default).
     // OIIO stores EXR chromaticities as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
@@ -178,20 +178,21 @@ VkResult IblProbe::uploadEnvPanorama(IblProbe& probe,
     // stage that may sample the env panorama: fragment (Theia sky pass) and ray tracing
     // (Hyperion). Sampler is REPEAT on U, CLAMP_TO_EDGE on V (default) to avoid pole
     // artefacts.
-    auto uploaded = core::uploadHostImage(ctx,
-                                    pool,
-                                    core::HostImageUploadDesc{
-                                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                        .pixels = rgba32f.data(),
-                                        .extent = extent,
-                                        .finalStages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |
-                                                       VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                                        .finalAccess = VK_ACCESS_2_SHADER_READ_BIT,
-                                        .name = "ibl.env",
-                                        .sampler = core::SamplerSpec{
-                                            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                                        },
-                                    });
+    auto uploaded = core::uploadHostImage(
+        ctx,
+        pool,
+        core::HostImageUploadDesc{
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .pixels = rgba32f.data(),
+            .extent = extent,
+            .finalStages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+            .finalAccess = VK_ACCESS_2_SHADER_READ_BIT,
+            .name = "ibl.env",
+            .sampler =
+                core::SamplerSpec{
+                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                },
+        });
     if (!uploaded) {
         return uploaded.error();
     }
@@ -229,11 +230,11 @@ void IblProbe::extractDominantSun(IblProbe& probe,
         const float ratio = (meanAvg > 1e-8f) ? (sunBestAvg / meanAvg) : 0.0f;
         domSunStrength = std::clamp((ratio - 4.0f) / 16.0f, 0.0f, 1.0f);
         core::Logger::info("IblProbe: dominant light dir ({:.2f}, {:.2f}, {:.2f}), strength {:.2f} (peak/mean {:.1f})",
-                     domSunDir.x,
-                     domSunDir.y,
-                     domSunDir.z,
-                     domSunStrength,
-                     ratio);
+                           domSunDir.x,
+                           domSunDir.y,
+                           domSunDir.z,
+                           domSunStrength,
+                           ratio);
     }
     probe.m_sunDirection = domSunDir;
     probe.m_sunStrength = domSunStrength;
@@ -344,10 +345,11 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
 
         // Upload marginal CDF buffer
         const VkDeviceSize margSize = static_cast<VkDeviceSize>(kCdfH + 1) * sizeof(float);
-        auto mBuf = core::Buffer::create(
-            ctx, margSize,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.marginalCdf");
+        auto mBuf = core::Buffer::create(ctx,
+                                         margSize,
+                                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                         "ibl.marginalCdf");
         if (mBuf) {
             mBuf->uploadData(marginalCdf.data(), margSize);
             probe.m_marginalCdf = std::move(*mBuf);
@@ -356,10 +358,10 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
         // Upload conditional CDF buffer
         const VkDeviceSize condSize = static_cast<VkDeviceSize>(kCdfH * (kCdfW + 1)) * sizeof(float);
         auto cBuf = core::Buffer::create(ctx,
-                                   condSize,
-                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                   "ibl.conditionalCdf");
+                                         condSize,
+                                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                         "ibl.conditionalCdf");
         if (cBuf) {
             cBuf->uploadData(conditionalCdf.data(), condSize);
             probe.m_conditionalCdf = std::move(*cBuf);

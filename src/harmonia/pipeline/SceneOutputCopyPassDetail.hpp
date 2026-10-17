@@ -6,7 +6,6 @@
 // Not public API - do not include from outside the pass.
 
 #include <algorithm>
-
 #include <cstdint>
 
 namespace harmonia::pipeline {

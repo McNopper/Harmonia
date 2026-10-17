@@ -13,9 +13,11 @@ namespace harmonia::scene_rt {
 /// Builds the TLAS for a fully uploaded scene (SceneBase::build() has run:
 /// scene buffers + one BLAS per unique mesh). One TLAS instance per scene
 /// instance; the per-instance mask comes from SceneBase::instanceMask.
-[[nodiscard]] VkResult buildTlas(harmonia::scene::SceneBase& scene, const DeviceContext& ctx,
+[[nodiscard]] VkResult buildTlas(harmonia::scene::SceneBase& scene,
+                                 const DeviceContext& ctx,
                                  const core::CommandPool& pool,
-                                 rt::AccelerationStructure& outTlas, VkDeviceAddress& outAddress);
+                                 rt::AccelerationStructure& outTlas,
+                                 VkDeviceAddress& outAddress);
 
 } // namespace harmonia::scene_rt
 

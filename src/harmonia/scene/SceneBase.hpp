@@ -102,19 +102,21 @@ class SceneBase : public ISceneBuilder {
 
     /// Creates the concrete (scene_rt) triangle-mesh implementation. Hook, because
     /// the scene module stays free of ray-tracing types.
-    [[nodiscard]] virtual std::unique_ptr<Geometry>
-    createTriangleMesh(const DeviceContext& ctx, const core::CommandPool& pool, MeshData&& data,
-                       const MeshOpacity& opacity, std::string_view name) = 0;
+    [[nodiscard]] virtual std::unique_ptr<Geometry> createTriangleMesh(const DeviceContext& ctx,
+                                                                       const core::CommandPool& pool,
+                                                                       MeshData&& data,
+                                                                       const MeshOpacity& opacity,
+                                                                       std::string_view name) = 0;
 
     /// Called by build() after the scene buffers and the per-mesh BLAS builds: the
     /// scene_rt module builds the TLAS here and the derived scene stores it.
     virtual VkResult finishBuild(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
 
     [[nodiscard]] static std::expected<core::Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
-                                                                             const core::CommandPool& pool,
-                                                                             std::span<const std::byte> data,
-                                                                             std::string_view debugName,
-                                                                             VkBufferUsageFlags usage);
+                                                                                   const core::CommandPool& pool,
+                                                                                   std::span<const std::byte> data,
+                                                                                   std::string_view debugName,
+                                                                                   VkBufferUsageFlags usage);
 
     std::vector<Material> m_materials;
     std::vector<std::unique_ptr<Geometry>> m_meshes; ///< unique meshes

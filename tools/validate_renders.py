@@ -13,14 +13,19 @@ exits non-zero if any scene fails.
 from __future__ import annotations
 
 import argparse
-import tomllib
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from compare_renders import (REL_MSE_EPS, compute_metrics, evaluate_gate, extract_channel,
-                             load_exr, save_heatmap)
-
+from compare_renders import (
+    REL_MSE_EPS,
+    compute_metrics,
+    evaluate_gate,
+    extract_channel,
+    load_exr,
+    save_heatmap,
+)
 
 # Scenes that always use the scale-aware gate regardless of the manifest. Empty
 # by design: the real scale-aware fixtures (shaderball_transmission,

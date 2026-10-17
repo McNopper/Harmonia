@@ -12,11 +12,11 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
                                                                              VkDeviceSize size,
                                                                              std::string_view debugName) {
     auto storage = core::Buffer::create(ctx,
-                                  size,
-                                  VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
-                                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                                  std::string(debugName).append(".buffer"));
+                                        size,
+                                        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+                                            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                        std::string(debugName).append(".buffer"));
     if (!storage) {
         return std::unexpected(storage.error());
     }

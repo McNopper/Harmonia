@@ -41,9 +41,8 @@ struct HostImageUpload {
 /// scene::IblProbe::uploadEnvPanorama: stream host pixels straight into the (optimal-tiling)
 /// image with vkCopyMemoryToImage — no staging buffer, no device-side copy. Layout path:
 /// UNDEFINED -> GENERAL (queue), host copy into GENERAL, GENERAL -> SHADER_READ_ONLY (queue).
-[[nodiscard]] std::expected<HostImageUpload, VkResult> uploadHostImage(const DeviceContext& ctx,
-                                                                      const CommandPool& cmdPool,
-                                                                      const HostImageUploadDesc& desc);
+[[nodiscard]] std::expected<HostImageUpload, VkResult>
+uploadHostImage(const DeviceContext& ctx, const CommandPool& cmdPool, const HostImageUploadDesc& desc);
 
 } // namespace harmonia::core
 

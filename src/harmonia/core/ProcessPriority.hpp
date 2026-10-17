@@ -5,16 +5,16 @@
 #include <cstdint>
 
 #if defined(_WIN32)
-#    ifndef WIN32_LEAN_AND_MEAN
-#        define WIN32_LEAN_AND_MEAN
-#    endif
-#    ifndef NOMINMAX
-#        define NOMINMAX
-#    endif
-#    include <windows.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #elif defined(__unix__) || defined(__linux__) || defined(__APPLE__)
-#    include <sys/resource.h>
-#    include <sys/types.h>
+#include <sys/resource.h>
+#include <sys/types.h>
 #endif
 
 namespace harmonia::core {
@@ -65,7 +65,7 @@ namespace harmonia::core {
 /// is the right balance for a render batch job: it writes its images at the end and shares
 /// no per-frame I/O with the rest of the system.
 class ScopedBackgroundPriority {
-public:
+  public:
     ScopedBackgroundPriority() noexcept {
 #if defined(_WIN32)
         m_process = GetCurrentProcess();
@@ -113,7 +113,7 @@ public:
     ScopedBackgroundPriority(ScopedBackgroundPriority&&) = delete;
     ScopedBackgroundPriority& operator=(ScopedBackgroundPriority&&) = delete;
 
-private:
+  private:
 #if defined(_WIN32)
     HANDLE m_process{nullptr};
     DWORD m_previous{0U};

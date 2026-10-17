@@ -3,10 +3,6 @@
 // instance emission. Implements the harmonia::scene::Geometry interface; the
 // pure geometry data lives in harmonia/scene (TU split across the scene_rt
 // module boundary, no behavior change).
-#include "harmonia/scene_rt/TriangleMesh.hpp"
-
-#include "harmonia/scene_rt/Sphere.hpp"
-
 #include <volk/volk.h>
 
 #include <array>
@@ -19,6 +15,8 @@
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
+#include "harmonia/scene_rt/Sphere.hpp"
+#include "harmonia/scene_rt/TriangleMesh.hpp"
 
 namespace harmonia::scene_rt {
 
@@ -60,9 +58,9 @@ using namespace harmonia::scene; // the moved definitions speak scene vocabulary
         ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, &primitiveCount, &sizeInfo);
 
     auto blas = rt::AccelerationStructure::create(ctx,
-                                              VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-                                              sizeInfo.accelerationStructureSize,
-                                              std::string(debugName).append(".blas"));
+                                                  VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+                                                  sizeInfo.accelerationStructureSize,
+                                                  std::string(debugName).append(".blas"));
     if (!blas) {
         return blas.error();
     }
@@ -98,7 +96,6 @@ using namespace harmonia::scene; // the moved definitions speak scene vocabulary
     return VK_SUCCESS;
 }
 
-
 std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(const DeviceContext& ctx,
                                                                             const core::CommandPool& pool,
                                                                             MeshData&& data,
@@ -127,8 +124,8 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
         auto built = rt::MicromapBuilder::build(ctx, pool, *m_opacity.micromap, m_debugName);
         if (!built) {
             core::Logger::error("TriangleMesh '{}': opacity-micromap build failed (VkResult {})",
-                          m_debugName,
-                          static_cast<int>(built.error()));
+                                m_debugName,
+                                static_cast<int>(built.error()));
             return built.error();
         }
         if (built->indexCount() != primitiveCount) {
@@ -136,10 +133,10 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
             // walks the OBJ group's triangles exactly as the importer does. A
             // mismatch means the cached OMM is stale against the mesh.
             core::Logger::error("TriangleMesh '{}': opacity micromap has {} indices but the BLAS has {} triangles "
-                          "(stale bake — re-run tools/omm_bake.py)",
-                          m_debugName,
-                          built->indexCount(),
-                          primitiveCount);
+                                "(stale bake — re-run tools/omm_bake.py)",
+                                m_debugName,
+                                built->indexCount(),
+                                primitiveCount);
             return VK_ERROR_INITIALIZATION_FAILED;
         }
         m_micromap = std::move(*built);
@@ -260,11 +257,11 @@ Sphere::create(const DeviceContext& ctx, const core::CommandPool& pool, float ra
     };
 
     auto aabbBuffer = core::Buffer::upload(ctx,
-                                     pool,
-                                     std::as_bytes(std::span<const VkAabbPositionsKHR>(&vkAabb, 1)),
-                                     VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-                                         VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-                                     debugName.empty() ? "sphere.aabb" : std::string(debugName).append(".aabb"));
+                                           pool,
+                                           std::as_bytes(std::span<const VkAabbPositionsKHR>(&vkAabb, 1)),
+                                           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                                               VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+                                           debugName.empty() ? "sphere.aabb" : std::string(debugName).append(".aabb"));
     if (!aabbBuffer) {
         return std::unexpected(aabbBuffer.error());
     }

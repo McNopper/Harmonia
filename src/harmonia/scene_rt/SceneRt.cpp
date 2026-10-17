@@ -7,9 +7,11 @@
 
 namespace harmonia::scene_rt {
 
-VkResult buildTlas(harmonia::scene::SceneBase& scene, const DeviceContext& ctx,
+VkResult buildTlas(harmonia::scene::SceneBase& scene,
+                   const DeviceContext& ctx,
                    const core::CommandPool& pool,
-                   rt::AccelerationStructure& outTlas, VkDeviceAddress& outAddress) {
+                   rt::AccelerationStructure& outTlas,
+                   VkDeviceAddress& outAddress) {
     const auto& instances = scene.instances();
     const auto& meshes = scene.meshes();
     std::vector<VkAccelerationStructureInstanceKHR> tlasInstances(instances.size());

@@ -102,14 +102,13 @@ from pathlib import Path
 
 import numpy as np
 
-
 # ── EXR I/O ──────────────────────────────────────────────────────────────────
 
 def load_exr(path: Path) -> np.ndarray:
     """Load an OpenEXR file and return a float32 HxWx3 array (RGB)."""
     try:
-        import OpenEXR
         import Imath
+        import OpenEXR
     except ImportError:
         sys.exit("ERROR: OpenEXR Python bindings not found.  Run: pip install openexr imath")
 

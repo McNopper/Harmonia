@@ -42,8 +42,10 @@ class Mesh {
     Mesh& operator=(const Mesh&) = delete;
     ~Mesh() = default;
 
-    [[nodiscard]] static std::expected<Mesh, VkResult>
-    create(const DeviceContext& ctx, const core::CommandPool& cmdPool, const MeshData& data, std::string_view debugName = "");
+    [[nodiscard]] static std::expected<Mesh, VkResult> create(const DeviceContext& ctx,
+                                                              const core::CommandPool& cmdPool,
+                                                              const MeshData& data,
+                                                              std::string_view debugName = "");
 
     [[nodiscard]] const core::Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
     [[nodiscard]] const core::Buffer& indexBuffer() const noexcept { return m_indexBuffer; }

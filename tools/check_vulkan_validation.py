@@ -102,7 +102,7 @@ def _run_offscreen(label: str, cmd: list[str]) -> RunResult:
             text=True,
             timeout=OFFSCREEN_TIMEOUT_S,
         )
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         return RunResult(*label, passed=False, note=f"TIMEOUT after {OFFSCREEN_TIMEOUT_S}s")
     elapsed = time.perf_counter() - t0
     combined = (proc.stdout or "") + (proc.stderr or "")

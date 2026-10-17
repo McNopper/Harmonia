@@ -7,8 +7,8 @@
 #include <cstdint>
 #include <cstring>
 #include <utility>
-#include "harmonia/core/HostImageUpload.hpp"
 
+#include "harmonia/core/HostImageUpload.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/Sampler.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
@@ -34,26 +34,27 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     // with vkCopyMemoryToImage - no staging buffer, no device-side copy (shared helper).
     // Layout path: UNDEFINED -> GENERAL (queue), host copy into GENERAL,
     // GENERAL -> SHADER_READ_ONLY (queue). Sampler is REPEAT x3 with anisotropy.
-    auto uploaded = core::uploadHostImage(ctx,
-                                    cmdPool,
-                                    core::HostImageUploadDesc{
-                                        .format = format,
-                                        .pixels = pixels.data(),
-                                        .extent = VkExtent2D{width, height},
-                                        .finalStages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |
-                                                       VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
-                                                       VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                                        .finalAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-                                        .name = name,
-                                        .sampler = core::SamplerSpec{
-                                            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                                            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                                            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                                            .anisotropyEnable = VK_TRUE,
-                                            .maxAnisotropy = std::min(16.0f, props.limits.maxSamplerAnisotropy),
-                                            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-                                        },
-                                    });
+    auto uploaded = core::uploadHostImage(
+        ctx,
+        cmdPool,
+        core::HostImageUploadDesc{
+            .format = format,
+            .pixels = pixels.data(),
+            .extent = VkExtent2D{width, height},
+            .finalStages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
+                           VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+            .finalAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+            .name = name,
+            .sampler =
+                core::SamplerSpec{
+                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .anisotropyEnable = VK_TRUE,
+                    .maxAnisotropy = std::min(16.0f, props.limits.maxSamplerAnisotropy),
+                    .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+                },
+        });
     if (!uploaded) {
         return std::unexpected(uploaded.error());
     }

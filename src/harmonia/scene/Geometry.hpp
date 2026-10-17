@@ -11,10 +11,10 @@
 #include <string>
 #include <string_view>
 
+#include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
-#include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/scene/Mesh.hpp"
 
 namespace harmonia::scene {
@@ -54,8 +54,8 @@ class Geometry {
     virtual ~Geometry() = default;
 
     virtual VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
-    [[nodiscard]] virtual VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                          const Transform& transform) const noexcept = 0;
+    [[nodiscard]] virtual VkAccelerationStructureInstanceKHR
+    makeInstance(std::uint32_t instanceCustomIndex, const Transform& transform) const noexcept = 0;
 
     /// Object-space axis-aligned bounding box of this geometry. Returned to the
     /// renderers, which derive a per-instance world-space AABB via

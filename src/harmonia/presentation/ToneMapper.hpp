@@ -9,8 +9,8 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
-#include "harmonia/utils/OutputColorSpace.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 
 namespace harmonia::presentation {
 
@@ -63,7 +63,8 @@ class ToneMapper {
   private:
     harmonia::core::UniquePipeline m_pipeline;
     harmonia::core::UniquePipelineLayout m_pipelineLayout;
-    harmonia::core::UniqueDescriptorSetLayout m_setLayout; ///< Push descriptor set layout (must outlive all CBs using it).
+    harmonia::core::UniqueDescriptorSetLayout
+        m_setLayout; ///< Push descriptor set layout (must outlive all CBs using it).
     VkFormat m_attachmentFormat{VK_FORMAT_UNDEFINED};
 };
 

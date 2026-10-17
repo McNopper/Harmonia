@@ -28,8 +28,9 @@ class Sphere final : public harmonia::scene::Geometry {
     create(const DeviceContext& ctx, const core::CommandPool& pool, float radius, std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                  const harmonia::scene::Transform& transform) const noexcept override;
+    [[nodiscard]] VkAccelerationStructureInstanceKHR
+    makeInstance(std::uint32_t instanceCustomIndex,
+                 const harmonia::scene::Transform& transform) const noexcept override;
     [[nodiscard]] harmonia::scene::Aabb objectAabb() const noexcept override;
 
     [[nodiscard]] float radius() const noexcept;

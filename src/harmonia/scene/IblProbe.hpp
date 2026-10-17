@@ -42,11 +42,12 @@ class IblProbe {
     /// space, and upload to GPU. Source primaries come from the EXR
     /// `chromaticities` attribute (fallback: linear Rec.709).
     /// Requires HARMONIA_HAS_OPENEXR; returns VK_ERROR_FEATURE_NOT_PRESENT otherwise.
-    [[nodiscard]] static std::expected<IblProbe, VkResult> loadFromEXR(
-        const DeviceContext& ctx,
-        const core::CommandPool& pool,
-        const std::filesystem::path& path,
-        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
+    [[nodiscard]] static std::expected<IblProbe, VkResult>
+    loadFromEXR(const DeviceContext& ctx,
+                const core::CommandPool& pool,
+                const std::filesystem::path& path,
+                harmonia::utils::ColorSpace::WorkingColorSpace workingSpace =
+                    harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
 
     [[nodiscard]] VkImageView imageView() const noexcept { return m_image.view(); }
     [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }
@@ -76,11 +77,12 @@ class IblProbe {
     };
 
     [[nodiscard]] static std::expected<ExrData, VkResult> readEXR(const std::filesystem::path& path);
-    [[nodiscard]] static std::vector<float> convertPrimaries(const std::vector<float>& raw,
-                                                             std::size_t width,
-                                                             std::size_t height,
-                                                             bool srcRec2020,
-                                                             harmonia::utils::ColorSpace::WorkingColorSpace workingSpace);
+    [[nodiscard]] static std::vector<float>
+    convertPrimaries(const std::vector<float>& raw,
+                     std::size_t width,
+                     std::size_t height,
+                     bool srcRec2020,
+                     harmonia::utils::ColorSpace::WorkingColorSpace workingSpace);
     [[nodiscard]] static VkResult uploadEnvPanorama(IblProbe& probe,
                                                     const DeviceContext& ctx,
                                                     const core::CommandPool& pool,

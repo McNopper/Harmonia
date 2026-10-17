@@ -939,7 +939,20 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   GitHub Releases are published as of this wave, gated on the dual-OS CI. The v0.7.10 tag
   was moved once (15ddd42 → 0596f40) to include the GCC `-Wextra` fix before anything
   consumed it.
-- **v0.7.13** (current; Theia bumped to v0.7.14, Hyperion to v0.7.13): **code-health wave 2
+- **v0.7.14** (current; Theia bumped to v0.7.15, Hyperion to v0.7.14): **AR1 + AR2 +
+  front-2 groundwork.** AR1: `harmonia/scene` is **rt-free** - the BLAS/OMM/TLAS builds
+  live in the new `harmonia/scene_rt` module (layer between scene and the passes); the
+  contract edge `scene -> rt` is REMOVED (gate-enforced seam: a rasterizer renderer
+  consumes scene without rt); the derived scenes implement the
+  `createTriangleMesh`/`finishBuild` hooks. AR2: the monolithic `harmonia_lib` split into
+  layered targets (vocab/utils/core/low_level/rt/scene/scene_rt/passes/app) with
+  `target_link_libraries` expressing the include-DAG - upward includes are now link
+  errors; `harmonia::harmonia` stays the consumer alias. T-03 root: `core::imageBarrier`
+  gained defaulted aspect/queue-family parameters (backward compatible). Q1: the coverage
+  lane (`HARMONIA_COVERAGE` + `tools/coverage.py`; clang-cl verified via `-fuse-ld=lld`).
+  90/90 ctest; Theia 19/19 + Hyperion 49/49 rebuilt against the layered targets; gate
+  clean (104 files, 29 edges, namespaces mapped).
+- **v0.7.13** (Theia bumped to v0.7.14, Hyperion to v0.7.13): **code-health wave 2
   — the arch gate, family-wide.** `tools/check_layers.py` hardened: the namespace check was
   a no-op for layered files (single-colon regex bug — only root-vocabulary files were ever
   validated), now every file must open its own layer namespace (nested modules count;

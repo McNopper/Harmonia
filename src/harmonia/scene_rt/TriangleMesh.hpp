@@ -25,15 +25,17 @@ namespace harmonia::scene_rt {
 /// geometry data lives in harmonia::scene (MeshData / Mesh / MeshOpacity).
 class TriangleMesh final : public harmonia::scene::Geometry {
   public:
-    [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult> create(const DeviceContext& ctx,
-                                                                                       const core::CommandPool& pool,
-                                                                                       harmonia::scene::MeshData&& data,
-                                                                                       const harmonia::scene::MeshOpacity& opacity = {},
-                                                                                       std::string_view debugName = "");
+    [[nodiscard]] static std::expected<std::unique_ptr<TriangleMesh>, VkResult>
+    create(const DeviceContext& ctx,
+           const core::CommandPool& pool,
+           harmonia::scene::MeshData&& data,
+           const harmonia::scene::MeshOpacity& opacity = {},
+           std::string_view debugName = "");
 
     VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) override;
-    [[nodiscard]] VkAccelerationStructureInstanceKHR makeInstance(std::uint32_t instanceCustomIndex,
-                                                                  const harmonia::scene::Transform& transform) const noexcept override;
+    [[nodiscard]] VkAccelerationStructureInstanceKHR
+    makeInstance(std::uint32_t instanceCustomIndex,
+                 const harmonia::scene::Transform& transform) const noexcept override;
     [[nodiscard]] harmonia::scene::Aabb objectAabb() const noexcept override;
 
     [[nodiscard]] const core::Buffer& vertexBuffer() const noexcept;
@@ -46,8 +48,8 @@ class TriangleMesh final : public harmonia::scene::Geometry {
     harmonia::scene::MeshData m_data{};
     harmonia::scene::Mesh m_mesh{};
     rt::AccelerationStructure m_accelerationStructure{};
-    harmonia::scene::MeshOpacity m_opacity{};            ///< cutout participation; micromap baked in buildBlas.
-    std::optional<rt::Micromap> m_micromap; ///< built OMM, owns its device buffers.
+    harmonia::scene::MeshOpacity m_opacity{}; ///< cutout participation; micromap baked in buildBlas.
+    std::optional<rt::Micromap> m_micromap;   ///< built OMM, owns its device buffers.
     std::string m_debugName{};
 };
 

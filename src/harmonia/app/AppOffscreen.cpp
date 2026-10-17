@@ -1,7 +1,6 @@
 // AppOffscreen.cpp - the offscreen-capture path of App: scene-referred
 // rendering, the offscreen frame loop, and EXR/PNG export. Methods of
 // harmonia::app::App split out of App.cpp (TU split, no behavior change).
-#include "harmonia/app/App.hpp"
 #include <algorithm>
 #include <bit>
 #include <charconv>
@@ -15,6 +14,8 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+
+#include "harmonia/app/App.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
@@ -113,11 +114,11 @@ std::uint64_t App::renderSceneReferred() {
         (asyncWaitSem != VK_NULL_HANDLE) ? std::span<const VkSemaphoreSubmitInfo>{&asyncWait, 1}
                                          : std::span<const VkSemaphoreSubmitInfo>{};
     if (core::submitOneShot(m_context.deviceContext().graphicsQueue,
-                      stagesCmd,
-                      VK_NULL_HANDLE,
-                      0,
-                      waitSemaphores,
-                      std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1}) != VK_SUCCESS) {
+                            stagesCmd,
+                            VK_NULL_HANDLE,
+                            0,
+                            waitSemaphores,
+                            std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1}) != VK_SUCCESS) {
         core::Logger::error("Render queue submit failed");
         return m_frameSync.completionValue(slot);
     }
@@ -127,7 +128,6 @@ std::uint64_t App::renderSceneReferred() {
     m_frameSync.rotate();
     return signalValue;
 }
-
 
 int App::renderOffscreen() {
     const std::uint32_t frameCount = offscreenFrameCount();
@@ -197,7 +197,5 @@ bool App::saveExr(const std::filesystem::path& path) {
     return harmonia::presentation::ImageCapture::saveExr(
         m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
 }
-
-
 
 } // namespace harmonia::app

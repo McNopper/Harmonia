@@ -149,21 +149,22 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
 
     const std::array preComputeBarriers{
         core::imageBarrier(ctx.hdrBuffer->handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                           VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT),
         core::imageBarrier(m_historyImage.handle(),
-                     m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     m_historyFirstUse ? VK_PIPELINE_STAGE_2_NONE
-                                       : (VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_2_TRANSFER_BIT),
-                     m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_READ_BIT),
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           m_historyFirstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           m_historyFirstUse
+                               ? VK_PIPELINE_STAGE_2_NONE
+                               : (VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_2_TRANSFER_BIT),
+                           m_historyFirstUse ? 0U : (VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_TRANSFER_READ_BIT),
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
     };
     core::pipelineBarrier(ctx.cmd, preComputeBarriers);
 
@@ -223,19 +224,19 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
 
     const std::array postComputeBarriers{
         core::imageBarrier(m_historyImage.handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_READ_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_READ_BIT),
         core::imageBarrier(ctx.hdrBuffer->handle(),
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT),
     };
     core::pipelineBarrier(ctx.cmd, postComputeBarriers);
 
@@ -268,20 +269,20 @@ void AccumulationPass::record(const PassContext& ctx) noexcept {
 
     const std::array restoreBarriers{
         core::imageBarrier(m_historyImage.handle(),
-                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_READ_BIT,
-                     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_READ_BIT,
+                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT),
         core::imageBarrier(ctx.hdrBuffer->handle(),
-                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     VK_IMAGE_LAYOUT_GENERAL,
-                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                     VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                     VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
-                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           VK_IMAGE_LAYOUT_GENERAL,
+                           VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                           VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT |
+                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT),
     };
     core::pipelineBarrier(ctx.cmd, restoreBarriers);
 
@@ -308,13 +309,14 @@ bool AccumulationPass::createHistoryImage(VkExtent2D extent) noexcept {
         return false;
     }
     auto history = core::Image::create(*m_ctx,
-                                 extent,
-                                 VK_FORMAT_R32G32B32A32_SFLOAT,
-                                 VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                 VK_IMAGE_ASPECT_COLOR_BIT,
-                                 "harmonia.accum.history");
+                                       extent,
+                                       VK_FORMAT_R32G32B32A32_SFLOAT,
+                                       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       "harmonia.accum.history");
     if (!history) {
-        core::Logger::error("AccumulationPass history image creation failed: VkResult {}", static_cast<int>(history.error()));
+        core::Logger::error("AccumulationPass history image creation failed: VkResult {}",
+                            static_cast<int>(history.error()));
         return false;
     }
     m_historyImage = std::move(*history);

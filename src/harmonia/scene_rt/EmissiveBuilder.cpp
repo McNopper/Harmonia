@@ -11,9 +11,9 @@
 
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/Geometry.hpp"
-#include "harmonia/scene_rt/TriangleMesh.hpp"
-#include "harmonia/scene_rt/Sphere.hpp"
 #include "harmonia/scene/Mesh.hpp"
+#include "harmonia/scene_rt/Sphere.hpp"
+#include "harmonia/scene_rt/TriangleMesh.hpp"
 
 namespace harmonia::scene_rt {
 
@@ -160,18 +160,18 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
             }
             if (!packed.uniform && warnedEllipsoids.emplace(inst.meshIndex, inst.materialIndex).second) {
                 core::Logger::warn("Emissive analytic sphere has a non-uniform instance scale "
-                             "(instance {}, mesh {}, material {}): transformed radii "
-                             "({:.6g}, {:.6g}, {:.6g}) describe an ellipsoid, which neither "
-                             "the object-space sphere intersection nor the uniform-cone NEE "
-                             "sampler models. The emitter is SKIPPED (no next-event "
-                             "estimation; it is still visible to BSDF paths). Use a uniform "
-                             "scale for emissive spheres.",
-                             instIdx,
-                             inst.meshIndex,
-                             inst.materialIndex,
-                             packed.axisLengths.x,
-                             packed.axisLengths.y,
-                             packed.axisLengths.z);
+                                   "(instance {}, mesh {}, material {}): transformed radii "
+                                   "({:.6g}, {:.6g}, {:.6g}) describe an ellipsoid, which neither "
+                                   "the object-space sphere intersection nor the uniform-cone NEE "
+                                   "sampler models. The emitter is SKIPPED (no next-event "
+                                   "estimation; it is still visible to BSDF paths). Use a uniform "
+                                   "scale for emissive spheres.",
+                                   instIdx,
+                                   inst.meshIndex,
+                                   inst.materialIndex,
+                                   packed.axisLengths.x,
+                                   packed.axisLengths.y,
+                                   packed.axisLengths.z);
             }
         }
     }

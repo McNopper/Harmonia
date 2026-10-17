@@ -10,7 +10,6 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
-
 #include <cstdint>
 
 namespace harmonia::app {

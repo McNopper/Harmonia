@@ -65,7 +65,8 @@ class SceneLoader {
         std::optional<bool> tonemapperStageEnabled;      ///< std::nullopt → app::App default
         /// Scene-referred working color space all assets were converted into
         /// ([render] working_color_space; default linear Rec.2020).
-        harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
+        harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace =
+            harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
     };
 
     /// Populate @p scene from @p sceneFile.

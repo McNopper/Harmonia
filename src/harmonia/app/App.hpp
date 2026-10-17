@@ -152,7 +152,9 @@ class App {
     [[nodiscard]] renderer::Descriptors& descriptors() noexcept { return m_descriptors; }
     [[nodiscard]] core::Image& hdrImage() noexcept { return m_hdrImage; }
     [[nodiscard]] const std::optional<scene::IblProbe>& iblProbe() const noexcept { return m_iblProbe; }
-    [[nodiscard]] utils::ColorSpace::WorkingColorSpace workingColorSpace() const noexcept { return m_workingColorSpace; }
+    [[nodiscard]] utils::ColorSpace::WorkingColorSpace workingColorSpace() const noexcept {
+        return m_workingColorSpace;
+    }
     [[nodiscard]] std::uint32_t tonemapper() const noexcept { return m_tonemapper; }
     [[nodiscard]] std::uint32_t frameIndex() const noexcept { return m_frameIndex; }
 

@@ -74,10 +74,10 @@ std::uint32_t SceneBase::instanceMask(std::size_t /*instanceIndex*/) const {
 }
 
 std::expected<core::Buffer, VkResult> SceneBase::uploadStorageBuffer(const DeviceContext& ctx,
-                                                               const core::CommandPool& pool,
-                                                               std::span<const std::byte> data,
-                                                               std::string_view debugName,
-                                                               VkBufferUsageFlags usage) {
+                                                                     const core::CommandPool& pool,
+                                                                     std::span<const std::byte> data,
+                                                                     std::string_view debugName,
+                                                                     VkBufferUsageFlags usage) {
     return core::Buffer::upload(ctx, pool, data, usage, debugName);
 }
 

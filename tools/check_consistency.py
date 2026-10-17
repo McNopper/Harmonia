@@ -39,7 +39,7 @@ from pathlib import Path
 
 # Reuse the EXR loader + metric core from compare_renders.py.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from compare_renders import load_exr, compute_metrics  # type: ignore  # noqa: E402
+from compare_renders import compute_metrics, load_exr  # type: ignore
 
 
 def render_theia(exe: Path, scene: str, frames: int, width: int, height: int,

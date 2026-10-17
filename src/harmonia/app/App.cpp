@@ -1,5 +1,4 @@
 #include "harmonia/app/App.hpp"
-#include "harmonia/app/AppDetail.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -15,6 +14,7 @@
 #include <thread>
 #include <utility>
 
+#include "harmonia/app/AppDetail.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
@@ -26,7 +26,6 @@
 #include "harmonia/utils/ColorSpace.hpp"
 
 namespace harmonia::app {
-
 
 constexpr std::uint64_t kHashSeed = 1469598103934665603ULL;
 constexpr std::uint64_t kHashPrime = 1099511628211ULL;
@@ -78,7 +77,6 @@ class ToneMapStagePass final : public pipeline::IRenderPass {
     }
     return out.str();
 }
-
 
 App::~App() {
     shutdown();
@@ -147,9 +145,11 @@ bool App::bootstrap() {
     }
     m_commandPool = std::move(*pool);
 
-    auto swapchain = presentation::Swapchain::create(m_context.deviceContext(), m_context.surface(), windowPixelExtent(m_window));
+    auto swapchain =
+        presentation::Swapchain::create(m_context.deviceContext(), m_context.surface(), windowPixelExtent(m_window));
     if (!swapchain) {
-        core::Logger::error("presentation::Swapchain creation failed: VkResult {}", static_cast<int>(swapchain.error()));
+        core::Logger::error("presentation::Swapchain creation failed: VkResult {}",
+                            static_cast<int>(swapchain.error()));
         return false;
     }
     m_swapchain = std::move(*swapchain);
@@ -224,14 +224,14 @@ void App::logGpuClockCalibration() noexcept {
 bool App::createHdrImage() {
     // Usage covers both renderer families: storage writes (ray/compute) and
     // color-attachment + sampled reads (raster), plus read-back for capture.
-    auto hdrImage =
-        core::Image::create(m_context.deviceContext(),
-                      m_swapchain.extent(),
-                      VK_FORMAT_R32G32B32A32_SFLOAT,
-                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                      VK_IMAGE_ASPECT_COLOR_BIT,
-                      "harmonia.hdr");
+    auto hdrImage = core::Image::create(m_context.deviceContext(),
+                                        m_swapchain.extent(),
+                                        VK_FORMAT_R32G32B32A32_SFLOAT,
+                                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+                                            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                        VK_IMAGE_ASPECT_COLOR_BIT,
+                                        "harmonia.hdr");
     if (!hdrImage) {
         core::Logger::error("HDR image creation failed: VkResult {}", static_cast<int>(hdrImage.error()));
         return false;
@@ -247,16 +247,16 @@ bool App::createDenoisedImage() {
     }
 
     // Scene-output buffer for the shared denoiser stage.
-    auto denoisedImage =
-        core::Image::create(m_context.deviceContext(),
-                      m_swapchain.extent(),
-                      VK_FORMAT_R32G32B32A32_SFLOAT,
-                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                      VK_IMAGE_ASPECT_COLOR_BIT,
-                      "harmonia.denoised");
+    auto denoisedImage = core::Image::create(m_context.deviceContext(),
+                                             m_swapchain.extent(),
+                                             VK_FORMAT_R32G32B32A32_SFLOAT,
+                                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                                 VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                             VK_IMAGE_ASPECT_COLOR_BIT,
+                                             "harmonia.denoised");
     if (!denoisedImage) {
         core::Logger::warn("Denoised image creation failed: VkResult {} — disabling denoiser stage",
-                     static_cast<int>(denoisedImage.error()));
+                           static_cast<int>(denoisedImage.error()));
         m_denoisedImage = {};
         return true;
     }
@@ -275,7 +275,7 @@ bool App::createToneMapper() {
         m_context.deviceContext(), m_swapchain.format(), shaderDir / "tonemap_vert.spv", shaderDir / "tonemap.spv");
     if (!toneMapper) {
         core::Logger::warn("Tone mapper creation failed: VkResult {} — disabling tonemapper stage",
-                     static_cast<int>(toneMapper.error()));
+                           static_cast<int>(toneMapper.error()));
         m_toneMapper = {};
         return true;
     }
@@ -291,34 +291,35 @@ void App::rebuildStagePipeline() {
 
     if (m_config.stages.accumulation) {
         const std::filesystem::path shaderPath = std::filesystem::path(HARMONIA_SHADER_DIR) / "accumulation.spv";
-        auto accumulationPass = pipeline::AccumulationPass::create(m_context.deviceContext(), m_swapchain.extent(), shaderPath);
+        auto accumulationPass =
+            pipeline::AccumulationPass::create(m_context.deviceContext(), m_swapchain.extent(), shaderPath);
         if (accumulationPass) {
             m_sceneStages.push_back(std::make_unique<pipeline::AccumulationPass>(std::move(*accumulationPass)));
         } else {
             core::Logger::warn("Accumulation stage unavailable: VkResult {} — disabling accumulation stage",
-                         static_cast<int>(accumulationPass.error()));
+                               static_cast<int>(accumulationPass.error()));
         }
     }
 
     if (m_config.stages.denoiser && m_denoisedImage.isValid()) {
         const std::filesystem::path shaderPath = std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv";
         auto denoiserPass = pipeline::SceneOutputCopyPass::create(m_context.deviceContext(),
-                                                        m_swapchain.extent(),
-                                                        shaderPath,
-                                                        pipeline::SceneOutputCopyPass::Settings{
-                                                            .strength = m_config.denoiser.strength,
-                                                            .iterations = m_config.denoiser.iterations,
-                                                            .useHistory = m_config.denoiser.useHistory,
-                                                            .historyBlend = m_config.denoiser.historyBlend,
-                                                            .useGradient = m_config.denoiser.useGradient,
-                                                            .gradientAlpha = m_config.denoiser.gradientAlpha,
-                                                        });
+                                                                  m_swapchain.extent(),
+                                                                  shaderPath,
+                                                                  pipeline::SceneOutputCopyPass::Settings{
+                                                                      .strength = m_config.denoiser.strength,
+                                                                      .iterations = m_config.denoiser.iterations,
+                                                                      .useHistory = m_config.denoiser.useHistory,
+                                                                      .historyBlend = m_config.denoiser.historyBlend,
+                                                                      .useGradient = m_config.denoiser.useGradient,
+                                                                      .gradientAlpha = m_config.denoiser.gradientAlpha,
+                                                                  });
         if (denoiserPass) {
             m_sceneStages.push_back(std::make_unique<pipeline::SceneOutputCopyPass>(std::move(*denoiserPass)));
             m_sceneOutputUsesDenoised = true;
         } else {
             core::Logger::warn("Denoiser stage unavailable: VkResult {} — falling back to HDR scene output",
-                         static_cast<int>(denoiserPass.error()));
+                               static_cast<int>(denoiserPass.error()));
         }
     } else if (m_config.stages.denoiser) {
         core::Logger::warn("Denoiser stage enabled but unavailable; falling back to HDR scene output");
@@ -484,17 +485,18 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
     m_tonemapper = sceneConfig->tonemapper.value_or(0U);
     applySceneStageConfig(*sceneConfig);
     core::Logger::info("Stage config: accumulation={}, denoiser={}, tonemapper={}",
-                 m_config.stages.accumulation,
-                 m_config.stages.denoiser,
-                 m_config.stages.tonemapper);
-    core::Logger::info("Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}, gradient={}, "
-                 "gradient_alpha={:.3f}",
-                 m_config.denoiser.strength,
-                 m_config.denoiser.iterations,
-                 m_config.denoiser.useHistory,
-                 m_config.denoiser.historyBlend,
-                 m_config.denoiser.useGradient,
-                 m_config.denoiser.gradientAlpha);
+                       m_config.stages.accumulation,
+                       m_config.stages.denoiser,
+                       m_config.stages.tonemapper);
+    core::Logger::info(
+        "Denoiser config: strength={:.3f}, iterations={}, history={}, history_blend={:.3f}, gradient={}, "
+        "gradient_alpha={:.3f}",
+        m_config.denoiser.strength,
+        m_config.denoiser.iterations,
+        m_config.denoiser.useHistory,
+        m_config.denoiser.historyBlend,
+        m_config.denoiser.useGradient,
+        m_config.denoiser.gradientAlpha);
     if (sceneConfig->postTonemapRenderer) {
         if (*sceneConfig->postTonemapRenderer == "green_screen") {
             m_config.displayOverlay = true;
@@ -508,7 +510,8 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
     // consume the probe via iblProbe()).
     if (sceneConfig->envMapFile) {
         const auto envPath = m_config.assetsDir / *sceneConfig->envMapFile;
-        auto probe = scene::IblProbe::loadFromEXR(m_context.deviceContext(), m_commandPool, envPath, m_workingColorSpace);
+        auto probe =
+            scene::IblProbe::loadFromEXR(m_context.deviceContext(), m_commandPool, envPath, m_workingColorSpace);
         if (!probe) {
             core::Logger::warn("IBL probe load failed for '{}' — using procedural sky", envPath.string());
         } else {
@@ -521,16 +524,15 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
                 core::Logger::info("IBL probe loaded: '{}'", envPath.filename().string());
             }
             if (m_iblProbe->cdfWidth() > 0) {
-                if (const VkResult result =
-                        m_descriptors.updateEnvImportance(m_context.deviceContext(),
-                                                          m_iblProbe->marginalCdfBuffer(),
-                                                          m_iblProbe->conditionalCdfBuffer());
+                if (const VkResult result = m_descriptors.updateEnvImportance(
+                        m_context.deviceContext(), m_iblProbe->marginalCdfBuffer(), m_iblProbe->conditionalCdfBuffer());
                     result != VK_SUCCESS) {
-                    core::Logger::warn("IBL importance descriptor update failed: VkResult {}", static_cast<int>(result));
+                    core::Logger::warn("IBL importance descriptor update failed: VkResult {}",
+                                       static_cast<int>(result));
                 } else {
                     core::Logger::info("IBL importance CDF descriptors updated ({}×{})",
-                                 m_iblProbe->cdfWidth(),
-                                 m_iblProbe->cdfHeight());
+                                       m_iblProbe->cdfWidth(),
+                                       m_iblProbe->cdfHeight());
                 }
             }
         }
@@ -549,7 +551,6 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
 
     return true;
 }
-
 
 void App::shutdown() noexcept {
     if (m_context.deviceContext().device != VK_NULL_HANDLE) {

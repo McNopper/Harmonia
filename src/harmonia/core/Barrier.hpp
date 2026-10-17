@@ -9,16 +9,17 @@
 namespace harmonia::core {
 
 /// Builds a color-aspect VkImageMemoryBarrier2 (single mip/layer).
-[[nodiscard]] inline VkImageMemoryBarrier2 imageBarrier(VkImage image,
-                                                        VkImageLayout oldLayout,
-                                                        VkImageLayout newLayout,
-                                                        VkPipelineStageFlags2 srcStage,
-                                                        VkAccessFlags2 srcAccess,
-                                                        VkPipelineStageFlags2 dstStage,
-                                                        VkAccessFlags2 dstAccess,
-                                                        VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                        std::uint32_t srcQueueFamily = VK_QUEUE_FAMILY_IGNORED,
-                                                        std::uint32_t dstQueueFamily = VK_QUEUE_FAMILY_IGNORED) noexcept {
+[[nodiscard]] inline VkImageMemoryBarrier2
+imageBarrier(VkImage image,
+             VkImageLayout oldLayout,
+             VkImageLayout newLayout,
+             VkPipelineStageFlags2 srcStage,
+             VkAccessFlags2 srcAccess,
+             VkPipelineStageFlags2 dstStage,
+             VkAccessFlags2 dstAccess,
+             VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+             std::uint32_t srcQueueFamily = VK_QUEUE_FAMILY_IGNORED,
+             std::uint32_t dstQueueFamily = VK_QUEUE_FAMILY_IGNORED) noexcept {
     return VkImageMemoryBarrier2{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
         .pNext = nullptr,
