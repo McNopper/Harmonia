@@ -93,7 +93,7 @@ static constexpr float kPQ_c2 = 18.8515625f;
 static constexpr float kPQ_c3 = 18.6875f;
 
 float pqOetf(float Yn) noexcept {
-    Yn = std::clamp(Yn, 0.f, 1.f);
+    Yn = sm::saturate(Yn);
     const float Ym1 = std::pow(Yn, kPQ_m1);
     return std::pow((kPQ_c1 + kPQ_c2 * Ym1) / (1.f + kPQ_c3 * Ym1), kPQ_m2);
 }
@@ -102,7 +102,7 @@ sm::float3 pqOetf(sm::float3 Yn) noexcept {
 }
 
 float pqEotf(float E) noexcept {
-    E = std::clamp(E, 0.f, 1.f);
+    E = sm::saturate(E);
     const float Em2 = std::pow(E, 1.f / kPQ_m2);
     return std::pow(std::max(Em2 - kPQ_c1, 0.f) / (kPQ_c2 - kPQ_c3 * Em2), 1.f / kPQ_m1);
 }

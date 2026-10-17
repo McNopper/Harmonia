@@ -262,7 +262,7 @@ void IblProbe::extractDominantSun(IblProbe& probe,
         const float meanAvg =
             (sunAvgCount > 0) ? static_cast<float>(sunAvgSum / static_cast<double>(sunAvgCount)) : 0.0f;
         const float ratio = (meanAvg > 1e-8f) ? (sunBestAvg / meanAvg) : 0.0f;
-        domSunStrength = std::clamp((ratio - 4.0f) / 16.0f, 0.0f, 1.0f);
+        domSunStrength = sm::saturate((ratio - 4.0f) / 16.0f);
         core::Logger::info("IblProbe: dominant light dir ({:.2f}, {:.2f}, {:.2f}), strength {:.2f} (peak/mean {:.1f})",
                            domSunDir.x,
                            domSunDir.y,

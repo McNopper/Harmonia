@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <slang-math/slang-math.hpp>
 
 namespace harmonia::pipeline {
 
@@ -29,7 +30,7 @@ struct alignas(16) DenoiserPushConstants {
 };
 
 [[nodiscard]] inline float clamp01(float value) noexcept {
-    return std::clamp(value, 0.0F, 1.0F);
+    return sm::saturate(value);
 }
 
 [[nodiscard]] inline std::uint32_t clampIterations(std::uint32_t iterations) noexcept {

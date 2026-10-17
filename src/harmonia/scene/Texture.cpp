@@ -151,9 +151,9 @@ std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
                 break;
             }
 
-            converted[i * 4 + 0] = static_cast<std::uint8_t>(std::lround(std::clamp(linear.r, 0.0f, 1.0f) * 255.0f));
-            converted[i * 4 + 1] = static_cast<std::uint8_t>(std::lround(std::clamp(linear.g, 0.0f, 1.0f) * 255.0f));
-            converted[i * 4 + 2] = static_cast<std::uint8_t>(std::lround(std::clamp(linear.b, 0.0f, 1.0f) * 255.0f));
+            converted[i * 4 + 0] = static_cast<std::uint8_t>(std::lround(sm::saturate(linear.r) * 255.0f));
+            converted[i * 4 + 1] = static_cast<std::uint8_t>(std::lround(sm::saturate(linear.g) * 255.0f));
+            converted[i * 4 + 2] = static_cast<std::uint8_t>(std::lround(sm::saturate(linear.b) * 255.0f));
             converted[i * 4 + 3] = a;
         }
     }

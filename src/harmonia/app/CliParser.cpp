@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <limits>
+#include <slang-math/slang-math.hpp>
 #include <string>
 #include <string_view>
 
@@ -131,7 +132,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
             if (!parseFloat(v, strength)) {
                 core::Logger::error("Invalid value for --denoiser-strength: {}", v);
             } else {
-                config.denoiser.strength = std::clamp(strength, 0.0F, 1.0F);
+                config.denoiser.strength = sm::saturate(strength);
             }
         }
         return true;
@@ -153,7 +154,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
             if (!parseFloat(v, historyBlend)) {
                 core::Logger::error("Invalid value for --denoiser-history-blend: {}", v);
             } else {
-                config.denoiser.historyBlend = std::clamp(historyBlend, 0.0F, 1.0F);
+                config.denoiser.historyBlend = sm::saturate(historyBlend);
             }
         }
         return true;
@@ -180,7 +181,7 @@ bool CliParser::parseDenoiserArgs(AppConfig& config, int& i, int argc, char* con
             if (!parseFloat(v, gradientAlpha)) {
                 core::Logger::error("Invalid value for --denoiser-gradient-alpha: {}", v);
             } else {
-                config.denoiser.gradientAlpha = std::clamp(gradientAlpha, 0.0F, 1.0F);
+                config.denoiser.gradientAlpha = sm::saturate(gradientAlpha);
             }
         }
         return true;

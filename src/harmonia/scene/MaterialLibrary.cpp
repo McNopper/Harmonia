@@ -78,24 +78,20 @@ namespace {
 
     // Coat
     g.coatColorWeight = sm::float4(cc(p.coat_color), p.coat_weight);
-    g.coatRoughAnisoIorDark = sm::float4{p.coat_roughness,
-                                         p.coat_roughness_anisotropy,
-                                         std::max(p.coat_ior, 1.0f),
-                                         std::clamp(p.coat_darkening, 0.0f, 1.0f)};
+    g.coatRoughAnisoIorDark = sm::float4{
+        p.coat_roughness, p.coat_roughness_anisotropy, std::max(p.coat_ior, 1.0f), sm::saturate(p.coat_darkening)};
 
     // Fuzz / sheen
     g.fuzzColorWeight = sm::float4(cc(p.fuzz_color), p.fuzz_weight);
-    g.fuzzRoughPad = sm::float4{std::clamp(p.fuzz_roughness, 0.0f, 1.0f), 0.0f, 0.0f, 0.0f};
+    g.fuzzRoughPad = sm::float4{sm::saturate(p.fuzz_roughness), 0.0f, 0.0f, 0.0f};
 
     // Emission
     g.emissionColorLum = sm::float4(cc(p.emission_color), std::max(p.emission_luminance, 0.0f));
 
     // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
     const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
-    g.opacityFlagsPad = sm::float4{std::clamp(p.geometry_opacity, 0.0f, 1.0f),
-                                   flags,
-                                   p.subsurface_scatter_anisotropy,
-                                   p.geometry_thin_walled ? 1.0f : 0.0f};
+    g.opacityFlagsPad = sm::float4{
+        sm::saturate(p.geometry_opacity), flags, p.subsurface_scatter_anisotropy, p.geometry_thin_walled ? 1.0f : 0.0f};
 
     return Material::fromGpu(g, p.emission_as_light_source);
 }

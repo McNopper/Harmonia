@@ -33,7 +33,7 @@ constexpr float kMonteCarloTolerance = 2.0e-2F;
 }
 
 [[nodiscard]] sm::float3 fresnelSchlick(sm::float3 f0, float cosTheta) noexcept {
-    const float oneMinusCos = 1.0F - std::clamp(cosTheta, 0.0F, 1.0F);
+    const float oneMinusCos = 1.0F - sm::saturate(cosTheta);
     const float factor = oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos;
     return f0 + (sm::float3(1.0F, 1.0F, 1.0F) - f0) * factor;
 }
