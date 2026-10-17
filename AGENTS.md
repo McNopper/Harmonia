@@ -236,7 +236,7 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 `-DHARMONIA_COVERAGE=ON` (e.g. `-B build/coverage`), then run `python tools/coverage.py` - it
 builds the instrumented tree, runs the tests with `LLVM_PROFILE_FILE` set, merges the
 profiles and prints the llvm-cov report for `src/` (gcc builds report via gcov; exit 77
-when the LLVM tools are missing). Not wired into CI yet.
+when the LLVM tools are missing). NOT wired into CI: the test suites need a GPU and CI is build-only for the renderer band, so a CI coverage report would measure nothing - the lane stays a local activity.
 
 Further capability candidates (verified present on the dev GPU, not yet adopted) are
 tracked in `PLAN.md` §5.8 — audit refreshed 2026-09-29 (SDK 1.4.363 / driver 617.14).
