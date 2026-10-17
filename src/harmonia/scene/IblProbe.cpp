@@ -82,8 +82,8 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
             formatName);
         return std::unexpected(VK_ERROR_FORMAT_NOT_SUPPORTED);
     }
-    const char* oiioColorSpace = spec.get_string_attribute("oiio:ColorSpace");
-    if (oiioColorSpace != nullptr && oiioColorSpace[0] != '\0' && !isSceneLinearToken(oiioColorSpace)) {
+    const std::string_view oiioColorSpace = spec.get_string_attribute("oiio:ColorSpace");
+    if (!oiioColorSpace.empty() && !isSceneLinearToken(oiioColorSpace)) {
         core::Logger::error(
             "IblProbe: '{}' declares non-linear encoding oiio:ColorSpace='{}' — environment panoramas must "
             "be linear-encoded (EXR defaults to linear when the attribute is absent)",
