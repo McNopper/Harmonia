@@ -71,24 +71,27 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.8 — Harmonia / Hyperion / Theia lockstep (Aether v0.7.4; slang-math
-  v0.2.1). All five repos verified tag-synced with GitHub (`git ls-remote --tags origin` ==
-  `git tag -l`).
-- **Last shipped:** v0.7.8 — **VK11** (`shaderDemoteToHelperInvocation` hard-required;
-  VUID-08740 validation-clean) + **OpenPBR 1.1.1 conformance refresh** (`specular_weight` > 1,
-  transmission μ_a gray-shift) + **estimator-pure capture contract** (Theia) + the
-  new tooling lane — see Baseline.
-- **Next:** **GI-SMS** (caustics / SDS chains) — global item #1 below.
+- **Release:** v0.7.14 - Harmonia / Hyperion lockstep (Theia v0.7.15; Aether v0.7.7;
+  slang-math **v0.4.0** - pin bumped, `sm::saturate` available). All five repos
+  verified tag-synced with GitHub.
+- **Last shipped:** v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
+  module, contract edge removed) + **AR2** (layered CMake targets) + **T-03** narrow
+  barrier face + the Q1/Q3 quality wave - see Baseline.
+- **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
+  clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
+  bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
+  suite needs a GPU).
+- **Next:** **H-05** (color-space seam validation, Option B: fail-fast guards at the
+  seams) approved; **GI-SMS** (caustics / SDS chains) remains global item #1 below.
 - **Newly available (dev driver/SDK upgrade, re-verified 2026-08-08 - extension surface unchanged vs 617.14):** the Vulkan 1.4
   capability set is verified on the dev GPU (**RTX 5070, driver 617.42 / SDK 1.4.363**, 291
-  device extensions, slang 2026.17) — subgroup rotate/reconvergence family, `pipeline_binary`,
+  device extensions, slang 2026.17) - subgroup rotate/reconvergence family, `pipeline_binary`,
   `device_fault`, `shader_module_identifier`, `present_timing`, `descriptor_heap`,
-  `unified_image_layouts`, `memory_budget`, next-gen shader model; see §5.8 rows VK15–VK22.
-  **Adopted since v0.7.6:** present pacing (VK6 → MOD6 `present_id2`/`present_wait2`),
+  `unified_image_layouts`, `memory_budget`, next-gen shader model; see SS5.8 rows VK15-VK22.
+  **Adopted since v0.7.6:** present pacing (VK6 -> MOD6 `present_id2`/`present_wait2`),
   `host_image_copy` (VK8/MOD3), `pageable_device_local_memory` + `calibrated_timestamps`
   (VK10), `opacity_micromap` (VK2, v0.7.7), `descriptor_buffer` (VK7/MOD1), `robustness2`
   nullDescriptor (VK14), `device_address_commands` AS2KHR (MOD5).
-
 ---
 
 ## 3. How to continue
