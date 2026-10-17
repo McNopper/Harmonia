@@ -71,10 +71,10 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.14 - Harmonia / Hyperion lockstep (Theia v0.7.15; Aether v0.7.7;
+- **Release:** v0.7.15 - (Theia v0.7.16, Hyperion v0.7.15; Aether v0.7.8;
   slang-math **v0.4.0** - pin bumped, `sm::saturate` available). All five repos
   verified tag-synced with GitHub.
-- **Last shipped:** v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
+- **Last shipped:** v0.7.15 - **H-05** color-space seam guards (5 fail-fast guards + 8 no-GPU tests) + **SM6** `sm::saturate` (27 sites); tests 90->98. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
   module, contract edge removed) + **AR2** (layered CMake targets) + **T-03** narrow
   barrier face + the Q1/Q3 quality wave - see Baseline.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
