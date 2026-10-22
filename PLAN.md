@@ -929,7 +929,8 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   GitHub Releases are published as of this wave, gated on the dual-OS CI. The v0.7.10 tag
   was moved once (15ddd42 → 0596f40) to include the GCC `-Wextra` fix before anything
   consumed it.
-- **v0.7.14** (current; Theia bumped to v0.7.15, Hyperion to v0.7.14): **AR1 + AR2 +
+- **v0.7.15** (current; Theia v0.7.16, Hyperion v0.7.15): **H-05 color-space seam guards + SM6.** Five fail-fast guards (working-color-space tokens abort the scene load; scene-EXR container + chromaticities contract in `ImageCapture`; denoiser stage vs `--output` conflict enforced in `App`; IBL panoramas must be linear-encoded OpenEXR; unmapped swapchain color spaces refused) + 8 no-GPU rejection tests, and 27 unit-range clamps via `sm::saturate` (bit-identical; renders at the stochastic noise floor). Aether pin v0.7.8. 98/98 ctest, gate clean.
+- **v0.7.14** (Theia bumped to v0.7.15, Hyperion to v0.7.14): **AR1 + AR2 +
   front-2 groundwork.** AR1: `harmonia/scene` is **rt-free** - the BLAS/OMM/TLAS builds
   live in the new `harmonia/scene_rt` module (layer between scene and the passes); the
   contract edge `scene -> rt` is REMOVED (gate-enforced seam: a rasterizer renderer
