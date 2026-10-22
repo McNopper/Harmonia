@@ -60,7 +60,7 @@ flowchart LR
 It does **not** contain a renderer or a renderer's GPU scene. Hyperion provides the
 offline path tracer, Theia the real-time forward renderer; both demos are thin
 subclasses of `harmonia::app::App` that inject their renderer through `harmonia::app::IRenderer`,
-and **each renderer owns its own `Scene` and `GpuInstance` layout** — Hyperion's is built
+and **each renderer carries its own `Scene` and `GpuInstance` layout** — Hyperion's is built
 around index buffers and a ray-tracing pipeline, Theia's around meshlets and mesh shaders.
 Only types and code that are shared **1:1** live here; anything that diverges per renderer
 stays in the renderer.

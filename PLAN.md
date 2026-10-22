@@ -81,9 +81,8 @@ the sibling clones.
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
   suite needs a GPU).
-- **Next:** **H-05** (color-space seam validation, Option B: fail-fast guards at the
-  seams) approved; **GI-SMS** (caustics / SDS chains) remains global item #1 below.
-- **Newly available (dev driver/SDK upgrade, re-verified 2026-08-08 - extension surface unchanged vs 617.14):** the Vulkan 1.4
+- **Next:** **GI-SMS** (caustics / SDS chains) is global item #1 below.
+- **Newly available (dev driver/SDK upgrade; extension surface unchanged vs driver 617.14):** the Vulkan 1.4
   capability set is verified on the dev GPU (**RTX 5070, driver 617.42 / SDK 1.4.363**, 291
   device extensions, slang 2026.17) - subgroup rotate/reconvergence family, `pipeline_binary`,
   `device_fault`, `shader_module_identifier`, `present_timing`, `descriptor_heap`,
@@ -96,7 +95,7 @@ the sibling clones.
 
 ## 3. How to continue
 
-**Status quo (2026-09-25):** All adoptable papers are implemented or partially implemented.
+**Status quo:** All adoptable papers are implemented or partially implemented.
 The remaining work is wavefront refactoring (PERF5/PERF4) and completing the GI-SMS
 Bernoulli-trial estimator.
 
@@ -104,35 +103,35 @@ Bernoulli-trial estimator.
 |---|------|-------|--------|-------|
 | 1 | **GI-SMS full** (Hong et al., SIGA 2025) — Bernoulli-trial reciprocal estimator + ReSTIR integration | GI | **done** | Manifold walk + MNEE + biased (Alg. 3) + unbiased (Alg. 2) all landed. ReSTIR wire is the remaining integration. |
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
-| 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — split `gi.comp.slang` into focused kernels | PERF | **next session** | ~16% faster; gates PERF4 |
-| 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **next session** | 1.3–2.0× trace; gated by PERF5 |
+| 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — split `gi.comp.slang` into focused kernels | PERF | **next** | ~16% faster; gates PERF4 |
+| 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **next** | 1.3–2.0× trace; gated by PERF5 |
 | 5 | **I6: configurable frames-per-flip** (Theia window) | I | **done** | `--frames-per-flip <N>` in the shared parser; N = 1 is the classic cadence (display half gated per flip). Validated: suites + interactive smoke + N=1 control. |
 | 6 | **VAL1: interactive-path validation smoke** — `check_vulkan_validation.py` runs the offscreen path only (no present), which is how the 08045/10820 violations survived since MOD1/MOD6; add a short `--validation` windowed run to the gate | CH | **next** | tooling, small |
 
-**Shipped (2026-09-25):** C9 bounded VNDF, DN3 converging denoiser, GI-ENH (k≥3 + pairwise
+**Shipped:** C9 bounded VNDF, DN3 converging denoiser, GI-ENH (k≥3 + pairwise
 MIS + forced NEE + Russian roulette), GI-SMS (manifold walk + MNEE +
 biased SMS), C12 micrograin NDF + GAF, MOD1 descriptor buffers, VK14 nullDescriptor,
 MOD2 timeline semaphores, MOD5 AS creation v2, MOD6 present pacing v2.
 
-**Code-health second pass (refactoring review 2026-10-09):** wave 1 shipped 8/8 approved items
+**Code-health queue:** wave 1 shipped 8/8 items
 (H-01..H-06 here + HY-01/T-01/T-02 and the H-04 follow-through in the renderers). Remaining
 `consider` tier, roughly ordered: X-01 single canonical `check_tidy.py`; T-04
 `Scene::uploadBuffer` Middle Man; X-02 shared buffer uploads into Harmonia; A-01
 `_obj_transform` dedup; A-03 `parseMesh` guard clause; A-02 OBJ-transform CLI unification
 (UX decision); H-05 color-space *decision* core (NOT the matrix literals); T-03
-queue-ownership barrier helper (barrier-sensitive); H-07 opportunistic `create()`/`record()`
+barrier helper (barrier-sensitive); H-07 opportunistic `create()`/`record()`
 extractions; X-03 tools `main()` splits; SM-02 unrolled rows; A-05 `applyKw` tables (mind
 SM6-Aether); SH-02 shared Slang medium-walk module (inside PERF5 only). Closed as rejected:
 SM-01, A-04, HY-02 (RNG parity invariant), H-05b (matrix literals — image identity).
 
-**Smell harvest (check-arch 1.2.0, 2026-10-15; report-only proxies — queue items for the
-review cadence, never auto-findings):**
-- **large modules (review for an internal split at the next touch):** `scene` 3356 lines /
+**Smell harvest (the contract's report-only smell proxies — follow-up candidates,
+never auto-findings):**
+- **large modules (candidates for an internal split at the next touch):** `scene` 3356 lines /
   22 files (the family's largest here — the **AR1** split is also the size fix), `app` 2200,
-  `core` 2047, `pipeline` 1712, `vulkan_init` 1458, `presentation` 1125. Review verdict
-  first: split only where a seam is real, otherwise record accepted. `theia/renderer`
+  `core` 2047, `pipeline` 1712, `vulkan_init` 1458, `presentation` 1125. Split only where a
+  seam is real; otherwise the size is accepted. `theia/renderer`
   (5093 lines) is tracked in Theia's PLAN.
-### Architecture lens (game-engine-arch) - layer assignment 2026-10-15
+### Architecture lens - layer assignment
 
 The family mapped onto the engine hint sets (A runtime map for the family, C renderer
 stack for Theia/Harmonia, D path-tracer stack for Hyperion). Proposal, mirrored from the
@@ -157,20 +156,20 @@ are the straddlers and the empty bands.
 | `harmonia::presentation` (Swapchain, ToneMapper, ImageCapture) | straddles C: RHI swapchain / C: post / A: profiling (capture) | likely |
 | `harmonia::app` (windowing, frame loop, offscreen) | C: application + A: front end/platform | likely |
 | Theia `scene` | C: scene representation | certain |
-| `theia::renderer` + `theia::pipelines` | C: frame orchestration + RHI seam | certain |
-| `theia::cull` (GpuCull, LightCuller, HiZ, GpuDrivenState) | C: frame orchestration (culling, GPU-driven indirect) | certain |
+| `theia::renderer` + `theia::pipelines` | C: frame scheduling + RHI seam | certain |
+| `theia::cull` (GpuCull, LightCuller, HiZ, GpuDrivenState) | C: frame scheduling (culling, GPU-driven indirect) | certain |
 | `theia::postfx` (TAA, MotionVector) | C: render features (post/TAA) | certain |
 | `theia::gi` (GiPass, Pairing, EnvImportance) | C: render features (GI) | certain |
 | `theia::camera` | C: application (cameras) | certain |
-| Theia `demo` (+ queued ComputeRig) | C: application + A: front end (the ComputeRig is the frame-orchestration seed) | certain |
+| Theia `demo` (+ queued ComputeRig) | C: application + A: front end (the ComputeRig is the frame-scheduling seed) | certain |
 | Hyperion `scene` | D: scene description | certain |
 | Hyperion `PathTracer` + SBT | D: integrator / light transport | certain |
 | shared `shaders/` (OpenPBR BSDF, path integrator, denoiser) | C: shading & material system + D: integrator | certain |
 
 **Straddling:** `harmonia::presentation` (RHI swapchain / post / capture), `harmonia::app`
 (front end / platform), `IblProbe` (resources / render feature), the queued ComputeRig
-(frame orchestration seed). All are true couplings, not drawing mistakes. Resolution
-pattern for the app-side straddlers (game-engine-arch narrow-face doctrine): the demo
+(frame-scheduling seed). All are true couplings, not drawing mistakes. Resolution
+pattern for the app-side straddlers (the narrow-face doctrine): the demo
 reaches into the renderer/GI passes through a **narrow face** - a draw-op list, a render
 proxy, command submission - never direct calls into the passes or the device; the queued
 ComputeRig and the `theia/pipelines` class promotion are exactly that face.
@@ -183,47 +182,45 @@ front-end band would be new); ANI1 animation starts (it straddles - plan its ban
 PERF5 megakernel->wavefront (the hint-D integrator-structure decision); VR/other
 presentation (presentation band).
 
-- **bloat queue (check-arch `header_size`): DRAINED (2026-10-15).** `App.cpp` split into
+- **bloat queue (`header_size`): DRAINED.** `App.cpp` split into
   `App.cpp` (592) + `AppOffscreen.cpp` (203) + `AppPresent.cpp` (360); `SceneOutputCopyPass.cpp`
   split into `SceneOutputCopyPass.cpp` (401) + `SceneOutputCopyPassDenoise.cpp` (696) with a
   detail header for the shared constants. `header_size: error` promoted in the contract — a file
   over the lines limit is now a hard gate.
 ### Refactoring technique guide (refactoring.guru catalog)
 
-### Refactoring technique guide (refactoring.guru catalog)
-
-**Categorization v2 - work fronts by band (2026-10-15).** The track IDs below stay the
+**Categorization v2 - work fronts by band.** The track IDs below stay the
 addressing scheme; the batching view is the engine band each item lands in (per the
 architecture lens). Five fronts, sequenced by coupling:
 
 | Front (band) | Items | Note |
 |---|---|---|
-| 1 scene description & representation | AR1, BV, NH1, NH2, META1/2, A-01, A-03, A-05 | one seam (Aether + `harmonia/scene`), one contract change, one review |
-| 2 frame orchestration | ComputeRig, theia/pipelines class, T-03, X-02 | internal order: pipelines class -> ComputeRig -> T-03 (each builds the face the next needs) |
+| 1 scene description & representation | AR1, BV, NH1, NH2, META1/2, A-01, A-03, A-05 | one seam (Aether + `harmonia/scene`), one contract change |
+| 2 frame scheduling | ComputeRig, theia/pipelines class, T-03, X-02 | internal order: pipelines class -> ComputeRig -> T-03 (each builds the face the next needs) |
 | 3 integrator & shading | GI-SMS, PERF4, SM6-*, H-05, SH-02 | SM6-* version-gated on slang-math v0.4.0 |
 | 4 RHI & platform | VK16, VK17+VK5, AR2 | quietest band |
 | 5 hygiene & tooling (side band) | Q1-Q6, X-01, X-03, A-02, T-04 | cross-cutting; Q1 (coverage) is the precondition for front-2 surgery |
 
-Two-sided calls handed to the owner: T-04 may dissolve for free inside front 1 (the upload
-path restructures anyway); X-02 filed front 2 (orchestration-serving) but is RHI-shaped.
+Two calls cut both ways: T-04 may dissolve for free inside front 1 (the upload
+path restructures anyway); X-02 is filed under front 2 (it serves frame scheduling) but is RHI-shaped.
 Sequencing note: Q1 lands before front 2 - the safety net precedes the surgery.
 
-**Status quo (2026-10-15):** the file-level bloat queue is drained and `header_size: error`
-is the standing gate; the frame-orchestration band is split (`theia/renderer` 795 +
-pipelines/cull/postfx/gi/depth/camera modules). **Front 1 progress:** AR1 is EXECUTED (2026-10-15) - the scene module is rt-free, the
+**Status quo:** the file-level bloat queue is drained and `header_size: error`
+is the standing gate; the frame-scheduling band is split (`theia/renderer` 795 +
+pipelines/cull/postfx/gi/depth/camera modules). **Front 1 progress:** AR1 is EXECUTED - the scene module is rt-free, the
 contract edge scene->rt is removed (gate-enforced), and the BLAS/OMM/TLAS builds live in the
 new harmonia/scene_rt module; the renderers implement the createTriangleMesh/finishBuild
-hooks and own their TLAS. Remaining in front 1: BV/NH1/NH2/META1-2 + the Aether hygiene
+hooks and build their TLAS. Remaining in front 1: BV/NH1/NH2/META1-2 + the Aether hygiene
 items. Still open by front (see categorization v2 below): front 1 opens with AR1 (scene/RT split -
 also the `harmonia/scene` 3356-line size fix) and batches BV/NH1/NH2/META1-2 plus the Aether
 hygiene items; Q1 (coverage) lands before front-2 surgery; front 2 = promote `theia/pipelines`
 to a real class -> Extract the demo ComputeRig -> T-03 barrier helper (clears the last two
 report-only signals: `demo` large + `theia/pipelines` orphan); front 3 = GI-SMS/PERF4 (SM6-*
 waits on slang-math v0.4.0); front 4 = AR2 + the VK queue; front 5 = consider-tier and CI
-hygiene. One technique per commit with render proofs. Review verdicts (2026-10-15): T-04 REJECTED (Theia PLAN) - the uploadBuffer Middle Man is a
-deliberate expected-API -> VkResult adapter at 17 call sites; X-03 REJECTED - the tools
+hygiene. One technique per commit with render proofs. T-04 is rejected (Theia PLAN) - the uploadBuffer Middle Man is a
+deliberate expected-API -> VkResult adapter at 17 call sites; X-03 is rejected - the tools
 inventory shows no oversized mains (compare_renders.py: 20 factored functions + a 132-line
-orchestrating main; the big files are the check_arch engine, A-04-rejected omm_bake, and
+main; the big files are the check_arch engine, A-04-rejected omm_bake, and
 check_tidy queued under X-01).
 
 Accepted-by-design (no action): the two `harmonia`
@@ -244,9 +241,9 @@ island = Speculative Generality/Dead Code, large module/header = Large Class).
 | **Simplifying Method Calls** | Parameterize Method; Rename Method; Introduce Parameter Object | A-02 OBJ-transform CLI unification; A-05 `applyKw` tables (mind SM6-Aether) |
 | **Dealing with Generalization** | Form Template Method | (the pass `record()` scaffolds, if T-03's helper proves structural rather than a free function) |
 
-Execution rules: one technique per pass, compile + test after each; the
+Execution rules: one technique per change, compile + test after each; the
 contracts' `smells: report` re-runs are the progress meter; promote a smell's
-underlying fact into `ARCHITECTURE.md` when the review verdict is in.
+underlying fact into `ARCHITECTURE.md` once the decision is made.
 
 - **accepted by design:** hub `harmonia` (fan-in 8 — the shared vocabulary) and hub
   `app` (fan-out 8 — the host) are *supposed* to be hubs; no action.
@@ -261,16 +258,16 @@ further descriptor investment** (MOD1's `descriptor_buffer` is the current found
 verifying slang 2026.17 support before any use**. Standing cadence: each release carries at
 least one legacy→modern removal or capability adoption while the dev hardware supports it.
 
-**Quality track (code-quality-matrix audit 2026-10-11; same queue discipline as the Vulkan
-track).** Core gaps first — the matrix calls coverage *"the refactor safety net … the first
-gap to close"* and we are mid-structural-change:
+**Quality track (same queue discipline as the Vulkan
+track).** Core gaps first — coverage is the refactor safety net and the first gap to close
+while structural change is under way:
 **Q1 coverage lane** — llvm-cov on the Clang lane + gcov/lcov on the GCC lane, wired into
-  Status (2026-10-15): lane implemented - per-repo `<PREFIX>_COVERAGE` option +
-  `tools/coverage.py` orchestrator (instrumented configure/build, ctest with
+  ctest/CI. Status: lane implemented - per-repo `<PREFIX>_COVERAGE` option +
+  `tools/coverage.py` driver (instrumented configure/build, ctest with
   LLVM_PROFILE_FILE, llvm-profdata merge, llvm-cov report for src/); clang-cl lane
   verified on slang-math (90.65% lines) and Aether (83.48%); gcc --coverage wired;
   CI job follow-up.
-ctest/CI; **Q2 cppcheck** wired alongside clang-tidy (complementary analyzer — note the
+**Q2 cppcheck** wired alongside clang-tidy (complementary analyzer — note the
 pre-existing empty `tools/cppcheck.supp` artifact in all five repos); **Q3 clang-format gate**
 (`--dry-run --Werror` — the configs exist, no gate); **Q4 SCA** — osv-scanner over the
 `vcpkg.json` manifests (+ free Dependabot/dependency-review-action); **Q5 Python tools lane**
@@ -278,10 +275,10 @@ pre-existing empty `tools/cppcheck.supp` artifact in all five repos); **Q3 clang
 **Q6 CI config lint** — actionlint + yamllint over the five workflows. Baseline tier: `.editorconfig`.
 Optional tier (adopt when called for): libFuzzer targets for Aether's TOML/OBJ/OMM parsers,
 Doxygen, ScanCode (vendored trees), markdownlint/Vale over the 17 AGENTS/PLAN/README files,
-PSScriptAnalyzer (2 scripts). Architecture-rules cell = the checked-in `ARCHITECTURE.md` contracts + the check-arch
+PSScriptAnalyzer (2 scripts). Architecture rules: the checked-in `ARCHITECTURE.md` contracts + the vendored check-arch
 engine (the per-repo check_layers scripts are retired; local gate, not CI).
 
-**Architecture track (structural work — split from features 2026-10-11, sequenced BEFORE the
+**Architecture track (structural work, sequenced BEFORE the
 feature pillar):** **AR1 scene/RT-build split** — separate the scene GPU-upload path from the
 RT-build step so a rasterizer renderer can consume `scene` without `rt` (the rasterizer-base
 constraint; `rt/` is already a separable layer, this makes the seam real). Measured
@@ -365,12 +362,12 @@ convergence speed. **Industry GI/denoising/perceptual techniques are adopted her
 |----|------|--------|
 | PERF5 | **Megakernel vs Wavefront** GPU path tracing (Padilla, Webster, Kim — 2026, [arXiv:2605.27323](https://arxiv.org/abs/2605.27323); **verified** — 4-page short paper). Reports wavefront path tracing (WPT) ~16% faster than forward megakernel PT, attributed to cache locality (Nsight traces). *Kernel-scheduling* decision only; the estimator stays shared in Harmonia. Target: **one shared scheduling architecture for both renderers** unless hard evidence forces two (two loop structures = a duplicate path-tracing implementation, rejected by the one-slot rule, §5.6). **Gates PERF4** (ray reordering needs a wavefront ray buffer). | **next** |
 | PERF4 | **Ray reordering** for faster GPU RT — *On Ray Reordering Techniques…* (Meister, Bokšanský, Guthe, Bittner — 2025, [arXiv:2506.11273](https://arxiv.org/abs/2506.11273); **verified**). The sorting-key method is kernel-agnostic, but the **technique is wavefront-only** — a megakernel traces each ray inline with no ray buffer to sort, so PERF4 cannot ship without PERF5. Yields 1.3–2.0× trace speed; the authors note recovering the sort overhead on fast RT cores is "problematic" (measure on the dev GPU before committing). **Gated by PERF5.** | **next** (post-PERF5) |
-| PERF3 | **GPU acceleration-structure pipeline** for Hyperion — owned by `Hyperion/PLAN.md` (AS refit-vs-rebuild + compaction; prerequisite for ANI2). Harmonia slice: `TlasBuilder` currently does full builds only. | backlog |
-| PERF6 | **RAFI** multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)) — owned by `Hyperion/PLAN.md` (large-scene/streaming scaling). | backlog |
+| PERF3 | **GPU acceleration-structure pipeline** for Hyperion — tracked in `Hyperion/PLAN.md` (AS refit-vs-rebuild + compaction; prerequisite for ANI2). Harmonia slice: `TlasBuilder` currently does full builds only. | backlog |
+| PERF6 | **RAFI** multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)) — tracked in `Hyperion/PLAN.md` (large-scene/streaming scaling). | backlog |
 | PERF8 | *Direct Coherent Ray Generation for Path Tracing* (Lou et al. — Visual Computer 2025, [doi:10.1007/s00371-025-04090-6](https://doi.org/10.1007/s00371-025-04090-6)). | watchlist |
 
 **Wavefront (PERF5) implementation finding — the estimator-split prerequisite.** Assessed
-2026-08 against the live code (line refs re-verified 2026-09): the shared `integrateSurface`
+against the live code: the shared `integrateSurface`
 (`path_integrator.slang:410`) traces **shadow rays synchronously and inline** through the
 `ITracer` abstraction at three sites (`:226` sphere NEE, `:329` triangle NEE, `:376` env NEE) —
 `tracer.traceTransmittance(...)` returns the shadow transmittance used *in the same call* to
@@ -387,10 +384,10 @@ harder — `gi.comp.slang` (~1519 lines) fuses ReSTIR PT + medium walk + path tr
 
 **Consequence:** PERF5 is a *redesign* of the shared estimator's shadow-ray flow, not a
 refactor — and the gate is strict (Hyperion deterministic-replay EXR bit-identical; Theia
-14-scene strict-AND parity). It is multi-session, milestone-gated work (M2 split → M2 Hyperion
+14-scene strict-AND parity). It is milestone-gated work (M2 split → M2 Hyperion
 wire → M3 Theia wire → M4 AABB consumers → M5 PERF4 sort), with **no parallelism across
 milestones** (strict chain). Do not begin shader edits that cannot be brought to a verified,
-compiling state in the same session — a half-converted estimator leaves both renderers broken.
+compiling state in one go — a half-converted estimator leaves both renderers broken.
 
 *Reference material (consult, never a deliverable — not tracked as items):* NVIDIA Vulkan RT
 Tutorial v2.0 (nvpro, Vulkan 1.4) for canonical `ray_tracing_pipeline` vs `ray_query`, SBT
@@ -441,7 +438,7 @@ budget for that input channel.
 ### 5.3 Interactivity track (I)
 
 _(No outstanding Harmonia items. The one live interactivity item, **I6** (frames-per-flip),
-is owned by `Theia/PLAN.md` — its CLI flag lands in the shared
+is tracked in `Theia/PLAN.md` — its CLI flag lands in the shared
 `src/harmonia/app/CliParser.cpp`. Retired I1–I5 rationale: Theia/PLAN.md Baseline.)_
 
 ### 5.4 Sampling track (LS / QMC) — variance reduction for the shared estimator
@@ -466,7 +463,7 @@ the DI candidate path lives inside the same reservoir — the reservoir writes i
 `updateDescriptors`) — plus spatial-only path reuse (see the §8
 no-temporal-merge guardrail) and A-SVGF as an interactive-only presentation stage. The
 2025–26 ReSTIR wave is tracked here; adopt per the **convergence-to-Hyperion invariant**
-(never bias Theia). The SIG 2026 session *"Efficient Sampling: ReSTIR and More"* is the
+(never bias Theia). The SIG 2026 *"Efficient Sampling: ReSTIR and More"* talks are the
 focal set. The actionable item (GI-SMS) is in *How to continue*; the rest is an adopt/reject
 watchlist.
 
@@ -480,7 +477,7 @@ Lin/Kettunen/Wyman 2026 Enhanced).
 | ID | Paper (venue) | Relevance to Theia | Status |
 |----|---------------|--------------------|--------|
 | GI-SMS | **Sample Space Partitioning and Spatiotemporal Resampling for Specular Manifold Sampling** (Hong et al., **SIGGRAPH Asia 2025**) | Caustics / SDS chains (reconnection shifts can't handle delta lobes); real caustics/TIR fix. **Owns the caustics slot** — GI-BDPT (TOG 44(5) 2025) targets the same niche and is deliberately not tracked. | **next** |
-| GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir. *(Core landed 2026-09: (b) vector-valued resampling weights (§6.3), (c) Gaussian paired-neighbor self-inverse maps (§3), (a) the k=2 reconnection shift with Eq. 5 footprint criteria + opacity-gate mixture + GRIS Jacobian — bias-floor-proven unbiased (cornell 1.826 vs 1.830 replay-only), and multi-frame captures made run-to-run reproducible (per-frame-slot descriptor sets + reservoir ping-pong barrier).)* **Remaining:** replay stream compaction. (The k=3 hybrid extension and forced-NEE reconnection shipped 2026-09-26; the paired shift-sharing optimisation was removed - it consumed the reverse-direction shift, and paper section 3's pairing only amortises the pair of shifts that pairwise MIS weights need, which this architecture does not use.) Owned by `Theia/PLAN.md`. | **next** |
+| GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir. *(Core landed: (b) vector-valued resampling weights (§6.3), (c) Gaussian paired-neighbor self-inverse maps (§3), (a) the k=2 reconnection shift with Eq. 5 footprint criteria + opacity-gate mixture + GRIS Jacobian — bias-floor-proven unbiased (cornell 1.826 vs 1.830 replay-only), and multi-frame captures made run-to-run reproducible (per-frame-slot descriptor sets + reservoir ping-pong barrier).)* **Remaining:** replay stream compaction. (The k=3 hybrid extension and forced-NEE reconnection also shipped; the paired shift-sharing optimisation was removed - it consumed the reverse-direction shift, and paper section 3's pairing only amortises the pair of shifts that pairwise MIS weights need, which this architecture does not use.) Tracked in `Theia/PLAN.md`. | **next** |
 | GI-PG | **ReSTIR PG** — path guiding w/ spatiotemporally resampled paths (Zeng et al., **SIGGRAPH Asia 2025**) | Hard-to-sample indirect transport; consistent; belongs in the shared estimator. Overlaps LS4 — one guiding approach only. | backlog |
 | GI-CG | **Compatibility-Guided Neighbor Selection** (Junkins et al., **HPG 2026, Best Paper**) | Drop-in spatial-reuse quality boost (shift-compatible neighbors) | backlog |
 | GI-CV | **Spatio-Temporal Control Variates with ReSTIR for Real-Time Rendering (ReSTCV)** (Shi et al., **SIGGRAPH 2026**, honorable mention) | Reservoir-borne accumulated estimates + CV from neighbor/frame differences — cuts color noise at 1-spp budgets. Consistent **only if** the CV is zero-expectation — audit before adopting. | backlog |
@@ -513,7 +510,7 @@ GI1, GI2, GI-BDPT, GI-LOD, GI-VOL, DN2, DN4, DN6, DN7, LS3, PAR6, VK3, VK11, I1�
 C0–C7, R6/R8/R12 (CH1–CH15). Noteworthy retired work is recorded in **Baseline**.
 
 **Phantom-paper audit — corrected:** earlier "phantom" verdicts used only arXiv+DBLP+Wikipedia
-absence, which misses SIGGRAPH posters and CGF/proceedings. Re-verified via Semantic Scholar
+absence, which misses SIGGRAPH posters and CGF/proceedings. Confirmed via Semantic Scholar
 (broader ACM coverage): **ReSTIR BDPT** ✓ (TOG 44(5) '25), **Ghost ReSTIR** ✓ (SIG '26 poster,
 volumetric), **Gradient-Domain ReSTIR PT** ✓ (CGF 2026 → GI-GD). Only **"ReSTIR GO"** remains
 unfound by that name (likely a misremembered title). Lesson: never declare a paper phantom
@@ -569,7 +566,7 @@ computes `mean_diff`, `rel_mse`, `ssim` (tone-mapped sRGB), luminance-histogram 
 `check_consistency.py` covers bias/variance, and `validation_manifest.toml` gates **14** of
 the 30 scenes (strict AND across the metric set). Add new perceptual metrics below as backlog.
 
-**Consistency-run evidence (2026-09, estimator-pure capture):** `cornell_classic` converges
+**Consistency-run evidence (estimator-pure capture):** `cornell_classic` converges
 at the textbook rate (pairwise ratio 0.504 ≈ 1/√N) and passes the bias floor (Theia@1024f vs
 Hyperion@1024spp mean_diff 1.84 ≤ 4.0) — the shared estimator + contract work as designed.
 `openpbr_metals` passes the variance rate (0.674, in-band) but fails the bias floor (27.9):
@@ -589,7 +586,7 @@ indict the estimator. (Akin to the low-spp reference trap, Aether/AGENTS.md.)
 ### 5.8 Vulkan capability adoption — newly available on the dev GPU
 
 **Grounding:** verified via `vulkaninfo` on the dev target — **NVIDIA RTX 5070, driver
-617.14, apiVersion 1.4.351 (SDK 1.4.363, slang 2026.17)**, re-verified 2026-08-08 - extension surface unchanged vs 617.14 (earlier groundings: driver 616.92 / SDK 1.4.357, and RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
+617.42, apiVersion 1.4.351 (SDK 1.4.363, slang 2026.17)** (earlier groundings: driver 616.92 / SDK 1.4.357, and RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
 with the cross-vendor guardrail (§8). They follow the established **probe→enable** pattern in
 `Context.cpp` (cf. `serSupported` / `dgcSupported` /
 `positionFetchSupported` / `meshShaderSupported`): each is *optional* and engaged only when
@@ -615,9 +612,9 @@ tagging, `Swapchain::waitForPresent`). **VK11** — `shaderDemoteToHelperInvocat
 cutout's Slang `discard` emits the `DemoteToHelperInvocation` SPIR-V capability, which
 tripped VUID-08740 on every `vkCreateShaderModule` until the feature was enabled.
 `VK_KHR_swapchain_maintenance1` (the MOD4 scaling
-piece) is the one remaining present item — MOD4 is owned by `Theia/PLAN.md`.
+piece) is the one remaining present item — MOD4 is tracked in `Theia/PLAN.md`.
 
-**2026-09-29 audit (SDK 1.4.363.0 / driver 617.42 — 291 device extensions, slang 2026.17).**
+**Capability audit (SDK 1.4.363.0 / driver 617.42 — 291 device extensions, slang 2026.17).**
 The .363 spec revision itself adds only `VK_INTEL_device_info` (vendor → excluded); the rows
 below capture the cross-vendor arrivals now verified present on this GPU. Verified present
 but excluded by the cross-vendor guardrail (§8): `VK_NV_cluster_acceleration_structure`,
@@ -631,12 +628,12 @@ revalidation event, not a free upgrade.
 |----|------------------------------|---------|-------|--------|
 | VK4 | `VK_KHR_shader_subgroup_rotate` + `VK_KHR_shader_maximal_reconvergence` + `VK_KHR_shader_subgroup_uniform_control_flow` + `VK_KHR_shader_quad_control` (subgroupSize 32; RT + compute stages) | Warp-coherent reductions/rotations for **ReSTIR reservoir merging & compaction** → faster spatial reuse; maximal reconvergence guarantees a converged wavefront for the path integrator | GI, PERF | backlog |
 | VK5 | `VK_KHR_pipeline_binary` | Serialized/faster PSO creation — cuts Theia's cold start (5 pipelines built at init: opaque / transparent / sky / cull / GI) and speeds `.spv` hot-reload | PERF, CH | backlog |
-| VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **SHIPPED 2026-09-25** (MOD1): all descriptor pools deleted, `DescriptorBufferWriter` shared helper. | PERF, CH | ~~backlog · blocked~~ **shipped** |
+| VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **SHIPPED** (MOD1): all descriptor pools deleted, `DescriptorBufferWriter` shared helper. | PERF, CH | ~~backlog · blocked~~ **shipped** |
 | VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path **DN1** (the RaNAD neural denoiser) needs. Consumer is DN1; until DN1 starts this stays speculative, so backlog rather than next. | DN | backlog (→ DN1) |
 | VK9 | Reduced precision — `shaderFloat16` / `shaderBFloat16` / `shaderFloat8` | FP16/BF16/FP8 compute; consumer is DN1 (with VK1) | DN, PERF | watchlist (→ DN1) |
 | VK12 | `VK_KHR_present_id2` + `VK_KHR_present_wait2` | present-pacing v2 (supersedes the VK6 v1 pair — richer per-present timing/latency control for the interactive window); adoption = **MOD6** (drop v1) | I, PERF | watchlist (→ MOD6) |
-| VK13 | ~~`VK_KHR_maintenance7`–`maintenance11`~~ | **TRIAGED 2026-09-25: no actionable features** — these are spec clarifications and minor struct additions (layered rendering, depth/stencil clarifications, sync edge cases); nothing our codebase uses or benefits from. | CH | ~~watchlist~~ **closed** |
-| VK14 | ~~`VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives`~~ | **SHIPPED 2026-09-25**: `nullDescriptor` enabled (hard-required) — all dummy resources DELETED (GiPass gradient/motion images, ForwardRenderer env + tile-light buffers). `robustBufferAccess2/ImageAccess2` deliberately NOT enabled (perf cost). Compute derivatives NOT adopted (not used yet). | PERF, CH | ~~watchlist~~ **shipped** |
+| VK13 | ~~`VK_KHR_maintenance7`–`maintenance11`~~ | **Triaged: no actionable features** — these are spec clarifications and minor struct additions (layered rendering, depth/stencil clarifications, sync edge cases); nothing our codebase uses or benefits from. | CH | ~~watchlist~~ **closed** |
+| VK14 | ~~`VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives`~~ | **SHIPPED**: `nullDescriptor` enabled (hard-required) — all dummy resources DELETED (GiPass gradient/motion images, ForwardRenderer env + tile-light buffers). `robustBufferAccess2/ImageAccess2` deliberately NOT enabled (perf cost). Compute derivatives NOT adopted (not used yet). | PERF, CH | ~~watchlist~~ **shipped** |
 | VK15 | `VK_KHR_opacity_micromap` | **SHIPPED (v0.7.11)** — and it is **not** a rename (extension proposal issue 5: "not an exact promotion"): the re-issue folds micromaps into the acceleration-structure API (issue 6) — `VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR`, sized via `vkGetAccelerationStructureBuildSizesKHR` (NULL `pMaxPrimitiveCounts`), built via `vkCmdBuildAccelerationStructuresKHR` with `VK_GEOMETRY_TYPE_MICROMAP_KHR` (NULL range infos; usage-driven), new KHR sTypes (10006230xx), reshaped `VkAccelerationStructureTrianglesOpacityMicromapKHR` (usage counts dropped from the BLAS link). The standalone `vkCreateMicromapEXT` surface is **deleted**; `Micromap` is an `AccelerationStructure` (MOD5 device-address creation reused). Proven image-identical on `shaderball_checker` (MAD = 0 vs the EXT-path gallery) with zero validation errors/warnings. | CH | **shipped** |
 | VK16 | `VK_KHR_device_fault` (+ `VK_EXT_device_address_binding_report`) | Device-lost forensics with fault addresses — localizing a crash in a GPU-driven pipeline (DGC + indirect dispatch) that today surfaces only as a bare `VK_ERROR_DEVICE_LOST` | CH | backlog |
 | VK17 | `VK_EXT_shader_module_identifier` | Skip recompiling unchanged shaders (identifier-based reuse) — CI and cold-start win; natural companion to VK5 `pipeline_binary` | PERF, CH | backlog |
@@ -649,20 +646,20 @@ revalidation event, not a free upgrade.
 **Modernization removals — legacy → modern (drop, not just add).** The capability table above
 lists what we can *enable*; the "modern Vulkan preferred over legacy" rule (§8) means the
 higher-value move is *removing* legacy code now that a verified-present modern equivalent
-exists. **Standing priority (owner directive, 2026-09):** this family's code stays
+exists. **Standing priority:** this family's code stays
 *latest-standard Vulkan and GPU-driven by design* — each release carries at least one
-legacy→modern removal or capability adoption whenever the dev hardware supports it; the
-2026-09 driver wave (MOD5/MOD6/VK13/VK14) is the current harvest. Each removal is
+legacy→modern removal or capability adoption whenever the dev hardware supports it;
+MOD5/MOD6/VK13/VK14 are the current harvest. Each removal is
 perf/code-health-only and binding-/sync-/data-equivalent → never biases the
 image, passes the convergence-to-Hyperion litmus. Grounded in current code:
 
 | ID  | Legacy (drop) | Modern (use) | Deletes | Track | Status |
 |-----|---------------|--------------|---------|-------|--------|
-| MOD1 | Descriptor pools/sets — `vkCreateDescriptorPool`/`vkAllocateDescriptorSets`/`vkUpdateDescriptorSets` (5 files) | **`VK_EXT_descriptor_buffer`** — bindless: write to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT` | the `Descriptors` pool abstraction + per-pass pools/allocated sets + all update-writes | PERF, CH | **SHIPPED 2026-09-25**: all 5 pools deleted (Harmonia `Descriptors` + Theia `ForwardRenderer`/`GiPass`/`GpuCullPass`/`LightCuller`). `DescriptorBufferWriter` shared helper (typed `vkGetDescriptorEXT` for all 6 descriptor types). ~900 lines of boilerplate removed. Push descriptors → descriptor buffers (pipeline layout constraint). Uniform buffer descriptor support added. |
-| MOD2 | `VkFence` — ~~one-shot submits + async-compute fences~~ | **SHIPPED 2026-09-25**: timeline semaphores (core 1.2) everywhere. `OneShot.hpp` gained `createTimelineSemaphore`/`waitTimelineSemaphore` + timeline-signal submit; Theia's async path uses a single monotonic-value timeline semaphore. All sync on **one primitive**. | CH | ~~backlog~~ **shipped** |
-| MOD4 | ~~Full swapchain recreate on resize~~ | **CLOSED 2026-09-25 (owner decision)**: driver-side scaling is a new feature we don't need — the recreate-on-resize behavior is correct for our use case (game/render window doesn't resize during rendering, same as Blender). Not a legacy→modern swap. | — | ~~backlog~~ **closed (not needed)** |
-| MOD5 | ~~Acceleration-structure creation — `vkCreateAccelerationStructureKHR` + CPU-side build-info plumbing~~ | **SHIPPED 2026-09-25**: `vkCreateAccelerationStructure2KHR` (device-address-only, `VK_KHR_device_address_commands`) — the old creation call AND the post-creation address query are both deleted (the address IS the input). Hard-required feature + extension. | CH, PERF | **shipped** |
-| MOD6 | Present pacing — ~~`VK_KHR_present_id` + `VK_KHR_present_wait` (VK6, shipped v0.7.6)~~ | **SHIPPED 2026-09-25**: `VK_KHR_present_id2` + `VK_KHR_present_wait2` — the v1 pair is dropped (probe→enable unchanged; `VkPresentId2KHR` in the present info, `vkWaitForPresent2KHR` info-struct wait). | I, PERF | ~~backlog~~ **shipped** |
+| MOD1 | Descriptor pools/sets — `vkCreateDescriptorPool`/`vkAllocateDescriptorSets`/`vkUpdateDescriptorSets` (5 files) | **`VK_EXT_descriptor_buffer`** — bindless: write to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT` | the `Descriptors` pool abstraction + per-pass pools/allocated sets + all update-writes | PERF, CH | **SHIPPED**: all 5 pools deleted (Harmonia `Descriptors` + Theia `ForwardRenderer`/`GiPass`/`GpuCullPass`/`LightCuller`). `DescriptorBufferWriter` shared helper (typed `vkGetDescriptorEXT` for all 6 descriptor types). ~900 lines of boilerplate removed. Push descriptors → descriptor buffers (pipeline layout constraint). Uniform buffer descriptor support added. |
+| MOD2 | `VkFence` — ~~one-shot submits + async-compute fences~~ | **SHIPPED**: timeline semaphores (core 1.2) everywhere. `OneShot.hpp` gained `createTimelineSemaphore`/`waitTimelineSemaphore` + timeline-signal submit; Theia's async path uses a single monotonic-value timeline semaphore. All sync on **one primitive**. | CH | ~~backlog~~ **shipped** |
+| MOD4 | ~~Full swapchain recreate on resize~~ | **CLOSED**: driver-side scaling is a new feature we don't need — the recreate-on-resize behavior is correct for our use case (game/render window doesn't resize during rendering, same as Blender). Not a legacy→modern swap. | — | ~~backlog~~ **closed (not needed)** |
+| MOD5 | ~~Acceleration-structure creation — `vkCreateAccelerationStructureKHR` + CPU-side build-info plumbing~~ | **SHIPPED**: `vkCreateAccelerationStructure2KHR` (device-address-only, `VK_KHR_device_address_commands`) — the old creation call AND the post-creation address query are both deleted (the address IS the input). Hard-required feature + extension. | CH, PERF | **shipped** |
+| MOD6 | Present pacing — ~~`VK_KHR_present_id` + `VK_KHR_present_wait` (VK6, shipped v0.7.6)~~ | **SHIPPED**: `VK_KHR_present_id2` + `VK_KHR_present_wait2` — the v1 pair is dropped (probe→enable unchanged; `VkPresentId2KHR` in the present info, `vkWaitForPresent2KHR` info-struct wait). | I, PERF | ~~backlog~~ **shipped** |
 
 *Shipped (v0.7.6):* **MOD3** — Vulkan-1.4 `hostImageCopy`
 (`VK_EXT_host_image_copy` promoted to core) replaced the staging-buffer→`vkCmdCopyBufferToImage`
@@ -680,24 +677,14 @@ invisible to the offscreen-only validation gate (see **VAL1**).
 but there is no secondary-command-buffer legacy to drop (engine is already primary-only) —
 watch only.
 
-**Former future-forward item — now available:** `VK_KHR_device_address_commands` /
-`vkCreateAccelerationStructure2KHR` — the cleanest device-address-only AS-creation API — is
-verified **present** on driver 616.92 (it was absent on 610.88). The "plan when available"
-gate in the device-layer notes (`AGENTS.md`) is open; adoption is tracked as **MOD5** below.
-Also new in the 2026-09 driver wave (presence verified, triage pending): `VK_KHR_maintenance7`
-through `maintenance11`, `VK_KHR_present_id2`/`present_wait2`, `VK_KHR_robustness2`
-(`robustBufferAccess2` + `nullDescriptor`), `VK_KHR_compute_shader_derivatives`,
-`VK_KHR_swapchain_maintenance1` (hardware-ready for MOD4). NV-only arrivals
-(`VK_NV_cooperative_matrix2`/`decode_vector`) stay excluded by the cross-vendor guardrail.
-
 ---
 
 ## 6. Feature pillar
 
 Capabilities beyond the core estimator — scene structure (node hierarchy), animation, and
 bounding-volume consumers. None bias the image — they extend *what* can be represented, not
-the estimator. (Aether owns the schema slices — `Aether/PLAN.md`; Theia owns render-loop work
-— `Theia/PLAN.md`.)
+the estimator. (The schema slices are tracked in `Aether/PLAN.md`; render-loop work in
+`Theia/PLAN.md`.)
 
 ### 6.1 Node hierarchy track (NH) — Harmonia slice
 
@@ -774,7 +761,7 @@ metrics catch numeric and structural drift, but not every perceptual mismatch (h
 texture/color shifts inside tolerance, correlation blotches). A scene that passes the gate
 but *looks* different is a finding, not a pass.
 
-**Capture purity (Theia, extended 2026-09):** an `--output` capture disables all Theia
+**Capture purity (Theia):** an `--output` capture disables all Theia
 presentation aids — denoiser/TAA (v0.7.4), the firefly clamps, and the A3(a) secondary-bounce
 roughness regularization — and forces camera jitter **on**, so the capture integrates the
 same pixel footprint as Hyperion's per-sample jitter and converges to the *unclamped* ground
@@ -783,7 +770,7 @@ true variance, never a presentation aid. Expect visible firefly speckle on HDR s
 finite frames — that is variance (attack with frames / GI-ENH variance work), and the
 bias-vs-noise method above is how to tell it apart from bias. Multi-frame Theia captures are
 run-to-run pixel-reproducible (per-frame-slot descriptor sets + the reservoir ping-pong
-barrier, 2026-09) — the bias-vs-noise method can now debug against byte-stable references.
+barrier) — the bias-vs-noise method can debug against byte-stable references.
 
 **Gold-standard perceptual (optional, heavyweight):** HDR-FLIP (Andersson et al. 2020, HDR
 ext. 2021) — JND-based pair metric for HDR; pull in when the cheap set flags disagreement with
@@ -812,7 +799,7 @@ commit. No new warning lands on `main`.
 interactive window — runs with validation layers ON and emits **zero** validation errors or
 warnings (no VUID messages). A validation message is a bug, never noise: root-cause it
 (image-layout transitions, descriptor-pool sizing, pipeline barriers, push-constant layout,
-queue-family ownership, …) before moving on. At release time, re-verify across the full
+queue-family transfers, …) before moving on. At release time, re-verify across the full
 30-scene gallery via `tools/check_vulkan_validation.py` (validation surfaces are
 sample-count-independent, so tiny sampling at 320×240 suffices).
 
@@ -854,10 +841,10 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   light-tailed direct lighting. The only sanctioned route back to temporal memory is the
   unbiased GRIS pairwise-MIS form tracked in `Theia/PLAN.md` (*ReSTIR-PT refinements*).
 - **Do not hack to the goal** — root-cause fixes, not tuned thresholds.
-- **Fix bugs at once.** A bug found is root-caused and patched in the same session. If an
+- **Fix bugs at once.** A bug found is root-caused and patched immediately. If an
   immediate fix is genuinely impossible (blocked behind a refactor, upstream change, or
-  not-yet-understood cause), log it in the owning repo's PLAN.md with an owner-direction and a
-  next action. "Defer" / "track for later" / "document first" are not acceptable resolutions
+  not-yet-understood cause), log it in the PLAN.md of the repo that carries the work, with a
+  rationale and a next action. "Defer" / "track for later" / "document first" are not acceptable resolutions
   for a known defect.
 - **Solve directly, never defer.** Every divergence is root-caused and fixed in code. No
   "validation gate", "classify as unrealistic input", or "measure/document first" tracks.
@@ -906,7 +893,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   `VK_EXT_buffer_device_address` / `VK_NV_buffer_device_address`). **No fallback paths** — if
   a required feature is missing at device selection, fail fast rather than maintain a second
   code path. An *optional* capability is permitted only when its absent-branch is
-  **Standing priority (owner directive, 2026-09):** latest-standard Vulkan + GPU-driven
+  **Standing priority:** latest-standard Vulkan + GPU-driven
   approaches + state-of-the-art algorithms are core to this family's identity — every
   release carries at least one legacy→modern removal or verified-present capability
   adoption (§5.8 MOD table), and the research tracks (§5) adopt the current
@@ -963,8 +950,8 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   same-layer header cycles the pairwise matrix cannot see; angle-bracket project includes
   are counted; **renderer isolation** — any `theia/`/`hyperion/` include fails the gate
   (the renderers are siblings: both depend on Harmonia, never on each other).
-  `scene::Xform` → **`Transform`** (the code-health review's only abbreviation-flagged
-  name; type + `xform` member + `toTransform`), and the legacy
+  `scene::Xform` → **`Transform`** (the only abbreviation-flagged name in the code-health
+  queue; type + `xform` member + `toTransform`), and the legacy
   `presentation/OutputColorSpace.hpp` forwarding shim is gone (its comment even pointed at
   the wrong repo). AGENTS documents the sibling-isolation invariant and the deliberate
   Aether seam (file-format vs GPU-side `Aabb`/`MeshData` twins). The same gate discipline
@@ -977,10 +964,9 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   `vulkan_init` → `rt` → `scene` → `renderer`/`pipeline`/`presentation` → `app`. Layered
   namespaces `harmonia::<layer>` mirror the directories (flat `harmonia::` = the shared
   vocabulary `DeviceContext`/`GpuTypes`); Hyperion's classes move to `namespace hyperion`
-  (Theia already `theia::`). `tools/check_layers.py` — the architecture-rules cell of the
-  code-quality matrix — enforces the include-graph allowlist + namespace-vs-directory as
+  (Theia already `theia::`). `tools/check_layers.py` — the architecture-rules gate — enforces the include-graph allowlist + namespace-vs-directory as
   ctest `test_layers`. **Rasterizer-base constraint recorded:** `rt` stays a separable
-  capability (roadmap item splits the scene upload from the RT-build step). Docs re-verified
+  capability (roadmap item splits the scene upload from the RT-build step). Docs verified
   against the code (layered names; two beyond-EOF line citations re-anchored to symbols; the
   SM6 notes corrected — `Math::isNanOrInf` was deleted in H-04). **Verified:** 90/90 ctest
   (incl. `test_layers`) on Windows and Linux; **zero validation errors and warnings**; the
@@ -1025,7 +1011,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   tagging. Both error classes gone on interactive + offscreen; 89 ctest green on both OSes.
 - **v0.7.9** (slang-math unchanged, Aether bumped to v0.7.4): **C9 bounded VNDF fixed (was up
   to 35% biased); DN3/C12/GI-SMS landed; MOD1+VK14; background-priority captures.** (Entry
-  backfilled 2026-10-09 from the release commit; documented retroactively with v0.7.10.)
+  backfilled from the release commit; documented retroactively with v0.7.10.)
 - **v0.7.8** (slang-math unchanged, Aether bumped to v0.7.4): **VK11** —
   `shaderDemoteToHelperInvocation` enabled as a hard-required Vulkan 1.3 feature
   (`Context.cpp`): the C14 cutout's Slang `discard` emits the `DemoteToHelperInvocation`

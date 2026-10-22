@@ -1,6 +1,6 @@
 # AGENTS.md â€” Harmonia
 
-Quick-start context for AI agents so basic facts don't have to be rediscovered each session.
+Quick-start context for AI agents so basic facts don't have to be rediscovered from scratch.
 
 **Outstanding work, governance (definition of done + guardrails) and release history: see
 [`PLAN.md`](PLAN.md).**
@@ -8,7 +8,7 @@ Quick-start context for AI agents so basic facts don't have to be rediscovered e
 ## What this repo is
 
 **Harmonia** is the shared **Vulkan pipeline library** used 1:1 by both renderers.
-It owns the `harmonia::app::App` host (windowing, swapchain, offscreen capture, arg parsing),
+It provides the `harmonia::app::App` host (windowing, swapchain, offscreen capture, arg parsing),
 the SPIR-V/Slang shader loading (`compile_slang_shaders`, `createShaderModule`), color-space
 utilities, image I/O, tonemapping, the shared `path_integrator.slang` estimator + denoiser
 stage, and the `harmonia::app::IRenderer` interface.
@@ -28,7 +28,7 @@ flowchart LR
 stays renderer-specific (Hyperion = path tracer w/ index buffers + RT; Theia = mesh-shader
 rasterizer w/ meshlets). GPU-optimized scene upload / instance / meshlet layouts are
 renderer-specific, NOT here. Aether's CPU types (`Aabb`, `MeshData`, `MaterialLibrary`)
-are the file-format vocabulary; `harmonia::scene` deliberately owns the GPU-side twins
+are the file-format vocabulary; `harmonia::scene` deliberately carries the GPU-side twins
 (`sm::float3`-based `Aabb`, `GpuVertex`-carrying `MeshData`) — the translation happens at
 scene load (`SceneLoader`), so the file-format library and the GPU library stay decoupled.
 
@@ -39,15 +39,14 @@ capability) → `harmonia::scene` → `harmonia::renderer` / `harmonia::pipeline
 `harmonia::presentation` → `harmonia::app`, plus the flat vocabulary `harmonia::`
 (`DeviceContext`, `GpuTypes`). Includes may only go **down** the graph — the checked-in `ARCHITECTURE.md`
 contract (the check-arch reflexion gate; ctest `test_arch` runs the vendored
-`tools/check_arch.py` engine — label `analysis`, registered only where the skill exists,
-local not CI) enforces the DAG, declared edges only (default deny), **no include cycles**
+`tools/check_arch.py` engine — label `analysis`, local; not wired into CI) enforces the DAG, declared edges only (default deny), **no include cycles**
 (file-level
 SCC detection — catches same-layer header cycles the pairwise matrix cannot see), the
 **namespace law** — headers open their module's namespace (the root vocabulary opens
 `harmonia`; nested modules like `harmonia::utils::Math` count) — and any
 `theia/`/`hyperion/` include — **Hyperion and Theia are siblings: both depend on
 Harmonia, never on each other**.
-Renderers own their namespaces
+Renderer namespaces stay separate
 (`theia::`, `hyperion::`); nothing renderer-specific may live in `harmonia::`. Note the
 rasterizer-base constraint: `harmonia::rt` must stay a separable capability — a future
 rasterizer path consumes `scene` without `rt`.
@@ -248,7 +247,7 @@ profiles and prints the llvm-cov report for `src/` (gcc builds report via gcov; 
 when the LLVM tools are missing). NOT wired into CI: the test suites need a GPU and CI is build-only for the renderer band, so a CI coverage report would measure nothing - the lane stays a local activity.
 
 Further capability candidates (verified present on the dev GPU, not yet adopted) are
-tracked in `PLAN.md` §5.8 — audit refreshed 2026-09-29 (SDK 1.4.363 / driver 617.14).
+tracked in `PLAN.md` §5.8 — capability audit (SDK 1.4.363 / driver 617.42).
 - **VMA allocator flag:** `VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT` must be set alongside
   `VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT` to let VMA handle
   `VkBufferUsageFlags2CreateInfo` in `VkBufferCreateInfo::pNext`. When `VK_EXT_pageable_device_local_memory`
@@ -275,4 +274,4 @@ tracked in `PLAN.md` §5.8 — audit refreshed 2026-09-29 (SDK 1.4.363 / driver 
 - `vkBuildAccelerationStructuresKHR` (host-side) is **never used** â€” it is deprecated per the
   [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
 - `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` is the **future forward
-  path** for AS creation (cleanest device-address-only API). SHIPPED 2026-09-25 (MOD5): vkCreateAccelerationStructure2KHR is the only AS creation path; the legacy vkCreateAccelerationStructureKHR is deleted (hard-required).
+  path** for AS creation (cleanest device-address-only API). SHIPPED (MOD5): vkCreateAccelerationStructure2KHR is the only AS creation path; the legacy vkCreateAccelerationStructureKHR is deleted (hard-required).

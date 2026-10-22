@@ -81,7 +81,7 @@ namespace_require:
 unresolved: info
 within_layer: deny              # undeclared same-layer edges: violations
 kind: library                   # public API surface: volume judged per file
-header_size: error               # the standing bloat rule (hard gate; the 2026-10 bloat queue is drained)
+header_size: error               # the standing bloat rule (hard gate)
 smells: report                 # refactoring-catalog proxies: report-only review signals
 
 layer vocabulary
@@ -144,7 +144,7 @@ allow harmonia/app -> harmonia/presentation
 ## Reading the stack
 
 `vocabulary` (`harmonia/` root: `DeviceContext`, `GpuTypes`) is the leaf every
-layer may use; `utils`/`core` are the foundation; `vulkan_init` owns device
+layer may use; `utils`/`core` are the foundation; `vulkan_init` handles device
 creation; `rt` is the separable ray-tracing capability (a rasterizer consumer
 would use `scene` without it — the rasterizer-base constraint);
 `renderer`/`pipeline`/`presentation` are sibling pass layers (declared edges
