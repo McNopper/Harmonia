@@ -247,7 +247,7 @@ profiles and prints the llvm-cov report for `src/` (gcc builds report via gcov; 
 when the LLVM tools are missing). NOT wired into CI: the test suites need a GPU and CI is build-only for the renderer band, so a CI coverage report would measure nothing - the lane stays a local activity.
 
 Further capability candidates (verified present on the dev GPU, not yet adopted) are
-tracked in `PLAN.md` §5.8 — capability audit (SDK 1.4.363 / driver 617.42).
+tracked in `PLAN.md` §5.8 — capability audit (SDK 1.4.363 / driver 621.01).
 - **VMA allocator flag:** `VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT` must be set alongside
   `VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT` to let VMA handle
   `VkBufferUsageFlags2CreateInfo` in `VkBufferCreateInfo::pNext`. When `VK_EXT_pageable_device_local_memory`

@@ -83,10 +83,11 @@ the sibling clones.
   suite needs a GPU).
 - **Next:** **GI-SMS** (caustics / SDS chains) is global item #1 below.
 - **Newly available (dev driver/SDK upgrade; extension surface unchanged vs driver 617.14):** the Vulkan 1.4
-  capability set is verified on the dev GPU (**RTX 5070, driver 617.42 / SDK 1.4.363**, 291
+  capability set is verified on the dev GPU (**RTX 5070, driver 621.01 / SDK 1.4.363**, 295
   device extensions, slang 2026.17) - subgroup rotate/reconvergence family, `pipeline_binary`,
   `device_fault`, `shader_module_identifier`, `present_timing`, `descriptor_heap`,
-  `unified_image_layouts`, `memory_budget`, next-gen shader model; see SS5.8 rows VK15-VK22.
+  `unified_image_layouts`, `memory_budget`, next-gen shader model; new in 621.01:
+  maintenance9/10/11, the cooperative-matrix/vector family, subgroup partitioned; see SS5.8 rows VK15-VK22.
   **Adopted since v0.7.6:** present pacing (VK6 -> MOD6 `present_id2`/`present_wait2`),
   `host_image_copy` (VK8/MOD3), `pageable_device_local_memory` + `calibrated_timestamps`
   (VK10), `opacity_micromap` (VK2, v0.7.7), `descriptor_buffer` (VK7/MOD1), `robustness2`
@@ -614,7 +615,7 @@ tripped VUID-08740 on every `vkCreateShaderModule` until the feature was enabled
 `VK_KHR_swapchain_maintenance1` (the MOD4 scaling
 piece) is the one remaining present item — MOD4 is tracked in `Theia/PLAN.md`.
 
-**Capability audit (SDK 1.4.363.0 / driver 617.42 — 291 device extensions, slang 2026.17).**
+**Capability audit (SDK 1.4.363.0 / driver 621.01 — 295 device extensions, slang 2026.17; renames vs the previous audit: `host_image_copy` is Vulkan 1.4 core (string retired, feature required by MOD3 anyway), `unified_image_layouts` and `pipeline_binary` are KHR core-track now, `present_timing` moved back to EXT; arrivals: maintenance9/10/11, cooperative matrix/vector family, subgroup partitioned).**
 The .363 spec revision itself adds only `VK_INTEL_device_info` (vendor → excluded); the rows
 below capture the cross-vendor arrivals now verified present on this GPU. Verified present
 but excluded by the cross-vendor guardrail (§8): `VK_NV_cluster_acceleration_structure`,
