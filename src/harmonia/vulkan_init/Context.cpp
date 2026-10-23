@@ -2,8 +2,10 @@
 
 #include <SDL3/SDL_vulkan.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -194,6 +196,87 @@ struct SupportedFeatures {
     return s;
 }
 
+// Optional capability flags, staged by the probe table below and copied into
+// DeviceContext after a successful vkCreateDevice (the DeviceContext runtime
+// branching API itself stays unchanged). Mesh shaders deliberately have no
+// DeviceContext flag: registration must work on GPUs without VK_EXT_mesh_shader.
+struct CapabilityFlags {
+    bool serSupported = false;
+    bool positionFetchSupported = false;
+    bool meshShaderSupported = false;
+    bool dgcSupported = false;
+    bool opacityMicromapSupported = false;
+    bool pageableMemorySupported = false;
+    bool calibratedTimestampsSupported = false;
+    bool presentIdSupported = false;
+    bool presentWaitSupported = false;
+    bool fifoLatestReadySupported = false;
+};
+
+// One row per optional capability: on pass, the extension(s) are enabled and the
+// capability flag is recorded. A row passes when the extension was advertised at
+// enumerate time (infoFlag) AND — where the row carries one — the supported
+// feature bit is TRUE (featureBit). Null slots opt out of a check, which is what
+// distinguishes feature-only probes (ser, position fetch, mesh shader) from
+// extension-only probes (pageable memory, calibrated timestamps). Feature fields
+// are VkBool32 throughout and probed via type-erased pointers uniformly.
+struct CapabilityProbe {
+    std::array<const char*, 2> extensions; ///< Extension names enabled on pass; unused slots are null.
+    const VkBool32* featureBit;            ///< Supported-chain feature bit; null = extension-only probe.
+    const bool* infoFlag;                  ///< PhysicalDeviceInfo presence flag; null = feature-only probe.
+    bool CapabilityFlags::* flag;          ///< Capability flag recorded on pass.
+};
+
+// The declarative probe table (replaces the former hand-written probe→flag
+// blocks). Row order mirrors the former extension-push sequence.
+[[nodiscard]] std::vector<CapabilityProbe> capabilityProbes(const PhysicalDeviceInfo& info,
+                                                            const SupportedFeatures& supported) {
+    return {
+        CapabilityProbe{{VK_EXT_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME, nullptr},
+                        &supported.ser.rayTracingInvocationReorder,
+                        nullptr,
+                        &CapabilityFlags::serSupported},
+        CapabilityProbe{{VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME, nullptr},
+                        &supported.positionFetch.rayTracingPositionFetch,
+                        nullptr,
+                        &CapabilityFlags::positionFetchSupported},
+        CapabilityProbe{{VK_EXT_MESH_SHADER_EXTENSION_NAME, nullptr},
+                        &supported.mesh.meshShader,
+                        nullptr,
+                        &CapabilityFlags::meshShaderSupported},
+        CapabilityProbe{{VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME, nullptr},
+                        &supported.dgc.deviceGeneratedCommands,
+                        &info.dgcSupported,
+                        &CapabilityFlags::dgcSupported},
+        CapabilityProbe{{VK_KHR_OPACITY_MICROMAP_EXTENSION_NAME, nullptr},
+                        &supported.omm.micromap,
+                        &info.opacityMicromapSupported,
+                        &CapabilityFlags::opacityMicromapSupported},
+        CapabilityProbe{{VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME, VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME},
+                        nullptr,
+                        &info.pageableMemorySupported,
+                        &CapabilityFlags::pageableMemorySupported},
+        CapabilityProbe{{VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME, nullptr},
+                        nullptr,
+                        &info.calibratedTimestampsSupported,
+                        &CapabilityFlags::calibratedTimestampsSupported},
+        // MOD6: present_id2 extends (not replaces) present_id — both must be enabled.
+        CapabilityProbe{{VK_KHR_PRESENT_ID_EXTENSION_NAME, VK_KHR_PRESENT_ID_2_EXTENSION_NAME},
+                        &supported.presentIdV1.presentId,
+                        &info.presentIdSupported,
+                        &CapabilityFlags::presentIdSupported},
+        // MOD6: present_wait2 extends (not replaces) present_wait — both must be enabled.
+        CapabilityProbe{{VK_KHR_PRESENT_WAIT_EXTENSION_NAME, VK_KHR_PRESENT_WAIT_2_EXTENSION_NAME},
+                        &supported.presentWaitV1.presentWait,
+                        &info.presentWaitSupported,
+                        &CapabilityFlags::presentWaitSupported},
+        CapabilityProbe{{VK_KHR_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME, nullptr},
+                        &supported.fifoLatestReady.presentModeFifoLatestReady,
+                        &info.fifoLatestReadySupported,
+                        &CapabilityFlags::fifoLatestReadySupported},
+    };
+}
+
 struct EnabledFeatures {
     VkPhysicalDeviceRayQueryFeaturesKHR rayQuery{};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt{};
@@ -219,21 +302,21 @@ struct EnabledFeatures {
     VkPhysicalDeviceRobustness2FeaturesKHR robustness2{};
     VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBuffer{};
     VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR swapchainMaintenance1{};
+    // Auto-enabled KHR maintenance extensions with SDK-declared feature structs
+    // (chained in buildEnabledFeatures when their extension was auto-enabled).
+    VkPhysicalDeviceMaintenance7FeaturesKHR maintenance7{};
+    VkPhysicalDeviceMaintenance8FeaturesKHR maintenance8{};
+    VkPhysicalDeviceMaintenance9FeaturesKHR maintenance9{};
+    VkPhysicalDeviceMaintenance10FeaturesKHR maintenance10{};
+    VkPhysicalDeviceMaintenance11FeaturesKHR maintenance11{};
 };
 
 // Fills @p features (caller-owned so the pNext chain survives vkCreateDevice) and
 // returns the head pointer to thread into VkDeviceCreateInfo::pNext.
 [[nodiscard]] const void* buildEnabledFeatures(EnabledFeatures& features,
                                                const SupportedFeatures& supported,
-                                               bool serSupported,
-                                               bool positionFetchSupported,
-                                               bool meshShaderSupported,
-                                               bool dgcSupported,
-                                               bool opacityMicromapSupported,
-                                               bool pageableMemorySupported,
-                                               bool presentIdSupported,
-                                               bool presentWaitSupported,
-                                               bool fifoLatestReadySupported) {
+                                               const CapabilityFlags& capabilities,
+                                               const std::vector<std::string>& maintenanceExtensions) {
     features.rayQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
     features.rayQuery.rayQuery = VK_TRUE;
 
@@ -248,7 +331,7 @@ struct EnabledFeatures {
     // rayQuery unchanged.
     features.omm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_KHR;
     features.omm.pNext = &features.rayQuery;
-    features.omm.micromap = opacityMicromapSupported ? VK_TRUE : VK_FALSE;
+    features.omm.micromap = capabilities.opacityMicromapSupported ? VK_TRUE : VK_FALSE;
 
     features.as.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     features.as.pNext = &features.rt;
@@ -257,7 +340,7 @@ struct EnabledFeatures {
 
     features.ser.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
     features.ser.pNext = &features.as;
-    features.ser.rayTracingInvocationReorder = serSupported ? VK_TRUE : VK_FALSE;
+    features.ser.rayTracingInvocationReorder = capabilities.serSupported ? VK_TRUE : VK_FALSE;
 
     features.rtMaintenance1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR;
     features.rtMaintenance1.pNext = &features.ser;
@@ -266,7 +349,7 @@ struct EnabledFeatures {
 
     features.positionFetch.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR;
     features.positionFetch.pNext = &features.rtMaintenance1;
-    features.positionFetch.rayTracingPositionFetch = positionFetchSupported ? VK_TRUE : VK_FALSE;
+    features.positionFetch.rayTracingPositionFetch = capabilities.positionFetchSupported ? VK_TRUE : VK_FALSE;
 
     features.features14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
     features.features14.pushDescriptor = VK_TRUE;
@@ -291,9 +374,60 @@ struct EnabledFeatures {
     features.descriptorBuffer.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
     features.descriptorBuffer.descriptorBuffer = VK_TRUE;
     features.descriptorBuffer.descriptorBufferCaptureReplay = VK_TRUE;
-    features.descriptorBuffer.pNext = &features.positionFetch;
     features.robustness2.pNext = &features.descriptorBuffer;
     features.addressCommands.pNext = &features.robustness2;
+
+    // Auto-enabled KHR maintenance extensions (see createDevice): additive,
+    // cross-vendor semantics, enabled iff advertised — no runtime branch. The
+    // SDK declares feature structs for maintenance7..11, so chain and enable
+    // them like every other per-extension feature. maintenance4/5 ride the core
+    // feature structs above; maintenance6's feature bit stays off (its struct is
+    // deliberately not chained — the extension string is still auto-enabled).
+    const auto enablesMaintenance = [&maintenanceExtensions](const char* name) {
+        return std::any_of(maintenanceExtensions.begin(),
+                           maintenanceExtensions.end(),
+                           [name](const std::string& extension) { return extension == name; });
+    };
+    const bool maintenance7Enabled = enablesMaintenance(VK_KHR_MAINTENANCE_7_EXTENSION_NAME);
+    const bool maintenance8Enabled = enablesMaintenance(VK_KHR_MAINTENANCE_8_EXTENSION_NAME);
+    const bool maintenance9Enabled = enablesMaintenance(VK_KHR_MAINTENANCE_9_EXTENSION_NAME);
+    const bool maintenance10Enabled = enablesMaintenance(VK_KHR_MAINTENANCE_10_EXTENSION_NAME);
+    const bool maintenance11Enabled = enablesMaintenance(VK_KHR_MAINTENANCE_11_EXTENSION_NAME);
+    features.maintenance7.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR;
+    features.maintenance7.maintenance7 = VK_TRUE;
+    features.maintenance8.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_8_FEATURES_KHR;
+    features.maintenance8.maintenance8 = VK_TRUE;
+    features.maintenance9.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_9_FEATURES_KHR;
+    features.maintenance9.maintenance9 = VK_TRUE;
+    features.maintenance10.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_10_FEATURES_KHR;
+    features.maintenance10.maintenance10 = VK_TRUE;
+    features.maintenance11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_11_FEATURES_KHR;
+    features.maintenance11.maintenance11 = VK_TRUE;
+    // Only an enabled extension may contribute a feature struct to the chain
+    // (same convention as the optional present trio below): splice the enabled
+    // maintenance nodes right-to-left between descriptorBuffer and positionFetch.
+    void* maintenanceNext = &features.positionFetch;
+    if (maintenance11Enabled) {
+        features.maintenance11.pNext = maintenanceNext;
+        maintenanceNext = &features.maintenance11;
+    }
+    if (maintenance10Enabled) {
+        features.maintenance10.pNext = maintenanceNext;
+        maintenanceNext = &features.maintenance10;
+    }
+    if (maintenance9Enabled) {
+        features.maintenance9.pNext = maintenanceNext;
+        maintenanceNext = &features.maintenance9;
+    }
+    if (maintenance8Enabled) {
+        features.maintenance8.pNext = maintenanceNext;
+        maintenanceNext = &features.maintenance8;
+    }
+    if (maintenance7Enabled) {
+        features.maintenance7.pNext = maintenanceNext;
+        maintenanceNext = &features.maintenance7;
+    }
+    features.descriptorBuffer.pNext = maintenanceNext;
 
     // MOD4: swapchain maintenance1 — driver-side scaling on resize (hard-required).
     features.features14.pNext = &features.addressCommands;
@@ -347,7 +481,7 @@ struct EnabledFeatures {
     // the same device. Falls back to indirect draw when not available.
     features.dgc.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT;
     features.dgc.pNext =
-        meshShaderSupported ? static_cast<void*>(&features.mesh) : static_cast<void*>(&features.features2);
+        capabilities.meshShaderSupported ? static_cast<void*>(&features.mesh) : static_cast<void*>(&features.features2);
     features.dgc.deviceGeneratedCommands = VK_TRUE;
 
     // VK_EXT_pageable_device_local_memory (depends on VK_EXT_memory_priority): lets the driver
@@ -355,59 +489,62 @@ struct EnabledFeatures {
     // enabled together so VMA can assign per-allocation priorities (VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT on the
     // allocator).
     features.memoryPriority.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT;
-    features.memoryPriority.memoryPriority = pageableMemorySupported ? VK_TRUE : VK_FALSE;
+    features.memoryPriority.memoryPriority = capabilities.pageableMemorySupported ? VK_TRUE : VK_FALSE;
 
     // Present-pacing trio (present_id / present_wait / present_mode_fifo_latest_ready): each is
     // optional; only link a feature struct into the pNext chain when its extension is enabled.
     features.presentIdV1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
-    features.presentIdV1.presentId = presentIdSupported ? VK_TRUE : VK_FALSE;
+    features.presentIdV1.presentId = capabilities.presentIdSupported ? VK_TRUE : VK_FALSE;
     features.presentWaitV1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
-    features.presentWaitV1.presentWait = presentWaitSupported ? VK_TRUE : VK_FALSE;
+    features.presentWaitV1.presentWait = capabilities.presentWaitSupported ? VK_TRUE : VK_FALSE;
     // MOD6: v2 features enabled alongside v1 (v2 extends v1, not replaces).
     features.presentIdV2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_2_FEATURES_KHR;
-    features.presentIdV2.presentId2 = presentIdSupported ? VK_TRUE : VK_FALSE;
+    features.presentIdV2.presentId2 = capabilities.presentIdSupported ? VK_TRUE : VK_FALSE;
     features.presentWaitV2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_2_FEATURES_KHR;
-    features.presentWaitV2.presentWait2 = presentWaitSupported ? VK_TRUE : VK_FALSE;
+    features.presentWaitV2.presentWait2 = capabilities.presentWaitSupported ? VK_TRUE : VK_FALSE;
     features.fifoLatestReady.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
-    features.fifoLatestReady.presentModeFifoLatestReady = fifoLatestReadySupported ? VK_TRUE : VK_FALSE;
+    features.fifoLatestReady.presentModeFifoLatestReady = capabilities.fifoLatestReadySupported ? VK_TRUE : VK_FALSE;
 
     // Link the optional tail chain in order (memoryPriority → presentId → presentWait → fifoLatestReady);
     // each enabled node points to the next enabled node, rayQuery (always present) heads it.
     features.fifoLatestReady.pNext = nullptr;
-    features.presentWaitV1.pNext = fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr;
+    features.presentWaitV1.pNext =
+        capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr;
     features.presentIdV1.pNext =
-        presentWaitSupported ? static_cast<void*>(&features.presentWaitV1)
-                             : (fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr);
+        capabilities.presentWaitSupported
+            ? static_cast<void*>(&features.presentWaitV1)
+            : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr);
     features.memoryPriority.pNext =
-        presentIdSupported
+        capabilities.presentIdSupported
             ? static_cast<void*>(&features.presentIdV1)
-            : (presentWaitSupported
+            : (capabilities.presentWaitSupported
                    ? static_cast<void*>(&features.presentWaitV1)
-                   : (fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr));
+                   : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr));
     features.rayQuery.pNext =
-        pageableMemorySupported
+        capabilities.pageableMemorySupported
             ? static_cast<void*>(&features.memoryPriority)
-            : (presentIdSupported
+            : (capabilities.presentIdSupported
                    ? static_cast<void*>(&features.presentIdV1)
-                   : (presentWaitSupported
+                   : (capabilities.presentWaitSupported
                           ? static_cast<void*>(&features.presentWaitV1)
-                          : (fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr)));
+                          : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady)
+                                                                   : nullptr)));
 
     // MOD6: insert v2 present features right after their v1 counterparts (v2 extends v1,
     // both are always enabled together). The insertion takes over v1's pNext and chains
     // through v2 back to the original target — no conditional re-linking needed.
-    if (presentIdSupported) {
+    if (capabilities.presentIdSupported) {
         features.presentIdV2.pNext = features.presentIdV1.pNext;
         features.presentIdV1.pNext = &features.presentIdV2;
     }
-    if (presentWaitSupported) {
+    if (capabilities.presentWaitSupported) {
         features.presentWaitV2.pNext = features.presentWaitV1.pNext;
         features.presentWaitV1.pNext = &features.presentWaitV2;
     }
 
-    return dgcSupported          ? static_cast<const void*>(&features.dgc)
-           : meshShaderSupported ? static_cast<const void*>(&features.mesh)
-                                 : static_cast<const void*>(&features.features2);
+    return capabilities.dgcSupported          ? static_cast<const void*>(&features.dgc)
+           : capabilities.meshShaderSupported ? static_cast<const void*>(&features.mesh)
+                                              : static_cast<const void*>(&features.features2);
 }
 
 struct QueueInfos {
@@ -458,88 +595,101 @@ struct QueueInfos {
     return result;
 }
 
-[[nodiscard]] std::vector<const char*> buildExtensionList(bool serSupported,
-                                                          bool positionFetchSupported,
-                                                          bool meshShaderSupported,
-                                                          bool dgcSupported,
-                                                          bool opacityMicromapSupported,
-                                                          bool pageableMemorySupported,
-                                                          bool calibratedTimestampsSupported,
-                                                          bool presentIdSupported,
-                                                          bool presentWaitSupported,
-                                                          bool fifoLatestReadySupported) {
+// The always-on device extensions. Optional capability extensions are appended
+// by the probe loop in createDevice (see capabilityProbes), auto-enabled KHR
+// maintenance extensions by collectAdvertisedMaintenanceExtensions.
+[[nodiscard]] std::vector<const char*> buildBaseExtensionList() {
     std::vector<const char*> deviceExtensions{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
         VK_KHR_RAY_QUERY_EXTENSION_NAME,
         VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
         VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+        VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME,
+        // MOD5: device-address-only AS creation (vkCreateAccelerationStructure2KHR) — the
+        // forward path per the Khronos AS deprecation blog. Hard-required: the legacy
+        // vkCreateAccelerationStructureKHR path is dropped from this codebase.
+        VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME,
+        // VK14: robustness2 — nullDescriptor lets us bind VK_NULL_HANDLE instead of
+        // creating 1×1 dummy images/buffers for optional resources. Probe→enable.
+        VK_KHR_ROBUSTNESS_2_EXTENSION_NAME,
+        // MOD1: descriptor buffers — the modern GPU-driven descriptor path (replaces pools/sets).
+        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
     };
-    if (serSupported) {
-        deviceExtensions.push_back(VK_EXT_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME);
-    }
-    deviceExtensions.push_back(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
-    if (positionFetchSupported) {
-        deviceExtensions.push_back(VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME);
-    }
-    if (meshShaderSupported) {
-        deviceExtensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
-    }
-    if (dgcSupported) {
-        deviceExtensions.push_back(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
-    }
-    if (opacityMicromapSupported) {
-        deviceExtensions.push_back(VK_KHR_OPACITY_MICROMAP_EXTENSION_NAME);
-    }
-    if (pageableMemorySupported) {
-        deviceExtensions.push_back(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME);
-        deviceExtensions.push_back(VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME);
-    }
-    if (calibratedTimestampsSupported) {
-        deviceExtensions.push_back(VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
-    }
-    if (presentIdSupported) {
-        // MOD6: present_id2 extends (not replaces) present_id — both must be enabled.
-        deviceExtensions.push_back(VK_KHR_PRESENT_ID_EXTENSION_NAME);
-        deviceExtensions.push_back(VK_KHR_PRESENT_ID_2_EXTENSION_NAME);
-    }
-    if (presentWaitSupported) {
-        // MOD6: present_wait2 extends (not replaces) present_wait — both must be enabled.
-        deviceExtensions.push_back(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
-        deviceExtensions.push_back(VK_KHR_PRESENT_WAIT_2_EXTENSION_NAME);
-    }
-    if (fifoLatestReadySupported) {
-        deviceExtensions.push_back(VK_KHR_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME);
-    }
-    // MOD5: device-address-only AS creation (vkCreateAccelerationStructure2KHR) — the
-    // forward path per the Khronos AS deprecation blog. Hard-required: the legacy
-    // vkCreateAccelerationStructureKHR path is dropped from this codebase.
-    deviceExtensions.push_back(VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME);
-    // VK14: robustness2 — nullDescriptor lets us bind VK_NULL_HANDLE instead of
-    // creating 1×1 dummy images/buffers for optional resources. Probe→enable.
-    deviceExtensions.push_back(VK_KHR_ROBUSTNESS_2_EXTENSION_NAME);
-    // MOD1: descriptor buffers — the modern GPU-driven descriptor path (replaces pools/sets).
-    deviceExtensions.push_back(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME);
     // MOD4: swapchain_maintenance1 was attempted (driver-side scaling) but the driver
     // reports supportedPresentScaling = 0 for all present modes — scaling is not available.
     // Extension disabled until driver support matures. See PLAN.md MOD4.
     return deviceExtensions;
 }
 
+// Auto-enable policy: every advertised VK_KHR_maintenance<N> device extension is
+// enabled. The maintenance semantics are additive and cross-vendor (KHR) by
+// definition, so the RHI wants them all available and future API adoption needs
+// no probe dance. The result is dedup-safe against the hand-built extension
+// list; extensions without a feature struct in the SDK headers are enabled by
+// string alone (valid: they are additive).
+[[nodiscard]] std::vector<std::string> collectAdvertisedMaintenanceExtensions(VkPhysicalDevice device) {
+    std::vector<std::string> extensions;
+    std::uint32_t count = 0;
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS || count == 0U) {
+        return extensions;
+    }
+    std::vector<VkExtensionProperties> available(count);
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data()) != VK_SUCCESS) {
+        return extensions;
+    }
+    constexpr std::string_view kPrefix = "VK_KHR_maintenance";
+    for (const VkExtensionProperties& extension : available) {
+        const std::string_view name{extension.extensionName};
+        if (!name.starts_with(kPrefix)) {
+            continue;
+        }
+        const std::string_view digits = name.substr(kPrefix.size());
+        const bool isNumbered = !digits.empty() && std::all_of(digits.begin(), digits.end(), [](const char digit) {
+            return digit >= '0' && digit <= '9';
+        });
+        if (isNumbered) {
+            extensions.emplace_back(name);
+        }
+    }
+    return extensions;
+}
+
 [[nodiscard]] VkResult createDevice(const PhysicalDeviceInfo& info, DeviceContext& ctx) {
     const SupportedFeatures supported = querySupportedFeatures(info.device);
 
-    const bool dgcSupported = info.dgcSupported && supported.dgc.deviceGeneratedCommands == VK_TRUE;
-    const bool opacityMicromapSupported = info.opacityMicromapSupported && supported.omm.micromap == VK_TRUE;
-    const bool serSupported = supported.ser.rayTracingInvocationReorder == VK_TRUE;
-    const bool positionFetchSupported = supported.positionFetch.rayTracingPositionFetch == VK_TRUE;
-    const bool meshShaderSupported = supported.mesh.meshShader == VK_TRUE;
-    const bool pageableMemorySupported = info.pageableMemorySupported;
-    const bool calibratedTimestampsSupported = info.calibratedTimestampsSupported;
-    const bool presentIdSupported = info.presentIdSupported && supported.presentIdV1.presentId == VK_TRUE;
-    const bool presentWaitSupported = info.presentWaitSupported && supported.presentWaitV1.presentWait == VK_TRUE;
-    const bool fifoLatestReadySupported =
-        info.fifoLatestReadySupported && supported.fifoLatestReady.presentModeFifoLatestReady == VK_TRUE;
+    // Optional capability probes (declarative table): the extension(s) are enabled
+    // and the capability flag recorded when the extension was advertised at
+    // enumerate time AND — where the row says so — the feature bit is TRUE in the
+    // supported chain. Exactly the conditions the former hand-written probe→flag
+    // blocks enforced.
+    CapabilityFlags capabilities{};
+    std::vector<const char*> deviceExtensions = buildBaseExtensionList();
+    for (const CapabilityProbe& probe : capabilityProbes(info, supported)) {
+        const bool extensionAdvertised = probe.infoFlag == nullptr || *probe.infoFlag;
+        const bool featurePresent = probe.featureBit == nullptr || *probe.featureBit == VK_TRUE;
+        if (!extensionAdvertised || !featurePresent) {
+            continue;
+        }
+        capabilities.*(probe.flag) = true;
+        for (const char* extension : probe.extensions) {
+            if (extension != nullptr) {
+                deviceExtensions.push_back(extension);
+            }
+        }
+    }
+
+    // Auto-enable every advertised KHR maintenance extension (policy comment on
+    // collectAdvertisedMaintenanceExtensions): dedup-safe append.
+    const std::vector<std::string> maintenanceExtensions = collectAdvertisedMaintenanceExtensions(info.device);
+    for (const std::string& extension : maintenanceExtensions) {
+        const bool alreadyEnabled = std::any_of(deviceExtensions.begin(),
+                                                deviceExtensions.end(),
+                                                [&extension](const char* enabled) { return extension == enabled; });
+        if (!alreadyEnabled) {
+            deviceExtensions.push_back(extension.c_str());
+        }
+    }
 
     if (supported.features12.bufferDeviceAddress != VK_TRUE || supported.features12.descriptorIndexing != VK_TRUE ||
         supported.features12.runtimeDescriptorArray != VK_TRUE ||
@@ -569,29 +719,9 @@ struct QueueInfos {
     }
 
     EnabledFeatures enabled{};
-    const void* featuresHead = buildEnabledFeatures(enabled,
-                                                    supported,
-                                                    serSupported,
-                                                    positionFetchSupported,
-                                                    meshShaderSupported,
-                                                    dgcSupported,
-                                                    opacityMicromapSupported,
-                                                    pageableMemorySupported,
-                                                    presentIdSupported,
-                                                    presentWaitSupported,
-                                                    fifoLatestReadySupported);
+    const void* featuresHead = buildEnabledFeatures(enabled, supported, capabilities, maintenanceExtensions);
 
     const QueueInfos queues = buildQueueCreateInfos(info.device, info.graphicsFamily);
-    const std::vector<const char*> deviceExtensions = buildExtensionList(serSupported,
-                                                                         positionFetchSupported,
-                                                                         meshShaderSupported,
-                                                                         dgcSupported,
-                                                                         opacityMicromapSupported,
-                                                                         pageableMemorySupported,
-                                                                         calibratedTimestampsSupported,
-                                                                         presentIdSupported,
-                                                                         presentWaitSupported,
-                                                                         fifoLatestReadySupported);
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = featuresHead,
@@ -607,15 +737,15 @@ struct QueueInfos {
 
     const VkResult result = vkCreateDevice(info.device, &createInfo, nullptr, &ctx.device);
     if (result == VK_SUCCESS) {
-        ctx.positionFetchSupported = positionFetchSupported;
-        ctx.serSupported = serSupported;
-        ctx.dgcSupported = dgcSupported;
-        ctx.opacityMicromapSupported = opacityMicromapSupported;
-        ctx.pageableMemorySupported = pageableMemorySupported;
-        ctx.calibratedTimestampsSupported = calibratedTimestampsSupported;
-        ctx.presentIdSupported = presentIdSupported;
-        ctx.presentWaitSupported = presentWaitSupported;
-        ctx.fifoLatestReadySupported = fifoLatestReadySupported;
+        ctx.positionFetchSupported = capabilities.positionFetchSupported;
+        ctx.serSupported = capabilities.serSupported;
+        ctx.dgcSupported = capabilities.dgcSupported;
+        ctx.opacityMicromapSupported = capabilities.opacityMicromapSupported;
+        ctx.pageableMemorySupported = capabilities.pageableMemorySupported;
+        ctx.calibratedTimestampsSupported = capabilities.calibratedTimestampsSupported;
+        ctx.presentIdSupported = capabilities.presentIdSupported;
+        ctx.presentWaitSupported = capabilities.presentWaitSupported;
+        ctx.fifoLatestReadySupported = capabilities.fifoLatestReadySupported;
         ctx.asyncComputeQueueFamily = queues.asyncComputeFamily;
     }
     return result;
