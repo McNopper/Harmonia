@@ -9,11 +9,13 @@
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 
+#include "harmonia/pipeline/DenoiserDefaults.hpp"
+
 namespace harmonia::pipeline {
 
 struct alignas(16) DenoiserPushConstants {
-    float strength = 0.45F;
-    float historyBlend = 0.15F;
+    float strength = kDenoiserStrength;
+    float historyBlend = kDenoiserHistoryBlend;
     std::uint32_t hasNormalGuide = 0U;
     std::uint32_t hasDepthGuide = 0U;
     std::uint32_t applyHistory = 0U;
@@ -22,11 +24,11 @@ struct alignas(16) DenoiserPushConstants {
     std::uint32_t passIndex = 0U;
     std::uint32_t hasMotionVectors = 0U; ///< 1 when ctx.motionVectorView is populated
     // ── A-SVGF (A2) ───────────────────────────────────────────────────────────
-    std::uint32_t computeGradient = 0U;     ///< temporal pass computes gradient + variance
-    std::uint32_t gradientFilterMode = 0U;  ///< 1 = this dispatch is the gradient à-trous blur pass
-    std::uint32_t gradientFilterPass = 0U;  ///< gradient à-trous pass index (tap spacing)
-    std::uint32_t hasGradientVariance = 0U; ///< gGradientVariance holds valid gradient/variance
-    float gradientAlpha = 0.2F;             ///< temporal blend factor for the gradient
+    std::uint32_t computeGradient = 0U;           ///< temporal pass computes gradient + variance
+    std::uint32_t gradientFilterMode = 0U;        ///< 1 = this dispatch is the gradient à-trous blur pass
+    std::uint32_t gradientFilterPass = 0U;        ///< gradient à-trous pass index (tap spacing)
+    std::uint32_t hasGradientVariance = 0U;       ///< gGradientVariance holds valid gradient/variance
+    float gradientAlpha = kDenoiserGradientAlpha; ///< temporal blend factor for the gradient
 };
 
 [[nodiscard]] inline float clamp01(float value) noexcept {

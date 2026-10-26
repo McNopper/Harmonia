@@ -5,6 +5,9 @@
 #include <filesystem>
 #include <string>
 
+#include "harmonia/pipeline/DenoiserDefaults.hpp"
+#include "harmonia/pipeline/PassContext.hpp"
+
 namespace harmonia::app {
 
 struct AppConfig {
@@ -14,12 +17,12 @@ struct AppConfig {
         bool tonemapper = true;
     };
     struct DenoiserOptions {
-        float strength = 0.45F;
-        std::uint32_t iterations = 2U;
+        float strength = pipeline::kDenoiserStrength;
+        std::uint32_t iterations = pipeline::kDenoiserIterations;
         bool useHistory = true;
-        float historyBlend = 0.15F;
-        bool useGradient = true;    ///< A-SVGF adaptive temporal filtering (gradient-driven)
-        float gradientAlpha = 0.2F; ///< temporal blend factor for the A-SVGF gradient
+        float historyBlend = pipeline::kDenoiserHistoryBlend;
+        bool useGradient = true; ///< A-SVGF adaptive temporal filtering (gradient-driven)
+        float gradientAlpha = pipeline::kDenoiserGradientAlpha;
     };
 
     std::string title = "Harmonia";
@@ -62,7 +65,7 @@ struct AppConfig {
     /// Enables replayable frame/sample RNG sequencing for stochastic stages.
     bool deterministicReplay = false;
     /// Base seed used by renderer RNG composition (pixel + frame/sample + bounce).
-    std::uint32_t rngSeed = 0x12345678U;
+    std::uint32_t rngSeed = pipeline::kDefaultRngSeed;
     /// Optional stochastic debug path switch for renderer-side visualization/tests.
     bool rngDebug = false;
 };

@@ -14,13 +14,17 @@ class Image;
 
 namespace harmonia::pipeline {
 
+/// Family default RNG base seed (pixel + frame/sample + bounce composition).
+/// AppConfig mirrors this default; Theia's renderer default uses the same value.
+inline constexpr std::uint32_t kDefaultRngSeed = 0x12345678U;
+
 /// Per-frame context passed to every IRenderPass::record() call.
 /// Each pass reads only the fields it needs.
 struct PassContext {
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     std::uint32_t frameIndex = 0;
     std::uint32_t frameSampleIndex = 0;
-    std::uint32_t rngSeed = 0x12345678U;
+    std::uint32_t rngSeed = kDefaultRngSeed;
     bool deterministicReplay = false;
     VkExtent2D extent = {};
     bool fixedView = false;                    ///< true for deterministic offscreen accumulation mode

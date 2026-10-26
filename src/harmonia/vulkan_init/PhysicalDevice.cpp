@@ -17,11 +17,13 @@ constexpr std::array kRequiredExtensions{
 };
 
 [[nodiscard]] std::int32_t scoreDevice(VkPhysicalDeviceProperties properties) noexcept {
+    constexpr std::int32_t discreteGpuScore = 1000;
+    constexpr std::int32_t integratedGpuScore = 250;
     std::int32_t score = 0;
     if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-        score += 1000;
+        score += discreteGpuScore;
     } else if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
-        score += 250;
+        score += integratedGpuScore;
     }
     score += static_cast<std::int32_t>(properties.limits.maxImageDimension2D);
     return score;

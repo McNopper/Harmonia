@@ -10,6 +10,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
+#include "harmonia/pipeline/DenoiserDefaults.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 
 namespace harmonia::pipeline {
@@ -20,12 +21,12 @@ struct PassContext;
 /// Defined outside SceneOutputCopyPass to avoid CWG2664 (Clang 22+ C++23 restriction on nested-struct
 /// NSDMIs in default arguments / data-member initializers of the enclosing class).
 struct SceneOutputCopyPassSettings {
-    float strength = 0.45F;        ///< spatial denoiser strength [0, 1]
-    std::uint32_t iterations = 2U; ///< bilateral passes [1, 8]
-    bool useHistory = true;        ///< enable temporal blending in fixed-view mode
-    float historyBlend = 0.15F;    ///< temporal blend factor [0, 1]
-    bool useGradient = true;       ///< A-SVGF: gradient-driven adaptive history + variance-guided spatial filter
-    float gradientAlpha = 0.2F;    ///< A-SVGF: temporal blend factor for the gradient [0, 1]
+    float strength = kDenoiserStrength;             ///< spatial denoiser strength [0, 1]
+    std::uint32_t iterations = kDenoiserIterations; ///< bilateral passes [1, 8]
+    bool useHistory = true;                         ///< enable temporal blending in fixed-view mode
+    float historyBlend = kDenoiserHistoryBlend;     ///< temporal blend factor [0, 1]
+    bool useGradient = true; ///< A-SVGF: gradient-driven adaptive history + variance-guided spatial filter
+    float gradientAlpha = kDenoiserGradientAlpha; ///< A-SVGF: temporal blend factor for the gradient [0, 1]
 };
 
 /// Shared denoiser stage operating on scene-referred HDR output before tone mapping.
