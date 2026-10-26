@@ -11,6 +11,11 @@ namespace harmonia::scene {
 
 class Material {
   public:
+    // opacityFlagsPad.y selects the delta-mode of the surface; the values must
+    // match the decoder in bsdf_shared.slang.
+    inline static constexpr float kDeltaModeNone = 0.0f;   // microfacet opaque
+    inline static constexpr float kDeltaModeGlass = 2.0f;  // delta transmission
+    inline static constexpr float kDeltaModeMirror = 3.0f; // delta reflection
     [[nodiscard]] static Material diffuse(sm::float3 color, float roughness = 1.0f, float specIor = 1.5f) {
         Material material;
         material.m_gpu.baseColorWeight = sm::float4(sm::max(color, sm::float3{0.0f, 0.0f, 0.0f}), 1.0f);
@@ -41,7 +46,7 @@ class Material {
     [[nodiscard]] static Material mirror(sm::float3 color = {0.99f, 0.99f, 0.99f}) {
         Material material = metal(color, 0.0f);
         material.m_gpu.specularRoughAnisoIor.x = 0.0f;
-        material.m_gpu.opacityFlagsPad = sm::float4{1.0f, 3.0f, 0.0f, 0.0f}; // flags=3 → mirror (delta reflect)
+        material.m_gpu.opacityFlagsPad = sm::float4{1.0f, kDeltaModeMirror, 0.0f, 0.0f}; // mirror (delta reflect)
         return material;
     }
 
@@ -53,7 +58,7 @@ class Material {
         material.m_gpu.specularRoughAnisoIor = sm::float4{sm::saturate(roughness), 0.0f, std::max(ior, 1.0f), 0.0f};
         material.m_gpu.transmissionColorWeight = sm::float4{1.0f, 1.0f, 1.0f, 1.0f};
         material.m_gpu.transmissionParams = sm::float4{0.0f, sm::saturate(roughness), 0.0f, 0.0f};
-        material.m_gpu.opacityFlagsPad = sm::float4{1.0f, 2.0f, 0.0f, 0.0f}; // opacity=1, flags=2 → glass
+        material.m_gpu.opacityFlagsPad = sm::float4{1.0f, kDeltaModeGlass, 0.0f, 0.0f}; // opacity=1, delta transmission
         return material;
     }
 
