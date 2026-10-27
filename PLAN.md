@@ -71,7 +71,7 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.15 - (Theia v0.7.16, Hyperion v0.7.15; Aether v0.7.8;
+- **Release:** v0.7.16 - VK16 device-lost forensics (device_fault + address binding report), SM6 remainder (`sm::trs`, `float3x3`, pi dedup), Context lifecycle extraction, architecture directive recorded (renderers receive flat lists). slang-math v0.5.0, Aether v0.8.0.
   slang-math **v0.4.0** - pin bumped, `sm::saturate` available). All five repos
   verified tag-synced with GitHub.
 - **Last shipped:** v0.7.15 - **H-05** color-space seam guards (5 fail-fast guards + 8 no-GPU tests) + **SM6** `sm::saturate` (27 sites); tests 90->98. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
