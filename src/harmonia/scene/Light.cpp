@@ -3,7 +3,6 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
-#include <numbers>
 
 namespace harmonia::scene {
 
@@ -21,7 +20,7 @@ inline float packType(LightType t) noexcept {
 
 /// Convert luminous flux [lm] to luminous intensity [cd] for an isotropic source.
 inline float lumenToCandela(float lm) noexcept {
-    return lm / (4.0f * std::numbers::pi_v<float>);
+    return lm / (4.0f * sm::pi<float>());
 }
 
 } // namespace

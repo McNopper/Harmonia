@@ -153,6 +153,9 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         info.opacityMicromapSupported = hasOpacityMicromapSupport(device);
         info.pageableMemorySupported = hasExtension(device, VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME);
         info.calibratedTimestampsSupported = hasExtension(device, VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+        // VK16 device-lost forensics: both EXT, cross-vendor.
+        info.deviceFaultSupported = hasExtension(device, VK_EXT_DEVICE_FAULT_EXTENSION_NAME);
+        info.addressBindingReportSupported = hasExtension(device, VK_EXT_DEVICE_ADDRESS_BINDING_REPORT_EXTENSION_NAME);
         const PresentExtensionSupport present = queryPresentExtensions(device);
         info.presentIdSupported = present.presentId;
         info.presentWaitSupported = present.presentWait;

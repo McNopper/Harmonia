@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <numbers>
 #include <set>
 #include <slang-math/slang-math.hpp>
 #include <utility>
@@ -78,7 +77,7 @@ appendSphereEmissive(EmissiveData& data, float objectRadius, const sm::float4x4&
     // constant: the CDF is normalized across the whole emitter set, so any scene holding
     // both spheres and triangles compares the two expressions directly and dropping 4π
     // would under-select every sphere by 4π× relative to its true emitted power.
-    const float sphereArea = 4.0F * std::numbers::pi_v<float> * packed.radius * packed.radius;
+    const float sphereArea = 4.0F * sm::pi<float>() * packed.radius * packed.radius;
     packed.power = sphereArea * std::max(emissionLuminance(emission), 0.0F);
 
     data.triangles.push_back(packed.entry);

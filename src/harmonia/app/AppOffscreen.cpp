@@ -25,6 +25,7 @@
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/presentation/ImageCapture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/vulkan_init/DeviceFault.hpp"
 
 namespace harmonia::app {
 
@@ -113,13 +114,18 @@ std::uint64_t App::renderSceneReferred() {
     const std::span<const VkSemaphoreSubmitInfo> waitSemaphores =
         (asyncWaitSem != VK_NULL_HANDLE) ? std::span<const VkSemaphoreSubmitInfo>{&asyncWait, 1}
                                          : std::span<const VkSemaphoreSubmitInfo>{};
-    if (core::submitOneShot(m_context.deviceContext().graphicsQueue,
-                            stagesCmd,
-                            VK_NULL_HANDLE,
-                            0,
-                            waitSemaphores,
-                            std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1}) != VK_SUCCESS) {
+    const VkResult submitResult = core::submitOneShot(m_context.deviceContext().graphicsQueue,
+                                                      stagesCmd,
+                                                      VK_NULL_HANDLE,
+                                                      0,
+                                                      waitSemaphores,
+                                                      std::span<const VkSemaphoreSubmitInfo>{&timelineSignal, 1});
+    if (submitResult != VK_SUCCESS) {
         core::Logger::error("Render queue submit failed");
+        // VK16: device-lost forensics — diagnosability only, never masks the error.
+        if (submitResult == VK_ERROR_DEVICE_LOST) {
+            vulkan_init::reportDeviceFault(m_context.deviceContext());
+        }
         return m_frameSync.completionValue(slot);
     }
 

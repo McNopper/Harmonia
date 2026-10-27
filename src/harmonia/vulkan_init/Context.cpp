@@ -11,6 +11,8 @@
 #include <vector>
 #include <vma/vk_mem_alloc.h>
 
+#include "harmonia/core/Logger.hpp"
+
 namespace harmonia::vulkan_init {
 
 namespace {
@@ -129,6 +131,8 @@ struct SupportedFeatures {
     VkPhysicalDevicePresentId2FeaturesKHR presentIdV2{};
     VkPhysicalDevicePresentWait2FeaturesKHR presentWaitV2{};
     VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR fifoLatestReady{};
+    VkPhysicalDeviceFaultFeaturesEXT fault{};
+    VkPhysicalDeviceAddressBindingReportFeaturesEXT addressBindingReport{};
     VkPhysicalDeviceVulkan14Features features14{};
     VkPhysicalDeviceVulkan13Features features13{};
     VkPhysicalDeviceVulkan12Features features12{};
@@ -183,9 +187,15 @@ struct SupportedFeatures {
     s.presentWaitV1.pNext = &s.presentIdV2;
     s.fifoLatestReady.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
     s.presentWaitV2.pNext = &s.fifoLatestReady;
-    // MOD5: append at the tail — the full chain from features2 down through the
-    // present features ends at fifoLatestReady; addressCommands extends it.
-    s.fifoLatestReady.pNext = &s.addressCommands;
+    // VK16: device-lost forensics — the fault features ride the supported chain
+    // between the present trio and the MOD5/VK14 tail (addressCommands …).
+    s.fault.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT;
+    s.addressBindingReport.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ADDRESS_BINDING_REPORT_FEATURES_EXT;
+    s.fault.pNext = &s.addressBindingReport;
+    s.addressBindingReport.pNext = &s.addressCommands;
+    // MOD5: the full chain from features2 down through the present features ends at
+    // fifoLatestReady; the VK16 fault nodes extend it, addressCommands follows.
+    s.fifoLatestReady.pNext = &s.fault;
     // VK14: robustness2 features (nullDescriptor queried at the tail).
     s.robustness2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_KHR;
     // MOD1: descriptor buffer features.
@@ -211,6 +221,8 @@ struct CapabilityFlags {
     bool presentIdSupported = false;
     bool presentWaitSupported = false;
     bool fifoLatestReadySupported = false;
+    bool deviceFaultSupported = false;
+    bool addressBindingReportSupported = false;
 };
 
 // One row per optional capability: on pass, the extension(s) are enabled and the
@@ -274,6 +286,17 @@ struct CapabilityProbe {
                         &supported.fifoLatestReady.presentModeFifoLatestReady,
                         &info.fifoLatestReadySupported,
                         &CapabilityFlags::fifoLatestReadySupported},
+        // VK16: device-lost forensics — both EXT, cross-vendor. Probe the deviceFault
+        // feature bit; deviceFaultVendorBinary is enabled per-feature at enable time
+        // (the raw vendor blob dump needs it).
+        CapabilityProbe{{VK_EXT_DEVICE_FAULT_EXTENSION_NAME, nullptr},
+                        &supported.fault.deviceFault,
+                        &info.deviceFaultSupported,
+                        &CapabilityFlags::deviceFaultSupported},
+        CapabilityProbe{{VK_EXT_DEVICE_ADDRESS_BINDING_REPORT_EXTENSION_NAME, nullptr},
+                        &supported.addressBindingReport.reportAddressBinding,
+                        &info.addressBindingReportSupported,
+                        &CapabilityFlags::addressBindingReportSupported},
     };
 }
 
@@ -298,6 +321,8 @@ struct EnabledFeatures {
     VkPhysicalDevicePresentId2FeaturesKHR presentIdV2{};
     VkPhysicalDevicePresentWait2FeaturesKHR presentWaitV2{};
     VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR fifoLatestReady{};
+    VkPhysicalDeviceFaultFeaturesEXT fault{};
+    VkPhysicalDeviceAddressBindingReportFeaturesEXT addressBindingReport{};
     VkPhysicalDeviceDeviceAddressCommandsFeaturesKHR addressCommands{};
     VkPhysicalDeviceRobustness2FeaturesKHR robustness2{};
     VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBuffer{};
@@ -505,21 +530,44 @@ struct EnabledFeatures {
     features.fifoLatestReady.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
     features.fifoLatestReady.presentModeFifoLatestReady = capabilities.fifoLatestReadySupported ? VK_TRUE : VK_FALSE;
 
-    // Link the optional tail chain in order (memoryPriority → presentId → presentWait → fifoLatestReady);
-    // each enabled node points to the next enabled node, rayQuery (always present) heads it.
-    features.fifoLatestReady.pNext = nullptr;
+    // VK16: device-lost forensics (VK_EXT_device_fault + VK_EXT_device_address_binding_report)
+    // ride the optional tail after the present trio. Conservative enable: `deviceFault` is
+    // what the retrieval path needs; `deviceFaultVendorBinary` additionally gates the raw
+    // vendor blob dump. Only an enabled extension contributes its feature struct (convention).
+    features.fault.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT;
+    features.fault.deviceFault = capabilities.deviceFaultSupported ? VK_TRUE : VK_FALSE;
+    features.fault.deviceFaultVendorBinary =
+        (capabilities.deviceFaultSupported && supported.fault.deviceFaultVendorBinary == VK_TRUE) ? VK_TRUE : VK_FALSE;
+    features.addressBindingReport.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ADDRESS_BINDING_REPORT_FEATURES_EXT;
+    features.addressBindingReport.reportAddressBinding =
+        capabilities.addressBindingReportSupported ? VK_TRUE : VK_FALSE;
+    // Terminal target of the optional tail: the enabled VK16 nodes (address binding report
+    // after fault), or nullptr when neither extension is enabled.
+    void* vk16Tail = nullptr;
+    if (capabilities.deviceFaultSupported) {
+        features.fault.pNext = capabilities.addressBindingReportSupported ? &features.addressBindingReport : nullptr;
+        vk16Tail = &features.fault;
+    } else if (capabilities.addressBindingReportSupported) {
+        features.addressBindingReport.pNext = nullptr;
+        vk16Tail = &features.addressBindingReport;
+    }
+
+    // Link the optional tail chain in order (memoryPriority → presentId → presentWait → fifoLatestReady
+    // → [VK16 fault nodes]); each enabled node points to the next enabled node, rayQuery heads it.
+    features.fifoLatestReady.pNext = vk16Tail;
     features.presentWaitV1.pNext =
-        capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr;
+        capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : vk16Tail;
     features.presentIdV1.pNext =
         capabilities.presentWaitSupported
             ? static_cast<void*>(&features.presentWaitV1)
-            : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr);
+            : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : vk16Tail);
     features.memoryPriority.pNext =
         capabilities.presentIdSupported
             ? static_cast<void*>(&features.presentIdV1)
             : (capabilities.presentWaitSupported
                    ? static_cast<void*>(&features.presentWaitV1)
-                   : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady) : nullptr));
+                   : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady)
+                                                            : vk16Tail));
     features.rayQuery.pNext =
         capabilities.pageableMemorySupported
             ? static_cast<void*>(&features.memoryPriority)
@@ -528,7 +576,7 @@ struct EnabledFeatures {
                    : (capabilities.presentWaitSupported
                           ? static_cast<void*>(&features.presentWaitV1)
                           : (capabilities.fifoLatestReadySupported ? static_cast<void*>(&features.fifoLatestReady)
-                                                                   : nullptr)));
+                                                                   : vk16Tail)));
 
     // MOD6: insert v2 present features right after their v1 counterparts (v2 extends v1,
     // both are always enabled together). The insertion takes over v1's pNext and chains
@@ -746,6 +794,8 @@ struct QueueInfos {
         ctx.presentIdSupported = capabilities.presentIdSupported;
         ctx.presentWaitSupported = capabilities.presentWaitSupported;
         ctx.fifoLatestReadySupported = capabilities.fifoLatestReadySupported;
+        ctx.deviceFaultSupported = capabilities.deviceFaultSupported;
+        ctx.addressBindingReportSupported = capabilities.addressBindingReportSupported;
         ctx.asyncComputeQueueFamily = queues.asyncComputeFamily;
     }
     return result;
@@ -780,6 +830,7 @@ std::expected<Context, VkResult> Context::create(const Config& config) {
     // VK_EXT_swapchain_colorspace is required to use any non-sRGB VkColorSpaceKHR
     // (HDR10, HLG, scRGB, Display P3 …) in a swapchain; without it the validation
     // layer rejects vkCreateSwapchainKHR even if the driver enumerates those formats.
+    bool debugUtilsInstanceExtension = false;
     {
         std::uint32_t extCount = 0;
         if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr) == VK_SUCCESS && extCount > 0) {
@@ -788,7 +839,14 @@ std::expected<Context, VkResult> Context::create(const Config& config) {
             for (const VkExtensionProperties& ext : available) {
                 if (std::string_view(ext.extensionName) == VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME) {
                     extensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
-                    break;
+                } else if (std::string_view(ext.extensionName) == VK_EXT_DEBUG_UTILS_EXTENSION_NAME) {
+                    // VK16: the address-binding events of VK_EXT_device_address_binding_report
+                    // are delivered through the debug-utils messaging mechanism, so the instance
+                    // extension must be enabled whenever it may be recorded — not only under
+                    // validation (it also makes setDebugName resource naming functional without
+                    // validation layers).
+                    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+                    debugUtilsInstanceExtension = true;
                 }
             }
         }
@@ -802,7 +860,9 @@ std::expected<Context, VkResult> Context::create(const Config& config) {
             return std::unexpected(VK_ERROR_LAYER_NOT_PRESENT);
         }
         layers.push_back("VK_LAYER_KHRONOS_validation");
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        if (!debugUtilsInstanceExtension) {
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
     }
 
     const VkApplicationInfo appInfo{
@@ -853,6 +913,21 @@ std::expected<Context, VkResult> Context::create(const Config& config) {
 
     context.m_deviceContext.physicalDevice = context.m_physicalDeviceInfo.device;
     context.m_deviceContext.graphicsFamily = context.m_physicalDeviceInfo.graphicsFamily;
+
+    // VK16: record device address binding events when the feature will be enabled at
+    // device creation — the bind/unbind records give a device_fault report's raw buffer
+    // addresses their resource context. Diagnosability only: a messenger failure is
+    // logged and ignored (no behavior change).
+    if (context.m_physicalDeviceInfo.addressBindingReportSupported && debugUtilsInstanceExtension) {
+        auto addressBinding = DebugUtils::createAddressBinding(context.m_instance);
+        if (addressBinding) {
+            context.m_addressBinding = std::move(*addressBinding);
+            core::Logger::info("AddressBinding: recording VK_EXT_device_address_binding_report binding events");
+        } else {
+            core::Logger::warn("AddressBinding: messenger creation failed — binding events will not be recorded");
+        }
+    }
+
     result = createDevice(context.m_physicalDeviceInfo, context.m_deviceContext);
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
@@ -886,6 +961,7 @@ Context::Context(Context&& other) noexcept
     : m_instance(std::exchange(other.m_instance, VK_NULL_HANDLE)),
       m_surface(std::exchange(other.m_surface, VK_NULL_HANDLE)),
       m_debugUtils(std::move(other.m_debugUtils)),
+      m_addressBinding(std::move(other.m_addressBinding)),
       m_physicalDeviceInfo(other.m_physicalDeviceInfo),
       m_deviceContext(other.m_deviceContext),
       m_validationEnabled(other.m_validationEnabled) {
@@ -900,6 +976,7 @@ Context& Context::operator=(Context&& other) noexcept {
         m_instance = std::exchange(other.m_instance, VK_NULL_HANDLE);
         m_surface = std::exchange(other.m_surface, VK_NULL_HANDLE);
         m_debugUtils = std::move(other.m_debugUtils);
+        m_addressBinding = std::move(other.m_addressBinding);
         m_physicalDeviceInfo = other.m_physicalDeviceInfo;
         m_deviceContext = other.m_deviceContext;
         m_validationEnabled = other.m_validationEnabled;
@@ -948,6 +1025,7 @@ void Context::destroy() noexcept {
     m_physicalDeviceInfo = {};
     m_surface = VK_NULL_HANDLE;
     m_debugUtils = {};
+    m_addressBinding = {};
 
     if (m_instance != VK_NULL_HANDLE) {
         vkDestroyInstance(m_instance, nullptr);

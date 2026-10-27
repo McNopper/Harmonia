@@ -26,6 +26,7 @@
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/presentation/ImageCapture.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/vulkan_init/DeviceFault.hpp"
 
 namespace harmonia::app {
 
@@ -143,6 +144,10 @@ std::optional<std::uint32_t> App::acquireFrame(std::uint32_t slot) noexcept {
     }
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         core::Logger::error("presentation::Swapchain acquire failed: VkResult {}", static_cast<int>(result));
+        // VK16: device-lost forensics — diagnosability only, never masks the error.
+        if (result == VK_ERROR_DEVICE_LOST) {
+            vulkan_init::reportDeviceFault(m_context.deviceContext());
+        }
         return std::nullopt;
     }
 
@@ -236,6 +241,10 @@ VkResult App::submitDisplay(std::uint32_t slot, std::uint32_t imageIndex, std::u
                                                 signalInfos);
     if (result != VK_SUCCESS) {
         core::Logger::error("Display submit failed: VkResult {}", static_cast<int>(result));
+        // VK16: device-lost forensics — diagnosability only, never masks the error.
+        if (result == VK_ERROR_DEVICE_LOST) {
+            vulkan_init::reportDeviceFault(m_context.deviceContext());
+        }
         return result;
     }
 
@@ -255,6 +264,10 @@ void App::presentAndHandleResize(std::uint32_t imageIndex) noexcept {
     }
     if (result != VK_SUCCESS) {
         core::Logger::error("Present failed: VkResult {}", static_cast<int>(result));
+        // VK16: device-lost forensics — diagnosability only, never masks the error.
+        if (result == VK_ERROR_DEVICE_LOST) {
+            vulkan_init::reportDeviceFault(m_context.deviceContext());
+        }
     }
     m_frameSync.setSwapchainLayout(imageIndex, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }

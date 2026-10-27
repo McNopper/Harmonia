@@ -91,7 +91,8 @@ the sibling clones.
   **Adopted since v0.7.6:** present pacing (VK6 -> MOD6 `present_id2`/`present_wait2`),
   `host_image_copy` (VK8/MOD3), `pageable_device_local_memory` + `calibrated_timestamps`
   (VK10), `opacity_micromap` (VK2, v0.7.7), `descriptor_buffer` (VK7/MOD1), `robustness2`
-  nullDescriptor (VK14), `device_address_commands` AS2KHR (MOD5).
+  nullDescriptor (VK14), `device_address_commands` AS2KHR (MOD5), `device_fault` +
+  `device_address_binding_report` (VK16 — device-lost forensics).
 ---
 
 ## 3. How to continue
@@ -249,10 +250,9 @@ underlying fact into `ARCHITECTURE.md` once the decision is made.
 - **accepted by design:** hub `harmonia` (fan-in 8 — the shared vocabulary) and hub
   `app` (fan-out 8 — the host) are *supposed* to be hubs; no action.
 
-**Vulkan adoption queue (after VK15, shipped v0.7.11):** **VK16** `VK_KHR_device_fault` (+
-`VK_EXT_device_address_binding_report`) — device-lost forensics with fault addresses; then
-**VK17 + VK5** as one cold-start/CI item (`VK_EXT_shader_module_identifier` +
-`VK_KHR_pipeline_binary` — identifier-keyed pipeline binaries, the Theia cold-start win).
+**Vulkan adoption queue (after VK16, shipped):** **VK17 + VK5** as one cold-start/CI item
+(`VK_EXT_shader_module_identifier` + `VK_KHR_pipeline_binary` — identifier-keyed pipeline
+binaries, the Theia cold-start win).
 Watchlist unchanged: VK18 `present_timing`; **VK19 `descriptor_heap` — evaluate before any
 further descriptor investment** (MOD1's `descriptor_buffer` is the current foundation); VK20
 `unified_image_layouts`; VK21 `memory_budget`; VK22 next-gen shader model — **gated on
@@ -637,7 +637,7 @@ revalidation event, not a free upgrade.
 | VK13 | ~~`VK_KHR_maintenance7`–`maintenance11`~~ | **Triaged: no actionable features** — these are spec clarifications and minor struct additions (layered rendering, depth/stencil clarifications, sync edge cases); nothing our codebase uses or benefits from. | CH | ~~watchlist~~ **closed** |
 | VK14 | ~~`VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives`~~ | **SHIPPED**: `nullDescriptor` enabled (hard-required) — all dummy resources DELETED (GiPass gradient/motion images, ForwardRenderer env + tile-light buffers). `robustBufferAccess2/ImageAccess2` deliberately NOT enabled (perf cost). Compute derivatives NOT adopted (not used yet). | PERF, CH | ~~watchlist~~ **shipped** |
 | VK15 | `VK_KHR_opacity_micromap` | **SHIPPED (v0.7.11)** — and it is **not** a rename (extension proposal issue 5: "not an exact promotion"): the re-issue folds micromaps into the acceleration-structure API (issue 6) — `VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR`, sized via `vkGetAccelerationStructureBuildSizesKHR` (NULL `pMaxPrimitiveCounts`), built via `vkCmdBuildAccelerationStructuresKHR` with `VK_GEOMETRY_TYPE_MICROMAP_KHR` (NULL range infos; usage-driven), new KHR sTypes (10006230xx), reshaped `VkAccelerationStructureTrianglesOpacityMicromapKHR` (usage counts dropped from the BLAS link). The standalone `vkCreateMicromapEXT` surface is **deleted**; `Micromap` is an `AccelerationStructure` (MOD5 device-address creation reused). Proven image-identical on `shaderball_checker` (MAD = 0 vs the EXT-path gallery) with zero validation errors/warnings. | CH | **shipped** |
-| VK16 | `VK_KHR_device_fault` (+ `VK_EXT_device_address_binding_report`) | Device-lost forensics with fault addresses — localizing a crash in a GPU-driven pipeline (DGC + indirect dispatch) that today surfaces only as a bare `VK_ERROR_DEVICE_LOST` | CH | backlog |
+| VK16 | ~~`VK_EXT_device_fault` (+ `VK_EXT_device_address_binding_report`)~~ | **SHIPPED** — device-lost forensics: both extensions probed→enabled (conservative: `deviceFault` + `deviceFaultVendorBinary` per-feature; `reportAddressBinding` when present). On the device-lost surface points (acquire / display submit / present / offscreen submit) `vkGetDeviceFaultInfoEXT` retrieves the fault: description, fault addresses (typed: invalid read/write/execute, instruction pointer) and vendor fault entries are logged, and the raw vendor binary blob is dumped to `device_fault_<timestamp>.bin` next to the run's artifacts for vendor-tool analysis. The address-binding records ride the same report; a dedicated INFO/DEVICE_ADDRESS_BINDING debug messenger logs every bind/unbind (base address, size, named resources) so fault addresses can be correlated with buffers. Pure diagnosability: retrieval failures never mask the original `VK_ERROR_DEVICE_LOST`. (The SDK's `VK_KHR_device_fault` promotion aliases the same EXT entry point; the EXT names are what the probe enables.) | CH | **shipped** |
 | VK17 | `VK_EXT_shader_module_identifier` | Skip recompiling unchanged shaders (identifier-based reuse) — CI and cold-start win; natural companion to VK5 `pipeline_binary` | PERF, CH | backlog |
 | VK18 | `VK_EXT_present_timing` | Present-timing control beyond the MOD6 `present_id2`/`present_wait2` pair — the next present-pacing step | I | watchlist |
 | VK19 | `VK_EXT_descriptor_heap` | The descriptor-subsystem successor (Khronos, 2026-02). MOD1 just shipped `descriptor_buffer`; evaluate this before any further descriptor investment | PERF, CH | watchlist |
@@ -688,31 +688,24 @@ bounding-volume consumers. None bias the image — they extend *what* can be rep
 the estimator. (The schema slices are tracked in `Aether/PLAN.md`; render-loop work in
 `Theia/PLAN.md`.)
 
-### 6.1 Node hierarchy track (NH) — Harmonia slice
+### 6.1 Node hierarchy track (NH) — not a Harmonia slice
 
-| ID | Task | Deps | Status |
-|----|------|------|--------|
-| NH2 | **Shared transform compounding in Harmonia** — `ObjectToWorld` build walks the node tree (one hierarchy consumed by both renderers); replaces flat per-instance matrices. Needs the `sm::trs` builder (slang-math SM4). | NH1 (Aether) | backlog |
-| NH3 | **Instanced subtrees** — share a sub-graph across parents (foliage, crowds, debris). | NH2 | backlog |
+**Architecture directive: the renderers always receive the flat, world-resolved rendering list.** Node-hierarchy logic (graph, transform compounding, instanced subtrees) lives in the Aether loader (NH1, `Aether/PLAN.md`) — Harmonia never walks a node tree and never compounds transforms. The former NH2 (compounding in Harmonia) is therefore dropped: Aether's NH1 emits world-space instances into the same flat list the renderers consume today. GPU-side instancing optimizations (sub-graph buffer sharing) remain a perf concern, not a hierarchy feature — revisit only with a measured need.
 
 (NH1 schema + NH4 DCC round-trip: `Aether/PLAN.md`.)
 
-### 6.2 Animation track (ANI) — Harmonia slice
+### 6.2 Animation track (ANI) — Harmonia slice = convey world-transform updates
 
-Drive node transforms (later skeleton/morph) over time. Hyperion renders the sequence
-offline; Theia updates per frame with motion vectors for temporally-coherent GI/ReSTIR/
-denoise.
+**Architecture directive (same as 6.1): animation and hierarchy evaluation lives in Aether; how a world-position update came about is not Harmonia's concern.** The contract: Aether evaluates its node graph and animation curves and produces **world-transform updates per instance**; Harmonia conveys them as data (the flat list the renderers already consume). Each renderer then **optimizes internally how to deal with an update** — TLAS refit vs rebuild, motion vectors, buffering and scheduling are renderer-internal choices. Hyperion renders the sequence offline; Theia updates per frame with motion vectors for temporally-coherent GI/ReSTIR/denoise.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| ANI2 | **Per-frame TLAS refit** — animated, hierarchy-transformed instances refit/rebuilt each frame. Nothing refit-related exists today (full builds only, `TlasBuilder.cpp`), so PERF3 lands the refit-vs-rebuild machinery first. | ANI1, PERF3 | backlog |
-| ANI4 | **Skinning (LBS/DQS)** — bone hierarchy + per-vertex bone weights; linear/dual-quaternion blend skinning for articulated characters. Deforms vertices (BLAS-level update, beyond ANI2 TLAS refit). | NH1, ANI2 | backlog |
-| ANI5 | **Morph targets / blendshapes** — interpolate between vertex sets (facial animation, shape keys); per-vertex deltas over time (BLAS-level update). | ANI2 | backlog |
-| ANI6 | **Animated parity gate** — extend the metric set (§7) to sequences. Needs the still-image gate (PAR0 ✓) and the video metric (PAR3). | PAR0, PAR3, ANI7 | backlog |
+| ANI2 | **Per-frame TLAS refit** — when Aether emits world-transform updates (animated scenes), refit/rebuild the TLAS each frame. The update arrives as plain world transforms; refit-vs-rebuild is the renderer's internal optimization choice. Nothing refit-related exists today (full builds only, `TlasBuilder.cpp`), so PERF3 lands the refit-vs-rebuild machinery first. | ANI1 (Aether evaluation API), PERF3 | backlog |
+| ANI4 | **Skinning (LBS/DQS)** — bone hierarchy + per-vertex bone weights; blend-skinning for articulated characters. The data schema and the CPU evaluation reference live in Aether (same directive); the GPU vertex deformation is BLAS-level update (beyond ANI2) and stays renderer-side. | ANI1, ANI2 | backlog |
+| ANI5 | **Morph targets / blendshapes** — interpolate between vertex sets (facial animation, shape keys). Schema + CPU evaluation reference in Aether; GPU deformation renderer-side (BLAS-level update). | ANI2 | backlog |
+| ANI6 | **Animated parity gate** — extend the metric set to sequences. Needs the still-image gate (PAR0) and the video metric (PAR3). | PAR0, PAR3, ANI7 | backlog |
 
-(ANI1 schema: `Aether/PLAN.md`. ANI3 object motion vectors: `Theia/PLAN.md`. ANI7 render
-sequence to disk: `Hyperion/PLAN.md`.)
-
+(ANI1 schema + evaluation API: `Aether/PLAN.md`. ANI3 object motion vectors: `Theia/PLAN.md`. ANI7 render sequence to disk: `Hyperion/PLAN.md`.)
 ### 6.3 Bounding volume track (BV) — Harmonia slice
 
 An authorable per-geometry object-space AABB, generated from OBJ vertex data and consumed by
@@ -728,7 +721,7 @@ the wavefront rewrite.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| SM6-Harmonia | **slang-math v0.3.0 migration slice** — replace the hand-rolled saturate sites (`src/harmonia/scene/Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`, `Texture.cpp`, `CliParser.cpp`, `ColorSpace.cpp`, `IblProbe.cpp`), delete the duplicate `kPi` constants (the dead `Math::isNanOrInf` was already deleted in H-04), `IblProbe` hand-rolled `Mat3` → `sm::float3x3` (`IblProbe.cpp:128-160`), per-component trig in `IblProbe.cpp` (`extractDominantSun`) / `Light.cpp:90-91` → SM2 functions, `Geometry.cpp` TRS → `sm::trs`, test-mirror `rsqrt` cleanup (`tests/unit/test_math.cpp:73`). `verify-full` + pin bump. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
+| SM6-Harmonia | **slang-math migration slice** — ~~replace the hand-rolled saturate sites (`src/harmonia/scene/Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`, `Texture.cpp`, `CliParser.cpp`, `ColorSpace.cpp`, `IblProbe.cpp`)~~ (done v0.7.14/15, `sm::saturate` 27 sites), ~~delete the duplicate `kPi` constants~~ (done: `utils/Math.hpp` now derives `kPi/k2Pi/kInvPi/kInv2Pi` from `sm::pi<float>()`; `IblProbe.cpp` local `kPiCpu`, `Light.cpp` + `EmissiveBuilder.cpp` `std::numbers::pi_v` replaced — the dead `Math::isNanOrInf` was already deleted in H-04), ~~`IblProbe` hand-rolled `Mat3` → `sm::float3x3`~~ (done: primaries matrices construct-from-rows, identical values), ~~`Geometry.cpp` TRS → `sm::trs`~~ (done: slang-math v0.5.0 closed-form compose, pin bumped) — **remaining:** per-component trig in `IblProbe.cpp` (`extractDominantSun`) / `Light.cpp` → SM2 functions, test-mirror `rsqrt` cleanup (`tests/unit/test_math.cpp:73`). Track origin: slang-math/PLAN.md SM6. | slang-math v0.5.0 tag | **mostly done** (trig + rsqrt remain) |
 
 ---
 

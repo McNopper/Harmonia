@@ -11,8 +11,9 @@
 
 namespace harmonia::scene {
 sm::float4x4 Transform::matrix() const noexcept {
-    return sm::translate(sm::float4x4(1.0f), translation) * sm::toFloat4x4(rotation) *
-           sm::scale(sm::float4x4(1.0f), scale);
+    // slang-math v0.5.0: closed-form T*R*S compose (row-major, column-vector) —
+    // replaces the hand-rolled translate()*toFloat4x4(rotation)*scale() chain.
+    return sm::trs(translation, rotation, scale);
 }
 
 sm::float4x4 Transform::inverseMatrix() const noexcept {

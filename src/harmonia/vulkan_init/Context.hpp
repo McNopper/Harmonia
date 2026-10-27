@@ -44,6 +44,7 @@ class Context {
     VkInstance m_instance{};
     VkSurfaceKHR m_surface{};
     DebugUtils m_debugUtils{};
+    DebugUtils m_addressBinding{}; ///< VK16: records VK_EXT_device_address_binding_report events.
     PhysicalDeviceInfo m_physicalDeviceInfo{};
     DeviceContext m_deviceContext{};
     bool m_validationEnabled = false;

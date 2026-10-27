@@ -11,6 +11,11 @@ class DebugUtils {
   public:
     [[nodiscard]] static std::expected<DebugUtils, VkResult> create(VkInstance instance);
 
+    /// VK16: dedicated messenger recording VK_EXT_device_address_binding_report binding
+    /// events (INFO severity, DEVICE_ADDRESS_BINDING message type only). The events make
+    /// the addresses in a VK_EXT_device_fault report correlate-able to named resources.
+    [[nodiscard]] static std::expected<DebugUtils, VkResult> createAddressBinding(VkInstance instance);
+
     /// Canonical messenger create-info (severity/type mask + Harmonia callback).
     /// Shared by instance-creation pNext chaining and post-instance messenger setup.
     [[nodiscard]] static VkDebugUtilsMessengerCreateInfoEXT messengerCreateInfo() noexcept;
@@ -26,6 +31,12 @@ class DebugUtils {
                                                         VkDebugUtilsMessageTypeFlagsEXT types,
                                                         const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
                                                         void* userData);
+
+    static VKAPI_ATTR VkBool32 VKAPI_CALL
+    addressBindingCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                           VkDebugUtilsMessageTypeFlagsEXT types,
+                           const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+                           void* userData);
 
   private:
     void destroy() noexcept;

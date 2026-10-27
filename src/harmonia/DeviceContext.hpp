@@ -28,6 +28,8 @@ struct DeviceContext {
     bool presentIdSupported = false;       ///< VK_KHR_present_id enabled (per-present ID tagging).
     bool presentWaitSupported = false;     ///< VK_KHR_present_wait2 enabled (vkWaitForPresent2KHR pacing).
     bool fifoLatestReadySupported = false; ///< VK_KHR_present_mode_fifo_latest_ready enabled (low-latency FIFO).
+    bool deviceFaultSupported = false;     ///< VK_EXT_device_fault enabled (VK16 device-lost forensics).
+    bool addressBindingReportSupported = false; ///< VK_EXT_device_address_binding_report enabled (VK16).
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
     /// VK_NULL_HANDLE when the device has no dedicated compute queue family.

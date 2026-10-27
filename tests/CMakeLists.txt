@@ -13,6 +13,7 @@ add_executable(harmonia_unit_tests
     unit/test_env_sampling_contract.cpp
     unit/test_procedural_geometry.cpp
     unit/test_emissive.cpp
+    unit/test_device_fault.cpp
 )
 
 target_link_libraries(harmonia_unit_tests

@@ -160,23 +160,17 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
                                               harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
     // ── Pick the primaries conversion (source → working space) ───────────────
     // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
-    struct Mat3 {
-        float m00, m01, m02, m10, m11, m12, m20, m21, m22;
-    };
-    constexpr Mat3 k709To2020{
-        0.6274040f, 0.3292820f, 0.0433140f, 0.0690970f, 0.9195400f, 0.0113630f, 0.0163916f, 0.0880132f, 0.8955950f};
-    constexpr Mat3 k2020To709{1.6604911f,
-                              -0.5876411f,
-                              -0.0728499f,
-                              -0.1245505f,
-                              1.1328999f,
-                              -0.0083494f,
-                              -0.0181508f,
-                              -0.1005789f,
-                              1.1187297f};
-    constexpr Mat3 kIdentity{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    // SM6: slang-math row-major float3x3 (constructed from rows, identical values)
+    // replaces the hand-rolled 9-scalar struct; `m * v` keeps the same row·vector math.
+    constexpr sm::float3x3 k709To2020{sm::float3{0.6274040f, 0.3292820f, 0.0433140f},
+                                      sm::float3{0.0690970f, 0.9195400f, 0.0113630f},
+                                      sm::float3{0.0163916f, 0.0880132f, 0.8955950f}};
+    constexpr sm::float3x3 k2020To709{sm::float3{1.6604911f, -0.5876411f, -0.0728499f},
+                                      sm::float3{-0.1245505f, 1.1328999f, -0.0083494f},
+                                      sm::float3{-0.0181508f, -0.1005789f, 1.1187297f}};
+    constexpr sm::float3x3 kIdentity = sm::float3x3::identity();
     const bool dstRec2020 = (workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
-    const Mat3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
+    const sm::float3x3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
 
     // Clamp non-finite values (e.g. half-float inf from overexposed sun disc) to
     // half-float max (65504) so the CDF importance sampler keeps the sun visible.
@@ -190,9 +184,10 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
         const float r = safeVal(raw[i * 4 + 0]);
         const float g = safeVal(raw[i * 4 + 1]);
         const float b = safeVal(raw[i * 4 + 2]);
-        rgba32f[i * 4 + 0] = m.m00 * r + m.m01 * g + m.m02 * b;
-        rgba32f[i * 4 + 1] = m.m10 * r + m.m11 * g + m.m12 * b;
-        rgba32f[i * 4 + 2] = m.m20 * r + m.m21 * g + m.m22 * b;
+        const sm::float3 converted = m * sm::float3{r, g, b};
+        rgba32f[i * 4 + 0] = converted.x;
+        rgba32f[i * 4 + 1] = converted.y;
+        rgba32f[i * 4 + 2] = converted.z;
         rgba32f[i * 4 + 3] = safeVal(raw[i * 4 + 3]);
     }
     return rgba32f;
@@ -244,7 +239,6 @@ void IblProbe::extractDominantSun(IblProbe& probe,
                                   std::size_t sunAvgCount) {
     static constexpr std::size_t kCdfW = 256;
     static constexpr std::size_t kCdfH = 128;
-    const float kPiCpu = 3.14159265358979f;
     // Convert the brightest grid cell into a world-space direction toward the sun.
     // Inverts the lat-long convention used by the shaders (env.slang):
     //   u = atan2(z,x)/(2π) + 0.5,  v = acos(y)/π  (v=0 at top, y=+1)
@@ -253,8 +247,8 @@ void IblProbe::extractDominantSun(IblProbe& probe,
     {
         const float uNorm = (static_cast<float>(sunBestU) + 0.5f) / static_cast<float>(kCdfW);
         const float vNorm = (static_cast<float>(sunBestV) + 0.5f) / static_cast<float>(kCdfH);
-        const float phi = (uNorm - 0.5f) * 2.0f * kPiCpu;
-        const float theta = vNorm * kPiCpu;
+        const float phi = (uNorm - 0.5f) * 2.0f * sm::pi<float>();
+        const float theta = vNorm * sm::pi<float>();
         const float sinT = std::sin(theta);
         domSunDir = sm::normalize(sm::float3{sinT * std::cos(phi), std::cos(theta), sinT * std::sin(phi)});
         // Concentration: ratio of the brightest cell to the mean. Uniform/overcast skies
@@ -288,7 +282,6 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
     // Resolution: 256×128 (each cell covers ~16×16 source pixels for a 4K panorama)
     static constexpr std::size_t kCdfW = 256;
     static constexpr std::size_t kCdfH = 128;
-    const float kPiCpu = 3.14159265358979f;
     const float srcToGridU = static_cast<float>(kCdfW) / static_cast<float>(width);
     const float srcToGridV = static_cast<float>(kCdfH) / static_cast<float>(height);
     // Map a CDF grid coordinate to the first source pixel it covers (CDF cell →
@@ -306,7 +299,7 @@ void IblProbe::buildImportanceCdf(IblProbe& probe,
     double sunAvgSum = 0.0;
     std::size_t sunAvgCount = 0;
     for (std::size_t v = 0; v < kCdfH; ++v) {
-        const float sinTheta = std::sin(kPiCpu * (static_cast<float>(v) + 0.5f) / static_cast<float>(kCdfH));
+        const float sinTheta = std::sin(sm::pi<float>() * (static_cast<float>(v) + 0.5f) / static_cast<float>(kCdfH));
         for (std::size_t u = 0; u < kCdfW; ++u) {
             const std::size_t srcX0 = srcPixel(u, srcToGridU);
             const std::size_t srcX1 = std::max(srcX0 + 1, srcPixel(u + 1, srcToGridU));

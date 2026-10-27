@@ -251,7 +251,7 @@ FetchContent_MakeAvailable(aether)
 FetchContent_Declare(
     slang_math
     GIT_REPOSITORY https://github.com/McNopper/slang-math.git
-    GIT_TAG v0.4.0
+    GIT_TAG v0.5.0
 )
 FetchContent_MakeAvailable(slang_math)
 
@@ -284,6 +284,7 @@ set(HARMONIA_core_SOURCES
 )
 set(HARMONIA_low_level_SOURCES
     src/harmonia/vulkan_init/Context.cpp
+    src/harmonia/vulkan_init/DeviceFault.cpp
     src/harmonia/vulkan_init/PhysicalDevice.cpp
     src/harmonia/vulkan_init/DebugUtils.cpp
 )
