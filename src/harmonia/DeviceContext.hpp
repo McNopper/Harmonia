@@ -30,6 +30,10 @@ struct DeviceContext {
     bool fifoLatestReadySupported = false; ///< VK_KHR_present_mode_fifo_latest_ready enabled (low-latency FIFO).
     bool deviceFaultSupported = false;     ///< VK_EXT_device_fault enabled (VK16 device-lost forensics).
     bool addressBindingReportSupported = false; ///< VK_EXT_device_address_binding_report enabled (VK16).
+    bool swapchainMaintenance1Supported =
+        false; ///< VK_KHR_swapchain_maintenance1 enabled (MOD4 v1: per-present fences +
+               ///< vkReleaseSwapchainImagesKHR on resize — the fence/release half; present
+               ///< scaling was probed (0 modes on the reference GPU) and stays out).
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
     /// VK_NULL_HANDLE when the device has no dedicated compute queue family.

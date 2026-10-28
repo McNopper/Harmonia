@@ -270,6 +270,7 @@ tracked in `PLAN.md` §5.8 — capability audit (SDK 1.4.363 / driver 621.01).
 | `VK_KHR_present_mode_fifo_latest_ready` | `fifoLatestReadySupported` | `VK_PRESENT_MODE_FIFO_LATEST_READY_KHR` — FIFO v-sync, latest-ready image (lower latency) |
 | `VK_EXT_device_fault` | `deviceFaultSupported` | VK16 device-lost forensics: on `VK_ERROR_DEVICE_LOST` retrieve `vkGetDeviceFaultInfoEXT` (fault addresses, vendor faults), dump the raw vendor binary blob as `device_fault_<timestamp>.bin`; pure diagnosability |
 | `VK_EXT_device_address_binding_report` | `addressBindingReportSupported` | VK16 companion: bind/unbind events via a dedicated INFO/DEVICE_ADDRESS_BINDING debug messenger — the records accompany the fault and make its buffer addresses correlate-able |
+| `VK_KHR_swapchain_maintenance1` | `swapchainMaintenance1Supported` | MOD4 v1 fence/release half: per-present fences (`VkSwapchainPresentFenceInfoKHR`) + `vkReleaseSwapchainImagesEXT` on resize — `Swapchain::recreate` retires the old swapchain without a whole-device idle. Present scaling (the other half) was probed (`supportedPresentScaling = 0` on the reference GPU) and stays out; extension-absent devices keep the legacy device-idle resize path |
 
 **Acceleration structure builds — device-side only (Khronos deprecation compliant):**
 - All BLAS/TLAS builds use `vkCmdBuildAccelerationStructuresKHR` (device-side).

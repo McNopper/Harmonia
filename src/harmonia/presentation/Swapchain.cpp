@@ -11,6 +11,10 @@ namespace harmonia::presentation {
 
 namespace {
 constexpr std::uint64_t kWaitForever = UINT64_MAX;
+/// MOD4 v1: bounded wait for pending present fences in @ref recreate. Long enough to
+/// absorb normal FIFO latency; short enough that a stalled presentation engine falls
+/// into the logged device-idle safety net instead of hanging the resize.
+constexpr std::uint64_t kPresentFenceTimeoutNs = 250000000;
 
 [[nodiscard]] VkExtent2D clampExtent(const VkSurfaceCapabilitiesKHR& capabilities, VkExtent2D requested) noexcept {
     if (capabilities.currentExtent.width != UINT32_MAX) {
@@ -130,11 +134,13 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     swapchain.m_colorSpace = chosenFormat->colorSpace;
     swapchain.m_extent = clampExtent(capabilities, extent);
 
-    // MOD4 attempted: VkSwapchainPresentScalingCreateInfoKHR with ASPECT_RATIO_STRETCH,
-    // but the RTX 5070 driver 616.92 reports supportedPresentScaling = 0 for FIFO —
-    // scaling is not available. Reverted to recreate-on-resize (the proven behavior).
-    // The swapchain_maintenance1 extension stays enabled (future-forward); the scaling
-    // sub-feature is blocked on driver support.
+    // MOD4 v1: the fence/release half of VK_KHR_swapchain_maintenance1 is enabled (see
+    // Swapchain::present / recreate) — per-present fences + image release let the resize
+    // path retire the old swapchain without a device idle. The driver-side present
+    // scaling half stays out: VkSwapchainPresentScalingCreateInfoKHR was probed and the
+    // RTX 5070 driver 621.01 reports supportedPresentScaling = 0 for every present mode.
+    // Resize therefore keeps the recreate-on-resize behavior (the proven path), just
+    // without the whole-device wait.
 
     // COLOR_ATTACHMENT_BIT is always supported on swapchain images (Vulkan spec §34.2.2).
     // TRANSFER_DST_BIT is always supported when the surface supports presentation.
@@ -218,6 +224,30 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
         swapchain.m_views.emplace_back(ctx.device, view);
     }
 
+    // MOD4 v1 (VK_KHR_swapchain_maintenance1 fence/release half): one present fence
+    // per swapchain image slot, recreated with the swapchain. The fence signals when
+    // the presentation engine is done with that slot's image — what lets @ref recreate
+    // retire the old swapchain without a whole-device idle. The per-slot bookkeeping
+    // vectors are sized with the fences so slot indexing is uniform everywhere.
+    if (ctx.swapchainMaintenance1Supported) {
+        swapchain.m_presentFences.reserve(imageCount);
+        for (std::uint32_t i = 0; i < imageCount; ++i) {
+            const VkFenceCreateInfo fenceInfo{
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+            };
+            VkFence fence = VK_NULL_HANDLE;
+            result = vkCreateFence(ctx.device, &fenceInfo, nullptr, &fence);
+            if (result != VK_SUCCESS) {
+                return std::unexpected(result);
+            }
+            swapchain.m_presentFences.emplace_back(ctx.device, fence);
+        }
+        swapchain.m_presentFencePending.assign(imageCount, false);
+        swapchain.m_acquired.assign(imageCount, false);
+    }
+
     return swapchain;
 }
 
@@ -225,7 +255,14 @@ VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, std::uint32_t&
     if (m_ctx == nullptr || m_swapchain == VK_NULL_HANDLE) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
-    return vkAcquireNextImageKHR(m_ctx->device, m_swapchain, kWaitForever, signalSemaphore, VK_NULL_HANDLE, &outIndex);
+    const VkResult result =
+        vkAcquireNextImageKHR(m_ctx->device, m_swapchain, kWaitForever, signalSemaphore, VK_NULL_HANDLE, &outIndex);
+    // MOD4 v1: track the acquired-not-presented slots — recreate() releases exactly
+    // these when it retires the swapchain (maintenance1 fence/release half).
+    if ((result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) && m_ctx->swapchainMaintenance1Supported) {
+        m_acquired[outIndex] = true;
+    }
+    return result;
 }
 
 VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore waitSemaphore) {
@@ -237,16 +274,51 @@ VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore
     if (tagPresentId) {
         thisPresentId = ++m_presentId;
     }
-    const VkPresentId2KHR presentIdInfo{
+    VkPresentId2KHR presentIdInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR,
         .pNext = nullptr,
         .swapchainCount = 1U,
         .pPresentIds = &thisPresentId,
     };
 
+    // MOD4 v1 (maintenance1 fence half): chain a per-slot present fence. It signals when
+    // the presentation engine is done with the image; Swapchain::recreate waits it before
+    // retiring the old swapchain, so resize no longer needs a whole-device idle. This
+    // VkFence is not a MOD2 regression: the presentation engine's completion signal only
+    // exists as a fence (VkSwapchainPresentFenceInfoKHR has no timeline form) — all
+    // frame-path sync above the present stays on the shared timeline.
+    const bool chainPresentFence = m_ctx != nullptr && m_ctx->swapchainMaintenance1Supported;
+    VkFence presentFence = VK_NULL_HANDLE;
+    if (chainPresentFence) {
+        // The slot's previous present fence has signaled by construction: the image can
+        // only be re-acquired after the presentation engine released it — which is what
+        // the fence signals. The defensive wait keeps the vkResetFences below legal even
+        // if that ordering ever slips (e.g. after a failed present on this slot).
+        if (m_presentFencePending[imageIndex]) {
+            static_cast<void>(
+                vkWaitForFences(m_ctx->device, 1, m_presentFences[imageIndex].ptr(), VK_TRUE, kWaitForever));
+            m_presentFencePending[imageIndex] = false;
+        }
+        static_cast<void>(vkResetFences(m_ctx->device, 1, m_presentFences[imageIndex].ptr()));
+        presentFence = m_presentFences[imageIndex];
+        m_presentFencePending[imageIndex] = true;
+    }
+    const VkSwapchainPresentFenceInfoKHR presentFenceInfo{
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_KHR,
+        .pNext = nullptr,
+        .swapchainCount = 1U,
+        .pFences = &presentFence,
+    };
+    // Optional present-info pNext chain: present id (MOD6) → present fence (MOD4 v1).
+    if (chainPresentFence) {
+        presentIdInfo.pNext = &presentFenceInfo;
+    }
+
     const VkPresentInfoKHR presentInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext = tagPresentId ? &presentIdInfo : nullptr,
+        .pNext = tagPresentId        ? &presentIdInfo
+                 : chainPresentFence ? static_cast<const void*>(&presentFenceInfo)
+                                     : nullptr,
         .waitSemaphoreCount = waitSemaphore != VK_NULL_HANDLE ? 1U : 0U,
         .pWaitSemaphores = waitSemaphore != VK_NULL_HANDLE ? &waitSemaphore : nullptr,
         .swapchainCount = 1U,
@@ -254,7 +326,16 @@ VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore
         .pImageIndices = &imageIndex,
         .pResults = nullptr,
     };
-    return vkQueuePresentKHR(queue, &presentInfo);
+    const VkResult result = vkQueuePresentKHR(queue, &presentInfo);
+    if (chainPresentFence) {
+        // A queued present (SUCCESS / SUBOPTIMAL) hands the image to the presentation
+        // engine — no longer acquired. A rejected present (e.g. OUT_OF_DATE) leaves the
+        // image in the acquired state, so recreate()'s release pass picks it up.
+        if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
+            m_acquired[imageIndex] = false;
+        }
+    }
+    return result;
 }
 
 VkResult Swapchain::waitForPresent(std::uint64_t presentId, std::uint64_t timeoutNs) {
@@ -276,6 +357,23 @@ VkResult Swapchain::recreate(VkExtent2D newExtent) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
+    // MOD4 v1: quiesce the OLD swapchain before creating the new one — without a
+    // whole-device idle (that is the fence/release half's purpose):
+    //  1. Bounded wait on the present fences of slots whose present is still queued.
+    //     A signaled present fence guarantees the presentation engine is done with the
+    //     image AND that the present's wait semaphore (renderComplete) was consumed —
+    //     the present completes after it — so retiring the swapchain and later
+    //     destroying FrameSync's per-image semaphores is safe.
+    //  2. vkReleaseSwapchainImagesKHR for images still acquired (acquired but never
+    //     presented — e.g. the frame this resize interrupted).
+    // Extension-absent fallback: the legacy pre-recreate device idle (unchanged
+    // behavior — the fence path is what removes it on capable devices).
+    if (m_ctx->swapchainMaintenance1Supported) {
+        quiesceForRecreate();
+    } else {
+        vkDeviceWaitIdle(m_ctx->device);
+    }
+
     // Pass the old swapchain so the driver can retire it and reuse resources.
     auto recreated = create(*m_ctx, m_surface, newExtent, m_preferHDR, m_swapchain);
     if (!recreated) {
@@ -289,6 +387,61 @@ VkResult Swapchain::recreate(VkExtent2D newExtent) {
         m_ctx = savedCtx;
     }
     return VK_SUCCESS;
+}
+
+void Swapchain::quiesceForRecreate() {
+    const VkDevice device = m_ctx->device;
+
+    // 1. Wait (bounded) every fence still chained to a queued present.
+    std::vector<VkFence> pending;
+    pending.reserve(m_presentFencePending.size());
+    for (std::size_t i = 0; i < m_presentFencePending.size(); ++i) {
+        if (m_presentFencePending[i]) {
+            pending.push_back(m_presentFences[i]);
+        }
+    }
+    if (!pending.empty()) {
+        const VkResult waitResult = vkWaitForFences(
+            device, static_cast<std::uint32_t>(pending.size()), pending.data(), VK_TRUE, kPresentFenceTimeoutNs);
+        if (waitResult != VK_SUCCESS) {
+            // Pathological only (presentation engine stalled / device lost): the idle is
+            // the safety net that keeps the retirement below legal — it costs this one
+            // resize, not the steady-state path.
+            core::Logger::warn("Swapchain recreate: present fence wait failed (VkResult {}) — falling back to "
+                               "vkDeviceWaitIdle",
+                               static_cast<int>(waitResult));
+            vkDeviceWaitIdle(device);
+        }
+    }
+
+    // 2. Release the images still acquired (never presented) back to the retired
+    //    swapchain — the maintenance1 destroy precondition.
+    std::vector<std::uint32_t> acquiredIndices;
+    acquiredIndices.reserve(m_acquired.size());
+    for (std::uint32_t i = 0; i < m_acquired.size(); ++i) {
+        if (m_acquired[i]) {
+            acquiredIndices.push_back(i);
+        }
+    }
+    if (!acquiredIndices.empty()) {
+        const VkReleaseSwapchainImagesInfoKHR releaseInfo{
+            .sType = VK_STRUCTURE_TYPE_RELEASE_SWAPCHAIN_IMAGES_INFO_KHR,
+            .pNext = nullptr,
+            .swapchain = m_swapchain,
+            .imageIndexCount = static_cast<std::uint32_t>(acquiredIndices.size()),
+            .pImageIndices = acquiredIndices.data(),
+        };
+        const VkResult releaseResult = vkReleaseSwapchainImagesKHR(device, &releaseInfo);
+        if (releaseResult != VK_SUCCESS) {
+            core::Logger::warn("Swapchain recreate: vkReleaseSwapchainImagesKHR failed (VkResult {})",
+                               static_cast<int>(releaseResult));
+        }
+    }
+
+    // 3. The swapchain handle is replaced right after this — reset the slot state so
+    //    the fresh swapchain starts clean (its fences are new anyway).
+    m_presentFencePending.assign(m_presentFencePending.size(), false);
+    m_acquired.assign(m_acquired.size(), false);
 }
 
 VkSwapchainKHR Swapchain::handle() const noexcept {

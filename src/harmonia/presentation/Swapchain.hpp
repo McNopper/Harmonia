@@ -71,6 +71,21 @@ class Swapchain {
     std::uint64_t m_presentId = 0; ///< Monotonic per-present ID for VK_KHR_present_id / present_wait.
     std::vector<VkImage> m_images;
     std::vector<harmonia::core::UniqueImageView> m_views;
+    /// MOD4 v1 (VK_KHR_swapchain_maintenance1 fence/release half): one present fence per
+    /// swapchain image slot, recreated with the swapchain. The fence signals when the
+    /// presentation engine is done with that image — what lets @ref recreate retire the
+    /// old swapchain without a whole-device idle. Empty when the extension is absent.
+    std::vector<harmonia::core::UniqueFence> m_presentFences;
+    /// Per-slot bookkeeping backing the fence/release path (sized with the fences):
+    /// fence chained to a queued present and not yet waited / image acquired from the
+    /// presentation engine and not (yet) presented.
+    std::vector<bool> m_presentFencePending;
+    std::vector<bool> m_acquired;
+
+    /// Quiesce the live swapchain before recreation: bounded wait on the pending
+    /// present fences, then release still-acquired images. No device idle — that is
+    /// the fence/release half's purpose. Call only with the extension enabled.
+    void quiesceForRecreate();
 };
 
 } // namespace harmonia::presentation

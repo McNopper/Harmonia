@@ -244,6 +244,11 @@ class App {
     std::uint32_t m_frameIndex = 0;
     /// Interactive flip cadence counter for --frames-per-flip (I6).
     std::uint32_t m_framesSinceFlip = 0;
+    /// Pacing diagnostic counters (I6 verification, TASK: pacing oracle): every 300
+    /// rendered frames mainLoop() logs the rendered/flips ratio — the measurable
+    /// frames-per-flip contract check (N=1 → R≈F, N=4 → F≈R/4).
+    std::uint64_t m_pacingRenderedFrames = 0;
+    std::uint64_t m_pacingFlippedFrames = 0;
     bool m_displayOverlayLogged = false;
     bool m_running = false;
 };

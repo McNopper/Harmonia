@@ -24,6 +24,8 @@ struct PhysicalDeviceInfo {
     bool fifoLatestReadySupported = false;      ///< VK_KHR_present_mode_fifo_latest_ready is available.
     bool deviceFaultSupported = false;          ///< VK_EXT_device_fault is available (VK16 device-lost forensics).
     bool addressBindingReportSupported = false; ///< VK_EXT_device_address_binding_report is available (VK16).
+    bool swapchainMaintenance1Supported =
+        false; ///< VK_KHR_swapchain_maintenance1 is available (MOD4 v1 fence/release half).
 };
 
 class PhysicalDevice {

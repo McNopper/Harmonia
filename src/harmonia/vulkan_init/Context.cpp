@@ -202,6 +202,9 @@ struct SupportedFeatures {
     s.descriptorBuffer.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
     s.robustness2.pNext = &s.descriptorBuffer;
     s.addressCommands.pNext = &s.robustness2;
+    // MOD4 v1: swapchain_maintenance1 features (the fence/release half — queried at the
+    // tail so the probe table can gate on the actual feature bit).
+    s.descriptorBuffer.pNext = &s.swapchainMaintenance1;
     vkGetPhysicalDeviceFeatures2(device, &s.features2);
     return s;
 }
@@ -223,6 +226,7 @@ struct CapabilityFlags {
     bool fifoLatestReadySupported = false;
     bool deviceFaultSupported = false;
     bool addressBindingReportSupported = false;
+    bool swapchainMaintenance1Supported = false;
 };
 
 // One row per optional capability: on pass, the extension(s) are enabled and the
@@ -297,6 +301,17 @@ struct CapabilityProbe {
                         &supported.addressBindingReport.reportAddressBinding,
                         &info.addressBindingReportSupported,
                         &CapabilityFlags::addressBindingReportSupported},
+        // MOD4 v1: swapchain_maintenance1 — the fence/release half (per-present fences
+        // + vkReleaseSwapchainImagesKHR on resize; see Swapchain::recreate). The KHR
+        // name is the promoted extension (the VK_EXT_swapchain_maintenance1 alias is
+        // legacy). The present-scaling sub-feature stays out: the probe found
+        // supportedPresentScaling = 0 for every present mode on the reference GPU
+        // (RTX 5070 / driver 621.01). Extension-only fallback: devices without the
+        // extension keep the legacy device-idle resize path (Swapchain::recreate).
+        CapabilityProbe{{VK_KHR_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME, nullptr},
+                        &supported.swapchainMaintenance1.swapchainMaintenance1,
+                        &info.swapchainMaintenance1Supported,
+                        &CapabilityFlags::swapchainMaintenance1Supported},
     };
 }
 
@@ -452,9 +467,21 @@ struct EnabledFeatures {
         features.maintenance7.pNext = maintenanceNext;
         maintenanceNext = &features.maintenance7;
     }
+    // MOD4 v1: swapchain_maintenance1 — the fence/release half (per-present fences +
+    // vkReleaseSwapchainImagesKHR on resize). NOT the present-scaling sub-feature:
+    // VkSwapchainPresentScalingCreateInfoKHR was probed (supportedPresentScaling = 0
+    // on the reference GPU) and stays out. Linked only when the probe enabled the
+    // extension (convention: only an enabled extension contributes a feature struct).
+    if (capabilities.swapchainMaintenance1Supported) {
+        features.swapchainMaintenance1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_KHR;
+        features.swapchainMaintenance1.swapchainMaintenance1 = VK_TRUE;
+        features.swapchainMaintenance1.pNext = maintenanceNext;
+        maintenanceNext = &features.swapchainMaintenance1;
+    }
     features.descriptorBuffer.pNext = maintenanceNext;
 
-    // MOD4: swapchain maintenance1 — driver-side scaling on resize (hard-required).
+    // The always-present main chain head: features14 → addressCommands (MOD5,
+    // hard-required) → the VK14/MOD1 optional tail above.
     features.features14.pNext = &features.addressCommands;
 
     features.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -664,9 +691,14 @@ struct QueueInfos {
         // MOD1: descriptor buffers — the modern GPU-driven descriptor path (replaces pools/sets).
         VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
     };
-    // MOD4: swapchain_maintenance1 was attempted (driver-side scaling) but the driver
-    // reports supportedPresentScaling = 0 for all present modes — scaling is not available.
-    // Extension disabled until driver support matures. See PLAN.md MOD4.
+    // MOD4 v1: VK_KHR_swapchain_maintenance1 (the former VK_EXT_swapchain_maintenance1)
+    // is probe-enabled for the fence/release half — per-present fences
+    // (VkSwapchainPresentFenceInfoKHR) + image release on resize
+    // (vkReleaseSwapchainImagesKHR); see the capabilityProbes row and
+    // Swapchain::present/recreate. The present-scaling sub-feature was probed
+    // (supportedPresentScaling = 0 for all present modes on the reference GPU,
+    // RTX 5070 / driver 621.01) and stays out. Devices without the extension keep
+    // the legacy device-idle resize path.
     return deviceExtensions;
 }
 
@@ -756,7 +788,6 @@ struct QueueInfos {
         supported.robustness2.nullDescriptor != VK_TRUE ||
         // MOD1: descriptor buffer is hard-required (pools are being migrated).
         supported.descriptorBuffer.descriptorBuffer != VK_TRUE ||
-        // MOD4: swapchain maintenance1 is hard-required (no resize recreate).
         supported.as.descriptorBindingAccelerationStructureUpdateAfterBind != VK_TRUE ||
         supported.rt.rayTracingPipeline != VK_TRUE || supported.rayQuery.rayQuery != VK_TRUE ||
         supported.rtMaintenance1.rayTracingMaintenance1 != VK_TRUE ||
@@ -796,6 +827,7 @@ struct QueueInfos {
         ctx.fifoLatestReadySupported = capabilities.fifoLatestReadySupported;
         ctx.deviceFaultSupported = capabilities.deviceFaultSupported;
         ctx.addressBindingReportSupported = capabilities.addressBindingReportSupported;
+        ctx.swapchainMaintenance1Supported = capabilities.swapchainMaintenance1Supported;
         ctx.asyncComputeQueueFamily = queues.asyncComputeFamily;
     }
     return result;

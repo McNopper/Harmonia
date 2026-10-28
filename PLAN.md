@@ -92,7 +92,8 @@ the sibling clones.
   `host_image_copy` (VK8/MOD3), `pageable_device_local_memory` + `calibrated_timestamps`
   (VK10), `opacity_micromap` (VK2, v0.7.7), `descriptor_buffer` (VK7/MOD1), `robustness2`
   nullDescriptor (VK14), `device_address_commands` AS2KHR (MOD5), `device_fault` +
-  `device_address_binding_report` (VK16 — device-lost forensics).
+  `device_address_binding_report` (VK16 — device-lost forensics), `swapchain_maintenance1`
+  fence/release (MOD4 v1 — per-present fences + image release on resize; scaling stays out).
 ---
 
 ## 3. How to continue
@@ -107,7 +108,7 @@ Bernoulli-trial estimator.
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
 | 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — split `gi.comp.slang` into focused kernels | PERF | **next** | ~16% faster; gates PERF4 |
 | 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **next** | 1.3–2.0× trace; gated by PERF5 |
-| 5 | **I6: configurable frames-per-flip** (Theia window) | I | **done** | `--frames-per-flip <N>` in the shared parser; N = 1 is the classic cadence (display half gated per flip). Validated: suites + interactive smoke + N=1 control. |
+| 5 | **I6: configurable frames-per-flip** (Theia window) | I | **done** | `--frames-per-flip <N>` in the shared parser; N = 1 is the classic cadence (display half gated per flip). Validated: suites + interactive smoke + N=1 control. **Pacing oracle shipped:** `mainLoop()` logs the rendered/flips ratio every 300 frames (see §5.3). |
 | 6 | **VAL1: interactive-path validation smoke** — `check_vulkan_validation.py` runs the offscreen path only (no present), which is how the 08045/10820 violations survived since MOD1/MOD6; add a short `--validation` windowed run to the gate | CH | **next** | tooling, small |
 
 **Shipped:** C9 bounded VNDF, DN3 converging denoiser, GI-ENH (k≥3 + pairwise
@@ -441,7 +442,11 @@ budget for that input channel.
 
 _(No outstanding Harmonia items. The one live interactivity item, **I6** (frames-per-flip),
 is tracked in `Theia/PLAN.md` — its CLI flag lands in the shared
-`src/harmonia/app/CliParser.cpp`. Retired I1–I5 rationale: Theia/PLAN.md Baseline.)_
+`src/harmonia/app/CliParser.cpp`. **Pacing diagnostic (shipped with the MOD4 v1 batch):**
+`App::mainLoop()` logs `pacing: rendered <R> frames, flipped <F> flips (frames-per-flip <N>)`
+every 300 rendered frames (running counters, unconditional) — the measurable frames-per-flip
+oracle: N=1 must read R≈F, N=4 must read F≈R/4. Retired I1–I5 rationale: Theia/PLAN.md
+Baseline.)_
 
 ### 5.4 Sampling track (LS / QMC) — variance reduction for the shared estimator
 
@@ -613,8 +618,10 @@ tagging, `Swapchain::waitForPresent`). **VK11** — `shaderDemoteToHelperInvocat
 1.3 core feature) enabled as hard-required in `Context.cpp`: the C14 `geometry_opacity`
 cutout's Slang `discard` emits the `DemoteToHelperInvocation` SPIR-V capability, which
 tripped VUID-08740 on every `vkCreateShaderModule` until the feature was enabled.
-`VK_KHR_swapchain_maintenance1` (the MOD4 scaling
-piece) is the one remaining present item — MOD4 is tracked in `Theia/PLAN.md`.
+`VK_KHR_swapchain_maintenance1` — **adopted (MOD4 v1)** for the fence/release half:
+per-present fences + `vkReleaseSwapchainImagesEXT` let resize retire the old swapchain
+without a device idle; the present-scaling half stays out (probe found 0 scaling modes on
+the reference GPU).
 
 **Capability audit (SDK 1.4.363.0 / driver 621.01 — 295 device extensions, slang 2026.17; renames vs the previous audit: `host_image_copy` is Vulkan 1.4 core (string retired, feature required by MOD3 anyway), `unified_image_layouts` and `pipeline_binary` are KHR core-track now, `present_timing` moved back to EXT; arrivals: maintenance9/10/11, cooperative matrix/vector family, subgroup partitioned).**
 The .363 spec revision itself adds only `VK_INTEL_device_info` (vendor → excluded); the rows
@@ -659,7 +666,7 @@ image, passes the convergence-to-Hyperion litmus. Grounded in current code:
 |-----|---------------|--------------|---------|-------|--------|
 | MOD1 | Descriptor pools/sets — `vkCreateDescriptorPool`/`vkAllocateDescriptorSets`/`vkUpdateDescriptorSets` (5 files) | **`VK_EXT_descriptor_buffer`** — bindless: write to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT` | the `Descriptors` pool abstraction + per-pass pools/allocated sets + all update-writes | PERF, CH | **SHIPPED**: all 5 pools deleted (Harmonia `Descriptors` + Theia `ForwardRenderer`/`GiPass`/`GpuCullPass`/`LightCuller`). `DescriptorBufferWriter` shared helper (typed `vkGetDescriptorEXT` for all 6 descriptor types). ~900 lines of boilerplate removed. Push descriptors → descriptor buffers (pipeline layout constraint). Uniform buffer descriptor support added. |
 | MOD2 | `VkFence` — ~~one-shot submits + async-compute fences~~ | **SHIPPED**: timeline semaphores (core 1.2) everywhere. `OneShot.hpp` gained `createTimelineSemaphore`/`waitTimelineSemaphore` + timeline-signal submit; Theia's async path uses a single monotonic-value timeline semaphore. All sync on **one primitive**. | CH | ~~backlog~~ **shipped** |
-| MOD4 | ~~Full swapchain recreate on resize~~ | **CLOSED**: driver-side scaling is a new feature we don't need — the recreate-on-resize behavior is correct for our use case (game/render window doesn't resize during rendering, same as Blender). Not a legacy→modern swap. | — | ~~backlog~~ **closed (not needed)** |
+| MOD4 | ~~Full swapchain recreate on resize~~ | **SHIPPED (fence/release half, v0.7.17):** `VK_KHR_swapchain_maintenance1` probe-enabled (the former `VK_EXT_swapchain_maintenance1`) for per-present fences (`VkSwapchainPresentFenceInfoKHR`, one fence per swapchain image slot) + `vkReleaseSwapchainImagesEXT` — `Swapchain::recreate` retires the old swapchain with bounded fence waits + acquired-image release, no whole-device idle (`App::handleResize` documents what syncs on what; the rebuild half keeps its device idle until `IRenderer::onResize` carries a sync contract). The driver-side **present-scaling** half stays out: probed `supportedPresentScaling = 0` for every mode (RTX 5070 / driver 621.01). Recreate-on-resize remains the behavior; only the wait shape changed. Extension-absent devices keep the legacy device-idle fallback inside `recreate()`. | — | ~~backlog~~ **closed (scaling not needed) · fence/release shipped** |
 | MOD5 | ~~Acceleration-structure creation — `vkCreateAccelerationStructureKHR` + CPU-side build-info plumbing~~ | **SHIPPED**: `vkCreateAccelerationStructure2KHR` (device-address-only, `VK_KHR_device_address_commands`) — the old creation call AND the post-creation address query are both deleted (the address IS the input). Hard-required feature + extension. | CH, PERF | **shipped** |
 | MOD6 | Present pacing — ~~`VK_KHR_present_id` + `VK_KHR_present_wait` (VK6, shipped v0.7.6)~~ | **SHIPPED**: `VK_KHR_present_id2` + `VK_KHR_present_wait2` — the v1 pair is dropped (probe→enable unchanged; `VkPresentId2KHR` in the present info, `vkWaitForPresent2KHR` info-struct wait). | I, PERF | ~~backlog~~ **shipped** |
 
@@ -721,7 +728,7 @@ the wavefront rewrite.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| SM6-Harmonia | **slang-math migration slice** — ~~replace the hand-rolled saturate sites (`src/harmonia/scene/Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`, `Texture.cpp`, `CliParser.cpp`, `ColorSpace.cpp`, `IblProbe.cpp`)~~ (done v0.7.14/15, `sm::saturate` 27 sites), ~~delete the duplicate `kPi` constants~~ (done: `utils/Math.hpp` now derives `kPi/k2Pi/kInvPi/kInv2Pi` from `sm::pi<float>()`; `IblProbe.cpp` local `kPiCpu`, `Light.cpp` + `EmissiveBuilder.cpp` `std::numbers::pi_v` replaced — the dead `Math::isNanOrInf` was already deleted in H-04), ~~`IblProbe` hand-rolled `Mat3` → `sm::float3x3`~~ (done: primaries matrices construct-from-rows, identical values), ~~`Geometry.cpp` TRS → `sm::trs`~~ (done: slang-math v0.5.0 closed-form compose, pin bumped) — **remaining:** per-component trig in `IblProbe.cpp` (`extractDominantSun`) / `Light.cpp` → SM2 functions, test-mirror `rsqrt` cleanup (`tests/unit/test_math.cpp:73`). Track origin: slang-math/PLAN.md SM6. | slang-math v0.5.0 tag | **mostly done** (trig + rsqrt remain) |
+| SM6-Harmonia | **slang-math migration slice** — ~~replace the hand-rolled saturate sites (`src/harmonia/scene/Material.hpp` 12, `SceneOutputCopyPass.cpp` `clamp01()`, `Texture.cpp`, `CliParser.cpp`, `ColorSpace.cpp`, `IblProbe.cpp`)~~ (done v0.7.14/15, `sm::saturate` 27 sites), ~~delete the duplicate `kPi` constants~~ (done: `utils/Math.hpp` now derives `kPi/k2Pi/kInvPi/kInv2Pi` from `sm::pi<float>()`; `IblProbe.cpp` local `kPiCpu`, `Light.cpp` + `EmissiveBuilder.cpp` `std::numbers::pi_v` replaced — the dead `Math::isNanOrInf` was already deleted in H-04), ~~`IblProbe` hand-rolled `Mat3` → `sm::float3x3`~~ (done: primaries matrices construct-from-rows, identical values), ~~`Geometry.cpp` TRS → `sm::trs`~~ (done: slang-math v0.5.0 closed-form compose, pin bumped), ~~per-component trig sweep~~ (done: **no qualifying sites** — swept `src/` 2026-10; every `std::sin`/`std::cos` is scalar-on-scalar spherical/cone math (`IblProbe.cpp` `extractDominantSun`, `ProceduralGeometry.cpp`, `Light.cpp` cone angles), not per-component across float3 members; the shaders' scalar `atan2` calls are already the canonical Slang intrinsics), ~~test-mirror `rsqrt` cleanup~~ (done: **no mirror in this tree** — `tests/unit/test_math.cpp:73` is a scalar `std::sqrt` VNDF mirror, no `1/std::sqrt` anywhere in Harmonia; the one family-wide mirror lives in `Hyperion/tests/unit/test_bsdf.cpp:492` and is that repo's slice). **Upstream-blocked remainder:** `sm::rsqrt` / `sm::sin` / `sm::atan2` do not exist in slang-math v0.5.0 (newest tag) — SM1/SM2 there are backlog; migrate when they ship. Track origin: slang-math/PLAN.md SM6. | slang-math v0.5.0 tag | **done** (Harmonia slice; trig+rsqrt functions are upstream slang-math SM1/SM2) |
 
 ---
 

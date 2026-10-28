@@ -156,6 +156,12 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         // VK16 device-lost forensics: both EXT, cross-vendor.
         info.deviceFaultSupported = hasExtension(device, VK_EXT_DEVICE_FAULT_EXTENSION_NAME);
         info.addressBindingReportSupported = hasExtension(device, VK_EXT_DEVICE_ADDRESS_BINDING_REPORT_EXTENSION_NAME);
+        // MOD4 v1: swapchain_maintenance1 (extension-only probe here; the feature bit is
+        // gated in Context's probe table). Fence/release half: per-present fences +
+        // vkReleaseSwapchainImagesKHR on resize. The KHR name is the promoted extension;
+        // the former VK_EXT_swapchain_maintenance1 alias is not probed — pre-promotion
+        // drivers degrade to the legacy resize path (recreate()'s device-idle fallback).
+        info.swapchainMaintenance1Supported = hasExtension(device, VK_KHR_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME);
         const PresentExtensionSupport present = queryPresentExtensions(device);
         info.presentIdSupported = present.presentId;
         info.presentWaitSupported = present.presentWait;

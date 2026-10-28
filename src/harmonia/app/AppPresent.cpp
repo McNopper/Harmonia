@@ -29,6 +29,11 @@
 #include "harmonia/vulkan_init/DeviceFault.hpp"
 
 namespace harmonia::app {
+namespace {
+/// I6 pacing diagnostic cadence: one log line every kPacingLogInterval rendered
+/// frames (low-noise by design; unconditional — no config knob).
+constexpr std::uint64_t kPacingLogInterval = 300;
+} // namespace
 
 void App::presentFrame(std::uint32_t slot, std::uint64_t renderValue) {
     auto imageIndex = acquireFrame(slot);
@@ -302,6 +307,7 @@ int App::mainLoop() {
         // Save the frame slot before renderSceneReferred advances it.
         const std::uint32_t slot = m_frameSync.currentSlot();
         const std::uint64_t renderValue = renderSceneReferred();
+        ++m_pacingRenderedFrames;
         // I6: --frames-per-flip — N accumulation frames per swapchain flip. The render
         // half runs every iteration; only the display/present half is gated, so N = 1 is
         // exactly the classic render-then-present cadence.
@@ -309,6 +315,17 @@ int App::mainLoop() {
         if (m_framesSinceFlip >= std::max(m_config.framesPerFlip, 1U)) {
             m_framesSinceFlip = 0U;
             presentFrame(slot, renderValue);
+            ++m_pacingFlippedFrames;
+        }
+        // I6 pacing diagnostic: the measurable frames-per-flip oracle — one line per
+        // kPacingLogInterval rendered frames, running counters. N=1 must read R≈F;
+        // N=4 must read F≈R/4. Window-drag storms legitimately skew F down (acquire
+        // failures mid-resize flip nothing).
+        if (m_pacingRenderedFrames % kPacingLogInterval == 0U) {
+            core::Logger::info("pacing: rendered {} frames, flipped {} flips (frames-per-flip {})",
+                               m_pacingRenderedFrames,
+                               m_pacingFlippedFrames,
+                               std::max(m_config.framesPerFlip, 1U));
         }
         // Courtesy yield, same rationale as renderOffscreen(). `presentFrame` paces this
         // loop under FIFO present, but with MAILBOX/immediate it does not block and the
@@ -325,16 +342,29 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
         return;
     }
 
-    // MOD4: driver-side scaling was attempted (VkSwapchainPresentScalingCreateInfoKHR),
-    // but the RTX 5070 driver 616.92 reports supportedPresentScaling = 0 for all present
-    // modes — scaling is not available. The recreate path below is the proven behavior.
-
-    vkDeviceWaitIdle(m_context.deviceContext().device);
-
-    // Reset frame command buffers (to INITIAL) + completion values before destroying any
-    // resources they reference. (Timeline signal values stay monotonic across a resize.)
-    m_frameSync.resetSlots();
-
+    // ── What syncs on what (MOD4 v1) ──────────────────────────────────────────
+    // The resize path used to open with a whole-device vkDeviceWaitIdle. It is
+    // narrowed to two targeted quiesce steps:
+    //
+    // 1. Swapchain retirement (Swapchain::recreate, directly below — first): waits
+    //    the VK_KHR_swapchain_maintenance1 per-present fences of queued presents
+    //    (bounded) and releases still-acquired images via vkReleaseSwapchainImagesKHR.
+    //    A signaled present fence transitively covers that frame's whole submission
+    //    chain: the present waits renderComplete, whose display submit waits the frame
+    //    timeline, whose render submit everything else chains through (including an
+    //    onBeforeSceneStages async-compute split — its semaphore is waited by the
+    //    stages submit). No device idle on this path anymore; the extension-absent
+    //    fallback inside recreate() keeps the legacy device idle.
+    // 2. The rebuild half (frame slots, HDR/denoised images, stage pipeline, renderer
+    //    teardown) still runs under the device idle below — deliberately v1: the
+    //    IRenderer::onResize contract states no synchronization requirement, so the
+    //    host may not yet assume a renderer's teardown (GiPass/MotionVector/TAA/
+    //    ForwardRenderer image+pipeline destroys) is internally synchronized; the idle
+    //    also makes the command-buffer resets (resetSlots) and renderComplete
+    //    semaphore destroys (FrameSync::onResize) legal even if the bounded fence
+    //    wait in recreate() timed out. Crucially it no longer gates the swapchain
+    //    retirement — the MOD4 v1 goal. Relaxing it needs an onResize sync contract
+    //    (e.g. "all frames referencing renderer-owned resources have completed").
     const VkExtent2D newExtent{
         .width = w,
         .height = h,
@@ -343,8 +373,17 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
         core::Logger::error("presentation::Swapchain recreate failed");
         return;
     }
+
+    vkDeviceWaitIdle(m_context.deviceContext().device);
+
+    // Reset frame command buffers (to INITIAL) + completion values before destroying any
+    // resources they reference. (Timeline signal values stay monotonic across a resize.)
+    m_frameSync.resetSlots();
+
     // Recreate per-image render-complete semaphores + reset layout tracking for the new
-    // swapchain image count. vkDeviceWaitIdle() above guarantees they are unsignaled.
+    // swapchain image count. The old semaphores are unconsumed here: queued presents
+    // completed before their fences fired in recreate() (or the idle above drained
+    // everything on the fallback path).
     m_frameSync.onResize(m_swapchain.imageCount());
 
     if (!createHdrImage()) {
