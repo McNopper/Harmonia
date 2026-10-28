@@ -1,0 +1,1 @@
+﻿orphan-headers src/harmonia/core/Env.hpp # consumed cross-repo by Theia (ForwardRenderer*, ForwardRendererPipelines, demo/Application*) - family-scope consumer, single-repo scan cannot see it; do not delete
