@@ -244,7 +244,7 @@ endif()
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.8.0
+    GIT_TAG v0.8.1
 )
 FetchContent_MakeAvailable(aether)
 
