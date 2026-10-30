@@ -251,7 +251,7 @@ FetchContent_MakeAvailable(aether)
 FetchContent_Declare(
     slang_math
     GIT_REPOSITORY https://github.com/McNopper/slang-math.git
-    GIT_TAG v0.7.0
+    GIT_TAG v0.8.0
 )
 FetchContent_MakeAvailable(slang_math)
 
