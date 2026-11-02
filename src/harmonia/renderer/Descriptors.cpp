@@ -97,7 +97,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     constexpr VkPushConstantRange pushConstantRange{
         .stageFlags = VK_SHADER_STAGE_ALL,
         .offset = 0,
-        .size = sizeof(PushConstants),
+        .size = 128, // Vulkan's portable minimum; shared RT prefix + compute-specific SMS constants
     };
     const std::array<VkDescriptorSetLayout, 2> layouts{descriptors.m_set0Layout, descriptors.m_set1Layout};
     const VkPipelineLayoutCreateInfo pipelineLayoutInfo{

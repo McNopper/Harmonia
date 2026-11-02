@@ -4,6 +4,16 @@ import sms_queue;
 [shader("compute")]
 [numthreads(1, 1, 1)]
 void main() {
+    if (pc.operation == 3u) {
+        // Serial promotion after validation: no mixed atomic/non-atomic status
+        // or error reads race the full-slot validator's atomic error writes.
+        if (pc.inputHeader->error != 0u) {
+            pc.inputHeader->status = kSmsQueueFailed;
+            pc.inputHeader->count = 0u;
+            pc.inputHeader->dispatchX = 0u;
+        }
+        return;
+    }
     if (pc.operation == 0u) {
         SmsQueueHeader initial = {};
         initial.count = pc.capacity;
@@ -18,6 +28,10 @@ void main() {
         output.capacity = pc.capacity;
         output.status = kSmsQueuePending;
         output.error = pc.inputHeader->error;
+        SmsQueueHeader validation = {};
+        validation.count = pc.capacity;
+        smsQueueGrid(validation);
+        output.reserved[0] = uint4(validation.dispatchX, validation.dispatchY, validation.dispatchZ, pc.capacity);
         *pc.outputHeader = output;
     } else {
         SmsQueueHeader output = *pc.outputHeader;

@@ -6,7 +6,7 @@ static const uint kSmsQueueOverflow = 1u;
 static const uint kSmsQueueInvalidWork = 2u;
 static const uint kSmsQueueNumericError = 4u;
 
-struct SmsWorkRecord { uint4 words[16]; }; // frozen float bits/integer state, 256B
+__exported import sms_types;
 
 struct SmsQueueHeader {
     uint dispatchX, dispatchY, dispatchZ, count;
@@ -79,4 +79,24 @@ void smsQueueGrid(inout SmsQueueHeader header) {
     header.dispatchY = groups == 0u ? 1u : (groups / header.dispatchX +
         (groups % header.dispatchX != 0u ? 1u : 0u));
     header.dispatchZ = 1u;
+}
+
+void smsQueueCompletionError(SmsQueuePush pc, uint error) {
+    uint ignored;
+    InterlockedOr(pc.inputHeader->error, error, ignored);
+}
+
+bool smsQueueValidationSlot(SmsQueuePush pc, uint3 group, uint lane, out uint slot) {
+    slot = 0u;
+    if (pc.inputHeader->status != kSmsQueueReady) return false;
+    SmsQueueHeader grid = {};
+    grid.count = grid.capacity = pc.capacity;
+    grid.dispatchX = pc.inputHeader->reserved[0].x;
+    if (!smsQueueIndex(grid, group, lane, slot)) return false;
+    uint phase = pc.work[slot].words[1].w;
+    if (phase != kSmsAbsent && phase != kSmsDone) {
+        smsQueueCompletionError(pc, kSmsQueueInvalidWork);
+        return false;
+    }
+    return true;
 }

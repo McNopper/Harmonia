@@ -67,11 +67,14 @@ std::expected<SmsPass, VkResult> SmsPass::create(const DeviceContext& ctx,
                                                  VkPipelineLayout layout,
                                                  const std::filesystem::path& controlSpv,
                                                  const std::filesystem::path& stepSpv,
-                                                 std::uint32_t trialBudget) {
+                                                 const std::filesystem::path& validateSpv,
+                                                 std::uint32_t trialBudget,
+                                                 VkShaderStageFlags pushStages) {
     if (!ctx.isValid() || layout == VK_NULL_HANDLE || trialBudget == 0U || capacity > kMaxCapacity)
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     SmsPass pass;
     pass.m_layout = layout;
+    pass.m_pushStages = pushStages;
     pass.m_capacity = capacity;
     pass.m_trialBudget = trialBudget;
     const auto slots = std::max<VkDeviceSize>(capacity, 1);
@@ -107,6 +110,10 @@ std::expected<SmsPass, VkResult> SmsPass::create(const DeviceContext& ctx,
     if (!step)
         return std::unexpected(step.error());
     pass.m_step = std::move(*step);
+    auto validate = createPipeline(ctx, layout, validateSpv);
+    if (!validate)
+        return std::unexpected(validate.error());
+    pass.m_validate = std::move(*validate);
     return pass;
 }
 
@@ -120,7 +127,7 @@ void SmsPass::push(VkCommandBuffer cmd, std::uint32_t operation) const noexcept 
                           operation,
                           m_trialBudget,
                           0};
-    vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+    vkCmdPushConstants(cmd, m_layout, m_pushStages, 0, sizeof(pc), &pc);
 }
 
 void SmsPass::control(VkCommandBuffer cmd, std::uint32_t operation) const noexcept {
@@ -151,6 +158,11 @@ VkResult SmsPass::recordBatch(VkCommandBuffer cmd) noexcept {
     queueBarrier(cmd);
     control(cmd, 2);
     m_input = 1U - m_input;
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_validate);
+    push(cmd, 0);
+    vkCmdDispatchIndirect(cmd, m_headers[m_input].handle(), 32);
+    queueBarrier(cmd);
+    control(cmd, 3);
     return VK_SUCCESS;
 }
 

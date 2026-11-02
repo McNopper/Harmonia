@@ -33,8 +33,13 @@ class SmsQueueFixture : public VulkanFixture {
         ASSERT_EQ(vkCreatePipelineLayout(ctx.device, &info, nullptr, &raw), VK_SUCCESS);
         layout = harmonia::core::UniquePipelineLayout{ctx.device, raw};
         const std::filesystem::path shaders{HARMONIA_TEST_SHADER_DIR};
-        auto candidate =
-            Pass::create(ctx, capacity, layout, shaders / "sms_queue_control.spv", shaders / "sms_queue_test.spv", 1);
+        auto candidate = Pass::create(ctx,
+                                      capacity,
+                                      layout,
+                                      shaders / "sms_queue_control.spv",
+                                      shaders / "sms_queue_test.spv",
+                                      shaders / "sms_queue_validate.spv",
+                                      1);
         ASSERT_TRUE(candidate.has_value()) << static_cast<int>(candidate.error());
         pass = std::move(*candidate);
     }
@@ -112,6 +117,7 @@ TEST_F(SmsQueueFixture, PendingWorkResumesWithoutDroppedOrRepeatedSlots) {
         inputs[i][0] = i % 3 == 0 ? 0U : 2U;
         inputs[i][2] = 0;
         inputs[i][4] = inputs[i][5] = inputs[i][6] = 0; // independent atomic visit ledger
+        inputs[i][7] = inputs[i][0] == 0 ? 0U : 1U;
     }
     ASSERT_NO_FATAL_FAILURE(begin(pass, inputs));
     for (auto expected : {Completion::Pending, Completion::Pending, Completion::Ready}) {
@@ -127,8 +133,9 @@ TEST_F(SmsQueueFixture, PendingWorkResumesWithoutDroppedOrRepeatedSlots) {
         EXPECT_EQ(output[i][5], i % 3 == 0 ? 0U : 1U) << i;
         EXPECT_EQ(output[i][6], i % 3 == 0 ? 0U : 1U) << i;
         for (std::size_t word = 1; word < output[i].size(); ++word)
-            if (word < 4 || word > 6)
+            if (word < 4 || word > 7)
                 EXPECT_EQ(output[i][word], inputs[i][word]) << i << ":" << word;
+        EXPECT_EQ(output[i][7], inputs[i][0] == 0 ? 0U : 4U);
     }
     // A new frame must reset stale ping-pong counts; no old work can leak in.
     ASSERT_NO_FATAL_FAILURE(begin(pass, std::vector<Record>(inputs.size())));
@@ -202,8 +209,20 @@ TEST_F(SmsQueueFixture, RejectsSignedPointerIndexOverflowBeforeAllocating) {
     Pass pass;
     ASSERT_NO_FATAL_FAILURE(makePass(pass, 0));
     for (auto count : {0x80000000U, 0x80000001U, 0xFFFFFFFFU}) {
-        const auto rejected = Pass::create(deviceCtx(), count, layout, "unused.spv", "unused.spv");
+        const auto rejected = Pass::create(deviceCtx(), count, layout, "unused.spv", "unused.spv", "unused.spv");
         ASSERT_FALSE(rejected.has_value());
         EXPECT_EQ(rejected.error(), VK_ERROR_INITIALIZATION_FAILED);
     }
+}
+
+TEST_F(SmsQueueFixture, DroppedPendingRecordCannotPublishReady) {
+    Pass pass;
+    ASSERT_NO_FATAL_FAILURE(makePass(pass, 1));
+    std::array<Record, 1> inputs{};
+    inputs[0][0] = 2;
+    inputs[0][2] = 5;
+    inputs[0][7] = 1;
+    ASSERT_NO_FATAL_FAILURE(begin(pass, inputs));
+    ASSERT_NO_FATAL_FAILURE(batch(pass));
+    ASSERT_NO_FATAL_FAILURE(expectStatus(pass, Completion::Failed, 2));
 }

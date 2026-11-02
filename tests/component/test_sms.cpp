@@ -738,3 +738,61 @@ TEST_F(SmsFixture, SmsQueueGridAndPaddingMatchWideIntegerOracle) {
             EXPECT_EQ(outputs[i][3], index) << i;
     }
 }
+
+TEST_F(SmsFixture, SmsTransportDomainMatchesSamplerBoundariesAndProposalMass) {
+    struct Probe {
+        sm::float4 settings;
+        sm::uint4 modes;
+    };
+    static_assert(sizeof(Probe) == 32);
+    constexpr float cutoff = 1.0e-5F, tinyWeight = 1.0e-6F;
+    const auto below = std::nextafter(cutoff, 0.0F), above = std::nextafter(cutoff, 1.0F);
+    const std::array inputs{Probe{{1.0e-8F, 1, 0, 0}, {0, 0, 0, 0}},
+                            Probe{{tinyWeight, 1, 0, 0}, {0, 0, 0, 0}},
+                            Probe{{std::nextafter(tinyWeight, 0.0F), 1, 0, 0}, {0, 0, 0, 0}},
+                            Probe{{1, below, 0, 0}, {1, 0, 0, 0}},
+                            Probe{{1, cutoff, 0, 0}, {1, 0, 0, 0}},
+                            Probe{{1, above, 0, 0}, {1, 0, 0, 0}},
+                            Probe{{1, below, 0, 0}, {0, 0, 0, 0}},
+                            Probe{{1, cutoff, 0, 0}, {0, 0, 0, 0}},
+                            Probe{{1, above, 0, 0}, {0, 0, 0, 0}},
+                            Probe{{1, 1, 1, 1}, {2, 0, 0, 0}},
+                            Probe{{1, 1, .5F, 1}, {2, 0, 0, 0}},
+                            Probe{{1, 1, 0, std::numeric_limits<float>::quiet_NaN()}, {2, 0, 0, 0}},
+                            Probe{{1, 1, .5F, .25F}, {2, 0, 0, 0}},
+                            Probe{{1, 1, 0, std::numeric_limits<float>::infinity()}, {2, 0, 0, 0}},
+                            Probe{{0, 1, 0, 1}, {2, 0, 0, 0}},
+                            Probe{{std::numeric_limits<float>::infinity(), 1, 0, 1}, {2, 0, 0, 0}}};
+    std::vector<sm::float4> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Probe, sm::float4>(inputs, outputs, "sms_transport_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (auto i : {0U, 2U}) {
+        EXPECT_EQ(outputs[i].x, 0.0F) << "Tiny glass remains ordinary-PT-owned";
+        EXPECT_EQ(outputs[i].y, 0.0F);
+        EXPECT_GT(outputs[i].z, 0.0F) << "Exclusion must not remove the existing BSDF event";
+    }
+    EXPECT_NEAR(outputs[0].z, .01F, 1e-7F); // actual invPLobe floor, not a copied CPU sampler
+    EXPECT_EQ(outputs[1].x, 1.0F);
+    EXPECT_NEAR(outputs[1].y, .04F, 1e-6F);
+    EXPECT_EQ(outputs[1].z, 1.0F);
+    for (auto i : {3U, 4U, 6U, 7U}) {
+        EXPECT_EQ(outputs[i].x, 1.0F);
+        EXPECT_EQ(outputs[i].y, 0.0F) << "SMS must retain sampleBSDF's exact grazing zero-event boundary";
+        EXPECT_EQ(outputs[i].z, 0.0F);
+        EXPECT_EQ(outputs[i].w, 0.0F);
+    }
+    for (auto i : {5U, 8U}) {
+        EXPECT_EQ(outputs[i].x, 1.0F);
+        EXPECT_GT(outputs[i].y, 0.0F);
+        EXPECT_EQ(outputs[i].z, 1.0F);
+        EXPECT_GT(outputs[i].w, 0.0F);
+    }
+    for (auto i : {9U, 11U, 12U, 13U, 14U, 15U}) {
+        EXPECT_EQ(outputs[i].x, 0.0F) << "Unproposable emitter interval/density remains PT-owned: " << i;
+        EXPECT_EQ(outputs[i].z, 0.0F);
+    }
+    EXPECT_EQ(outputs[9].y, 0.0F) << "Repeated fp32 CDF interval must have zero ownership mass";
+    EXPECT_EQ(outputs[10].x, 1.0F);
+    EXPECT_EQ(outputs[10].y, .5F);
+    EXPECT_EQ(outputs[10].z, .5F);
+}

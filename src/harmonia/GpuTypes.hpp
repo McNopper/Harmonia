@@ -84,7 +84,7 @@ struct GpuEmissiveTriangle {
     sm::float4 edge1_emitR;  ///< tri: xyz = edge1 (v1-v0) world, w = emission.r | sphere: w = emission.r
     sm::float4 edge2_emitG;  ///< tri: xyz = edge2 (v2-v0) world, w = emission.g | sphere: w = emission.g
     sm::float4 normal_emitB; ///< tri: xyz = face normal (unit) world, w = emission.b | sphere: w = emission.b
-    sm::uint4 kind_pad;      ///< x = EmissiveKind; y,z,w = padding (clean 16-byte stride)
+    sm::uint4 kind_pad;      ///< kind, material, instance, primitive (collectable light ownership)
 };
 
 /// GPU-side light descriptor (std430, 64 bytes).
@@ -134,6 +134,8 @@ struct PushConstants {
     std::uint32_t tonemapper = 0;            ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
     std::uint32_t workingColorSpace =
         0; ///< harmonia::utils::ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
+    std::uint32_t smsPad = 0;
+    VkDeviceAddress smsWork = 0; ///< optional per-sample frozen SMS work, same ABI in both renderers
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.
@@ -156,7 +158,7 @@ static_assert(sizeof(GpuMaterial) == 288);
 static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 80);
 static_assert(sizeof(CameraData) == 176);
-static_assert(sizeof(PushConstants) == 52);
+static_assert(sizeof(PushConstants) == 64);
 
 } // namespace harmonia
 

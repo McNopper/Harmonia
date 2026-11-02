@@ -23,11 +23,16 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
         // must report overflow without writing outside its index allocation.
         smsQueueAppend(pc, slot);
         smsQueueAppend(pc, slot);
+    } else if (state.z == 5u) {
+        // Fault: leave a live record unqueued. Full-slot completion validation
+        // must reject apparent queue exhaustion before resolve/accumulation.
     } else if (pc.inputHeader->mode == 0u) {
         if (state.x != 0u) smsQueueAppend(pc, slot); // frozen preparation only
     } else if (state.x != 0u) {
         state.x--;
         if (state.x != 0u) smsQueueAppend(pc, slot);
     }
+    pc.work[slot].words[1].w = state.x == 0u ? kSmsAbsent : kSmsRepeat;
+    if (pc.inputHeader->mode == 1u && state.x == 0u) pc.work[slot].words[1].w = kSmsDone;
     pc.work[slot].words[0] = state;
 }

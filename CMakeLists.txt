@@ -259,6 +259,7 @@ set(HARMONIA_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 set(HARMONIA_ENTRY_SHADERS
     accumulation.slang
     sms_queue_control.slang
+    sms_queue_validate.slang
     denoiser.slang
     tonemap_vert.slang
     tonemap.slang

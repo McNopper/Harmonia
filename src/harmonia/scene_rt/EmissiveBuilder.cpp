@@ -147,13 +147,20 @@ EmissiveData buildEmissiveData(const std::vector<std::unique_ptr<Geometry>>& mes
                     .edge1_emitR = sm::float4(edge1, emission.r),
                     .edge2_emitG = sm::float4(edge2, emission.g),
                     .normal_emitB = sm::float4(normal, emission.b),
-                    .kind_pad = sm::uint4{static_cast<std::uint32_t>(EmissiveKind::Triangle), 0u, 0u, 0u},
+                    .kind_pad = sm::uint4{static_cast<std::uint32_t>(EmissiveKind::Triangle),
+                                          inst.materialIndex,
+                                          static_cast<std::uint32_t>(instIdx),
+                                          t},
                 });
                 // Power for power-proportional NEE selection: area × luminance(Le) (Rec.2020).
                 result.power.push_back(area * std::max(emissionLuminance(emission), 0.0F));
             }
         } else if (const auto* sphere = dynamic_cast<const Sphere*>(geom)) {
             const SphereEmissive packed = appendSphereEmissive(result, sphere->radius(), transformMat, emission);
+            if (packed.appended) {
+                result.triangles.back().kind_pad.y = inst.materialIndex;
+                result.triangles.back().kind_pad.z = static_cast<std::uint32_t>(instIdx);
+            }
             if (packed.radius <= 0.0F) {
                 continue; // degenerate (zero-scale) sphere — nothing was appended
             }

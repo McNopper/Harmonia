@@ -270,7 +270,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     sample.mediumG = 0.0;
     sample.mediumEta = 1.0;
 
-    if (abs(woL.z) <= 1.0e-5) {
+    if (abs(woL.z) <= kBsdfGrazingCosine) {
         return sample;
     }
 

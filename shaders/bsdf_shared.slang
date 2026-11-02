@@ -19,6 +19,7 @@ struct BSDFSample {
 };
 
 static const float kSmoothDielectricRoughness = 0.05;
+static const float kBsdfGrazingCosine = 1.0e-5;
 
 // Nondispersive exact-Snell and thin-sheet branches are discrete. The dispersive
 // sampled-microfacet branch retains its existing continuous queries here. Delta

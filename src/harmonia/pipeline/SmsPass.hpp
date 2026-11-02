@@ -35,12 +35,16 @@ class SmsPass {
     /// offset zero of at least kPushSize bytes. Step shader uses SmsQueuePush ABI;
     /// scene descriptor buffers, if used, are bound by the caller before batches.
     /// Step local size is exactly (64,1,1); all submissions use the same queue.
-    [[nodiscard]] static std::expected<SmsPass, VkResult> create(const DeviceContext& ctx,
-                                                                 std::uint32_t capacity,
-                                                                 VkPipelineLayout layout,
-                                                                 const std::filesystem::path& controlSpv,
-                                                                 const std::filesystem::path& stepSpv,
-                                                                 std::uint32_t trialBudget = 16);
+    /// pushStages must match the layout's overlapping range (ALL for scene layouts).
+    [[nodiscard]] static std::expected<SmsPass, VkResult>
+    create(const DeviceContext& ctx,
+           std::uint32_t capacity,
+           VkPipelineLayout layout,
+           const std::filesystem::path& controlSpv,
+           const std::filesystem::path& stepSpv,
+           const std::filesystem::path& validateSpv,
+           std::uint32_t trialBudget = 16,
+           VkShaderStageFlags pushStages = VK_SHADER_STAGE_COMPUTE_BIT);
 
     [[nodiscard]] VkResult recordBegin(VkCommandBuffer cmd) noexcept;
     [[nodiscard]] VkResult recordBatch(VkCommandBuffer cmd) noexcept;
@@ -55,8 +59,10 @@ class SmsPass {
     void push(VkCommandBuffer cmd, std::uint32_t operation) const noexcept;
 
     VkPipelineLayout m_layout = VK_NULL_HANDLE;
+    VkShaderStageFlags m_pushStages = VK_SHADER_STAGE_COMPUTE_BIT;
     core::UniquePipeline m_control;
     core::UniquePipeline m_step;
+    core::UniquePipeline m_validate;
     core::Buffer m_work;
     std::array<core::Buffer, 2> m_indices;
     std::array<core::Buffer, 2> m_headers;

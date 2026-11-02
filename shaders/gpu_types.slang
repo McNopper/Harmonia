@@ -46,7 +46,7 @@ struct GpuEmissiveTriangle {
     float4 edge1_emitR;  ///< tri: xyz=edge1, w=emission.r | sphere: w=emission.r
     float4 edge2_emitG;  ///< tri: xyz=edge2, w=emission.g | sphere: w=emission.g
     float4 normal_emitB; ///< tri: xyz=face normal, w=emission.b | sphere: w=emission.b
-    uint4  kind_pad;     ///< x = emissive kind (kEmissiveTriangle / kEmissiveSphere)
+    uint4  kind_pad;     ///< kind, material, instance, primitive (collectable light ownership)
 };
 
 /// Emissive light kind constants — match the EmissiveKind C++ enum in GpuTypes.hpp.

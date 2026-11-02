@@ -98,6 +98,94 @@ the sibling clones.
 
 ## 3. How to continue
 
+**Next production integration batch (Harmonia `c323d94`, Hyperion `b297f10`):**
+
+**Source-review boundary corrections before accepting the milestone:** (1) a
+positive-power emitter can have a repeated fp32 CDF interval; it has zero SMS
+proposal mass and must stay PT-owned. Use one shared positive-finite interval /
+area-density predicate in both preparation and emission ownership, with actual
+GPU controls for repeated / invalid CDF intervals. (2) existing sampleBSDF divides
+by max(transmissionWeight,1e-6); exclude glass weights below 1e-6 consistently
+instead of changing that established BSDF coefficient. Probe below/at the boundary
+against the actual sampler. (3) preserve sampleBSDF's abs(woL.z)<=1e-5 zero-event
+cutoff in SMS response; test below/at/above for mirror and glass. Commands:
+`harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsTransport*`, then actual
+mirror-energy tests, renderer negative controls and full family regression.
+Each loosened-eligibility / ignored-grazing mutant must fail its matching GPU
+assertion. Review otherwise confirms frozen trial law, ordinary coefficients away
+from these boundaries, event partition and fail-closed ready/resolve sequencing;
+its evidence is source-only, not independent runtime acceptance.
+
+Production completion must prove every slot is Absent/Done, not merely queue
+exhaustion. Add a GPU full-slot validation dispatch (GPU-generated header grid)
+before waited host status. It only atomically ORs errors; a serial control pass
+promotes error→Failed afterward, avoiding mixed atomic/non-atomic status races.
+A dropped-live-record producer must report Failed; an isolated no-op validator
+mutant must fail that assertion. Re-run `harmonia_component_tests.exe
+--gtest_filter=SmsQueueFixture.*` and full regression before active renderer wiring.
+Hyperion's production validator also resolves completed SMS into HDR before
+the serial status promotion; any non-finite sum fails before App accumulation /
+export. Partial HDR writes on a failed frame are discarded, not accumulated.
+Scene-reader work also exposed a concrete RT mismatch: nonuniform procedural
+sphere normals were radial in world space. Correct RT to inverse-transpose /
+object-space UV and tangent reconstruction; verify actual RT G-buffer normals
+against the same independent ellipsoid oracle before accepting the integration.
+**First actual Hyperion SMS mirror milestone (author working tree):**
+`hyperion_module_tests.exe --gtest_filter=SmsFrameFixture.Mirror*` exits 0,
+validation ON / zero messages, four 128×96×128-sample exact-delta mirror EXRs in
+`Hyperion/build/tests/sms_mirror_seed{17,91,1234,2026}.exr`. Isolated reflected
+energy ratios (observed minus independently integrated direct light) are
+0.991267 / 1.01098 / 0.981383 / 1.00834, all within the preselected 2% gate.
+Aggregate image MSE at 128 samples is 0.24561× its 32-sample value. Continuation
+dispatches 11266 / 11443 / 11803 / 12200 prove real resumed trials ran; test total
+8.654 s is not an equal-time performance result. Actual production scene-reader
+test and prior RT sampling tests also pass (3 selected, zero validation messages).
+**Executed review controls:** actual GPU domain test passes, and its tiny-weight /
+ignored-grazing / zero-mass mutants each fail (exit 1), with exact restored SPIR-V
+passing (exit 0). Actual RT ellipsoid-normal test passes; restoring the old
+world-radial normal fails it. Renderer missing-SMS / doubled-SMS / replay-trial-zero
+mutants each fail the reflected-energy oracle; every exact restore passes. Real
+App GPU-error injection exits 1 with no EXR/PNG exported; restored normal capture
+exits 0, validation-clean. Python initially failed reading a UTF-8 shader under
+Windows' legacy default encoding before any mutation; corrected explicit UTF-8.
+Shared response needed an explicit math import; build failure was fixed before
+any boundary test ran. These are tooling/build corrections, not retried stochastic
+test failures. Final post-correction family regression passes: Harmonia 137/137,
+Hyperion 56/56, Theia 33/33; all verbose validation-message counts zero. Canonical
+architecture and Harmonia/Hyperion tidy/dead pass; Theia control remains float-
+exact (0/76,800 changed pixels). Direct PathTracer test clients now wait/check
+completion before consuming radiance. This is a local mirror-integration checkpoint,
+not completion of the full item #2. No push, tags, release or pin changes.
+Closed glass / absorption, Hong partitioning,
+Theia reuse and galleries are NOT complete; do not mark GI-SMS done from this.
+
+**Immediate next slice after the mirror checkpoint:** exercise the production
+Hyperion projector on a closed slab and compare entry/exit positions to the
+already-derived Snell oracle (unit-scale error <=3e-4). Then render a camera-visible
+diffuse receiver below a glass slab with an emitter above it: use independent
+radial Snell/area integration for transmitted energy, the existing 2% / multiple-
+seed / increasing-sample gates and missing/doubled-energy controls. Commands:
+`hyperion_module_tests.exe --gtest_filter=SmsSceneFixture.ProductionSlab*` and
+`hyperion_module_tests.exe --gtest_filter=SmsGlassFrameFixture.*`.
+Reuse the existing scalar parallel-slab oracle from `derive_sms_geometry.py`;
+this is renderer implementation verification, not new algorithm research.
+Pure absorption follows only after this TT slice is green, then Hong / Theia.
+
+| Deliverable | Acceptance / oracle | Verification |
+| --- | --- | --- |
+| Hyperion scene adapter + shared supported-event domain | actual uploaded triangles / transformed procedural spheres give raw outward normals and normal derivatives; real scene-reprojected R/TT roots match independent mirror / Snell geometry; unsupported classes remain PT-owned | `cmake --build C:/Development/GitHub/Hyperion/build`; `C:/Development/GitHub/Hyperion/build/tests/hyperion_module_tests.exe --gtest_filter=SmsSceneFixture.*` |
+| Actual runtime sampler / receiver / resolve / completion adapter | initial and repeat roots execute at one compute samplePath site with frozen endpoints; pending queues drain before resolve/accumulation; failure aborts capture; ordinary PT suppresses only actual supported classes, independent of solve success | selected `SmsFrameFixture.*` actual-RT tests + shared frame-completion failure tests; SPIR-V call-site inspection; then full family suites |
+| First exact-delta mirror caustic energy EXR | programmatic Material::mirror fixture (TOML zero-roughness metal is still continuous GGX), independent virtual-emitter integral, multiple seeds / increasing samples; missing and doubled SMS mutants rejected | `hyperion_module_tests.exe --gtest_filter=SmsFrameFixture.Mirror*`; scratch analytic EXR checker; full validation-enabled capture |
+
+Use the existing test/build layout. The direct-only scratch floor control matches
+its independent quadrature to -0.008844% at 1024 samples; actual RT first-hit
+position probe also matches the camera construction. The unresolved narrow-GGX
+image variance is not evidence that the direct-light reference is biased. Do not
+change the material model or relax the 2% prototype energy tolerance. Exact-delta
+fixtures and several independent seeds are the acceptance oracle. Scope remains
+one smooth R / closed entry-exit TT, no rough/dispersion/scattering/normal-mapped
+casters; pure absorption is a later explicit verified extension. No push.
+
 **GI-SMS runtime batch verification plan (baseline `a666fc6`, local Windows/GPU):**
 
 | Item | Acceptance / oracle | Exact verification | Status |
@@ -236,9 +324,11 @@ status latched for the run, including a successful second queued rebuild. Source
 review reports its identified reference-owner blockers resolved. SMS renderer
 integration remains the next task, not a result of these prerequisite repairs.
 
-**Status quo:** GI-SMS is not integrated into either renderer. The 2026-11-02
-source audit found only uncalled constraint/manifold-walk helpers; the earlier
-"done" claim was incorrect. Start with the [bounded GI-SMS plan](#gi-sms-bounded-implementation-plan).
+**Status quo:** Hyperion has a local experimental SMS runtime and independently
+checked exact-delta mirror EXRs; production TT/glass/absorption acceptance is still
+pending. Theia is not yet wired. The initial 2026-11-02 audit found only uncalled
+helpers, so the earlier "done" claim was incorrect. Finish the remaining
+[bounded GI-SMS plan](#gi-sms-bounded-implementation-plan), not just its primitives.
 PERF5 stage-1 was measured and parked; its continuation is the combined
 wavefront + PERF4 recovery arc in `Theia/PLAN.md`, not an unconditional rewrite.
 
