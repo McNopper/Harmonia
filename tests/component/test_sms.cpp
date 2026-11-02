@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <slang-math/slang-math.hpp>
 #include <span>
+#include <string>
 #include <vector>
 
 #include "fixtures/VulkanTestFixture.hpp"
@@ -252,4 +253,60 @@ TEST_F(SmsFixture, SmsReciprocalCarryAndOverflowAreExplicit) {
     ASSERT_EQ(outputs.size(), inputs.size());
     EXPECT_EQ(outputs[0], (Words{0, 1, 1, std::bit_cast<std::uint32_t>(4294967296.0F)}));
     EXPECT_EQ(outputs[1], (Words{0, 0, 2, 0}));
+}
+
+namespace {
+struct SmsTrialInput {
+    std::array<std::uint32_t, 4> counter, keyAndMode;
+};
+} // namespace
+
+TEST_F(SmsFixture, SmsTrialPhiloxMatchesPublishedKnownAnswers) {
+    // Random123 tests/kat_vectors at 9545ff6, BSD-3-Clause; see THIRD-PARTY-NOTICES.md.
+    using Words = std::array<std::uint32_t, 4>;
+    const std::array inputs{
+        SmsTrialInput{Words{0, 0, 0, 0}, Words{0, 0, 0, 0}},
+        SmsTrialInput{Words{0xFFFFFFFFU, 0xFFFFFFFFU, 0xFFFFFFFFU, 0xFFFFFFFFU}, Words{0xFFFFFFFFU, 0xFFFFFFFFU, 0, 0}},
+        SmsTrialInput{Words{0x243F6A88U, 0x85A308D3U, 0x13198A2EU, 0x03707344U},
+                      Words{0xA4093822U, 0x299F31D0U, 0, 0}}};
+    const std::array expected{Words{0x6627E8D5U, 0xE169C58DU, 0xBC57AC4CU, 0x9B00DBD8U},
+                              Words{0x408F276DU, 0x41C83B0EU, 0xA20BC7C6U, 0x6D5451FDU},
+                              Words{0xD16CFE09U, 0x94FDCCEBU, 0x5001E420U, 0x24126EA1U}};
+    std::vector<Words> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<SmsTrialInput, Words>(inputs, outputs, "sms_trial_test.spv")));
+    ASSERT_EQ(outputs.size(), expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i)
+        EXPECT_EQ(outputs[i], expected[i]);
+}
+
+TEST_F(SmsFixture, SmsTrialCategoricalReciprocalMatchesKnownExpectation) {
+    using Words = std::array<std::uint32_t, 4>;
+    constexpr std::uint32_t kCount = 65536U;
+    std::vector<SmsTrialInput> inputs;
+    inputs.reserve(kCount);
+    for (std::uint32_t i = 0; i < kCount; ++i) {
+        inputs.push_back({Words{0, 0, 0, 0}, Words{i, 0x534D5301U, 1, 0}});
+    }
+    std::vector<Words> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<SmsTrialInput, Words>(inputs, outputs, "sms_trial_test.spv")));
+    ASSERT_EQ(outputs.size(), kCount);
+    std::array<double, 2> sums{};
+    for (const auto& output : outputs) {
+        ASSERT_LE(output[3], 2U);
+        if (output[3] == 2U) {
+            ASSERT_EQ(output[2], 3U);
+        } else {
+            ASSERT_EQ(output[2], 1U) << "Reciprocal trial safety bound reached: pending is not an estimate";
+            ASSERT_EQ(output[1], 0U);
+            sums[output[3]] += output[0];
+        }
+    }
+    // For X=1{initial root=k} K, E[X]=1 and Var[X]=2/p_k-2 (independent trials).
+    const std::array probabilities{1.0 / 16.0, 3.0 / 16.0};
+    for (std::size_t root = 0; root < sums.size(); ++root) {
+        const double mean = sums[root] / kCount;
+        const double sixSigma = 6.0 * std::sqrt((2.0 / probabilities[root] - 2.0) / kCount);
+        EXPECT_NEAR(mean, 1.0, sixSigma) << "root " << root;
+        RecordProperty("root_" + std::to_string(root) + "_mean", std::to_string(mean));
+    }
 }

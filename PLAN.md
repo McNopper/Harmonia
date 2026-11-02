@@ -625,6 +625,34 @@ Harmonia non-analysis suite passed 104/104. The module is not imported by a
 renderer, so the representative capture receipts from 2b.1 remain the most recent
 rendering evidence, not tests of a newly integrated estimator.
 
+**2b.2b verification plan (baseline `4f09ca9`):** use Philox4x32-10 for SMS
+trial seeds only; do not alter the incumbent Sobol path sampler. This is a
+different sampling purpose (stopping-time trials, not a competing path sampler),
+implemented in Slang with no linked/fetched dependency. Pin the Random123
+known-answer vectors to upstream `9545ff6413f258be2f04c1d319d99aaef7521150`;
+retain its BSD-3-Clause notice. Require all three published counter/key vectors
+bit-exact on the GPU. Use a categorical toy with probabilities 1/16, 3/16 and
+12/16 failure over 65,536 fixed-key streams. Each selected root's contribution
+mean must be within six theoretical standard errors of 1, with every reciprocal
+completed; the 4096-iteration test safety bound is failure, never a returned
+capped estimate. Run a deliberately correlated trial-zero-replay mutant and
+require rejection. Commands: `cmake --build build`, then
+`build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsTrial*`,
+followed by `ctest --test-dir build -LE analysis --output-on-failure` after exact
+restoration. Known answers plus statistical controls do not prove randomness:
+as for other Monte Carlo PRNGs, the unbiased estimator proof assumes independent
+uniform ideal draws; the implementation supplies a standard keyed counter PRNG,
+not an unsupported independence claim for adjacent Sobol dimensions.
+**Executed:** 2/2 GPU tests PASS, 0 skipped; all 3 Philox known-answer vectors
+match bit-exact. Categorical contribution means were 0.987732 and 1.006775
+(theoretical mean 1 for each); every selected reciprocal completed. Replaying
+trial zero failed the categorical test while retaining the known-answer pass,
+as required. Original SPIR-V restored byte-exact; full regression 106/106 PASS.
+Slang lacks the attempted `umulExtended` spelling, so wide multiplication uses
+32-bit/16-bit limb arithmetic checked by the known answers, not shaderInt64.
+The next unresolved part of 2b.2 is renderer-side completion scheduling/root
+identity, not counter arithmetic or the PRNG implementation.
+
 **2b.1 verification receipt (baseline `d0818f1`, Windows/Vulkan):** built with
 `cmake --build build`; execute the actual Slang/SPIR-V arithmetic with
 `build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.Sms*`.
