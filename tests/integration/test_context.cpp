@@ -52,7 +52,7 @@ TEST(Context, CreateContext) {
 
     harmonia::vulkan_init::Context::Config config{};
     config.appName = "HarmoniaTestContext";
-    config.enableValidation = false;
+    config.enableValidation = true;
     config.window = window.get();
 
     auto context = harmonia::vulkan_init::Context::create(config);

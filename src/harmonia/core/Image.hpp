@@ -37,6 +37,7 @@ class Image {
                     std::uint32_t levelCount = 0U) const noexcept;
 
     [[nodiscard]] VkImage handle() const noexcept { return m_image; }
+    /// Null for transfer/host-copy-only usage; such images cannot have Vulkan views.
     [[nodiscard]] VkImageView view() const noexcept { return m_view; }
     [[nodiscard]] VkFormat format() const noexcept { return m_format; }
     [[nodiscard]] VkExtent2D extent() const noexcept { return m_extent; }

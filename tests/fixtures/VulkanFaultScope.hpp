@@ -20,6 +20,7 @@ class VulkanFaultScope {
         vkDeviceWaitIdle = m_idle;
         vkDestroySemaphore = m_destroy;
         vkFreeCommandBuffers = m_free;
+        vkCreateComputePipelines = m_compute;
         s_active = nullptr;
     }
     void arm() noexcept {
@@ -30,12 +31,14 @@ class VulkanFaultScope {
         m_idle = vkDeviceWaitIdle;
         m_destroy = vkDestroySemaphore;
         m_free = vkFreeCommandBuffers;
+        m_compute = vkCreateComputePipelines;
         s_active = this;
         vkWaitSemaphores = wait;
         vkQueueSubmit2 = submit;
         vkDeviceWaitIdle = idle;
         vkDestroySemaphore = destroy;
         vkFreeCommandBuffers = freeBuffers;
+        vkCreateComputePipelines = compute;
         m_installed = true;
     }
     static VkResult cleanupForTest(VkDevice device) noexcept {
@@ -44,13 +47,29 @@ class VulkanFaultScope {
     }
     bool failWaitOnce = false;
     bool failSubmitOnce = false;
+    bool failComputeOnce = false;
     std::uint32_t idleAllocationFailures = 0;
     bool waitInjected = false, submitInjected = false;
+    bool computeInjected = false;
     bool retiredBySubject = false, unsafeSemaphoreDestruction = false, unsafeCommandFree = false;
     bool testRecoveryUsed = false;
     std::uint32_t idleCalls = 0;
 
   private:
+    static VKAPI_ATTR VkResult VKAPI_CALL compute(VkDevice device,
+                                                  VkPipelineCache cache,
+                                                  std::uint32_t count,
+                                                  const VkComputePipelineCreateInfo* infos,
+                                                  const VkAllocationCallbacks* allocator,
+                                                  VkPipeline* pipelines) {
+        auto& self = *s_active;
+        if (self.failComputeOnce) {
+            self.failComputeOnce = false;
+            self.computeInjected = true;
+            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        }
+        return self.m_compute(device, cache, count, infos, allocator, pipelines);
+    }
     static VKAPI_ATTR VkResult VKAPI_CALL wait(VkDevice device,
                                                const VkSemaphoreWaitInfo* info,
                                                std::uint64_t timeout) {
@@ -122,6 +141,7 @@ class VulkanFaultScope {
     PFN_vkDeviceWaitIdle m_idle{};
     PFN_vkDestroySemaphore m_destroy{};
     PFN_vkFreeCommandBuffers m_free{};
+    PFN_vkCreateComputePipelines m_compute{};
 };
 
 #endif // TESTS_FIXTURES_VULKANFAULTSCOPE_HPP

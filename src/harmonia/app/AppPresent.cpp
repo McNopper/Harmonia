@@ -338,7 +338,7 @@ int App::mainLoop() {
     }
 
     vkDeviceWaitIdle(m_context.deviceContext().device);
-    return 0;
+    return m_stagePipelineFailed ? 1 : 0;
 }
 
 void App::handleResize(std::uint32_t w, std::uint32_t h) {
@@ -402,7 +402,10 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
         return;
     }
     ++m_extentEpoch;
-    rebuildStagePipeline();
+    if (!rebuildStagePipeline()) {
+        m_running = false;
+        return;
+    }
 
     if (m_config.displayOverlay) {
         m_displayRenderer.onResize(m_swapchain.extent());

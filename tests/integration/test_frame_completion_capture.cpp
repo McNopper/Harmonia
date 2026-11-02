@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "fixtures/VulkanFaultScope.hpp"
@@ -92,7 +93,7 @@ class DelayedRenderer final : public harmonia::app::IRenderer, public harmonia::
     }
     VkPipelineStageFlags2 outputStageMask() const noexcept override { return VK_PIPELINE_STAGE_2_TRANSFER_BIT; }
     VkAccessFlags2 outputAccessMask() const noexcept override { return VK_ACCESS_2_TRANSFER_WRITE_BIT; }
-    void onResize(VkExtent2D) noexcept override {}
+    void onResize(VkExtent2D) noexcept override { m_firstUse = true; }
     const char* name() const noexcept override { return "DelayedCompletionProbe"; }
     std::uint32_t logicalFrames = 0, chunks = 0, totalChunks = 0;
     bool fail = false;
@@ -152,13 +153,52 @@ class CompletionApp final : public harmonia::app::App {
     }
     DelayedRenderer delayed;
     std::vector<std::uint32_t> frameIds;
+    VulkanFaultScope* stageCreationFault = nullptr;
+    VulkanFaultScope* resizeCreationFault = nullptr;
+    std::uint32_t completedSecondResize = 0;
     std::uint32_t completedLogicalFrames() const noexcept { return frameIndex(); }
 
   protected:
     harmonia::app::IRenderer& renderer() noexcept override { return delayed; }
     harmonia::scene::ISceneBuilder& sceneBuilder() noexcept override { return m_scene; }
     bool onInitialize() override { return delayed.create(deviceContext()); }
-    bool onSceneLoaded(const harmonia::scene::SceneLoader::SceneConfig&) override { return true; }
+    bool onSceneLoaded(const harmonia::scene::SceneLoader::SceneConfig&) override {
+        if (stageCreationFault != nullptr)
+            stageCreationFault->arm();
+        if (resizeCreationFault != nullptr) {
+            SDL_Event first{};
+            first.type = SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED;
+            first.window.windowID = SDL_GetWindowID(window());
+            first.window.data1 = 41773;
+            first.window.data2 = 8;
+            SDL_Event second = first;
+            second.window.data1 = 41774;
+            EXPECT_TRUE(SDL_PushEvent(&first));
+            EXPECT_TRUE(SDL_PushEvent(&second));
+        }
+        return true;
+    }
+    bool onEvent(const SDL_Event& event) override {
+        if (resizeCreationFault != nullptr && event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+            if (event.window.data1 == 41773) {
+                m_resizeMarker = 1;
+                resizeCreationFault->arm();
+            } else if (event.window.data1 == 41774)
+                m_resizeMarker = 2;
+        }
+        return false;
+    }
+    void onResized(VkExtent2D) override {
+        if (m_resizeMarker == 2)
+            ++completedSecondResize;
+        m_resizeMarker = 0;
+    }
+    void onUpdate(float) override {
+        // Test safety net: a failed synthetic event setup must not leave a GUI
+        // loop running forever. Assertions below still reject that execution.
+        if (resizeCreationFault != nullptr && ++m_updates > 2)
+            requestQuit();
+    }
     void onSceneFrameReady(VkCommandBuffer) noexcept override {
         if (delayed.providerEnabled) {
             const auto ready = delayed.ready();
@@ -171,6 +211,8 @@ class CompletionApp final : public harmonia::app::App {
 
   private:
     EmptyScene m_scene;
+    int m_resizeMarker = 0;
+    std::uint32_t m_updates = 0;
 };
 
 class CaptureFiles {
@@ -270,4 +312,31 @@ TEST(FrameCompletionCapture, FailedProducerWaitRetiresBeforeDestroyingItsSemapho
     EXPECT_FALSE(faults.unsafeCommandFree);
     EXPECT_FALSE(faults.testRecoveryUsed);
     EXPECT_FALSE(std::filesystem::exists(files.output));
+}
+
+TEST(FrameCompletionCapture, RequestedAccumulationCreationFailureAbortsCapture) {
+    CaptureFiles files;
+    VulkanFaultScope faults;
+    faults.failComputeOnce = true;
+    CompletionApp app;
+    app.stageCreationFault = &faults;
+    EXPECT_NE(app.run(files.config()), 0);
+    EXPECT_TRUE(faults.computeInjected);
+    EXPECT_EQ(app.delayed.logicalFrames, 0U);
+    EXPECT_TRUE(app.frameIds.empty());
+    EXPECT_FALSE(std::filesystem::exists(files.output));
+    EXPECT_FALSE(std::filesystem::exists(files.root / "capture.png"));
+}
+
+TEST(FrameCompletionCapture, FatalResizeErrorStaysLatchedAcrossQueuedRebuilds) {
+    CaptureFiles files;
+    VulkanFaultScope faults;
+    faults.failComputeOnce = true;
+    CompletionApp app;
+    app.resizeCreationFault = &faults;
+    auto cfg = files.config();
+    cfg.outputFile.clear(); // interactive event path, not the offscreen loop
+    EXPECT_NE(app.run(std::move(cfg)), 0);
+    EXPECT_TRUE(faults.computeInjected);
+    EXPECT_EQ(app.completedSecondResize, 1U) << "The second queued rebuild must actually succeed";
 }

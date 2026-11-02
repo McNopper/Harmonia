@@ -98,6 +98,58 @@ the sibling clones.
 
 ## 3. How to continue
 
+**GI-SMS reference-owner/validation follow-up plan:** independent review of the
+Hyperion sampling prerequisite found that disabled/failed host accumulation can
+leave capture with no history owner. Reject explicit disabled accumulation in
+Hyperion captures, and fail shared App initialization/rebuild if a requested
+AccumulationPass cannot be created. A fault-injected compute-pipeline creation
+failure must fail a real App capture before rendering/export (first run against
+the old warn-and-continue behavior, then corrected behavior). Preserve requested
+errors; do not silently substitute last-frame output. GPU test contexts in
+Harmonia component and Hyperion module tests previously had validation OFF;
+earlier zero-message receipts from those contexts were not validation-enabled
+evidence. Enable validation and rerun them; real App/CLI captures already used
+validation ON. Correct the new Hyperion fixture's missing transfer-destination
+image usage before accepting Vulkan cleanliness. No new estimator/BSDF policy,
+no push. Commands: full non-analysis suites plus the selected owner-failure and
+actual ray-tracer frame tests; scan validation output, do not trust exit code alone.
+**Executed selected checks:** all 16 SMS GPU tests rerun under validation-enabled
+component context PASS with zero validation messages. All 5 real-App completion /
+owner tests PASS; the new requested-accumulation creation-failure test fails the
+old warn-and-continue path and passes the corrected fail-closed path. Hyperion's
+2 actual RT history-owner tests and 2 capture-policy tests also pass with
+validation ON and zero validation messages. Earlier uninstrumented component
+receipts are superseded by these enabled runs, not retroactively called validated.
+**Fatal-status latch regression:** follow-up source review found that a failed
+resize rebuild followed by a successful queued resize could clear the fatal
+flag and return exit 0. Keep stage-pipeline failure latched for the whole run,
+reset only when starting a new run. Add a real interactive App test injecting
+failure on the first of two queued SDL resize events, observing successful
+processing of the second, and still requiring nonzero exit. The old reset-on-
+every-rebuild behavior must fail this test; rerun with validation ON after fixing.
+**Validation-discovered image lifecycle fix:** the verbose enabled suite found
+`VUID-VkImageViewCreateInfo-image-04441`: Image::create always creates a view,
+including transfer-only images. Transfer-only images are valid Vulkan objects,
+but cannot have views. Keep their image/transition/copy support and return a null
+view; shader/attachment usage must retain a real view. Add an explicit null-view
+assertion to the existing clear/readback test (fails original code), then require
+both pixel preservation and zero validation messages. This is a source fix, not
+adding unused shader usage just to silence validation.
+**Executed image check:** the null-view assertion fails the original implementation
+alongside 04441. The corrected transfer-only path retains a valid image, clears /
+copies the expected pixels and has no view; the storage-image positive control
+retains its view. Both tests pass with validation ON, zero validation messages.
+Clear barriers now name CLEAR rather than COPY for the clear operation.
+**Final prerequisite verification:** Harmonia 125/125, Hyperion 54/54 and Theia
+33/33 pass in verbose runs with zero validation messages; enabled test contexts
+are checked rather than inferring validation from silent disabled runs. Canonical
+architecture checks pass in all three; tidy/dead lanes pass in Harmonia/Hyperion.
+Theia's 320×240/32-frame control remains float-exact (0/76,800 changed pixels).
+The queued-resize regression fails the old flag-reset code and passes with fatal
+status latched for the run, including a successful second queued rebuild. Source
+review reports its identified reference-owner blockers resolved. SMS renderer
+integration remains the next task, not a result of these prerequisite repairs.
+
 **Status quo:** GI-SMS is not integrated into either renderer. The 2026-11-02
 source audit found only uncalled constraint/manifold-walk helpers; the earlier
 "done" claim was incorrect. Start with the [bounded GI-SMS plan](#gi-sms-bounded-implementation-plan).

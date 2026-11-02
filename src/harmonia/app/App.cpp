@@ -83,6 +83,7 @@ App::~App() {
 }
 
 int App::run(Config&& config) {
+    m_stagePipelineFailed = false; // fatal status is latched for this entire run
     m_config = std::move(config);
     m_defaultStages = m_config.stages;
 
@@ -164,7 +165,8 @@ bool App::bootstrap() {
     if (!createHdrImage() || !createDenoisedImage() || !createToneMapper()) {
         return false;
     }
-    rebuildStagePipeline();
+    if (!rebuildStagePipeline())
+        return false;
     if (!m_hdrImage.isValid()) {
         return false;
     }
@@ -283,7 +285,7 @@ bool App::createToneMapper() {
     return true;
 }
 
-void App::rebuildStagePipeline() {
+bool App::rebuildStagePipeline() {
     m_sceneStages.clear();
     m_displayStages.clear();
     m_sceneOutputUsesDenoised = false;
@@ -296,8 +298,10 @@ void App::rebuildStagePipeline() {
         if (accumulationPass) {
             m_sceneStages.push_back(std::make_unique<pipeline::AccumulationPass>(std::move(*accumulationPass)));
         } else {
-            core::Logger::warn("Accumulation stage unavailable: VkResult {} — disabling accumulation stage",
-                               static_cast<int>(accumulationPass.error()));
+            core::Logger::error("Requested accumulation stage unavailable: VkResult {} — refusing incomplete sampling",
+                                static_cast<int>(accumulationPass.error()));
+            m_stagePipelineFailed = true;
+            return false;
         }
     }
 
@@ -340,6 +344,7 @@ void App::rebuildStagePipeline() {
 
     core::Logger::info("Scene stages: {}", stageList(m_sceneStages));
     core::Logger::info("Display stages: {}", stageList(m_displayStages));
+    return true;
 }
 
 /// Applies the scene's stage toggles on top of the CLI defaults and enforces
@@ -577,8 +582,10 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
         return false;
     }
     ++m_sceneEpoch;
-    rebuildStagePipeline();
-
+    if (!rebuildStagePipeline()) {
+        m_running = false;
+        return false;
+    }
     return true;
 }
 

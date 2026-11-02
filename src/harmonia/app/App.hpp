@@ -204,7 +204,7 @@ class App {
     /// One-shot diagnostic: when VK_KHR_calibrated_timestamps is supported, sample the
     /// GPU<->host clock relationship and log it (exercises the extension's entry points).
     void logGpuClockCalibration() noexcept;
-    void rebuildStagePipeline();
+    [[nodiscard]] bool rebuildStagePipeline();
     /// Applies the scene's stage toggles on top of the CLI defaults; enforces
     /// the two-tier output contract (no denoiser for --output / --no-postfx).
     /// Returns false on a contract violation — the scene load is aborted.
@@ -237,6 +237,7 @@ class App {
     std::vector<std::unique_ptr<pipeline::IRenderPass>> m_sceneStages;
     std::vector<std::unique_ptr<pipeline::IRenderPass>> m_displayStages;
     bool m_sceneOutputUsesDenoised = false;
+    bool m_stagePipelineFailed = false;
     GreenScreenRenderer m_displayRenderer{};
     std::optional<scene::IblProbe> m_iblProbe;
 

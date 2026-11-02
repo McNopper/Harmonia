@@ -51,6 +51,8 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
                                              VK_IMAGE_ASPECT_COLOR_BIT,
                                              "test.image.clear");
     ASSERT_TRUE(img.has_value()) << static_cast<int>(img.error());
+    ASSERT_TRUE(img->isValid());
+    EXPECT_EQ(img->view(), VK_NULL_HANDLE) << "Transfer-only images must not create invalid image views";
 
     auto readback = harmonia::core::Buffer::create(deviceCtx(),
                                                    kReadbackBytes,
@@ -69,7 +71,7 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                     0,
-                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_PIPELINE_STAGE_2_CLEAR_BIT,
                     VK_ACCESS_2_TRANSFER_WRITE_BIT);
 
     const VkImageSubresourceRange fullRange{
@@ -85,7 +87,7 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     img->transition(*cmd,
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_PIPELINE_STAGE_2_CLEAR_BIT,
                     VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     VK_PIPELINE_STAGE_2_COPY_BIT,
                     VK_ACCESS_2_TRANSFER_READ_BIT);
