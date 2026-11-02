@@ -17,6 +17,11 @@ alongside**. If a paper supersedes a prior technique, delete the old code.
 
 ## Adopted
 
+The table records algorithm/model compatibility, not implementation completion.
+**SMS / GI-SMS are not integrated in either renderer** (2026-11-02 source audit);
+only uncalled manifold helpers exist. See the
+[bounded implementation plan](../PLAN.md#gi-sms-bounded-implementation-plan).
+
 | Technique | Paper | Venue | Official link | Conflict check |
 |-----------|-------|-------|---------------|----------------|
 | C9 | Eto & Tokuyoshi — *Bounded VNDF Sampling for Smith–GGX Reflections* | SIGA 2023 TC | [doi:10.1145/3610543.3626163](https://doi.org/10.1145/3610543.3626163) · [GPUOpen PDF](https://gpuopen.com/download/Bounded_VNDF_Sampling_for_Smith-GGX_Reflections.pdf) | ✅ Sampling only |
@@ -51,7 +56,7 @@ alongside**. If a paper supersedes a prior technique, delete the old code.
 | **C9** Bounded VNDF | ✅ Same BSDF, better sampling | ✅ Faster convergence |
 | **DN3** Converging denoiser | N/A (identity in capture) | ✅ Converges to identity |
 | **GI-ENH** ReSTIR PT Enhanced | N/A (path tracer) | ✅ 2-3× cost/quality |
-| **GI-SMS** Specular manifold | ✅ Caustics/SDS fix | ✅ Interactive caustics |
+| **GI-SMS** Specular manifold (planned; not integrated) | ✅ Compatible caustic-sampling improvement | ✅ Compatible interactive caustic sampling |
 | **C11** ReSTIR SSS | ⚠️ Shared BSSRDF — must match | ✅ Real-time SSS |
 | **C12** Micrograin BSDF | ⚠️ **OpenPBR flake — must conform** | ⚠️ Same BSDF |
 | **PERF5/PERF4** | ✅ Scheduling only | ✅ Scheduling only |

@@ -98,23 +98,25 @@ the sibling clones.
 
 ## 3. How to continue
 
-**Status quo:** All adoptable papers are implemented or partially implemented.
-The remaining work is wavefront refactoring (PERF5/PERF4) and completing the GI-SMS
-Bernoulli-trial estimator.
+**Status quo:** GI-SMS is not integrated into either renderer. The 2026-11-02
+source audit found only uncalled constraint/manifold-walk helpers; the earlier
+"done" claim was incorrect. Start with the [bounded GI-SMS plan](#gi-sms-bounded-implementation-plan).
+PERF5 stage-1 was measured and parked; its continuation is the combined
+wavefront + PERF4 recovery arc in `Theia/PLAN.md`, not an unconditional rewrite.
 
 | # | Task | Track | Status | Notes |
 |---|------|-------|--------|-------|
-| 1 | **GI-SMS full** (Hong et al., SIGA 2025) — Bernoulli-trial reciprocal estimator + ReSTIR integration | GI | **done** | Manifold walk + MNEE + biased (Alg. 3) + unbiased (Alg. 2) all landed. ReSTIR wire is the remaining integration. |
+| 1 | **GI-SMS** (Hong et al., SIGA 2025) — verified solver, unbiased caustic estimator, then partitioning + spatial ReSTIR | GI | **next** | Audit/design checkpoint recorded below. No integrated MNEE, biased SMS, Bernoulli reciprocal estimator or SMS reservoir was found. Next code step: analytic specular-solver tests, with no rendering change. |
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
-| 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — split `gi.comp.slang` into focused kernels | PERF | **next** | ~16% faster; gates PERF4 |
-| 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **next** | 1.3–2.0× trace; gated by PERF5 |
+| 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — scheduling prerequisite for PERF4 | PERF | **parked** | Theia stage-1 cost ~2× monolithic GI; retained on `perf5/wavefront-stage1`. Re-entry requires a credible combined compaction/reordering recovery budget; see `Theia/PLAN.md`. |
+| 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **pending** | Combined with PERF5 re-entry, after GI-SMS. Published trace-only speedups are not total-GI speedups; sorting, traffic and barriers must be included. |
 | 5 | **I6: configurable frames-per-flip** (Theia window) | I | **done** | `--frames-per-flip <N>` in the shared parser; N = 1 is the classic cadence (display half gated per flip). Validated: suites + interactive smoke + N=1 control. **Pacing oracle shipped:** `mainLoop()` logs the rendered/flips ratio every 300 frames (see §5.3). |
 | 6 | **VAL1: interactive-path validation smoke** — `check_vulkan_validation.py` runs the offscreen path only (no present), which is how the 08045/10820 violations survived since MOD1/MOD6; add a short `--validation` windowed run to the gate | CH | **next** | tooling, small |
 
 **Shipped:** C9 bounded VNDF, DN3 converging denoiser, GI-ENH (k≥3 + pairwise
-MIS + forced NEE + Russian roulette), GI-SMS (manifold walk + MNEE +
-biased SMS), C12 micrograin NDF + GAF, MOD1 descriptor buffers, VK14 nullDescriptor,
+MIS + forced NEE + Russian roulette), C12 micrograin NDF + GAF, MOD1 descriptor buffers, VK14 nullDescriptor,
 MOD2 timeline semaphores, MOD5 AS creation v2, MOD6 present pacing v2.
+GI-SMS's helper functions are not a shipped caustic estimator; see the audit below.
 
 **Code-health queue:** wave 1 shipped 8/8 items
 (H-01..H-06 here + HY-01/T-01/T-02 and the H-04 follow-through in the renderers). Remaining
@@ -363,11 +365,16 @@ convergence speed. **Industry GI/denoising/perceptual techniques are adopted her
 
 | ID | Task | Status |
 |----|------|--------|
-| PERF5 | **Megakernel vs Wavefront** GPU path tracing (Padilla, Webster, Kim — 2026, [arXiv:2605.27323](https://arxiv.org/abs/2605.27323); **verified** — 4-page short paper). Reports wavefront path tracing (WPT) ~16% faster than forward megakernel PT, attributed to cache locality (Nsight traces). *Kernel-scheduling* decision only; the estimator stays shared in Harmonia. Target: **one shared scheduling architecture for both renderers** unless hard evidence forces two (two loop structures = a duplicate path-tracing implementation, rejected by the one-slot rule, §5.6). **Gates PERF4** (ray reordering needs a wavefront ray buffer). | **next** |
-| PERF4 | **Ray reordering** for faster GPU RT — *On Ray Reordering Techniques…* (Meister, Bokšanský, Guthe, Bittner — 2025, [arXiv:2506.11273](https://arxiv.org/abs/2506.11273); **verified**). The sorting-key method is kernel-agnostic, but the **technique is wavefront-only** — a megakernel traces each ray inline with no ray buffer to sort, so PERF4 cannot ship without PERF5. Yields 1.3–2.0× trace speed; the authors note recovering the sort overhead on fast RT cores is "problematic" (measure on the dev GPU before committing). **Gated by PERF5.** | **next** (post-PERF5) |
+| PERF5 | **Megakernel vs Wavefront** GPU path tracing (Padilla, Webster, Kim — 2026, [arXiv:2605.27323](https://arxiv.org/abs/2605.27323); **verified** — 4-page short paper). Reports wavefront path tracing (WPT) ~16% faster than forward megakernel PT, attributed to cache locality (Nsight traces). *Kernel-scheduling* decision only; the estimator stays shared in Harmonia. Target: **one shared scheduling architecture for both renderers** unless hard evidence forces two (two loop structures = a duplicate path-tracing implementation, rejected by the one-slot rule, §5.6). **Gates PERF4** (ray reordering needs a wavefront ray buffer). | **parked** — measured Theia stage-1 ~2× GI cost; combined recovery arc only |
+| PERF4 | **Ray reordering** for faster GPU RT — *On Ray Reordering Techniques…* (Meister, Bokšanský, Guthe, Bittner — 2025, [arXiv:2506.11273](https://arxiv.org/abs/2506.11273); **verified**). The sorting-key method is kernel-agnostic, but the **technique is wavefront-only** — a megakernel traces each ray inline with no ray buffer to sort, so PERF4 cannot ship without PERF5. Yields 1.3–2.0× trace speed; the authors note recovering the sort overhead on fast RT cores is "problematic" (measure on the dev GPU before committing). **Gated by PERF5.** | **pending** — combined PERF5 recovery arc, after GI-SMS |
 | PERF3 | **GPU acceleration-structure pipeline** for Hyperion — tracked in `Hyperion/PLAN.md` (AS refit-vs-rebuild + compaction; prerequisite for ANI2). Harmonia slice: `TlasBuilder` currently does full builds only. | backlog |
 | PERF6 | **RAFI** multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)) — tracked in `Hyperion/PLAN.md` (large-scene/streaming scaling). | backlog |
 | PERF8 | *Direct Coherent Ray Generation for Path Tracing* (Lou et al. — Visual Computer 2025, [doi:10.1007/s00371-025-04090-6](https://doi.org/10.1007/s00371-025-04090-6)). | watchlist |
+
+**Scheduling status (2026-11-02):** `Theia/PLAN.md` records the measured, parked
+stage-1 and binding re-entry gates. The following full-split prerequisite is an
+earlier design assessment, not authorization to resume that old milestone chain;
+stage-1 did not require the shared asynchronous-shadow split described below.
 
 **Wavefront (PERF5) implementation finding — the estimator-split prerequisite.** Assessed
 against the live code: the shared `integrateSurface`
@@ -483,13 +490,164 @@ Lin/Kettunen/Wyman 2026 Enhanced).
 
 | ID | Paper (venue) | Relevance to Theia | Status |
 |----|---------------|--------------------|--------|
-| GI-SMS | **Sample Space Partitioning and Spatiotemporal Resampling for Specular Manifold Sampling** (Hong et al., **SIGGRAPH Asia 2025**) | Caustics / SDS chains (reconnection shifts can't handle delta lobes); real caustics/TIR fix. **Owns the caustics slot** — GI-BDPT (TOG 44(5) 2025) targets the same niche and is deliberately not tracked. | **next** |
+| GI-SMS | **Sample Space Partitioning and Spatiotemporal Resampling for Specular Manifold Sampling** (Hong et al., **SIGGRAPH Asia 2025**) | Better sampling of specular caustics / SDS chains; ordinary PT can sample some such paths but with high variance. Does not replace the BSDF's Snell/Fresnel/TIR physics. **Owns the caustics slot** — GI-BDPT targets the same niche and is deliberately not tracked. | **next** — [bounded plan](#gi-sms-bounded-implementation-plan) |
 | GI-ENH | **ReSTIR PT Enhanced adoption** (Lin, Kettunen, Wyman — **I3D/PACMCGIT 2026, Best Paper**, [doi:10.1145/3804494](https://doi.org/10.1145/3804494)) — engineering upgrade of Theia's path reservoir. *(Core landed: (b) vector-valued resampling weights (§6.3), (c) Gaussian paired-neighbor self-inverse maps (§3), (a) the k=2 reconnection shift with Eq. 5 footprint criteria + opacity-gate mixture + GRIS Jacobian — bias-floor-proven unbiased (cornell 1.826 vs 1.830 replay-only), and multi-frame captures made run-to-run reproducible (per-frame-slot descriptor sets + reservoir ping-pong barrier).)* **Remaining:** replay stream compaction. (The k=3 hybrid extension and forced-NEE reconnection also shipped; the paired shift-sharing optimisation was removed - it consumed the reverse-direction shift, and paper section 3's pairing only amortises the pair of shifts that pairwise MIS weights need, which this architecture does not use.) Tracked in `Theia/PLAN.md`. | **next** |
 | GI-PG | **ReSTIR PG** — path guiding w/ spatiotemporally resampled paths (Zeng et al., **SIGGRAPH Asia 2025**) | Hard-to-sample indirect transport; consistent; belongs in the shared estimator. Overlaps LS4 — one guiding approach only. | backlog |
 | GI-CG | **Compatibility-Guided Neighbor Selection** (Junkins et al., **HPG 2026, Best Paper**) | Drop-in spatial-reuse quality boost (shift-compatible neighbors) | backlog |
 | GI-CV | **Spatio-Temporal Control Variates with ReSTIR for Real-Time Rendering (ReSTCV)** (Shi et al., **SIGGRAPH 2026**, honorable mention) | Reservoir-borne accumulated estimates + CV from neighbor/frame differences — cuts color noise at 1-spp budgets. Consistent **only if** the CV is zero-expectation — audit before adopting. | backlog |
 | GI-RS | **Reservoir Splatting** — temporal path resampling + motion blur (Liu et al., **SIGGRAPH 2025**) | Temporal reuse under disocclusion without per-reservoir reprojection | watchlist |
 | GI-GD | **Gradient-Domain ReSTIR Path Tracing** (Wang, Kettunen, Lin, Wyman, Wu, Zhao — **CGF 2026**, [doi:10.1111/cgf.70328](https://doi.org/10.1111/cgf.70328)) | Image-space gradient reconstruction over ReSTIR PT (surface paths, consistent → converges); gates DN5 | watchlist |
+
+#### GI-SMS bounded implementation plan
+
+**Checkpoint 2a — 2026-11-02; documentation/research only.** User direction:
+small, independently verifiable steps; stop on a dead end rather than stack
+assumptions. Animation stays deferred. The working monolithic GI path is the
+integration target; no wavefront prerequisite, new dependency or vendor API.
+
+**Audited baseline (Windows, author working trees, clean before this change):**
+Harmonia `a649bbb11e3fc309cd1ed8fd0a1b1107c0c0ee09`, Hyperion
+`49c1f21ebdea3f7ef40bfee32eae9dfcf6295295`, Theia
+`257c8b495d6516e347a0be43d83b256ab8f0ad1e`. These are source snapshots, not
+new render measurements. Renderer files and release tags are unchanged.
+
+**Implementation inventory (source inspection, not a runtime correctness claim):**
+
+| Piece | Evidence at the audited baseline | Actual status |
+|---|---|---|
+| Constraint / Newton sketch | `shaders/math.slang`: `specularConstraint`, `manifoldWalk2Bounce` | Definitions only for the walk; constraint calls occur inside that helper. Fixed normal/frame, finite-difference tangent-plane steps, no per-step geometry query. Not a validated general surface solver. |
+| Shared surface estimator | `shaders/path_integrator.slang`: `ITracer`, `integrateSurface` | Emission, NEE, BSDF continuation and RR; no SMS contribution. `ITracer` exposes shadow transmittance only, not the closest-hit/reprojection/differential data SMS needs. |
+| Hyperion consumer | Tracked `shaders/`, `src/`, `tests/`; shared estimator calls in `shaders/closesthit.slang` | No SMS call site, reciprocal estimator or SMS test found. |
+| Theia consumer | `../Theia/shaders/gi.comp.slang`: explicit "GI-SMS ... is NOT wired in here" comment | No SMS contribution or SMS-specific candidate/reuse path. Ordinary path-reservoir reuse is not SMS integration. |
+| Sampling law | `shaders/rng.slang`: `RngState`, `sobolOwenSample` | Owen-scrambled Sobol sampler exists. The i.i.d. assumption of the Bernoulli reciprocal proof is not established merely by incrementing its dimension counter. |
+
+Reproduce the inventory from the family directory (grep exit 1 means no matches):
+
+```powershell
+foreach ($r in 'Harmonia', 'Hyperion', 'Theia') {
+    git -C $r rev-parse HEAD
+    git -C $r grep -n -i -E 'specularConstraint|manifoldWalk2Bounce|bernoulli|mnee|sms|caustic' -- shaders src tests
+}
+```
+
+The search is corroborated by inspecting `integrateSurface`, Hyperion's consumer
+and Theia's primary/path-candidate walk. It is not a formal call-graph proof or
+an assertion about other branches/build dependency copies. No helper is deleted
+or made reachable by this checkpoint.
+
+**Primary-source contract (read before implementing):**
+
+| Source | What must be preserved |
+|---|---|
+| [Zeltner et al. 2020](https://rgl.epfl.ch/publications/Zeltner2020Specular), §§4.1–4.4, Alg. 2 | Randomized seed → surface-constrained Newton solve → full specular contribution → independent reciprocal-probability trials. Alg. 3's fixed-budget unique-root sum is biased and is not the capture estimator. The project page's 2021 azimuth-wrap erratum also applies. |
+| [Hong et al. 2025](https://research.nvidia.com/labs/rtr/publication/hong2025partition/), §§3–4, Eqs. 4–9 | Trust regions modify the solver's sampling law. Conditional Bernoulli trials require the region-probability factor; prior sampling retains a nonzero uniform component. A position-map/UV parameterization is not available automatically for arbitrary family meshes. |
+| Hong §5, Eqs. 10–13 | Delta-path reuse preserves the light vertex, performs forward **and inverse** manifold shifts, and accounts for support with generalized pairwise MIS. The paper's heuristic requires four walks per neighbor. Existing diffuse reconnection is not a substitute. |
+| Hong §6, pp. 7–8, Fig. 7 | The experimental 128-trial cap is explicitly theoretically biased. Low observed error is not an unbiasedness proof. Do not copy it into Hyperion or estimator-pure capture. |
+
+Reference-code snapshots inspected, **not copied, built or accepted as numerical
+ground truth**: Zeltner
+[`1f0e403`](https://github.com/tizian/specular-manifold-sampling/tree/1f0e40342a8760450d5aa6202ea096feaa70256a)
+(`src/librender/manifold_ss.cpp`, `src/integrators/path_sms_ss.cpp`), Hong
+[`b2c0d42`](https://github.com/Utah-Graphics-Lab/PSMS-ReSTIR/tree/b2c0d425034e6b6c45e083285d6374dda9d54e84)
+(`SMS.slang`, `InitialSampling.cs.slang` under
+`Source/Falcor/Rendering/PSMSReSTIR`). They contain practical trial caps and/or
+geometric-term clamps; the specialized reference integrator also filters path
+classes. None of those policies may be imported without reconciling our contract.
+
+**Estimator and ownership constraints.** For a fixed receiver, selected caster and
+sampled area-light point, let $p_k$ be the probability that a seed produces admissible root $k$ under
+the **actual** solver, including failure/reprojection/iteration rules. Let $K_k$
+count fresh i.i.d. trials through the first repeat of that root. Then
+$\mathbb{E}[K_k]=1/p_k$. With a joint light/caster selection probability $p_j$ and light
+area PDF $p_A(y\mid j)$, the caustic sample is
+$F_k(y)K_k/[p_j p_A(y\mid j)]$, where $F_k$ contains the receiver BSDF/cosine,
+visibility, specular-chain weights, full manifold geometric Jacobian and emitted
+radiance, each **once** (Zeltner Alg. 2; Hong Eqs. 12–13). A failed initial solve
+contributes zero. All contributing roots need nonzero sampling support. Do not
+substitute a noisy estimate of $p_k$ and invert it, or use $K_k$ as an exact PDF
+inside an ordinary balance heuristic.
+
+Existing `evalEmissionGuarded` deliberately accepts emitter hits after delta
+bounces. Therefore adding SMS on top would double-count the targeted transport.
+Before the first rendered sample, define an exact supported path set $A$
+(receiver + ordered specular events + light endpoint + depth) and complementary
+ownership: SMS estimates $A$, ordinary PT retains the complement. Membership is
+based on path events/material capability, **never** on whether a particular SMS
+attempt succeeded. Camera-visible emitters, direct lighting without a specular
+chain, unsupported materials and longer chains remain ordinary PT. If support
+or ownership cannot be proved for the first fixture, stop before renderer wiring.
+
+The manifold contribution uses the **existing OpenPBR transport**, not reference
+code's different Fresnel model. Recover physical branch/lobe factors rather than
+copying `sampleBSDF.weight` blindly: that value can have selection probabilities
+already cancelled. For a closed dielectric, preserve entry/exit IOR, radiance
+measure conversion and tint-versus-Beer semantics. TIR invalidates a proposed
+transmission chain; do not silently turn it into a different reflection chain.
+
+**Trial-budget counterexample (exact scalar calculation, not a renderer test).**
+For $K\sim\mathrm{Geom}(p)$ and a returned capped count $\min(K,B)$,
+$p\,\mathbb{E}[\min(K,B)]=1-(1-p)^B$, not 1. At $B=128$:
+
+| Root probability $p$ | True reciprocal | Expected capped count | Relative energy loss |
+|---|---|---|---|
+| 0.1 | 10 | 9.999986 | 0.00013901% |
+| 0.01 | 100 | 72.374833 | 27.62516677% |
+| 0.001 | 1000 | 120.202967 | 87.97970328% |
+
+Computed with exact rational arithmetic using both the geometric probability-mass
+sum and survival sum, checked against the closed form; $p=1$ is the known-good
+control. Returning zero for unfinished trials is a different truncation, not a
+remedy. A watchdog may abort the experiment visibly; it must not write a
+successful-looking partial image or drop unfinished samples. Before GPU use,
+choose and verify a completion/continuation policy and trial RNG law. A fixed
+Newton budget per *individual solve* is distinct from a reciprocal-trial cap:
+it changes the root probabilities, which must be the same in initial and repeat
+trials, and still requires nonzero support for every targeted root.
+
+**Small implementation checkpoints (one verified change before the next):**
+
+| Step | Bounded deliverable / oracle | Advance only when |
+|---|---|---|
+| 2b.1 — next | Compile and test the Slang specular solver, not a Python copy. Start with a flat mirror and a receiver/light pair whose virtual-light construction gives the exact root. Include multiple seeds, grazing/degenerate inputs and a rigidly rotated fixture. Add a deliberately wrong reflection-sign control. | Analytic root/direction residuals pass with numeric tolerances written before code; the wrong-sign control fails for that reason. No renderer integration. Replace/fix the unvalidated helper only under those tests. |
+| 2b.2 | Reciprocal estimator and trial-stream tests against a finite categorical distribution with known root/failure probabilities. Define root equivalence, independence, exact trial counting and resource policy before shader wiring. | Known $1/p_k$ moments and failure behavior pass; capped/truncated and correlated-stream controls are rejected. No claim that QMC marginals alone prove the geometric stopping-time law. |
+| 2b.3 | Hyperion: one camera-visible diffuse receiver → one smooth mirror → finite emissive area light. Validate solver reprojection, full contribution and path ownership. | Independent virtual-emitter integration agrees in linear radiance; missing/doubled contributions fail; ordinary PT controls remain correct. No new BSDF approximation. |
+| 2b.4 | Closed glass slab: two refractive interfaces, no roughness, dispersion, normal maps or scattering. Start with depth-zero tint, then pure absorption as a separate change. | Independent Snell/Fresnel/measure calculation agrees, exit/TIR controls pass, and Beer attenuation scales with actual interior distance. Same material semantics as the existing renderer. |
+| 2c.1 | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; prior distribution is a separate follow-up. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
+| 2d.1 | Theia local SMS candidates, **before** spatial reuse. Shared mathematics lives in Harmonia; closest-hit/geometry adapters stay renderer-specific. | Matches the independently validated Hyperion estimator under statistical convergence checks; non-caustic regression scenes pass. |
+| 2d.2 | Spatial SMS reuse with manifold forward/inverse shifts and explicit GRIS support/MIS accounting. Raw local candidates are the starting inputs. | Identity/no-reuse controls and failed-inverse cases pass; energy does not drift under reuse; no naive recursive temporal merge. |
+| 2e | Equal-time quality/performance comparison, complex dragon/teapot integration and owner review. | Report variance, energy, tail/runtime behavior and temporal stability, then both renderer galleries before release approval. |
+
+First solver fixtures are mathematical/kernel tests, not a special material model
+shipped in the renderers. General curved/normal-mapped casters, rough offset
+manifolds, arbitrary chain lengths, scattering, dispersion and temporal reuse are
+**not** silently included in the first milestone. Unsupported paths keep their
+existing PT contribution. The final arc is not complete at the mirror checkpoint.
+
+**Verification plan for later code.** At the start of each row, record baseline
+SHA, exact build/test/render commands, numeric tolerances, fixed seeds and selected
+scope in this plan **before editing**. Use kernel tests for solver arithmetic,
+analytic/independent references for radiometry, and ordinary scene captures for
+regression. Hyperion/Theia agreement is a consumer check, not an independent
+estimator oracle. Compare estimator-pure linear EXRs at matching resolution and
+color space. Use multiple seeds and predeclared caustic-region energy confidence
+intervals; increasing samples does not have to reduce every individual noisy
+error monotonically. Require lower error at equal wall time before claiming a
+sampling improvement. GPU jobs and repo test suites run serially.
+
+**Stop conditions:** analytic root/energy failure; unresolved ownership/support;
+uncontrolled reciprocal tails or a biased budget policy; absent independent
+reference; or impractical cost after the verified simple case. Keep the last
+verified local commit, record evidence, and present the blocker. Do not respond by
+adding clamps, changing the BSDF, loosening tolerances, starting ReSTIR anyway or
+reviving wavefront to hide the failure. No push, tags or release without explicit OK.
+
+**2a verification receipt:** tracked-source search and consumer inspection at the
+three SHAs above; paper/reference-code inspection at the cited sections/commits;
+exact scalar cap counterexample. No new sampler, shader, fixture, render or GPU
+performance result is claimed. This checkpoint has no runtime surface; planned
+solver/estimator tests are not reported as executed tests. Its repository checks
+are `git diff --check` and changed-file review; behavioral negative controls are
+not applicable to this documentation-only change.
 
 *Dropped:* **GI-VOL / Ghost ReSTIR** (participating media — out of scope, and a deferred item
 is not tracked work), **GI-LOD** — now has a concrete citation (*Real-Time Level-of-Detail
@@ -1015,6 +1173,9 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 - **v0.7.9** (slang-math unchanged, Aether bumped to v0.7.4): **C9 bounded VNDF fixed (was up
   to 35% biased); DN3/C12/GI-SMS landed; MOD1+VK14; background-priority captures.** (Entry
   backfilled from the release commit; documented retroactively with v0.7.10.)
+  **GI-SMS correction (2026-11-02 source audit):** the release wording overclaimed
+  the implementation; only uncalled manifold helpers are present, not an
+  integrated MNEE/SMS/Bernoulli estimator. See the bounded plan in §5.5.
 - **v0.7.8** (slang-math unchanged, Aether bumped to v0.7.4): **VK11** —
   `shaderDemoteToHelperInvocation` enabled as a hard-required Vulkan 1.3 feature
   (`Context.cpp`): the C14 cutout's Slang `discard` emits the `DemoteToHelperInvocation`
