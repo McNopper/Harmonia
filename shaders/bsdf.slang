@@ -80,6 +80,8 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     bool glassMode;
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
+    if (mirrorMode) return 0.0.xxx; // the sampler's entire mirror event is discrete
+
     // OpenPBR coat darkening (G1, spec `base_darkening`) + coat_color absorption (G2,
     // `coat_attenuation`) applied to the whole base substrate — both are per-channel MULTIPLIES
     // (view-independent → inherently reciprocal), replacing the old view-dependent
@@ -144,7 +146,7 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
         }
     }
 
-    if (transmissionWeight > 0.0) {
+    if (transmissionWeight > 0.0 && !isDeltaTransmission(mat)) {
         // A2: Use the OpenPBR-correct specular microfacet BTDF (GGX VNDF) instead of Lambertian approximation
         // eta² lives in the PDF Jacobian, not in the eval
         float transAlphaX = alphaX; // Use base layer roughness for transmission
@@ -187,8 +189,7 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
     if (mirrorMode) {
-        float3 mDir = reflect(-woL, float3(0.0, 0.0, 1.0));
-        return all(abs(mDir - wiL) < 1.0e-4.xxx) ? 1.0 : 0.0;
+        return 0.0; // continuous density only; sampleBSDF carries delta event mass
     }
 
     float baseRough = mat.specularRoughAnisoIor.x;
@@ -221,7 +222,7 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
         pdf += (specularWeight + metalWeight) * reflectionPdf(woL, wiL, alphaX, alphaY);
     } else {
         // A3: OpenPBR/PBRT-v4 transmission PDF (generalized half-vector + refraction Jacobian).
-        if (transmissionWeight > 0.0) {
+        if (transmissionWeight > 0.0 && !isDeltaTransmission(mat)) {
             float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), max(mat.specularColorWeight.w, 0.0), max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
             if (exiting && mat.opacityFlagsPad.w <= 0.5) { // thin-walled: side-independent (no bulk)
                 eta = 1.0 / eta; // C7: side-correct etap so pdf matches evalTransmissionMicrofacet
@@ -500,8 +501,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         // floors roughness to alpha>=0.001, so routing roughness~0 glass through the
         // microfacet path spreads a sharp refraction into visible frost. Per OpenPBR/PBRT,
         // handle effectively-smooth roughness as an exact Snell-refraction delta lobe.
-        const float kSmoothDielectricRough = 0.05;
-        if (baseRough < kSmoothDielectricRough) {
+        if (baseRough < kSmoothDielectricRoughness) {
             float etaRatioD = 1.0 / eta; // frames face wo; side handled by eta (C7) — TIR-capable on exit
             float3 mD = float3(0.0, 0.0, woL.z > 0.0 ? 1.0 : -1.0);
             float3 wiRefract = refract(-woL, mD, etaRatioD);

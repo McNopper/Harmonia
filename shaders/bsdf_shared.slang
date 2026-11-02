@@ -4,7 +4,7 @@ import math;
 struct BSDFSample {
     float3 direction;
     float3 weight;
-    float  pdf;
+    float  pdf; // continuous density; delta branches use a legacy sentinel, not a full event PMF
     bool   isDelta;
     // Step 3 (bulk subsurface random walk): set when this sample refracts INTO a bulk
     // subsurface medium instead of continuing as an ordinary surface bounce. The renderer's
@@ -17,6 +17,16 @@ struct BSDFSample {
     float  mediumG;      ///< Henyey-Greenstein anisotropy (subsurface_scatter_anisotropy)
     float  mediumEta;    ///< relative IOR of the medium's dielectric boundary (specular_ior)
 };
+
+static const float kSmoothDielectricRoughness = 0.05;
+
+// Nondispersive exact-Snell and thin-sheet branches are discrete. The dispersive
+// sampled-microfacet branch retains its existing continuous queries here. Delta
+// samples are identified by isDelta; eval/pdf queries are solid-angle densities.
+bool isDeltaTransmission(GpuMaterial mat) {
+    return mat.opacityFlagsPad.w > 0.5 ||
+        (mat.specularRoughAnisoIor.x < kSmoothDielectricRoughness && mat.transmissionParams.z <= 0.0);
+}
 
 float3 saturate3(float3 v)
 {

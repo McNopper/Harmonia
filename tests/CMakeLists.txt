@@ -54,7 +54,7 @@ set(COMPILE_SLANG_EXTRA_DEPENDS "${PROJECT_SOURCE_DIR}/shaders/sms.slang"
     "${PROJECT_SOURCE_DIR}/shaders/sms_geometry.slang" "${PROJECT_SOURCE_DIR}/shaders/sms_solver.slang")
 compile_slang_shaders(harmonia_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders"
     sms_test.slang sms_reciprocal_test.slang sms_trial_test.slang sms_geometry_test.slang
-    sms_projected_test.slang sms_root_test.slang)
+    sms_projected_test.slang sms_root_test.slang sms_measure_test.slang)
 unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_SHADER_ROOT)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)

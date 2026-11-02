@@ -677,3 +677,24 @@ TEST_F(SmsFixture, SmsRootIdentityRejectsDistinctDirectionsTopologyAndSides) {
     for (std::size_t i = 0; i < inputs.size(); ++i)
         EXPECT_EQ(outputs[i][0], i < 2 ? 1U : 0U) << i;
 }
+
+TEST_F(SmsFixture, SmsMeasureDeltaEventsDoNotExposeContinuousNeeDensity) {
+    using Words = std::array<std::uint32_t, 4>;
+    std::vector<Words> inputs;
+    for (std::uint32_t mode = 0; mode < 12; ++mode)
+        inputs.push_back(Words{mode, 0, 0, 0});
+    std::vector<sm::float4> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Words, sm::float4>(inputs, outputs, "sms_measure_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (auto i : {0U, 2U, 3U, 6U, 10U, 11U}) {
+        SCOPED_TRACE(i);
+        EXPECT_EQ(outputs[i].x, 0.0F) << "Delta-only base must not add a continuous NEE lobe";
+        EXPECT_EQ(outputs[i].y, 0.0F) << "Continuous PDF query must not report a delta event mass";
+        EXPECT_EQ(outputs[i].z, 1.0F);
+        EXPECT_GT(outputs[i].w, 0.0F) << "Delta sampler must retain its established positive PDF sentinel";
+    }
+    for (auto i : {1U, 4U, 5U, 7U, 8U, 9U}) {
+        EXPECT_GT(outputs[i].x, 0.0F) << i;
+        EXPECT_GT(outputs[i].y, 0.0F) << i;
+    }
+}

@@ -98,6 +98,35 @@ the sibling clones.
 
 ## 3. How to continue
 
+**GI-SMS mixed-measure prerequisite plan (baseline `a000c88`):** query the actual
+shared BSDF, not a CPU copy. Delta-only mirror / smooth nondispersive glass /
+thin-wall transmission must expose zero continuous eval/pdf, while sampleBSDF
+still returns valid delta samples (the legacy positive PDF sentinel is not a full
+normalized event PMF). Rough transmission and a continuous coat
+must retain positive eval/pdf. This prevents ordinary NEE from estimating an
+extra finite-width lobe on top of the delta paths SMS owns. Command:
+`cmake --build build`; `build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsMeasure*`.
+Run against the existing functions first, then correct only the continuous-query
+measure classification if it fails. Preserve BSDF lobe formulas, branch RNG draw
+order and delta sample weights/sentinels. Extend the GPU modes to the strict
+roughness boundary, dispersion, oblique exit/TIR, tilted coat and thin-sheet
+continuous mixture. Baseline functions must fail the delta cases; continuous
+controls must remain positive. Recompile both renderer consumers, run full
+validation-enabled regression and captures before committing; no push.
+**Executed (`a000c88` + this correction):** expanded 12-mode GPU test passes;
+isolated old-function SPIR-V fails its zero-continuous-lobe assertions (exit 1),
+then exact restored candidate passes (exit 0). Full non-analysis suites pass:
+Harmonia 126/126, Hyperion 54/54, Theia 33/33; all verbose validation-message
+counts zero. Both consumers rebuilt; canonical architecture checks and Harmonia /
+Hyperion tidy/dead lanes pass. Theia Cornell control stays float-exact
+(0/76,800 pixels changed). Both 160×120/16-sample transmission captures exit 0,
+validation-clean, finite and nonblack. These are smoke captures, not yet SMS
+energy proof. Source review found no new blocker; its PDF-sentinel warning is
+now explicit in code/tests. Commands: `verify_reference_sampling.ps1`,
+`sms_measure_controls.py`, each renderer CLI with `--scene shaderball_transmission
+--width 160 --height 120 --validation --output ...` and `--spp 16` (Hyperion) /
+`--offscreen-frames 16` (Theia). Scripts/receipts are in the approved scratch home.
+
 **GI-SMS reference-owner/validation follow-up plan:** independent review of the
 Hyperion sampling prerequisite found that disabled/failed host accumulation can
 leave capture with no history owner. Reject explicit disabled accumulation in
