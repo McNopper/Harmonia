@@ -33,6 +33,7 @@ void main(uint3 id : SV_DispatchThreadID) {
             vertices[i].etaTOverI = input.vertexData[base].w;
             vertices[i].normal = input.vertexData[base + 1u].xyz;
             vertices[i].event = uint(input.vertexData[base + 1u].w);
+            vertices[i].objectKey = uint2(0u, 0u);
             vertices[i].geoNormal = input.vertexData[base + 2u].xyz;
             vertices[i].dpdu = input.vertexData[base + 3u].xyz;
             vertices[i].dpdv = input.vertexData[base + 4u].xyz;

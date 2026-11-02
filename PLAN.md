@@ -629,6 +629,34 @@ closed-slab oracle. Original SPIR-V restored byte-exact; full regression
 119/119 PASS. No renderer imports this module yet, and no new rendered caustic
 or performance result is claimed by this checkpoint.
 
+**2b.3b scene-projected solver plan (baseline `d6a1f89`):** shared Newton solve
+uses the verified constraint blocks, at most 32 Newton iterations with 8 bounded
+backtracking proposals per iteration, and angular residual at most `1e-5`.
+Every accepted proposal goes through a scene-provided reprojection callback,
+refreshes geometry and preserves the fixed object/material/event chain. Misses,
+changed topology and TIR are failed seeds, never alternate transport. GPU tests
+build real triangle BLAS/TLAS planes/slab, compare roots to independent virtual
+mirror and Snell solutions within `3e-4` unit-scale distance, and require multiple
+non-root starts to trigger actual reprojections. Root identity includes ordered
+object keys/events/side-correct eta and direction differences at most `1e-4`;
+this is an explicit numerical equivalence tolerance, not an exact root PDF.
+Check close-but-distinct synthetic roots and topology changes. Commands:
+`cmake --build build`, then
+`build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsProjected*:SmsFixture.SmsRoot*`.
+A disabled-reprojection mutant must fail the non-root-start tests. Restore exact
+SPIR-V, rerun the previous geometric oracles and full regression. Solver budgets
+bound one trial only; the same solver/seed law is used for initial/repeat trials,
+and reciprocal trials remain uncapped/resumable. Actual renderer sampling and
+image-quality claims remain gated on Hyperion integration and independent energy.
+**Executed:** 4/4 hardware-projected solver/root tests PASS, 0 validation messages.
+Non-root starts converge through real BLAS/TLAS ray queries to the independent
+mirror and Snell/slab roots. Hardware misses, occluder topology, invalid-side
+reflection, TIR and an adapter returning changed keys are rejected. Disabled
+reprojection failed both valid-root tests; accepting changed topology failed the
+rejection test; coarse dot-product root matching failed the close-direction test.
+Both SPIR-V binaries restored byte-exact; full regression 123/123 PASS. Production
+renderer sampling remains unwired at this checkpoint.
+
 **2b.2a verification plan (baseline `87b787f`):** implement only resumable
 reciprocal-trial accounting in shared `shaders/sms.slang`. It owns completion,
 64-bit trial counting and overflow failure, not seed generation or root matching.

@@ -7,16 +7,21 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <limits>
+#include <memory>
 #include <numbers>
 #include <slang-math/slang-math.hpp>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
+#include "harmonia/rt/TlasBuilder.hpp"
+#include "harmonia/scene_rt/TriangleMesh.hpp"
 
 namespace {
 
@@ -52,7 +57,10 @@ struct ReadbackStorage {
 class SmsFixture : public VulkanFixture {
   public:
     template <typename Input, typename Output>
-    void runCompute(std::span<const Input> inputs, std::vector<Output>& results, const char* shader) {
+    void runCompute(std::span<const Input> inputs,
+                    std::vector<Output>& results,
+                    const char* shader,
+                    VkAccelerationStructureKHR tlas = VK_NULL_HANDLE) {
         const auto& ctx = deviceCtx();
         auto source = harmonia::core::Buffer::create(ctx,
                                                      inputs.size_bytes(),
@@ -82,11 +90,24 @@ class SmsFixture : public VulkanFixture {
         ASSERT_EQ(vmaFlushAllocation(ctx.allocator, target.allocation, 0, VK_WHOLE_SIZE), VK_SUCCESS);
 
         const VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(SmsPush)};
+        harmonia::core::UniqueDescriptorSetLayout setLayout;
+        if (tlas != VK_NULL_HANDLE) {
+            const VkDescriptorSetLayoutBinding binding{
+                0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
+            const VkDescriptorSetLayoutCreateInfo info{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                                                       .pNext = nullptr,
+                                                       .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
+                                                       .bindingCount = 1,
+                                                       .pBindings = &binding};
+            VkDescriptorSetLayout raw{};
+            ASSERT_EQ(vkCreateDescriptorSetLayout(ctx.device, &info, nullptr, &raw), VK_SUCCESS);
+            setLayout = harmonia::core::UniqueDescriptorSetLayout{ctx.device, raw};
+        }
         const VkPipelineLayoutCreateInfo layoutInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                                                     .pNext = nullptr,
                                                     .flags = 0,
-                                                    .setLayoutCount = 0,
-                                                    .pSetLayouts = nullptr,
+                                                    .setLayoutCount = tlas == VK_NULL_HANDLE ? 0U : 1U,
+                                                    .pSetLayouts = tlas == VK_NULL_HANDLE ? nullptr : setLayout.ptr(),
                                                     .pushConstantRangeCount = 1,
                                                     .pPushConstantRanges = &range};
         VkPipelineLayout rawLayout{};
@@ -117,6 +138,48 @@ class SmsFixture : public VulkanFixture {
         auto cmd = commandPool().beginOneShot();
         ASSERT_TRUE(cmd.has_value());
         vkCmdBindPipeline(*cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+        if (tlas != VK_NULL_HANDLE) {
+            const VkMemoryBarrier2 accelerationReady{.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+                                                     .pNext = nullptr,
+                                                     .srcStageMask =
+                                                         VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                                                     .srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+                                                     .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                                     .dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR};
+            const VkDependencyInfo accelerationDependency{.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                                          .pNext = nullptr,
+                                                          .dependencyFlags = 0,
+                                                          .memoryBarrierCount = 1,
+                                                          .pMemoryBarriers = &accelerationReady,
+                                                          .bufferMemoryBarrierCount = 0,
+                                                          .pBufferMemoryBarriers = nullptr,
+                                                          .imageMemoryBarrierCount = 0,
+                                                          .pImageMemoryBarriers = nullptr};
+            vkCmdPipelineBarrier2(*cmd, &accelerationDependency);
+            const VkWriteDescriptorSetAccelerationStructureKHR acceleration{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+                .pNext = nullptr,
+                .accelerationStructureCount = 1,
+                .pAccelerationStructures = &tlas};
+            const VkWriteDescriptorSet write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                             .pNext = &acceleration,
+                                             .dstSet = VK_NULL_HANDLE,
+                                             .dstBinding = 0,
+                                             .dstArrayElement = 0,
+                                             .descriptorCount = 1,
+                                             .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+                                             .pImageInfo = nullptr,
+                                             .pBufferInfo = nullptr,
+                                             .pTexelBufferView = nullptr};
+            const VkPushDescriptorSetInfo info{.sType = VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_INFO,
+                                               .pNext = nullptr,
+                                               .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                                               .layout = layout,
+                                               .set = 0,
+                                               .descriptorWriteCount = 1,
+                                               .pDescriptorWrites = &write};
+            vkCmdPushDescriptorSet2(*cmd, &info);
+        }
         const VkBufferDeviceAddressInfo addressInfo{
             VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, target.buffer};
         const SmsPush push{source->deviceAddress(),
@@ -480,4 +543,137 @@ TEST_F(SmsFixture, SmsInterfaceSnellFresnelAndTirAreSideCorrect) {
     EXPECT_EQ(outputs[3].status.x, 0.0F);
     EXPECT_EQ(outputs[3].value.w, 0.0F);
     EXPECT_NEAR(outputs[4].value.w, 1.0F, 1.0e-6F);
+}
+
+namespace {
+struct SmsTestScene {
+    std::unique_ptr<harmonia::scene_rt::TriangleMesh> mesh;
+    harmonia::rt::AccelerationStructure tlas;
+};
+
+std::expected<SmsTestScene, VkResult>
+createSmsTestScene(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool, bool blocker = false) {
+    harmonia::scene::MeshData data;
+    const std::array heights{0.0F, -0.8F, 1.0F};
+    const std::size_t planes = blocker ? 3U : 2U;
+    for (std::size_t plane = 0; plane < planes; ++plane) {
+        const auto base = static_cast<std::uint32_t>(data.vertices.size());
+        for (auto xy : {sm::float2(-10, -10), sm::float2(10, -10), sm::float2(10, 10), sm::float2(-10, 10)}) {
+            harmonia::GpuVertex vertex{};
+            vertex.position = {xy.x, xy.y, heights[plane]};
+            vertex.normal = {0, 0, plane == 1 ? -1.0F : 1.0F};
+            data.vertices.push_back(vertex);
+        }
+        if (plane == 1)
+            data.indices.insert(data.indices.end(), {base, base + 2, base + 1, base, base + 3, base + 2});
+        else
+            data.indices.insert(data.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+    }
+    auto mesh = harmonia::scene_rt::TriangleMesh::create(ctx, pool, std::move(data), {}, "test.sms.planes");
+    if (!mesh)
+        return std::unexpected(mesh.error());
+    if (const auto result = (*mesh)->buildBlas(ctx, pool); result != VK_SUCCESS)
+        return std::unexpected(result);
+    SmsTestScene scene;
+    scene.mesh = std::move(*mesh);
+    const std::array instances{scene.mesh->makeInstance(7U, harmonia::scene::Transform{})};
+    VkDeviceAddress address{};
+    if (const auto result = harmonia::rt::buildTlas(ctx, pool, instances, scene.tlas, address); result != VK_SUCCESS)
+        return std::unexpected(result);
+    return scene;
+}
+
+struct SmsSolveInput {
+    sm::float4 receiver, light, seed;
+};
+struct SmsSolveOutput {
+    sm::float4 first, second;
+};
+struct SmsRootInput {
+    sm::float4 a0, a1, b0, b1;
+    std::array<std::uint32_t, 4> modes;
+};
+static_assert(sizeof(SmsSolveInput) == 48 && sizeof(SmsSolveOutput) == 32 && sizeof(SmsRootInput) == 80);
+} // namespace
+
+TEST_F(SmsFixture, SmsProjectedMirrorRootsUseHardwareReprojection) {
+    auto scene = createSmsTestScene(deviceCtx(), commandPool());
+    ASSERT_TRUE(scene.has_value()) << static_cast<int>(scene.error());
+    std::vector<SmsSolveInput> inputs;
+    for (auto seed : {sm::float3(0, 0, 0), sm::float3(0.8F, 0.2F, 0), sm::float3(1.2F, 0.5F, 0)})
+        inputs.push_back({{-1, 0, 2, 1}, {2, 0.5F, 1, 0}, sm::float4(seed, 1)});
+    std::vector<SmsSolveOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsSolveInput, SmsSolveOutput>(inputs, outputs, "sms_projected_test.spv", scene->tlas.handle())));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (const auto& output : outputs) {
+        EXPECT_EQ(output.first.w, 1.0F);
+        EXPECT_LE(sm::length(xyz(output.first) - sm::float3(1, 1.0F / 3.0F, 0)), 3.0e-4F);
+        EXPECT_GT(output.second.w, 1.0F) << "Non-root starts must execute scene reprojection";
+    }
+}
+
+TEST_F(SmsFixture, SmsProjectedSlabRootsMatchIndependentSnellSolution) {
+    auto scene = createSmsTestScene(deviceCtx(), commandPool());
+    ASSERT_TRUE(scene.has_value());
+    const double theta = 25.0 * std::numbers::pi / 180.0;
+    const double inside = std::asin(std::sin(theta) / 1.5);
+    const sm::float3 first(static_cast<float>(2.0 * std::tan(theta)), 0, 0);
+    const auto second = first + sm::float3(static_cast<float>(0.8 * std::tan(inside)), 0, -0.8F);
+    const auto light = second + sm::float3(static_cast<float>(3.0 * std::tan(theta)), 0, -3);
+    std::vector<SmsSolveInput> inputs;
+    for (auto seed : {sm::float3(0, 0, 0), sm::float3(0.5F, 0.2F, 0), sm::float3(1.3F, -0.3F, 0)})
+        inputs.push_back({{0, 0, 2, 2}, sm::float4(light, 0), sm::float4(seed, 1.5F)});
+    std::vector<SmsSolveOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsSolveInput, SmsSolveOutput>(inputs, outputs, "sms_projected_test.spv", scene->tlas.handle())));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (const auto& output : outputs) {
+        EXPECT_EQ(output.first.w, 1.0F);
+        EXPECT_LE(sm::length(xyz(output.first) - first), 3.0e-4F);
+        EXPECT_LE(sm::length(xyz(output.second) - second), 3.0e-4F);
+        EXPECT_GT(output.second.w, 1.0F);
+    }
+}
+
+TEST_F(SmsFixture, SmsProjectedMissTopologyAndTirAreRejected) {
+    auto scene = createSmsTestScene(deviceCtx(), commandPool());
+    ASSERT_TRUE(scene.has_value());
+    const std::array inputs{SmsSolveInput{{-1, 0, 2, 1}, {2, 0.5F, 1, 0}, {100, 0, 0, 1}},
+                            SmsSolveInput{{0, 0, 2, 2}, {2, 0, -3.8F, 0}, {5, 0, 0, 2.0F / 3.0F}},
+                            SmsSolveInput{{-1, 0, 2, 1}, {2, 0.5F, -3.8F, 0}, {0, 0, 0, 1}},
+                            SmsSolveInput{{-1, 0, 2, 1}, {2, 0.5F, 1, 1}, {1.001F, 1.0F / 3.0F, 0, 1}}};
+    std::vector<SmsSolveOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsSolveInput, SmsSolveOutput>(inputs, outputs, "sms_projected_test.spv", scene->tlas.handle())));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (const auto& output : outputs)
+        EXPECT_EQ(output.first.w, 0.0F);
+    auto blocked = createSmsTestScene(deviceCtx(), commandPool(), true);
+    ASSERT_TRUE(blocked.has_value());
+    const std::array blockedInput{SmsSolveInput{{-1, 0, 2, 1}, {2, 0.5F, 1, 0}, {0, 0, 0, 1}}};
+    ASSERT_NO_FATAL_FAILURE((runCompute<SmsSolveInput, SmsSolveOutput>(
+        blockedInput, outputs, "sms_projected_test.spv", blocked->tlas.handle())));
+    ASSERT_EQ(outputs.size(), 1U);
+    EXPECT_EQ(outputs[0].first.w, 0.0F);
+}
+
+TEST_F(SmsFixture, SmsRootIdentityRejectsDistinctDirectionsTopologyAndSides) {
+    const SmsRootInput base{{0, 0, 0, 1.0e-4F}, {0, 0, -1, 0}, {0, 0, 0, 0}, {0, 0, -1, 0}, {1, 1, 0, 0}};
+    std::array inputs{base, base, base, base, base, base, base, base, base, base};
+    inputs[1].b0.x = 5.0e-5F; // solver jitter within the declared tolerance
+    inputs[2].b0.x = 2.0e-4F; // distinct even though dot(unitA,unitB) may round to 1
+    inputs[3].modes[2] = 1;
+    inputs[4].modes[2] = 2;
+    inputs[5].modes[2] = 4;
+    inputs[6].modes[1] = 2;
+    inputs[7].modes = {2, 2, 8, 0};
+    inputs[8].modes[0] = 0;
+    inputs[9].b0.x = std::numeric_limits<float>::quiet_NaN();
+    using Words = std::array<std::uint32_t, 4>;
+    std::vector<Words> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<SmsRootInput, Words>(inputs, outputs, "sms_root_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t i = 0; i < inputs.size(); ++i)
+        EXPECT_EQ(outputs[i][0], i < 2 ? 1U : 0U) << i;
 }

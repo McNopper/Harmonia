@@ -14,6 +14,7 @@ struct SmsManifoldVertex {
     float3 dndu, dndv;   // derivatives of the unit shading normal in the SAME parameterization
     float etaTOverI;     // n_transmitted / n_incident (side-correct), transmission only
     uint event;
+    uint2 objectKey;     // ordered instance/material identity, not primitive index
 };
 
 struct SmsConstraintBlocks {
