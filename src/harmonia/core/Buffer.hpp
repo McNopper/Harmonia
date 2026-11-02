@@ -54,6 +54,11 @@ class Buffer {
 
     void uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset = 0);
 
+    /// Read a host-mapped allocation after the caller has waited for GPU writes
+    /// and made them available to HOST_READ. Invalidates non-coherent memory.
+    /// Errors leave destination untouched; zero bytes permits a null destination.
+    [[nodiscard]] VkResult readData(void* destination, VkDeviceSize size, VkDeviceSize offset = 0) const noexcept;
+
   private:
     void destroy() noexcept;
 

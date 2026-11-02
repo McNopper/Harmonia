@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <span>
 #include <string>
 
@@ -52,7 +53,8 @@ std::expected<Buffer, VkResult> Buffer::create(const DeviceContext& ctx,
 
     VmaAllocationCreateFlags flags = 0U;
     if (prefersHostAccess(memUsage)) {
-        flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        flags |= memUsage == VMA_MEMORY_USAGE_GPU_TO_CPU ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+                                                         : VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
     }
 
@@ -333,6 +335,21 @@ void Buffer::uploadData(const void* data, VkDeviceSize size, VkDeviceSize offset
     }
     vkDestroyCommandPool(m_device, commandPool, nullptr);
     vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
+}
+
+VkResult Buffer::readData(void* destination, VkDeviceSize size, VkDeviceSize offset) const noexcept {
+    if (m_buffer == VK_NULL_HANDLE || m_allocator == VK_NULL_HANDLE || m_mapped == nullptr || offset > m_size ||
+        size > m_size - offset || size > std::numeric_limits<std::size_t>::max() ||
+        (size != 0U && destination == nullptr)) {
+        return VK_ERROR_MEMORY_MAP_FAILED;
+    }
+    if (size == 0U)
+        return VK_SUCCESS;
+    const VkResult result = vmaInvalidateAllocation(m_allocator, m_allocation, offset, size);
+    if (result != VK_SUCCESS)
+        return result;
+    std::memcpy(destination, static_cast<const std::byte*>(m_mapped) + offset, static_cast<std::size_t>(size));
+    return VK_SUCCESS;
 }
 
 void Buffer::destroy() noexcept {

@@ -1,6 +1,7 @@
 // GPU tests of the production Slang solver. Oracle: analytic virtual-light geometry.
 #include <volk/volk.h>
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
@@ -696,5 +697,44 @@ TEST_F(SmsFixture, SmsMeasureDeltaEventsDoNotExposeContinuousNeeDensity) {
     for (auto i : {1U, 4U, 5U, 7U, 8U, 9U}) {
         EXPECT_GT(outputs[i].x, 0.0F) << i;
         EXPECT_GT(outputs[i].y, 0.0F) << i;
+    }
+}
+
+TEST_F(SmsFixture, SmsQueueGridAndPaddingMatchWideIntegerOracle) {
+    using Words = std::array<std::uint32_t, 4>;
+    std::vector<Words> inputs;
+    for (auto count : {0U, 1U, 63U, 64U, 65U, 65535U * 64U, 65535U * 64U + 1U, 0x7FFFFFFFU, 0x80000000U, 0xFFFFFFFFU}) {
+        const auto groups = (std::uint64_t{count} + 63) / 64;
+        const auto gx = std::min<std::uint64_t>(groups, 65535);
+        inputs.push_back({count, 0, 0, 0});
+        if (count != 0) {
+            const auto group = groups - 1;
+            inputs.push_back({count,
+                              static_cast<std::uint32_t>(group % gx),
+                              static_cast<std::uint32_t>(group / gx),
+                              (count - 1) % 64});
+            inputs.push_back(
+                {count, static_cast<std::uint32_t>(group % gx), static_cast<std::uint32_t>(group / gx), 63});
+            // First padded group and last grid group must not wrap at UINT_MAX.
+            const auto gy = (groups + gx - 1) / gx;
+            inputs.push_back(
+                {count, static_cast<std::uint32_t>(groups % gx), static_cast<std::uint32_t>(groups / gx), 0});
+            inputs.push_back({count, static_cast<std::uint32_t>(gx - 1), static_cast<std::uint32_t>(gy - 1), 63});
+        }
+    }
+    std::vector<Words> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Words, Words>(inputs, outputs, "sms_queue_grid_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+        const auto count = std::uint64_t{inputs[i][0]};
+        const auto groups = (count + 63) / 64;
+        const auto gx = std::min<std::uint64_t>(groups, 65535);
+        const auto gy = gx == 0 ? 1 : (groups + gx - 1) / gx;
+        const auto index = (std::uint64_t{inputs[i][2]} * gx + inputs[i][1]) * 64 + inputs[i][3];
+        EXPECT_EQ(outputs[i][0], gx) << i;
+        EXPECT_EQ(outputs[i][1], gy) << i;
+        EXPECT_EQ(outputs[i][2], index < count ? 1U : 0U) << i;
+        if (index < count)
+            EXPECT_EQ(outputs[i][3], index) << i;
     }
 }

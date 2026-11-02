@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include <gtest/gtest.h>
+#include <limits>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
@@ -103,6 +104,9 @@ TEST_F(VulkanFixture, Buffer_DeviceLocalStagingUploadRoundTrip) {
                                               "test.device.staging");
     ASSERT_TRUE(buf.has_value()) << static_cast<int>(buf.error());
     EXPECT_EQ(buf->mappedData(), nullptr) << "device-local buffer should not have a host-accessible mapped pointer";
+    std::uint32_t unchanged = 0x87654321U;
+    EXPECT_NE(buf->readData(&unchanged, sizeof(unchanged)), VK_SUCCESS);
+    EXPECT_EQ(unchanged, 0x87654321U) << "Unmapped reads must not copy or stage implicitly";
 
     buf->uploadData(kData.data(), kSize);
 
@@ -127,4 +131,56 @@ TEST_F(VulkanFixture, Buffer_DeviceAddressNonZero) {
     ASSERT_TRUE(buf.has_value()) << static_cast<int>(buf.error());
     EXPECT_NE(buf->deviceAddress(), VkDeviceAddress{0})
         << "buffer with SHADER_DEVICE_ADDRESS_BIT must have a non-zero device address";
+}
+
+TEST_F(VulkanFixture, Buffer_ReadDataSeesWaitedGpuWritesAndOffsets) {
+    auto buffer = harmonia::core::Buffer::create(
+        deviceCtx(), 64, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU, "test.status.readback");
+    ASSERT_TRUE(buffer.has_value());
+    ASSERT_NE(buffer->mappedData(), nullptr);
+    auto cmd = commandPool().beginOneShot();
+    ASSERT_TRUE(cmd.has_value());
+    std::array<std::uint32_t, 16> pattern{};
+    for (std::size_t i = 0; i < pattern.size(); ++i)
+        pattern[i] = 0x7391AC5BU + static_cast<std::uint32_t>(i);
+    vkCmdUpdateBuffer(*cmd, buffer->handle(), 0, sizeof(pattern), pattern.data());
+    const VkMemoryBarrier2 memory{.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+                                  .pNext = nullptr,
+                                  .srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+                                  .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                  .dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT,
+                                  .dstAccessMask = VK_ACCESS_2_HOST_READ_BIT};
+    const VkDependencyInfo dependency{.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                      .pNext = nullptr,
+                                      .dependencyFlags = 0,
+                                      .memoryBarrierCount = 1,
+                                      .pMemoryBarriers = &memory,
+                                      .bufferMemoryBarrierCount = 0,
+                                      .pBufferMemoryBarriers = nullptr,
+                                      .imageMemoryBarrierCount = 0,
+                                      .pImageMemoryBarriers = nullptr};
+    vkCmdPipelineBarrier2(*cmd, &dependency);
+    ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
+    std::array<std::uint32_t, 4> result{};
+    ASSERT_EQ(buffer->readData(result.data(), sizeof(result), 16), VK_SUCCESS);
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_EQ(result[i], pattern[i + 4]);
+    std::uint32_t last = 0;
+    ASSERT_EQ(buffer->readData(&last, sizeof(last), 60), VK_SUCCESS);
+    EXPECT_EQ(last, pattern.back());
+    EXPECT_EQ(buffer->readData(nullptr, 0, 64), VK_SUCCESS);
+}
+
+TEST_F(VulkanFixture, Buffer_ReadDataRejectsInvalidRangesWithoutChangingDestination) {
+    auto buffer = harmonia::core::Buffer::create(
+        deviceCtx(), 64, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU, "test.status.bounds");
+    ASSERT_TRUE(buffer.has_value());
+    std::uint32_t unchanged = 0x87654321U;
+    const harmonia::core::Buffer absent;
+    EXPECT_NE(absent.readData(&unchanged, 4), VK_SUCCESS);
+    EXPECT_NE(buffer->readData(nullptr, 4), VK_SUCCESS);
+    EXPECT_NE(buffer->readData(&unchanged, 4, 61), VK_SUCCESS);
+    EXPECT_NE(buffer->readData(&unchanged, 4, std::numeric_limits<VkDeviceSize>::max()), VK_SUCCESS);
+    EXPECT_NE(buffer->readData(&unchanged, std::numeric_limits<VkDeviceSize>::max(), 1), VK_SUCCESS);
+    EXPECT_EQ(unchanged, 0x87654321U);
 }

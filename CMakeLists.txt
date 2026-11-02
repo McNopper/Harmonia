@@ -258,6 +258,7 @@ FetchContent_MakeAvailable(slang_math)
 set(HARMONIA_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 set(HARMONIA_ENTRY_SHADERS
     accumulation.slang
+    sms_queue_control.slang
     denoiser.slang
     tonemap_vert.slang
     tonemap.slang
@@ -319,6 +320,7 @@ set(HARMONIA_passes_SOURCES
     src/harmonia/renderer/Descriptors.cpp
     src/harmonia/renderer/Pipeline.cpp
     src/harmonia/pipeline/AccumulationPass.cpp
+    src/harmonia/pipeline/SmsPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPassDenoise.cpp
     src/harmonia/presentation/ImageCapture.cpp

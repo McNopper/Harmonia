@@ -98,6 +98,63 @@ the sibling clones.
 
 ## 3. How to continue
 
+**GI-SMS runtime batch verification plan (baseline `a666fc6`, local Windows/GPU):**
+
+| Item | Acceptance / oracle | Exact verification | Status |
+| --- | --- | --- | --- |
+| Mapped status readback | after a waited GPU write, copy exact bytes; reject invalid/unmapped/out-of-range reads without changing destination; invalidate VMA before copying | `cmake --build build`; `build/tests/harmonia_component_tests.exe --gtest_filter=VulkanFixture.Buffer_*` | PASS, 6 tests |
+| Resumable queue controller | GPU-generated indirect counts; synthetic work remains pending until its third dispatch, no dropped/duplicated slots; empty work ready; queue/numeric errors fail closed | `build/tests/harmonia_component_tests.exe --gtest_filter=SmsQueueFixture.*:SmsFixture.SmsQueue*` | PASS, 7 tests |
+| Regression / preservation | full non-analysis suite, zero validation messages; canonical architecture + tidy/dead | `ctest --test-dir build -LE analysis -V`; canonical `check_arch.py --repo . --doc ARCHITECTURE.md`; `ctest --test-dir build -L analysis -E ^test_arch$ --output-on-failure` | PASS, 135 tests + analysis 2/2 |
+
+Readback's new API has no baseline call surface; a no-copy success mutant must
+fail the byte oracle. Queue tests use the shared production control kernel and
+host controller with a synthetic three-step producer, not a CPU copy of the
+queue. A drop-pending mutant must fail the pending/completion assertions. Author
+working-tree evidence, not independent runtime re-grade. One GPU job at a time.
+Shared controller lives in `harmonia/pipeline` (no upward App dependency); renderer
+Applications adapt IFrameCompletion. Host observes ready/error only; GPU owns work
+and dispatch counts. Work records 256B, headers 64B, fixed per-dispatch budget but
+uncapped total continuation trials. This batch alone is NOT renderer integration
+or energy proof; the remaining steps stay in the bounded GI-SMS plan.
+**Selected runtime evidence:** 6 Buffer tests and 4 real GPU queue/controller tests
+pass with validation ON and zero validation messages. No-copy readback mutant
+fails exact GPU-byte assertions (exit 1), restored source passes. Drop-pending
+producer mutant fails pending status plus preserved-work assertions (exit 1),
+byte-exact restored SPIR-V passes (exit 0). Initial new-test build exposed missing
+Vulkan struct initializers under `/WX`; corrected all fields, not suppressed.
+Hardware cache-coherency diversity is not yet a runtime matrix: current GPU tests
+verify waited bytes, while explicit VMA invalidation is also source-checked.
+**Source-review corrections:** disassembly confirms ABI but found signed 32-bit
+OpPtrAccessChain indexing above the slot domain. Reject capacities >INT32_MAX
+before allocation (resource limit, never a Bernoulli trial limit). Make the
+same-queue / 64-thread producer contract explicit. Replace racy visit counters
+with an independent atomic per-step ledger; assert every untouched word and a
+fully reprocessed restarted frame. Add virtual-header GPU probes at 64,
+65535×64, the 2D transition and uint/signed boundaries without huge allocation.
+Add invalid compacted slots, combined continuation errors, persistent overflow
+and successful reset after error. Readback uses distinct GPU-written offset words.
+Add a duplicate-index mutant and require ledger failure. No runtime proof of
+raw-BDA out-of-allocation guards from ordinary validation silence is claimed.
+**Next energy-fixture diagnostic (not SMS acceptance):** the scratch planar
+fixture's 4096-sample PT image differs +10.03% from a virtual-emitter integral.
+Source inspection shows its TOML zero-roughness metal is still a continuous
+floored-GGX material, not the legacy `Material::mirror` delta flag. Ordinary NEE
+at that narrow lobe can be heavy-tailed; one seed is not evidence of bias. Also,
+depth 2 still includes secondary NEE, so it is not a direct-only control. Check
+depth 1 / actual camera-hit geometry first, then an exact-delta controlled fixture
+and multiple seeds. Do not tune the energy tolerance or change material semantics
+merely to fit this prototype. No SMS contribution exists in these baseline EXRs.
+**Final queue checkpoint:** follow-up source review clears its pointer-boundary
+finding and identifies no introduced blocker. Author-run full family rerun:
+Harmonia 135/135, Hyperion 54/54, Theia 33/33; all validation-message counts zero,
+canonical architecture and Harmonia/Hyperion tidy/dead pass. Both consumers rebuilt,
+Theia's 320×240/32-frame control remains float-exact. Drop-pending and duplicate
+mutants each fail (exit 1), restored candidates pass (exit 0); the duplicate case
+specifically fails the atomic ledger. No-copy mutant similarly fails/restores.
+No retries or skipped GPU tests. This checkpoint is queue/runtime infrastructure;
+actual scene sampling, receiver production, resolve and renderer completion
+adapters remain unwired. No claim of rendered SMS energy or real-time cost.
+
 **GI-SMS mixed-measure prerequisite plan (baseline `a000c88`):** query the actual
 shared BSDF, not a CPU copy. Delta-only mirror / smooth nondispersive glass /
 thin-wall transmission must expose zero continuous eval/pdf, while sampleBSDF
