@@ -98,6 +98,52 @@ the sibling clones.
 
 ## 3. How to continue
 
+**2c.1 verification plan (H `0472ffc`, Hy `f29eb14`):**
+Numerical support control added: one root may have two tolerance-equivalent
+returned directions on opposite sides of a tile boundary. Exact enumeration of
+a 16×16 categorical model gives 8/7 energy if C covers only one returned tile's
+3×3 neighborhood. First make the GPU model reject that implementation. Preserve
+the paper's 3×3 WALK trust region, but conservatively bound the conditional seed
+region over the existing root-equivalence angular tolerance (including poles /
+azimuth wrapping). Its area and sampler remain exact and use the same 1/P(C)
+correction (Hong footnote 3 permits other analytically integrable regions).
+Then require all numeric-equivalent roots' permitted seed tiles to be covered.
+Do not change root matching, physical BSDFs or the 2% radiance tolerance.
+
+Implement Hong §3.3,
+Eqs. 4–6 directly in directional primary sample space (allowed by §3.1 / footnote
+3): N×N periodic tiles, 3×3 distinct-tile trust regions (N<=3 covers all U).
+Terminate a walk when a projected step leaves its seed's trust region; also check
+the initial/final root so every accepted seed belongs to C(root). Initial and
+repeat still use one compiled samplePath site and frozen endpoints. Initial seeds
+are uniform in U; repeat seeds are uniform in C(root). Store its known rectangular
+P(C)=extent.x*extent.y/N² (3×3 for exact interior roots, larger at numeric boundaries)
+and return reciprocal count / P(C), never a capped count. N=1 is the exact
+unpartitioned limit, used by the existing reference fixtures, not a second solver.
+
+| Item | Observable acceptance / oracle | Verification |
+| --- | --- | --- |
+| Tile / conditional law | wrap, boundaries and N=1/2/3/4/16/32; all conditional seeds lie in C; known categorical roots integrate to 1 after the region factor | `harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsPartition*` |
+| Actual renderer | N=1 mirror/glass/absorption receipts preserved; N=16 mirror mean within 2% of independent virtual-emitter energy at 4096 samples × four fixed seeds | `hyperion_module_tests.exe --gtest_filter=SmsPartitionFrameFixture.*` |
+| Sensitive oracle | omitted 1/P(C) must fail finite-domain and actual rendered energy assertions; exact restored candidate passes | isolated shader controls; then full touched-repo regression / validation |
+
+Default runtime N=16 follows the paper; existing base-SMS energy fixtures request
+N=1 explicitly. The prior is the next separate slice. Do not demand improved
+variance before the prior: Hong §3.4 explicitly describes that trade-off. No new
+material model, trial cap, temporal merge, release or push.
+**Executed 2c.1 checkpoint:** tile/cardinality/conditional tests pass, including
+numeric boundary and seam/pole coverage. The bare 3×3 conditional model fails at
+1.143984 energy, matching the exact 8/7 counterexample; the conservative cover
+passes without changing root matching. Missing 1/P(C) fails both the finite-domain
+and rendered mirror energy gates; exact restored shaders pass. N=16 reflected
+energy ratios at 4096 samples across four seeds are 0.99822 / 0.999659 / 0.996928 /
+1.00662. N=1 mirror, glass and absorption receipts remain exact. Focused source
+review finds no introduced support/solver/weight/lifetime blocker (not runtime
+regrade). Full family H140/140, Hy60/60, T33/33, all validation-message counts zero;
+architecture and H/Hy tidy/dead pass; Theia control 0/76,800 changed pixels.
+Per-frame priors, Theia candidates/reuse and final quality/performance/galleries
+remain outstanding. No sampling-improvement claim is made before equal-time tests.
+
 **Next production integration batch (Harmonia `c323d94`, Hyperion `b297f10`):**
 
 **Source-review boundary corrections before accepting the milestone:** (1) a

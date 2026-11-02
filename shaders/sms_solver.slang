@@ -1,6 +1,7 @@
 // Bounded manifold solve for a fixed specular chain; every accepted proposal is
 // reprojected by the renderer/scene adapter. This is not an unbounded trial loop.
 __exported import sms_geometry;
+__exported import sms_partition;
 
 interface ISmsProjector {
     [mutating]
@@ -42,9 +43,11 @@ bool smsValidSolvedEvents(float3 receiver, SmsManifoldVertex vertices[2], uint c
 }
 
 bool solveSmsManifold<P : ISmsProjector>(inout P projector, float3 receiver, float3 light,
-    inout SmsManifoldVertex vertices[2], uint count, uint maxIterations, float tolerance) {
+    inout SmsManifoldVertex vertices[2], uint count, uint maxIterations, float tolerance,
+    uint partitionResolution=1u,uint2 seedTile=uint2(0u,0u)) {
     if (count < 1u || count > 2u || maxIterations == 0u ||
-        !(tolerance > 0.0) || !isfinite(tolerance)) return false;
+        !(tolerance > 0.0) || !isfinite(tolerance) || partitionResolution==0u ||
+        !smsTrustContains(receiver,vertices[0].position,seedTile,partitionResolution)) return false;
     for (uint iteration = 0u; iteration < maxIterations; ++iteration) {
         float residual;
         if (!smsManifoldResidual(receiver, vertices, count, light, residual)) return false;
@@ -86,7 +89,9 @@ bool solveSmsManifold<P : ISmsProjector>(inout P projector, float3 receiver, flo
         for (uint attempt = 0u; attempt < 8u; ++attempt) {
             SmsManifoldVertex proposed[2];
             float3 proposedFirst = vertices[0].position + beta * firstStep;
+            if (!smsTrustContains(receiver,proposedFirst,seedTile,partitionResolution)) return false;
             if (projector.project(receiver, proposedFirst, vertices, count, proposed)) {
+                if (!smsTrustContains(receiver,proposed[0].position,seedTile,partitionResolution)) return false;
                 bool fixedTopology = true;
                 for (uint i = 0u; i < count; ++i) {
                     fixedTopology = fixedTopology && all(proposed[i].objectKey == vertices[i].objectKey) &&

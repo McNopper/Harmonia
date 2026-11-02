@@ -807,3 +807,95 @@ TEST_F(SmsFixture, SmsTransportDomainMatchesSamplerBoundariesAndProposalMass) {
     EXPECT_EQ(outputs[18].x, 1.0F);
     EXPECT_NEAR(outputs[18].y, .8F * .96F / 2.25F, 1e-6F) << "At the no-volume boundary per-crossing tint remains";
 }
+
+TEST_F(SmsFixture, SmsPartitionConditionalSeedsAndReciprocalNormalization) {
+    struct Input {
+        sm::uint4 grid;
+        sm::float4 random;
+    };
+    std::vector<Input> inputs;
+    for (auto n : {1U, 2U, 3U, 4U, 16U, 32U}) {
+        for (auto center : {0U, n / 2, n - 1}) {
+            for (float u : {0.0F, .5F, std::nextafter(1.0F, 0.0F)})
+                inputs.push_back({{n, center, center, 1}, {u, 1 - u == 1 ? std::nextafter(1.0F, 0.0F) : 1 - u, 0, 0}});
+        }
+        inputs.push_back({{n, 0, 0, 2}, {}});
+        inputs.push_back({{n, 0, 0, 0}, {.25F, .75F, 0, 0}});
+        inputs.push_back({{n, 0, 0, 3}, {0, 0, 1, 0}});
+        inputs.push_back({{n, n / 2, n / 2, 3}, {0, 0, 1, 0}});
+    }
+    std::vector<sm::float4> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Input, sm::float4>(inputs, outputs, "sms_partition_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+        SCOPED_TRACE(i);
+        const auto n = inputs[i].grid.x, mode = inputs[i].grid.w;
+        const auto width = std::min(n, 3U);
+        const float mass = float(width * width) / float(n * n);
+        const auto output = outputs[i];
+        if (mode == 2) {
+            EXPECT_NEAR(output.x, 1.0F, .03F) << "Conditional inverse probability needs 1/P(C)";
+            EXPECT_EQ(output.y, 0.0F);
+            EXPECT_EQ(output.z, mass);
+            EXPECT_NEAR(output.w, 4.0F, .12F);
+        } else if (mode == 3) {
+            const auto center = inputs[i].grid.y;
+            const bool inside = n <= 3 || center <= 1 || center >= n - 1;
+            EXPECT_EQ(output.x, inside ? 1.0F : 0.0F);
+        } else {
+            EXPECT_GE(output.x, 0.0F);
+            EXPECT_LT(output.x, 1.0F);
+            EXPECT_GE(output.y, 0.0F);
+            EXPECT_LT(output.y, 1.0F);
+            EXPECT_EQ(output.z, mass);
+            if (mode == 1) {
+                EXPECT_EQ(output.w, 1.0F);
+                const auto x = std::min(std::uint32_t(output.x * n), n - 1);
+                const auto y = std::min(std::uint32_t(output.y * n), n - 1);
+                const auto dx = (x + n - inputs[i].grid.y) % n, dy = (y + n - inputs[i].grid.z) % n;
+                EXPECT_TRUE(n <= 3 || ((dx <= 1 || dx >= n - 1) && (dy <= 1 || dy >= n - 1)));
+            } else if (n == 1 || n == 2 || n == 4 || n == 16 || n == 32) {
+                EXPECT_EQ(output.x, .25F);
+                EXPECT_EQ(output.y, .75F);
+            }
+        }
+    }
+}
+
+TEST_F(SmsFixture, SmsPartitionNumericRootAcrossTileBoundaryKeepsUnitEnergy) {
+    struct Input {
+        sm::uint4 grid;
+        sm::float4 random;
+    };
+    const std::array inputs{Input{{16, 0, 0, 4}, {}}};
+    std::vector<sm::float4> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Input, sm::float4>(inputs, outputs, "sms_partition_test.spv")));
+    ASSERT_EQ(outputs.size(), 1U);
+    EXPECT_NEAR(outputs[0].x, 1.0F, .03F) << "Conditional support must cover numeric-equivalent root tiles";
+}
+
+TEST_F(SmsFixture, SmsPartitionConditionalCoverIncludesSeamsPolesAndEquivalentDirections) {
+    struct Input {
+        sm::uint4 grid;
+        sm::float4 random;
+    };
+    std::vector<Input> inputs;
+    for (auto n : {1U, 2U, 3U, 4U, 16U, 32U})
+        for (auto direction : {sm::float4(0, 0, 1, 0),
+                               sm::float4(0, 0, -1, 0),
+                               sm::float4(1, 0, 0, 0),
+                               sm::float4(-1, 1e-8F, 0, 0),
+                               sm::float4(1e-5F, 0, 1, 0),
+                               sm::float4(.3F, 1e-8F, .95F, 0)})
+            inputs.push_back({{n, 0, 0, 5}, direction});
+    std::vector<sm::float4> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Input, sm::float4>(inputs, outputs, "sms_partition_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t i = 0; i < outputs.size(); ++i) {
+        EXPECT_EQ(outputs[i].x, 0.0F) << "Missing permitted seed tile at probe " << i;
+        EXPECT_GT(outputs[i].y, 0.0F);
+        EXPECT_LE(outputs[i].y, 1.0F);
+        if (inputs[i].grid.x <= 3)
+            EXPECT_EQ(outputs[i].y, 1.0F);
+    }
+}

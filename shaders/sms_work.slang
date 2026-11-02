@@ -7,9 +7,9 @@ import sms_transport;
 // words: 0 receiver P/material, 1 raw N/phase, 2 raw Ng/uv.x,
 // 3 raw tangent/uv.y, 4 wo/pixel, 5 light P/area pdf, 6 light N/Le.r,
 // 7 Le.gb/Philox key, 8/9 root P/instance, 10 root materials/count/event,
-// 11 root's unweighted RGB, 12 reciprocal low/high/status,
-// 13 root eta0/eta1/emitterCount/maxDepth, 14 exposure/spp/frame/seed,
-// 15 reserved/sample index. No renderer-specific descriptor indices here.
+// 11 root's unweighted RGB / P(C), 12 reciprocal low/high/status / tile resolution,
+// 13 root eta0/eta1/emitterCount/maxDepth, 14 exposure/spp/frame/seed (then conditional origin),
+// 15 sample/reserved (then conditional extent)/width/height. No renderer descriptors here.
 uint smsPhase(SmsWorkRecord work) { return work.words[1].w; }
 void smsSetPhase(inout SmsWorkRecord work, uint phase) { work.words[1].w = phase; }
 float3 smsReceiverPosition(SmsWorkRecord work) { return asfloat(work.words[0].xyz); }

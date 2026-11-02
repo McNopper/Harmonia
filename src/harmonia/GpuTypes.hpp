@@ -134,8 +134,8 @@ struct PushConstants {
     std::uint32_t tonemapper = 0;            ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
     std::uint32_t workingColorSpace =
         0; ///< harmonia::utils::ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
-    std::uint32_t smsPad = 0;
-    VkDeviceAddress smsWork = 0; ///< optional per-sample frozen SMS work, same ABI in both renderers
+    std::uint32_t smsPartitionResolution = 0; ///< nonzero enables SMS; N=1 is its unpartitioned limit
+    VkDeviceAddress smsWork = 0;              ///< optional per-sample frozen SMS work, same ABI in both renderers
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.
