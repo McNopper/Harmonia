@@ -193,6 +193,18 @@ oracle with a stated truncation bound. Run
 missing/doubled/incorrect per-crossing-tint controls must fail; preserve mirror /
 zero-depth glass energy and full family regression. This is a material-domain
 extension, not support for scattering or arbitrary specular chains.
+**Executed absorption acceptance:** four RGB energy-ratio triples are
+(0.988379,0.988374,0.988369), (1.00354,1.00378,1.00391),
+(0.992698,0.992854,0.992933), (0.995692,0.995808,0.995866), all within 2%.
+Aggregate 128/32-sample MSE ratio is 0.251622. Missing Beer, doubled Beer and
+extra per-crossing-tint mutants each fail the RGB oracle; exact restores pass.
+Focused source review finds no introduced coefficient/normal/domain/ownership
+blocker and confirms the independent internal-reflection series/bound (source-
+only review, not runtime regrade). Full family: H 137/137, Hy 59/59, T 33/33,
+zero validation messages, canonical architecture and H/Hy tidy/dead pass;
+Theia no-op control remains 0/76,800 changed pixels. A fixture rvalue-argument
+build error was corrected with std::move before the first absorption test ran.
+EXRs: `Hyperion/build/tests/sms_absorption_seed{17,91,1234,2026}.exr`.
 
 | Deliverable | Acceptance / oracle | Verification |
 | --- | --- | --- |
@@ -348,8 +360,9 @@ review reports its identified reference-owner blockers resolved. SMS renderer
 integration remains the next task, not a result of these prerequisite repairs.
 
 **Status quo:** Hyperion has a local experimental SMS runtime and independently
-checked exact-delta mirror EXRs; production TT/glass/absorption acceptance is still
-pending. Theia is not yet wired. The initial 2026-11-02 audit found only uncalled
+checked mirror / flat closed-glass / pure-absorption EXRs. Hong partition/prior,
+Theia reuse and final curved-scene performance/gallery acceptance remain pending.
+Theia is not yet wired. The initial 2026-11-02 audit found only uncalled
 helpers, so the earlier "done" claim was incorrect. Finish the remaining
 [bounded GI-SMS plan](#gi-sms-bounded-implementation-plan), not just its primitives.
 PERF5 stage-1 was measured and parked; its continuation is the combined
@@ -357,7 +370,7 @@ wavefront + PERF4 recovery arc in `Theia/PLAN.md`, not an unconditional rewrite.
 
 | # | Task | Track | Status | Notes |
 |---|------|-------|--------|-------|
-| 1 | **GI-SMS** (Hong et al., SIGA 2025) — verified solver, unbiased caustic estimator, then partitioning + spatial ReSTIR | GI | **in progress** | Planar solver, uncapped reciprocal state, Philox trials, frame completion and full coupled geometric Jacobian are verified checkpoints. No renderer estimator is integrated yet. Next: scene reprojection/Newton solver and root identity, then Hyperion wiring. |
+| 1 | **GI-SMS** (Hong et al., SIGA 2025) — caustic estimator, partitioning + spatial ReSTIR | GI | **in progress** | Hyperion is integrated: exact mirror, flat closed glass and colored pure-absorption energy/ownership checkpoints pass. Next: Hong trust regions/prior, Theia local candidates + inverse-checked spatial MIS, then curved-scene quality/performance and both galleries. |
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
 | 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — scheduling prerequisite for PERF4 | PERF | **parked** | Theia stage-1 cost ~2× monolithic GI; retained on `perf5/wavefront-stage1`. Re-entry requires a credible combined compaction/reordering recovery budget; see `Theia/PLAN.md`. |
 | 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **pending** | Combined with PERF5 re-entry, after GI-SMS. Published trace-only speedups are not total-GI speedups; sorting, traffic and barriers must be included. |
@@ -1045,10 +1058,10 @@ Slang warnings; no renderer source was changed in this checkpoint.
 
 | Step | Bounded deliverable / oracle | Advance only when |
 |---|---|---|
-| 2b.2 — next | Reciprocal estimator and trial-stream tests against a finite categorical distribution with known root/failure probabilities. Define root equivalence, independence, exact trial counting and resource policy before shader wiring. | Known $1/p_k$ moments and failure behavior pass; capped/truncated and correlated-stream controls are rejected. No claim that QMC marginals alone prove the geometric stopping-time law. |
+| 2b.2 | Reciprocal estimator and trial-stream tests against a finite categorical distribution with known root/failure probabilities. Define root equivalence, independence, exact trial counting and resource policy before shader wiring. | Known $1/p_k$ moments and failure behavior pass; capped/truncated and correlated-stream controls are rejected. No claim that QMC marginals alone prove the geometric stopping-time law. |
 | 2b.3 | Hyperion: one camera-visible diffuse receiver → one smooth mirror → finite emissive area light. Validate solver reprojection, full contribution and path ownership. | Independent virtual-emitter integration agrees in linear radiance; missing/doubled contributions fail; ordinary PT controls remain correct. No new BSDF approximation. |
 | 2b.4 | Closed glass slab: two refractive interfaces, no roughness, dispersion, normal maps or scattering. Start with depth-zero tint, then pure absorption as a separate change. | Independent Snell/Fresnel/measure calculation agrees, exit/TIR controls pass, and Beer attenuation scales with actual interior distance. Same material semantics as the existing renderer. |
-| 2c.1 | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; prior distribution is a separate follow-up. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
+| 2c.1 — next | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; prior distribution is a separate follow-up. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
 | 2d.1 | Theia local SMS candidates, **before** spatial reuse. Shared mathematics lives in Harmonia; closest-hit/geometry adapters stay renderer-specific. | Matches the independently validated Hyperion estimator under statistical convergence checks; non-caustic regression scenes pass. |
 | 2d.2 | Spatial SMS reuse with manifold forward/inverse shifts and explicit GRIS support/MIS accounting. Raw local candidates are the starting inputs. | Identity/no-reuse controls and failed-inverse cases pass; energy does not drift under reuse; no naive recursive temporal merge. |
 | 2e | Equal-time quality/performance comparison, complex dragon/teapot integration and owner review. | Report variance, energy, tail/runtime behavior and temporal stability, then both renderer galleries before release approval. |

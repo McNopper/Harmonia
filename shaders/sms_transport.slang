@@ -40,12 +40,16 @@ bool smsLegacyMirror(GpuMaterial mat) {
     return smsUntexturedOpaqueCaster(mat) && smsNonEmissive(mat) && uint(mat.opacityFlagsPad.y) == 3u;
 }
 
+bool smsPureAbsorption(GpuMaterial mat) {
+    return mat.transmissionParams.x > 1.0e-4 && all(mat.transmissionScatter.xyz == 0.0.xxx);
+}
+
 bool smsSmoothGlass(GpuMaterial mat) {
     return smsUntexturedOpaqueCaster(mat) && smsNonEmissive(mat) && uint(mat.opacityFlagsPad.y) == 2u &&
         mat.specularRoughAnisoIor.x < kSmoothDielectricRoughness && mat.transmissionParams.z <= 0.0 &&
         mat.opacityFlagsPad.w <= 0.5 && mat.baseColorWeight.w >= 1.0e-6 &&
         mat.coatColorWeight.w == 0.0 && mat.fuzzColorWeight.w == 0.0 &&
-        mat.transmissionParams.x <= 1.0e-4 && smsGlassEta(mat) > 1.0; // no bulk medium in this slice
+        (mat.transmissionParams.x <= 1.0e-4 || smsPureAbsorption(mat)) && smsGlassEta(mat) > 1.0;
 }
 
 bool smsReflectionCaster(GpuMaterial mat) { return smsLegacyMirror(mat) || smsSmoothGlass(mat); }
@@ -64,11 +68,12 @@ float smsGlassEta(GpuMaterial mat) {
 
 float3 smsDeltaResponse(GpuMaterial mat, float3 wo, float3 normal, uint event, float etaTOverI) {
     // Exactly sampleBSDF's pre-lobe zero-event support, not a new optical cutoff.
-    if (abs(dot(wo, normal)) <= kBsdfGrazingCosine) return 0.0.xxx;
+    bool mediumExit = event == kSmsTransmission && etaTOverI < 1.0 && smsPureAbsorption(mat);
+    if (!mediumExit && abs(dot(wo, normal)) <= kBsdfGrazingCosine) return 0.0.xxx;
     if (smsLegacyMirror(mat)) return saturate3(mat.baseColorWeight.xyz + mat.specularColorWeight.xyz);
     if (!smsSmoothGlass(mat)) return 0.0.xxx;
     float eta = event == kSmsReflection ? smsGlassEta(mat) : etaTOverI;
     float F = fresnelDielectric(abs(dot(normal,wo)), eta);
-    return event == kSmsReflection ? F.xxx :
-        (1.0-F)/(eta*eta) * saturate3(mat.transmissionColorWeight.xyz);
+    float3 tint = mat.transmissionParams.x > 1.0e-4 ? 1.0.xxx : saturate3(mat.transmissionColorWeight.xyz);
+    return event == kSmsReflection ? F.xxx : (1.0-F)/(eta*eta) * tint;
 }

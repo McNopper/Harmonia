@@ -762,7 +762,10 @@ TEST_F(SmsFixture, SmsTransportDomainMatchesSamplerBoundariesAndProposalMass) {
                             Probe{{1, 1, .5F, .25F}, {2, 0, 0, 0}},
                             Probe{{1, 1, 0, std::numeric_limits<float>::infinity()}, {2, 0, 0, 0}},
                             Probe{{0, 1, 0, 1}, {2, 0, 0, 0}},
-                            Probe{{std::numeric_limits<float>::infinity(), 1, 0, 1}, {2, 0, 0, 0}}};
+                            Probe{{std::numeric_limits<float>::infinity(), 1, 0, 1}, {2, 0, 0, 0}},
+                            Probe{{1, 1, 1, 0}, {0, 1, 1, 0}},
+                            Probe{{1, 1, 1, 0}, {0, 1, 1, 1}},
+                            Probe{{1, 1, 1.0e-4F, 0}, {0, 1, 1, 0}}};
     std::vector<sm::float4> outputs;
     ASSERT_NO_FATAL_FAILURE((runCompute<Probe, sm::float4>(inputs, outputs, "sms_transport_test.spv")));
     ASSERT_EQ(outputs.size(), inputs.size());
@@ -795,4 +798,12 @@ TEST_F(SmsFixture, SmsTransportDomainMatchesSamplerBoundariesAndProposalMass) {
     EXPECT_EQ(outputs[10].x, 1.0F);
     EXPECT_EQ(outputs[10].y, .5F);
     EXPECT_EQ(outputs[10].z, .5F);
+    EXPECT_EQ(outputs[16].x, 1.0F) << "Pure absorption is supported";
+    EXPECT_NEAR(outputs[16].y, .96F / 2.25F, 1e-6F) << "Positive-depth interfaces are untinted";
+    EXPECT_EQ(outputs[16].z, 1.0F) << "Actual sampler retains its untinted volume-entry weight";
+    EXPECT_EQ(outputs[17].x, 0.0F) << "Scattering volumes stay PT-owned";
+    EXPECT_EQ(outputs[17].y, 0.0F);
+    EXPECT_GT(outputs[17].z, 0.0F);
+    EXPECT_EQ(outputs[18].x, 1.0F);
+    EXPECT_NEAR(outputs[18].y, .8F * .96F / 2.25F, 1e-6F) << "At the no-volume boundary per-crossing tint remains";
 }
