@@ -106,7 +106,7 @@ wavefront + PERF4 recovery arc in `Theia/PLAN.md`, not an unconditional rewrite.
 
 | # | Task | Track | Status | Notes |
 |---|------|-------|--------|-------|
-| 1 | **GI-SMS** (Hong et al., SIGA 2025) — verified solver, unbiased caustic estimator, then partitioning + spatial ReSTIR | GI | **next** | Audit/design checkpoint recorded below. No integrated MNEE, biased SMS, Bernoulli reciprocal estimator or SMS reservoir was found. Next code step: analytic specular-solver tests, with no rendering change. |
+| 1 | **GI-SMS** (Hong et al., SIGA 2025) — verified solver, unbiased caustic estimator, then partitioning + spatial ReSTIR | GI | **in progress** | Analytic planar solver tests now execute the production Slang on the GPU; reflection-sign and degenerate-input defects fixed. No renderer estimator is integrated yet. Next: reciprocal-trial completion and sampling-law tests. |
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
 | 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — scheduling prerequisite for PERF4 | PERF | **parked** | Theia stage-1 cost ~2× monolithic GI; retained on `perf5/wavefront-stage1`. Re-entry requires a credible combined compaction/reordering recovery budget; see `Theia/PLAN.md`. |
 | 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **pending** | Combined with PERF5 re-entry, after GI-SMS. Published trace-only speedups are not total-GI speedups; sorting, traffic and barriers must be included. |
@@ -606,10 +606,29 @@ trials, and still requires nonzero support for every targeted root.
 
 **Small implementation checkpoints (one verified change before the next):**
 
+**2b.1 verification receipt (baseline `d0818f1`, Windows/Vulkan):** built with
+`cmake --build build`; execute the actual Slang/SPIR-V arithmetic with
+`build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.Sms*`.
+Unit-scale analytic mirror fixtures require root and reflected-direction errors
+at most `3e-4`, and constraint norm at most `2e-5`; degenerate inputs must return
+false without non-finite output. Cover multiple seeds, rigid rotation and a
+grazing configuration. Run the new tests against the unchanged helper first
+(expected wrong-sign failure), then fix and rerun. Regression command:
+`ctest --test-dir build -LE analysis --output-on-failure` (baseline 99/99 PASS).
+Compile both renderer consumers and perform a representative validation-clean
+capture before committing shared shader changes. Zero/all-skipped GPU tests are
+not acceptance. These tests establish only the planar solver, not a caustic estimator.
+**Executed:** original helper 0/3 PASS (wrong reflection sign; coincident vertex
+produced a non-finite position), fixed helper 3/3 PASS, 0 skipped; Harmonia
+regression 102/102 PASS. Both renderer builds succeeded, and `cornell_classic`
+captures at 320×240, Hyperion 32 spp / Theia 32 frames with `--validation`
+exited 0. No image-equivalence or caustic-quality claim is made from those smoke
+captures. The Theia rebuild retains its three pre-existing E31227 `constexpr`
+Slang warnings; no renderer source was changed in this checkpoint.
+
 | Step | Bounded deliverable / oracle | Advance only when |
 |---|---|---|
-| 2b.1 — next | Compile and test the Slang specular solver, not a Python copy. Start with a flat mirror and a receiver/light pair whose virtual-light construction gives the exact root. Include multiple seeds, grazing/degenerate inputs and a rigidly rotated fixture. Add a deliberately wrong reflection-sign control. | Analytic root/direction residuals pass with numeric tolerances written before code; the wrong-sign control fails for that reason. No renderer integration. Replace/fix the unvalidated helper only under those tests. |
-| 2b.2 | Reciprocal estimator and trial-stream tests against a finite categorical distribution with known root/failure probabilities. Define root equivalence, independence, exact trial counting and resource policy before shader wiring. | Known $1/p_k$ moments and failure behavior pass; capped/truncated and correlated-stream controls are rejected. No claim that QMC marginals alone prove the geometric stopping-time law. |
+| 2b.2 — next | Reciprocal estimator and trial-stream tests against a finite categorical distribution with known root/failure probabilities. Define root equivalence, independence, exact trial counting and resource policy before shader wiring. | Known $1/p_k$ moments and failure behavior pass; capped/truncated and correlated-stream controls are rejected. No claim that QMC marginals alone prove the geometric stopping-time law. |
 | 2b.3 | Hyperion: one camera-visible diffuse receiver → one smooth mirror → finite emissive area light. Validate solver reprojection, full contribution and path ownership. | Independent virtual-emitter integration agrees in linear radiance; missing/doubled contributions fail; ordinary PT controls remain correct. No new BSDF approximation. |
 | 2b.4 | Closed glass slab: two refractive interfaces, no roughness, dispersion, normal maps or scattering. Start with depth-zero tint, then pure absorption as a separate change. | Independent Snell/Fresnel/measure calculation agrees, exit/TIR controls pass, and Beer attenuation scales with actual interior distance. Same material semantics as the existing renderer. |
 | 2c.1 | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; prior distribution is a separate follow-up. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |

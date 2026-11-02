@@ -48,21 +48,21 @@ float3 sampleCosineHemisphere(float2 xi)
 // Measures the angular mismatch between the specular-scattered direction and the
 // outgoing direction in spherical coordinates. 2D constraint c: R²→R² for better
 // Newton convergence than half-vector constraints (paper §4.4).
-// S(ω, n, η) = specular scatter (reflection or refraction).
+// wi and wo BOTH point away from the specular vertex. The incident ray therefore
+// travels along -wi, matching sampleBSDF's reflect(-wo, n) convention.
 float2 specularConstraint(float3 wi, float3 wo, float3 n, float eta) {
     // Specular scatter: reflection for eta=1, refraction otherwise.
     float3 scattered;
     const float cosI = dot(wi, n);
     if (eta <= 1.0 + 1.0e-4) {
-        // Reflection: S = wi - 2(wi·n)n
-        scattered = wi - 2.0 * cosI * n;
+        scattered = 2.0 * cosI * n - wi;
     } else {
         // Refraction (Snell): η_i sinθ_i = η_t sinθ_t
         const float etaInv = 1.0 / eta;
         const float sin2T = etaInv * etaInv * (1.0 - cosI * cosI);
         if (sin2T >= 1.0) {
             // Total internal reflection — use reflection
-            scattered = wi - 2.0 * cosI * n;
+            scattered = 2.0 * cosI * n - wi;
         } else {
             const float cosT = safeSqrt(1.0 - sin2T);
             scattered = -etaInv * wi + (etaInv * cosI - cosT) * n;
@@ -94,10 +94,22 @@ bool manifoldWalk2Bounce(
     float3 tangent, float3 bitangent, // tangent frame at x2
     uint maxIters, float tol)
 {
+    // This helper solves a constant-normal tangent plane. A curved-surface solver
+    // must reproject and refresh its differential geometry at EVERY accepted step.
+    if (!all(isfinite(x1)) || !all(isfinite(x3)) || !all(isfinite(x2)) ||
+        !all(isfinite(n2)) || !all(isfinite(tangent)) || !all(isfinite(bitangent)) ||
+        !isfinite(eta) || eta <= 0.0 || !isfinite(tol) || tol <= 0.0 || maxIters == 0u ||
+        dot(n2, n2) < 1.0e-12 || dot(cross(tangent, bitangent), n2) == 0.0) {
+        return false;
+    }
     for (uint iter = 0; iter < maxIters; ++iter) {
+        if (dot(x1 - x2, x1 - x2) < 1.0e-12 || dot(x3 - x2, x3 - x2) < 1.0e-12) {
+            return false;
+        }
         const float3 wi = normalize(x1 - x2);   // incoming direction (x2 → x1)
         const float3 wo = normalize(x3 - x2);   // outgoing direction (x2 → x3)
-        const float2 c = specularConstraint(wo, wi, n2, eta);
+        const float2 c = specularConstraint(wi, wo, n2, eta);
+        if (!all(isfinite(c))) return false;
         if (dot(c, c) < tol * tol) {
             return true; // converged
         }
@@ -105,20 +117,22 @@ bool manifoldWalk2Bounce(
         const float eps = 1.0e-4;
         const float3 x2t = x2 + tangent * eps;
         const float3 x2b = x2 + bitangent * eps;
-        const float2 cT = specularConstraint(normalize(x3 - x2t), normalize(x1 - x2t), n2, eta);
-        const float2 cB = specularConstraint(normalize(x3 - x2b), normalize(x1 - x2b), n2, eta);
+        const float2 cT = specularConstraint(normalize(x1 - x2t), normalize(x3 - x2t), n2, eta);
+        const float2 cB = specularConstraint(normalize(x1 - x2b), normalize(x3 - x2b), n2, eta);
         const float2 dCdu = (cT - c) / eps;
         const float2 dCdv = (cB - c) / eps;
         // 2×2 Jacobian inverse.
         const float det = dCdu.x * dCdv.y - dCdu.y * dCdv.x;
-        if (abs(det) < 1.0e-12) {
+        if (!isfinite(det) || abs(det) < 1.0e-12) {
             return false; // singular Jacobian
         }
         const float2 duv = float2(
             (dCdv.y * c.x - dCdv.x * c.y) / det,
             (-dCdu.y * c.x + dCdu.x * c.y) / det);
         // Newton step on the tangent plane.
-        x2 = x2 - duv.x * tangent - duv.y * bitangent;
+        const float3 candidate = x2 - duv.x * tangent - duv.y * bitangent;
+        if (!all(isfinite(candidate))) return false;
+        x2 = candidate;
         // NOTE: reprojection onto the surface (ray trace) must be done by the caller.
     }
     return false; // did not converge

@@ -36,6 +36,7 @@ add_executable(harmonia_component_tests
     component/test_accumulation_pass.cpp
     component/test_scene_output_copy_pass.cpp
     component/test_commandpool.cpp
+    component/test_sms.cpp
 )
 
 target_link_libraries(harmonia_component_tests
@@ -44,6 +45,16 @@ target_link_libraries(harmonia_component_tests
 
 target_include_directories(harmonia_component_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+set(COMPILE_SLANG_SHADER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/shaders")
+compile_slang_shaders(harmonia_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders" sms_test.slang)
+unset(COMPILE_SLANG_SHADER_ROOT)
+unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
+add_dependencies(harmonia_component_tests harmonia_test_shaders)
+target_compile_definitions(harmonia_component_tests PRIVATE
+    HARMONIA_TEST_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
 )
 
 gtest_discover_tests(harmonia_component_tests PROPERTIES RUN_SERIAL TRUE)

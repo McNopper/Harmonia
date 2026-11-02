@@ -19,7 +19,7 @@ alongside**. If a paper supersedes a prior technique, delete the old code.
 
 The table records algorithm/model compatibility, not implementation completion.
 **SMS / GI-SMS are not integrated in either renderer** (2026-11-02 source audit);
-only uncalled manifold helpers exist. See the
+the planar manifold helper is now GPU-tested, but is not a caustic estimator. See the
 [bounded implementation plan](../PLAN.md#gi-sms-bounded-implementation-plan).
 
 | Technique | Paper | Venue | Official link | Conflict check |
