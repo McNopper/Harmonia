@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <numbers>
 #include <slang-math/slang-math.hpp>
 #include <span>
 #include <string>
@@ -309,4 +310,174 @@ TEST_F(SmsFixture, SmsTrialCategoricalReciprocalMatchesKnownExpectation) {
         EXPECT_NEAR(mean, 1.0, sixSigma) << "root " << root;
         RecordProperty("root_" + std::to_string(root) + "_mean", std::to_string(mean));
     }
+}
+
+namespace {
+struct SmsGeometryInput {
+    sm::float4 receiver, light;
+    std::array<sm::float4, 14> vertexData{};
+    sm::float4 lightDu{1, 0, 0, 0}, lightDv{0, 1, 0, 0};
+};
+struct SmsGeometryOutput {
+    sm::float4 value, status;
+};
+static_assert(sizeof(SmsGeometryInput) == 288 && sizeof(SmsGeometryOutput) == 32);
+
+void setManifoldVertex(SmsGeometryInput& input,
+                       std::size_t i,
+                       sm::float3 position,
+                       sm::float3 normal,
+                       float eta = 1.0F,
+                       float event = 0.0F,
+                       sm::float3 dndu = sm::float3(0),
+                       sm::float3 dndv = sm::float3(0)) {
+    const auto base = i * 7;
+    input.vertexData[base] = sm::float4(position, eta);
+    input.vertexData[base + 1] = sm::float4(normal, event);
+    input.vertexData[base + 2] = sm::float4(normal, 0);
+    input.vertexData[base + 3] = {1, 0, 0, 0};
+    input.vertexData[base + 4] = {0, 1, 0, 0};
+    input.vertexData[base + 5] = sm::float4(dndu, 0);
+    input.vertexData[base + 6] = sm::float4(dndv, 0);
+}
+
+SmsGeometryInput mirrorGeometry() {
+    SmsGeometryInput input{};
+    input.receiver = {-1, 0, 2, 1};
+    input.light = {2, 0.5F, 1, 0};
+    setManifoldVertex(input, 0, {1, 1.0F / 3.0F, 0}, {0, 0, 1});
+    return input;
+}
+
+void expectGeometric(const SmsGeometryOutput& output, double expected) {
+    ASSERT_EQ(output.status.x, 1.0F);
+    EXPECT_NEAR(output.value.x, expected, std::abs(expected) * 2.0e-5);
+}
+} // namespace
+
+TEST_F(SmsFixture, SmsGeometryMirrorMatchesVirtualEmitterAndCoordinateChanges) {
+    const auto base = mirrorGeometry();
+    const double distance2 = 3.0 * 3.0 + 0.5 * 0.5 + 3.0 * 3.0;
+    const double expected = 3.0 / std::pow(distance2, 1.5);
+    std::array inputs{base, base, base, base, base};
+    // Rigid rotation, arbitrary surface tangent reparameterization, uniform scale.
+    inputs[1].receiver = sm::float4(rotate(xyz(base.receiver)), 1);
+    inputs[1].light = sm::float4(rotate(xyz(base.light)), 0);
+    for (std::size_t i = 0; i < 7; ++i)
+        inputs[1].vertexData[i] = sm::float4(rotate(xyz(base.vertexData[i])), base.vertexData[i].w);
+    inputs[1].lightDu = sm::float4(rotate({1, 0, 0}), 0);
+    inputs[1].lightDv = sm::float4(rotate({0, 1, 0}), 0);
+    inputs[2].vertexData[3] = {2, 0.3F, 0, 0};
+    inputs[2].vertexData[4] = {0.2F, 0.7F, 0, 0};
+    inputs[3].receiver = sm::float4(xyz(base.receiver) * 3.0F, 1);
+    inputs[3].light = sm::float4(xyz(base.light) * 3.0F, 0);
+    inputs[3].vertexData[0] = sm::float4(xyz(base.vertexData[0]) * 3.0F, 1);
+    const sm::float3 offset(3, -4, 2);
+    inputs[4].receiver = sm::float4(xyz(base.receiver) + offset, 1);
+    inputs[4].light = sm::float4(xyz(base.light) + offset, 0);
+    inputs[4].vertexData[0] = sm::float4(xyz(base.vertexData[0]) + offset, 1);
+    std::vector<SmsGeometryOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsGeometryInput, SmsGeometryOutput>(inputs, outputs, "sms_geometry_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t i = 0; i < inputs.size(); ++i)
+        expectGeometric(outputs[i], i == 3 ? expected / 9.0 : expected);
+}
+
+TEST_F(SmsFixture, SmsGeometryTwoInterfaceSlabMatchesIndependentSnellAreaFormula) {
+    constexpr double h0 = 2, h2 = 3, depth = 0.8, eta = 1.5;
+    std::vector<SmsGeometryInput> inputs;
+    std::vector<double> expected;
+    for (double degrees : {0.0, 25.0, 55.0}) {
+        const double theta = degrees * std::numbers::pi / 180.0;
+        const double q = std::sin(theta), inside = std::asin(q / eta);
+        const sm::float3 p1(static_cast<float>(h0 * std::tan(theta)), 0, 0);
+        const auto p2 = p1 + sm::float3(static_cast<float>(depth * std::tan(inside)), 0, -static_cast<float>(depth));
+        SmsGeometryInput input{};
+        input.receiver = {0, 0, static_cast<float>(h0), 2};
+        input.light =
+            sm::float4(p2 + sm::float3(static_cast<float>(h2 * std::tan(theta)), 0, -static_cast<float>(h2)), 0);
+        setManifoldVertex(input, 0, p1, {0, 0, 1}, static_cast<float>(eta), 1);
+        setManifoldVertex(input, 1, p2, {0, 0, -1}, static_cast<float>(1.0 / eta), 1);
+        inputs.push_back(input);
+        if (degrees == 0)
+            expected.push_back(1.0 / std::pow(h0 + h2 + depth / eta, 2));
+        else {
+            const double radius = (h0 + h2) * std::tan(theta) + depth * std::tan(inside);
+            const double derivative =
+                (h0 + h2) / std::pow(std::cos(theta), 3) + depth / eta / std::pow(std::cos(inside), 3);
+            expected.push_back(q / (std::cos(theta) * radius * derivative));
+        }
+    }
+    std::vector<SmsGeometryOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsGeometryInput, SmsGeometryOutput>(inputs, outputs, "sms_geometry_test.spv")));
+    ASSERT_EQ(outputs.size(), expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i)
+        expectGeometric(outputs[i], expected[i]);
+}
+
+TEST_F(SmsFixture, SmsGeometryCurvatureMatchesParaxialMirrorOptics) {
+    std::vector<SmsGeometryInput> inputs;
+    for (float radius : {1.0F, -10.0F}) {
+        SmsGeometryInput input{};
+        input.receiver = {0, 0, 2, 1};
+        input.light = {0, 0, 3, 0};
+        setManifoldVertex(input, 0, {0, 0, 0}, {0, 0, 1}, 1, 0, {1.0F / radius, 0, 0}, {0, 1.0F / radius, 0});
+        inputs.push_back(input);
+    }
+    std::vector<SmsGeometryOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsGeometryInput, SmsGeometryOutput>(inputs, outputs, "sms_geometry_test.spv")));
+    ASSERT_EQ(outputs.size(), 2U);
+    expectGeometric(outputs[0], 1.0 / (17.0 * 17.0));
+    expectGeometric(outputs[1], 1.0 / (3.8 * 3.8));
+}
+
+TEST_F(SmsFixture, SmsGeometryInvalidAndSingularPathsAreExplicitFailures) {
+    std::array inputs{mirrorGeometry(), mirrorGeometry(), mirrorGeometry()};
+    inputs[0].receiver.w = 0;
+    inputs[1].vertexData[1].w = 1; // Wrong-side "transmission" is not an admissible root.
+    inputs[1].vertexData[0].w = 1.5F;
+    inputs[2].receiver = {0, 0, 2, 1};
+    inputs[2].light = {0, 0, 2, 0};
+    setManifoldVertex(inputs[2], 0, {0, 0, 0}, {0, 0, 1}, 1, 0, {-0.5F, 0, 0}, {0, -0.5F, 0}); // Exact conjugate focus:
+                                                                                               // singular Jacobian.
+    std::vector<SmsGeometryOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsGeometryInput, SmsGeometryOutput>(inputs, outputs, "sms_geometry_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (const auto& output : outputs) {
+        EXPECT_EQ(output.status.x, 0.0F);
+        EXPECT_TRUE(std::isfinite(output.value.x));
+    }
+}
+
+TEST_F(SmsFixture, SmsInterfaceSnellFresnelAndTirAreSideCorrect) {
+    std::array<SmsGeometryInput, 5> inputs{};
+    for (auto& input : inputs) {
+        input.light.w = 1;
+        input.receiver = {0, 0, 1, 1}; // transmission
+        input.vertexData[0] = {0, 0, 1, 2.0F / 3.0F};
+    }
+    inputs[1].vertexData[0].w = 1.5F;
+    inputs[2].receiver = {0.5F, 0, std::sqrt(0.75F), 1};
+    inputs[3].receiver = {std::sqrt(0.75F), 0, 0.5F, 1};
+    inputs[3].vertexData[0].w = 1.5F; // TIR transmission must FAIL, not become reflection.
+    inputs[4] = inputs[3];
+    inputs[4].receiver.w = 0; // Requested reflection under TIR remains valid.
+    std::vector<SmsGeometryOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsGeometryInput, SmsGeometryOutput>(inputs, outputs, "sms_geometry_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (auto i : {0U, 1U, 2U, 4U})
+        ASSERT_EQ(outputs[i].status.x, 1.0F);
+    EXPECT_NEAR(outputs[0].value.w, 0.96F * 4.0F / 9.0F, 1.0e-6F);
+    EXPECT_NEAR(outputs[1].value.w, 0.96F * 9.0F / 4.0F, 1.0e-6F);
+    EXPECT_NEAR(outputs[0].value.w * outputs[1].value.w, 0.96F * 0.96F, 1.0e-6F);
+    EXPECT_NEAR(outputs[2].value.x, -1.0F / 3.0F, 1.0e-6F);
+    EXPECT_NEAR(outputs[2].value.z, -std::sqrt(8.0F / 9.0F), 1.0e-6F);
+    EXPECT_EQ(outputs[3].status.x, 0.0F);
+    EXPECT_EQ(outputs[3].value.w, 0.0F);
+    EXPECT_NEAR(outputs[4].value.w, 1.0F, 1.0e-6F);
 }

@@ -106,7 +106,7 @@ wavefront + PERF4 recovery arc in `Theia/PLAN.md`, not an unconditional rewrite.
 
 | # | Task | Track | Status | Notes |
 |---|------|-------|--------|-------|
-| 1 | **GI-SMS** (Hong et al., SIGA 2025) — verified solver, unbiased caustic estimator, then partitioning + spatial ReSTIR | GI | **in progress** | Analytic planar solver tests now execute the production Slang on the GPU; reflection-sign and degenerate-input defects fixed. No renderer estimator is integrated yet. Next: reciprocal-trial completion and sampling-law tests. |
+| 1 | **GI-SMS** (Hong et al., SIGA 2025) — verified solver, unbiased caustic estimator, then partitioning + spatial ReSTIR | GI | **in progress** | Planar solver, uncapped reciprocal state, Philox trials, frame completion and full coupled geometric Jacobian are verified checkpoints. No renderer estimator is integrated yet. Next: scene reprojection/Newton solver and root identity, then Hyperion wiring. |
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
 | 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — scheduling prerequisite for PERF4 | PERF | **parked** | Theia stage-1 cost ~2× monolithic GI; retained on `perf5/wavefront-stage1`. Re-entry requires a credible combined compaction/reordering recovery budget; see `Theia/PLAN.md`. |
 | 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **pending** | Combined with PERF5 re-entry, after GI-SMS. Published trace-only speedups are not total-GI speedups; sorting, traffic and barriers must be included. |
@@ -605,6 +605,29 @@ it changes the root probabilities, which must be the same in initial and repeat
 trials, and still requires nonzero support for every targeted root.
 
 **Small implementation checkpoints (one verified change before the next):**
+
+**2b.3a geometric-term verification plan (math baseline `3d65472`, completion
+checkpoint `301b97d`):** compile `sms_geometry.slang` into the GPU test entry.
+Require relative error at most `2e-5` against independent virtual-mirror,
+Snell/radial-area closed-slab (0°, 25°, 55°) and paraxial curved-mirror formulas.
+Rigid transforms and tangent reparameterization preserve G; uniform scaling by s
+changes it by 1/s². Test entry/exit Snell directions, Fresnel/radiance factors and
+explicit TIR rejection. Commands: `cmake --build build`, then
+`build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsGeometry*:SmsFixture.SmsInterface*`.
+An isolated missing-normal-derivative mutant must fail the curved-mirror oracle;
+restore the exact SPIR-V and rerun full regression. The double-precision
+derivation was checked with an independent planar-optics formula before the
+Slang port (relative agreement better than `1e-12`). No geometric clamps or
+inverse-square replacement for the coupled Jacobian. Invalid/singular completed
+sample geometry must be an explicit failure, not a silently dropped contribution.
+These are geometric/physical primitives, not an integrated renderer estimator.
+**Executed:** 5/5 GPU geometry/interface tests PASS, including curved normals,
+closed two-interface refraction, translation/rotation/reparameterization/scaling,
+singular failure and TIR. Omitting normal derivatives failed the curved-mirror
+and singular-root controls; removing inter-vertex Jacobian coupling failed the
+closed-slab oracle. Original SPIR-V restored byte-exact; full regression
+119/119 PASS. No renderer imports this module yet, and no new rendered caustic
+or performance result is claimed by this checkpoint.
 
 **2b.2a verification plan (baseline `87b787f`):** implement only resumable
 reciprocal-trial accounting in shared `shaders/sms.slang`. It owns completion,
