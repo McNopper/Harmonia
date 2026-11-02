@@ -653,6 +653,21 @@ Slang lacks the attempted `umulExtended` spelling, so wide multiplication uses
 The next unresolved part of 2b.2 is renderer-side completion scheduling/root
 identity, not counter arithmetic or the PRNG implementation.
 
+**Integration-contract decision before 2b.3:** `IRenderer::record` returns void;
+`AppOffscreen.cpp::renderSceneReferred` runs the scene stages and advances the
+frame index unconditionally, and `renderOffscreen` exports after a fixed number
+of submissions. There is no renderer-ready/pending signal. Resumable SMS alone
+does not make that schedule correct: pending local candidates cannot be reused
+as completed samples, and final pending contributions cannot be discarded.
+An unbounded reciprocal loop in one GPU dispatch is not a safe replacement.
+Proposed policy for owner confirmation: permit host observation of renderer
+completion/ready status only, while all ray/workgroup counts remain GPU-resident
+and GPU-written. Add an explicit logical-frame/completion contract so trial
+draining does not consume new samples, advance sample/frame IDs or run
+accumulation on incomplete data. Preserve `--spp`/`--offscreen-frames` meanings,
+and export only after all required samples finish. Do not silently amend the
+standing GPU-driven rule or use a fixed trial cap to bypass this decision.
+
 **2b.1 verification receipt (baseline `d0818f1`, Windows/Vulkan):** built with
 `cmake --build build`; execute the actual Slang/SPIR-V arithmetic with
 `build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.Sms*`.
