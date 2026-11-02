@@ -170,6 +170,29 @@ seed / increasing-sample gates and missing/doubled-energy controls. Commands:
 Reuse the existing scalar parallel-slab oracle from `derive_sms_geometry.py`;
 this is renderer implementation verification, not new algorithm research.
 Pure absorption follows only after this TT slice is green, then Hong / Theia.
+**Executed flat-glass acceptance:** production projector roots at 0/25/55 degrees
+from three starting seeds (including off-root cases) match positions <=3e-4, residual <=1e-5 and
+geometric term <=2e-5 relative. Actual TT EXR energy ratios across seeds
+17/91/1234/2026 are 0.988291 / 1.00283 / 0.991974 / 0.995082; 128/32-sample MSE
+ratio 0.25149. Missing/doubled TT controls each fail, exact restores pass. Hyperion
+full 58/58, zero validation messages; canonical architecture and tidy/dead pass.
+Only tests changed since the mirror implementation; curved caustics, absorption,
+Hong / Theia / performance remain outstanding. EXRs are
+`Hyperion/build/tests/sms_closed_glass_seed{17,91,1234,2026}.exr`.
+
+**Pure-absorption slice verification plan:** extend only the same untextured
+smooth closed TT domain to `transmission_depth>1e-4` with zero scattering. Use
+the existing `transmissionVolumeCoeffs` + deterministic Beer transmittance, white
+interfaces at positive depth, and the actual medium exit's geometric normal.
+Ordinary PT retains all internal-reflection/scattering paths; first boundary
+reflection must clear SMS ownership. Keep the explicit >=4 depth gate on both
+SMS proposal and ownership. Verify colored slab RGB against radial Snell + Beer
+integration, including the small ordinary-PT internal-reflection series in the
+oracle with a stated truncation bound. Run
+`hyperion_module_tests.exe --gtest_filter=SmsAbsorptionFrameFixture.*`;
+missing/doubled/incorrect per-crossing-tint controls must fail; preserve mirror /
+zero-depth glass energy and full family regression. This is a material-domain
+extension, not support for scattering or arbitrary specular chains.
 
 | Deliverable | Acceptance / oracle | Verification |
 | --- | --- | --- |
