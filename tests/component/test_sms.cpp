@@ -2,6 +2,7 @@
 #include <volk/volk.h>
 
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -48,7 +49,8 @@ struct ReadbackStorage {
 
 class SmsFixture : public VulkanFixture {
   public:
-    void run(std::span<const SmsInput> inputs, std::vector<SmsOutput>& results) {
+    template <typename Input, typename Output>
+    void runCompute(std::span<const Input> inputs, std::vector<Output>& results, const char* shader) {
         const auto& ctx = deviceCtx();
         auto source = harmonia::core::Buffer::create(ctx,
                                                      inputs.size_bytes(),
@@ -62,7 +64,7 @@ class SmsFixture : public VulkanFixture {
         target.allocator = ctx.allocator;
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = inputs.size() * sizeof(SmsOutput);
+        bufferInfo.size = inputs.size() * sizeof(Output);
         bufferInfo.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         VmaAllocationCreateInfo allocationInfo{};
         allocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
@@ -73,8 +75,8 @@ class SmsFixture : public VulkanFixture {
             VK_SUCCESS);
         ASSERT_NE(mapped.pMappedData, nullptr);
         // Poison readback so an absent dispatch cannot look successful.
-        results.assign(inputs.size(), SmsOutput{sm::float4(-99.0F), sm::float4(-99.0F)});
-        std::memcpy(mapped.pMappedData, results.data(), results.size() * sizeof(SmsOutput));
+        results.resize(inputs.size());
+        std::memset(mapped.pMappedData, 0xCD, results.size() * sizeof(Output));
         ASSERT_EQ(vmaFlushAllocation(ctx.allocator, target.allocation, 0, VK_WHOLE_SIZE), VK_SUCCESS);
 
         const VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(SmsPush)};
@@ -88,8 +90,8 @@ class SmsFixture : public VulkanFixture {
         VkPipelineLayout rawLayout{};
         ASSERT_EQ(vkCreatePipelineLayout(ctx.device, &layoutInfo, nullptr, &rawLayout), VK_SUCCESS);
         const harmonia::core::UniquePipelineLayout layout{ctx.device, rawLayout};
-        auto rawModule = harmonia::core::createShaderModule(
-            ctx.device, std::filesystem::path(HARMONIA_TEST_SHADER_DIR) / "sms_test.spv");
+        auto rawModule =
+            harmonia::core::createShaderModule(ctx.device, std::filesystem::path(HARMONIA_TEST_SHADER_DIR) / shader);
         ASSERT_TRUE(rawModule.has_value());
         const harmonia::core::UniqueShaderModule module{ctx.device, *rawModule};
         const VkComputePipelineCreateInfo pipelineInfo{
@@ -139,8 +141,12 @@ class SmsFixture : public VulkanFixture {
         vkCmdPipelineBarrier2(*cmd, &dependency);
         ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
         ASSERT_EQ(vmaInvalidateAllocation(ctx.allocator, target.allocation, 0, VK_WHOLE_SIZE), VK_SUCCESS);
-        const auto* output = static_cast<const SmsOutput*>(mapped.pMappedData);
+        const auto* output = static_cast<const Output*>(mapped.pMappedData);
         results.assign(output, output + inputs.size());
+    }
+
+    void run(std::span<const SmsInput> inputs, std::vector<SmsOutput>& results) {
+        runCompute<SmsInput, SmsOutput>(inputs, results, "sms_test.spv");
     }
 };
 
@@ -215,4 +221,35 @@ TEST_F(SmsFixture, SmsDegenerateGeometryFailsWithoutNonFinitePosition) {
         EXPECT_EQ(output.root.w, 0.0F);
         EXPECT_TRUE(std::isfinite(output.root.x) && std::isfinite(output.root.y) && std::isfinite(output.root.z));
     }
+}
+
+TEST_F(SmsFixture, SmsReciprocalCountsThroughSuccessWithoutTrialCap) {
+    using Words = std::array<std::uint32_t, 4>;
+    const std::array inputs{Words{0, 1, 0, 0},
+                            Words{127, 16, 0, 0},
+                            Words{257, 4, 0, 0},
+                            Words{712, 1, 0, 0},
+                            Words{712, 7, 0, 0},
+                            Words{712, 128, 0, 0}};
+    std::vector<Words> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Words, Words>(inputs, outputs, "sms_reciprocal_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+        SCOPED_TRACE(i);
+        EXPECT_EQ(outputs[i][0], inputs[i][0] + 1U);
+        EXPECT_EQ(outputs[i][1], 0U);
+        EXPECT_EQ(outputs[i][2], 1U);
+        EXPECT_EQ(outputs[i][3], std::bit_cast<std::uint32_t>(static_cast<float>(inputs[i][0] + 1U)))
+            << "Wrong weight or an unfinished reciprocal estimate was published";
+    }
+}
+
+TEST_F(SmsFixture, SmsReciprocalCarryAndOverflowAreExplicit) {
+    using Words = std::array<std::uint32_t, 4>;
+    const std::array inputs{Words{1, 1, 0xFFFFFFFEU, 0}, Words{0, 1, 0xFFFFFFFFU, 0xFFFFFFFFU}};
+    std::vector<Words> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Words, Words>(inputs, outputs, "sms_reciprocal_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    EXPECT_EQ(outputs[0], (Words{0, 1, 1, std::bit_cast<std::uint32_t>(4294967296.0F)}));
+    EXPECT_EQ(outputs[1], (Words{0, 0, 2, 0}));
 }

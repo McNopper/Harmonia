@@ -606,6 +606,25 @@ trials, and still requires nonzero support for every targeted root.
 
 **Small implementation checkpoints (one verified change before the next):**
 
+**2b.2a verification plan (baseline `87b787f`):** implement only resumable
+reciprocal-trial accounting in shared `shaders/sms.slang`. It owns completion,
+64-bit trial counting and overflow failure, not seed generation or root matching.
+Exact GPU tests require K=1 on first success, K=failures+1 for late success
+(including beyond 128), identical results across chunk sizes, no publication
+while pending, correct low-word carry and visible overflow failure. Commands:
+`cmake --build build`, then
+`build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsReciprocal*`.
+Run an isolated 128-trial-cap mutant of the shader and require those tests to
+fail; restore the unmodified shader binary and rerun the full 102+ test suite.
+This checkpoint does NOT establish an i.i.d. trial stream or full GPU completion
+scheduling; those remain gates before renderer integration.
+**Executed:** 2/2 new GPU tests PASS, 0 skipped. The isolated cap mutant failed
+`SmsReciprocalCountsThroughSuccessWithoutTrialCap` as required (1 failure of
+2 selected tests); the original SPIR-V was restored byte-exact and the full
+Harmonia non-analysis suite passed 104/104. The module is not imported by a
+renderer, so the representative capture receipts from 2b.1 remain the most recent
+rendering evidence, not tests of a newly integrated estimator.
+
 **2b.1 verification receipt (baseline `d0818f1`, Windows/Vulkan):** built with
 `cmake --build build`; execute the actual Slang/SPIR-V arithmetic with
 `build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.Sms*`.
