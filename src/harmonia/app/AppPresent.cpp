@@ -306,7 +306,11 @@ int App::mainLoop() {
 
         // Save the frame slot before renderSceneReferred advances it.
         const std::uint32_t slot = m_frameSync.currentSlot();
-        const std::uint64_t renderValue = renderSceneReferred();
+        const auto renderValue = renderSceneReferred();
+        if (!renderValue) {
+            static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+            return 1;
+        }
         ++m_pacingRenderedFrames;
         // I6: --frames-per-flip — N accumulation frames per swapchain flip. The render
         // half runs every iteration; only the display/present half is gated, so N = 1 is
@@ -314,7 +318,7 @@ int App::mainLoop() {
         ++m_framesSinceFlip;
         if (m_framesSinceFlip >= std::max(m_config.framesPerFlip, 1U)) {
             m_framesSinceFlip = 0U;
-            presentFrame(slot, renderValue);
+            presentFrame(slot, *renderValue);
             ++m_pacingFlippedFrames;
         }
         // I6 pacing diagnostic: the measurable frames-per-flip oracle — one line per

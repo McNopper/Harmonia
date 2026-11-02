@@ -29,7 +29,7 @@
 
 namespace harmonia::app {
 
-std::uint64_t App::renderSceneReferred() {
+std::expected<std::uint64_t, VkResult> App::renderSceneReferred() {
     const std::uint32_t slot = m_frameSync.currentSlot();
 
     // Wait for the previous use of this frame slot to complete.
@@ -43,9 +43,9 @@ std::uint64_t App::renderSceneReferred() {
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     };
-    if (vkBeginCommandBuffer(renderCmd, &beginInfo) != VK_SUCCESS) {
+    if (const auto result = vkBeginCommandBuffer(renderCmd, &beginInfo); result != VK_SUCCESS) {
         core::Logger::error("Failed to begin render command buffer");
-        return m_frameSync.completionValue(slot);
+        return std::unexpected(result);
     }
 
     // The renderer produces a linear image in the scene-referred working
@@ -62,6 +62,49 @@ std::uint64_t App::renderSceneReferred() {
     // Allow subclasses to split the frame for async compute.
     // Default: {renderCmd, VK_NULL_HANDLE} — single-queue path unchanged.
     auto [stagesCmd, asyncWaitSem] = onBeforeSceneStages(renderCmd);
+
+    if (auto* completion = sceneFrameCompletion()) {
+        // Finish the initial producer batch, including async ownership-acquire
+        // barriers, BEFORE querying its GPU-written completion status. This path
+        // is absent for ordinary one-submission renderers.
+        if (const auto result = vkEndCommandBuffer(stagesCmd); result != VK_SUCCESS)
+            return std::unexpected(result);
+        VkSemaphore rawTimeline{};
+        if (const auto result = core::createTimelineSemaphore(deviceContext().device, &rawTimeline);
+            result != VK_SUCCESS)
+            return std::unexpected(result);
+        const core::UniqueSemaphore timeline{deviceContext().device, rawTimeline};
+        const VkSemaphoreSubmitInfo waitInfo{.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                                             .pNext = nullptr,
+                                             .semaphore = asyncWaitSem,
+                                             .value = 0,
+                                             .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                                             .deviceIndex = 0};
+        const auto waits = asyncWaitSem == VK_NULL_HANDLE ? std::span<const VkSemaphoreSubmitInfo>{}
+                                                          : std::span<const VkSemaphoreSubmitInfo>{&waitInfo, 1};
+        if (const auto result = core::submitOneShot(deviceContext().graphicsQueue, stagesCmd, timeline, 1, waits);
+            result != VK_SUCCESS) {
+            static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+            return std::unexpected(result);
+        }
+        if (const auto result = core::waitTimelineSemaphore(deviceContext().device, timeline, 1);
+            result != VK_SUCCESS) {
+            // Retire BEFORE the local timeline owner unwinds, not only in the
+            // outer frame loop. A failed wait may leave this submission in flight.
+            static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+            return std::unexpected(result);
+        }
+        if (const auto result = drainFrameWork(*completion, m_commandPool); result != VK_SUCCESS) {
+            core::Logger::error("Renderer frame completion failed: {}", static_cast<int>(result));
+            return std::unexpected(result);
+        }
+        if (const auto result = vkResetCommandBuffer(stagesCmd, 0); result != VK_SUCCESS)
+            return std::unexpected(result);
+        if (const auto result = vkBeginCommandBuffer(stagesCmd, &beginInfo); result != VK_SUCCESS)
+            return std::unexpected(result);
+        asyncWaitSem = VK_NULL_HANDLE; // The binary semaphore was consumed above.
+    }
+    onSceneFrameReady(stagesCmd);
 
     const pipeline::PassContext passContext{
         .cmd = stagesCmd,
@@ -89,9 +132,9 @@ std::uint64_t App::renderSceneReferred() {
         }
     }
 
-    if (vkEndCommandBuffer(stagesCmd) != VK_SUCCESS) {
+    if (const auto result = vkEndCommandBuffer(stagesCmd); result != VK_SUCCESS) {
         core::Logger::error("Failed to end render command buffer");
-        return m_frameSync.completionValue(slot);
+        return std::unexpected(result);
     }
 
     const std::uint64_t signalValue = m_frameSync.nextSignalValue();
@@ -126,7 +169,7 @@ std::uint64_t App::renderSceneReferred() {
         if (submitResult == VK_ERROR_DEVICE_LOST) {
             vulkan_init::reportDeviceFault(m_context.deviceContext());
         }
-        return m_frameSync.completionValue(slot);
+        return std::unexpected(submitResult);
     }
 
     m_frameSync.markSlotComplete(slot, signalValue);
@@ -146,7 +189,13 @@ int App::renderOffscreen() {
     core::ScopedBackgroundPriority backgroundPriority;
 
     for (std::uint32_t i = 0; i < frameCount; ++i) {
-        renderSceneReferred();
+        if (!renderSceneReferred()) {
+            core::Logger::error("Offscreen frame failed; no incomplete capture will be exported");
+            // Derived renderer resources are destroyed before App's base
+            // destructor: retire earlier slots before returning to their owner.
+            static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+            return 1;
+        }
         // Courtesy yield between frames, in addition to the priority drop above. It is
         // NOT sufficient on its own: on Windows this is SwitchToThread(), which per
         // Microsoft "will not switch execution to another processor, even if that

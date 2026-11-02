@@ -660,13 +660,66 @@ of submissions. There is no renderer-ready/pending signal. Resumable SMS alone
 does not make that schedule correct: pending local candidates cannot be reused
 as completed samples, and final pending contributions cannot be discarded.
 An unbounded reciprocal loop in one GPU dispatch is not a safe replacement.
-Proposed policy for owner confirmation: permit host observation of renderer
+**Owner-approved policy (2026-11-02):** permit host observation of renderer
 completion/ready status only, while all ray/workgroup counts remain GPU-resident
 and GPU-written. Add an explicit logical-frame/completion contract so trial
 draining does not consume new samples, advance sample/frame IDs or run
 accumulation on incomplete data. Preserve `--spp`/`--offscreen-frames` meanings,
 and export only after all required samples finish. Do not silently amend the
-standing GPU-driven rule or use a fixed trial cap to bypass this decision.
+standing GPU-driven rule beyond this status-only allowance, or use a fixed trial
+cap to bypass completion.
+
+**2b.2c verification plan (baseline `e3ce61a`):** the app layer owns a narrow
+`IFrameCompletion` interface (ready/pending/error + record one bounded continuation).
+After the initial producer submission completes, drain continuations before
+scene stages, frame/sample index advancement or export. No changes to ray or
+workgroup-count ownership; null completion provider keeps the existing schedule.
+Host/render errors must stop capture instead of exporting a partial success.
+Verify `cmake --build build` and
+`build/tests/harmonia_component_tests.exe --gtest_filter=VulkanFixture.FrameCompletion*`:
+already-ready work submits zero continuations, delayed GPU status is waited on,
+and status/recording errors propagate. Full non-analysis regression and both
+renderer build/capture smokes follow. This is completion infrastructure, not an
+SMS scene-quality claim.
+**End-to-end acceptance before committing 2b.2c:** exercise the real `App` loop
+with a synthetic GPU-completion renderer. Two logical frames, each requiring
+three continuation submissions, must retain frame IDs 0/1 and capture their
+completed-color average (0.5), not the incomplete black images. A producer error
+must return nonzero and create no EXR/PNG. Command:
+`build/tests/harmonia_integration_tests.exe --gtest_filter=FrameCompletionCapture.*`.
+Temporarily bypassing the host completion branch must fail these tests; restore
+the exact branch and rerun. The null-provider Cornell captures are already
+float-exact to the pre-contract snapshots (0/76,800 changed pixels per renderer).
+
+**2b.2c review fixes — verification plan:** fresh-context read-only review found
+that new frame-error returns can bypass GPU retirement before derived renderer
+destruction, and that a failed initial completion wait can destroy its semaphore
+too early. The inherited one-shot continuation path has the same wait-error
+cleanup hazard. Add narrowly scoped Vulkan fault injection (serial tests only):
+fail a later-frame submit, fail the initial completion wait, and fail a one-shot
+wait. Assert retirement happens before `App::run` returns and before semaphore /
+command-buffer destruction, including one retryable idle-allocation failure.
+First run these tests against the faulty candidate; the test oracle records
+unsafe cleanup and safely retires the device itself to avoid a real use-after-free.
+Then fix and rerun with no test recovery used. Preserve the initiating error;
+never export a partial image. This is a prerequisite to committing the contract,
+not an extra SMS feature or an amendment to the no-push instruction.
+
+**2b.2c executed receipt:** helper 3/3, real-App capture/failure 4/4 and one-shot
+lifetime 1/1 selected tests PASS, 0 skipped. The host-bypass mutant failed both
+original capture tests; all three lifetime tests failed against the pre-fix
+candidate, then passed without oracle recovery. Full Harmonia regression
+114/114 PASS. A second fresh-context source review found both lifetime defects
+resolved, no remaining completion-scope blocker; it did not rerun GPU tests.
+Canonical architecture engine 1.4.2 passed (109 files, 29 edges, no cycles);
+vendored 1.4.0 was not silently updated or used as the current gate. Local tidy
+and dead-code lanes passed (2/2). Hyperion 47/47 and Theia 33/33 passed after
+rebuilds; validation-clean Cornell 320×240, 32 spp / 32 frames captures remain
+raw-float-exact to the pre-contract snapshots, with all-black diff maps.
+Initial comparison-script import failure was tooling-only (OpenImageIO Python
+binding absent); rerun used the existing OpenEXR loader and passed. Actual SMS
+adapter wiring, async split + active completion and interactive abort coverage
+remain later acceptance work, not claims made by these infrastructure tests.
 
 **2b.1 verification receipt (baseline `d0818f1`, Windows/Vulkan):** built with
 `cmake --build build`; execute the actual Slang/SPIR-V arithmetic with

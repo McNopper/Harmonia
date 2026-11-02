@@ -113,6 +113,14 @@ class App {
         return {renderCmd, VK_NULL_HANDLE};
     }
 
+    /// A subclass coordinating extra producer passes (e.g. async GI) may supply
+    /// their completion adapter instead of the injected renderer's adapter.
+    [[nodiscard]] virtual IFrameCompletion* sceneFrameCompletion() noexcept { return renderer().frameCompletion(); }
+
+    /// Producer work is now complete. Record any dependent renderer-owned post
+    /// passes here; the shared scene stages follow. Default preserves old order.
+    virtual void onSceneFrameReady(VkCommandBuffer cmd) noexcept { static_cast<void>(cmd); }
+
     /// Per-frame update (camera controller, window title, ...).
     virtual void onUpdate(float dtSeconds) { static_cast<void>(dtSeconds); }
 
@@ -181,7 +189,7 @@ class App {
     int mainLoop();
     [[nodiscard]] int renderOffscreen(); /// Record + submit the renderer into the HDR image; returns the timeline
     /// value signalled on completion and advances the frame slot.
-    std::uint64_t renderSceneReferred();
+    std::expected<std::uint64_t, VkResult> renderSceneReferred();
     /// Acquire, tonemap, present the given completed scene-referred frame.
     void presentFrame(std::uint32_t slot, std::uint64_t renderValue);
     [[nodiscard]] std::optional<std::uint32_t> acquireFrame(std::uint32_t slot) noexcept;

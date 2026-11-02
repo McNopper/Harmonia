@@ -3,6 +3,7 @@
 
 #include <volk/volk.h>
 
+#include "harmonia/app/IFrameCompletion.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
 
@@ -47,6 +48,10 @@ class IRenderer {
     /// VK_IMAGE_LAYOUT_UNDEFINED) and must leave the image in
     /// VK_IMAGE_LAYOUT_GENERAL for the host's tonemap pass.
     virtual void record(VkCommandBuffer cmd, const RenderTarget& target) noexcept = 0;
+
+    /// Optional bounded-work continuation for this logical frame. Non-null means
+    /// the host submits/waits for producer work, then drains it before accumulation.
+    [[nodiscard]] virtual IFrameCompletion* frameCompletion() noexcept { return nullptr; }
 
     /// renderer::Pipeline stage(s) that produce the renderer's final write into the
     /// target — used by the host for the pre-tonemap barrier.

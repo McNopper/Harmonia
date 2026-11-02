@@ -8,6 +8,17 @@ the shared vocabulary `harmonia::` at the bottom, the `app` host on top.
 Renderer isolation is law: `theia` and `hyperion` are siblings — both consume
 Harmonia, neither is ever included here.
 
+## Logical frame completion
+
+The app layer owns `IFrameCompletion`: a renderer or a demo coordinating producer
+passes may expose bounded continuations for one logical frame. The host waits
+for the initial producer submission and resumes pending work before dependent
+post-processing, accumulation, sample/frame advancement or capture export.
+Ready/pending/error readbacks are owner-approved; ray/workgroup counts remain
+GPU-resident and GPU-written. No new module or dependency edge is introduced:
+the host already consumes `core::CommandPool`. A null adapter preserves the
+ordinary one-submission schedule; it is not an alternate estimator.
+
 <!-- check_arch: diagram BEGIN -->
 ### the layers
 

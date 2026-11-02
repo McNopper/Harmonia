@@ -12,6 +12,7 @@
 #include <cstring>
 #include <gtest/gtest.h>
 
+#include "fixtures/VulkanFaultScope.hpp"
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
@@ -58,4 +59,24 @@ TEST_F(VulkanFixture, CommandPool_MultipleOneShotCallsSucceed) {
         ASSERT_TRUE(cmd.has_value()) << "iter " << iter << ": " << static_cast<int>(cmd.error());
         EXPECT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS) << "iter " << iter;
     }
+}
+
+TEST_F(VulkanFixture, CommandPool_WaitFailureRetiresBeforeFreeingResources) {
+    auto buffer = harmonia::core::Buffer::create(
+        deviceCtx(), 16, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.wait.failure");
+    ASSERT_TRUE(buffer.has_value());
+    const auto cmd = commandPool().beginOneShot();
+    ASSERT_TRUE(cmd.has_value());
+    vkCmdFillBuffer(*cmd, buffer->handle(), 0, 16, 0x12345678U);
+    VulkanFaultScope faults;
+    faults.failWaitOnce = true;
+    faults.idleAllocationFailures = 1;
+    faults.arm();
+    EXPECT_EQ(commandPool().endOneShot(*cmd), VK_ERROR_OUT_OF_HOST_MEMORY);
+    EXPECT_TRUE(faults.waitInjected);
+    EXPECT_GE(faults.idleCalls, 2U);
+    EXPECT_TRUE(faults.retiredBySubject);
+    EXPECT_FALSE(faults.unsafeSemaphoreDestruction);
+    EXPECT_FALSE(faults.unsafeCommandFree);
+    EXPECT_FALSE(faults.testRecoveryUsed);
 }

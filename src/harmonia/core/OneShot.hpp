@@ -5,8 +5,24 @@
 
 #include <cstdint>
 #include <span>
+#include <thread>
 
 namespace harmonia::core {
+
+/// Error-path retirement barrier. An allocation failure from a host wait does
+/// NOT establish GPU completion. Keep submitted resources alive until the device
+/// is quiescent (or lost); retry transient host/device allocation failures rather
+/// than freeing in-flight objects. Callers preserve the initiating error code.
+/// A persistent retirement failure blocks safe teardown, never permits a partial
+/// successful capture. This is not a render hot-path wait or an estimator cap.
+[[nodiscard]] inline VkResult waitDeviceQuiescent(VkDevice device) noexcept {
+    for (;;) {
+        const auto result = vkDeviceWaitIdle(device);
+        if (result == VK_SUCCESS || result == VK_ERROR_DEVICE_LOST)
+            return result;
+        std::this_thread::yield();
+    }
+}
 
 /// MOD2: timeline semaphore for one-shot submits (replaces VkFence — unifies all sync
 /// on one primitive; the frame path already uses timeline semaphores exclusively).

@@ -37,6 +37,7 @@ add_executable(harmonia_component_tests
     component/test_scene_output_copy_pass.cpp
     component/test_commandpool.cpp
     component/test_sms.cpp
+    component/test_frame_completion.cpp
 )
 
 target_link_libraries(harmonia_component_tests
@@ -70,6 +71,7 @@ add_executable(harmonia_integration_tests
     integration/test_context.cpp
     integration/test_scene_loader.cpp
     integration/test_ibl_probe_encoding.cpp
+    integration/test_frame_completion_capture.cpp
 )
 
 target_link_libraries(harmonia_integration_tests

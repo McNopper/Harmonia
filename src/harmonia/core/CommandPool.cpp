@@ -110,6 +110,12 @@ VkResult CommandPool::endOneShot(VkCommandBuffer cmd) const noexcept {
         result = harmonia::core::waitTimelineSemaphore(m_device, semaphore, 1);
     }
 
+    if (result != VK_SUCCESS) {
+        // A failed host wait is not completion. The semaphore and command buffer
+        // must outlive any successful submission, even when waiting ran out of memory.
+        static_cast<void>(harmonia::core::waitDeviceQuiescent(m_device));
+    }
+
     vkDestroySemaphore(m_device, semaphore, nullptr);
     free(cmd);
     return result;
