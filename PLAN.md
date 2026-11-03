@@ -71,10 +71,8 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.16 - VK16 device-lost forensics (device_fault + address binding report), SM6 remainder (`sm::trs`, `float3x3`, pi dedup), Context lifecycle extraction, architecture directive recorded (renderers receive flat lists). slang-math v0.5.0, Aether v0.8.0.
-  slang-math **v0.4.0** - pin bumped, `sm::saturate` available). All five repos
-  verified tag-synced with GitHub.
-- **Last shipped:** v0.7.15 - **H-05** color-space seam guards (5 fail-fast guards + 8 no-GPU tests) + **SM6** `sm::saturate` (27 sites); tests 90->98. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
+- **Release:** v0.7.19 - general rendering correctness and fail-safe GPU resource lifetimes; Aether v0.8.1, slang-math v0.8.0. No SMS integration is included.
+- **Last shipped:** v0.7.18 - Aether pin v0.8.1. Prior v0.7.16 - VK16 device-lost forensics + SM6 remainder. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
   module, contract edge removed) + **AR2** (layered CMake targets) + **T-03** narrow
   barrier face + the Q1/Q3 quality wave - see Baseline.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
@@ -97,78 +95,6 @@ the sibling clones.
 ---
 
 ## 3. How to continue
-
-### General rendering hotfixes — approved execution plan (2026-11-03)
-
-The owner prioritizes general bug fixes and integration before returning to SMS.
-Work on `fix/general-rendering-correctness` from the preserved main baselines:
-Harmonia `a649bbb`, Hyperion `49c1f21`, Theia `257c8b4`. SMS remains untouched on
-`dev/gi-sms-restir`; no SMS modules, tags, releases or dependency-pin changes are
-part of this hotfix. Integrate only after local verification.
-
-| Item | Observable acceptance / oracle | Verification |
-| --- | --- | --- |
-| Sampling/history | `--spp N` schedules N total samples; frame streams advance; CLI seeds affect samples; shared accumulation is the only history owner | Hyperion SamplingPlan / FrameSampling / CaptureSamplingContract tests; baseline shader/application controls must fail; fixed-seed replay and differing-seed captures |
-| Failure handling | Requested accumulation failure exports no images; failed host waits retire submitted resources before destruction; transfer-only images have no views | Harmonia fault-injection component/integration tests, with independent destruction counters and baseline controls |
-| Lifetime review follow-up | Recycled-slot wait failures never reset pending commands; resize/reload/shutdown establish quiescence before reset/destruction; disabled scene accumulation is never required during bootstrap | Extend CaptureFailureContract with recycled-slot, resize, shutdown and alternative-valid disabled-stage controls; observe image/view/pipeline destruction and command resets independently of subject waits |
-| BSDF measures | Discrete mirror/smooth/thin transmission events contribute no continuous eval/pdf, while ordinary rough transport remains intact | GPU BSDF measure tests with sampler/event and continuous-query oracles; old shader control must fail |
-| Timestamp lifecycle | First-use, reused and previously skipped query pairs reset on-device, without hostQueryReset | Theia PassTimer Vulkan test; omitted-reset negative control must fail |
-| Integration | No SMS dependency or pin drift; serial warning-clean builds, product regressions and lint | `cmake --build <repo>/build --parallel 2`; `ctest --test-dir <repo>/build -LE analysis -V` for H, Hy, T serially; root `lint-preflight.ps1` |
-
-Evidence uses the existing local Windows sibling-source builds, not a Linux or
-hosted-CI claim. Record every failed control and restored pass, selected/full
-scope, skips and retries. Fresh-context review of failure safety is required
-before integration; independent state oracles remain necessary as well.
-
-**Implementation/verification checkpoint:** the hotfix contains no SMS modules.
-Sampling repairs are isolated in Hyperion; standalone BSDF measure tests import
-only the production BSDF, not the SMS test harness. Requested accumulation is
-created only after effective scene overrides. Frame-slot wait errors propagate
-before reset; one-shot, resize/reload/shutdown/save boundaries establish
-quiescence before resource replacement. Swapchain retirement fallbacks likewise
-cannot ignore failed waits; fatal recreation stops queued events and client
-updates. Transfer-only images no longer create invalid views. Theia resets each
-timestamp pair on its owning queue, including first use and skipped passes.
-
-Commands and evidence (local Windows, serial sibling-source builds):
-
-- `cmake --build Harmonia/build --parallel 2`, then Hyperion and Theia: exit 0,
-  zero compiler warnings. `ctest --test-dir <repo>/build -LE analysis -V`: H
-  109/109, Hy 55/55, T 34/34, exits 0, zero logged VUIDs/skips. Analysis lanes
-  and hosted Windows/Linux CI are separate; no hosted-success claim here.
-- Root `lint-preflight.ps1 -Repos @('Harmonia','Hyperion','Theia')`: all six
-  lanes pass. The first run exposed workflow CRLF/LF inconsistency; normalized
-  workflow line endings without changing content or suppressing the rule.
-- `hotfix_negative_controls.py` in approved scratch: baseline BSDF/history,
-  frozen-frame RNG, old sampling host, omitted query reset and old lifecycle
-  code each fail ctest with exit 8; exact restored candidates pass with exit 0.
-- `hotfix_followup_controls.py`: remove the accumulation shader before bootstrap
-  and the disabled-stage capture still passes; reintroducing eager bootstrap
-  stage creation alone makes that same test fail (0 -> 8 -> 0). Removing only
-  fatal-event guards causes two recreation attempts/callbacks after the fault;
-  restored guards pass (8 -> 0). All source and shader bytes are restored.
-- Fresh-context read-only review found additional recycled-slot/resize/shutdown
-  wait gaps and an ordering-observer weakness. Extended the fixes/tests and
-  closed all review findings. This is reviewer/implementation separation, not
-  independent runtime regrading or exhaustive coverage of VMA's cached calls.
-
-Earlier failures remain in approved scratch: the new resize-order oracle found
-an unchecked Swapchain fallback and drove its fix; the queued-event test first
-counted startup SDL callbacks, then was corrected to compare counts at the fault
-marker. A control-script CRLF anchor mismatch was corrected without changing the
-product. These are preserved failed attempts, not hidden retry-to-green.
-Final full-check receipts are `hotfix-full/results.json` and per-repo logs;
-control receipts are `hotfix-controls/{results,followup-results}.json`. Hotfix
-branches start from the main revisions above; exact final commits are recorded
-by git. No dependency pins/releases change: default pinned-release consumers
-still need the normal later dependency-release process to consume shared fixes.
-
-**Integration policy:** fast-forward the verified hotfix tips into main and push
-only those refs after local success, as requested by the owner. The previously
-approved automatic-CI policy (main pushes/main-target PRs, plus manual dispatch)
-is carried over without SMS-specific dependency checkout overrides. SMS resumes
-on `dev/gi-sms-restir` only after this main checkpoint; merge these main fixes
-back there before changing the qualification runner or spatial estimator.
 
 **Status quo:** All adoptable papers are implemented or partially implemented.
 The remaining work is wavefront refactoring (PERF5/PERF4) and completing the GI-SMS
@@ -996,6 +922,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
+- **v0.7.19** (Hyperion v0.7.18, Theia v0.8.1): **general rendering correctness.** Discrete events no longer expose continuous BSDF/NEE densities; requested accumulation fails closed after scene overrides; frame-slot/resize/reload/shutdown/save retirement precedes resource reuse/destruction; swapchain retirement checks failed waits and fatal recreation stops queued events; transfer-only images have no views. Full local H109/Hy55/T34, warning-clean builds and all lint lanes; baseline/mutation controls fail and exact restores pass. README galleries refreshed at 1280x720, 64 spp Hyperion and 256-frame Theia. No SMS integration. Dependencies: Aether v0.8.1, slang-math v0.8.0.
 - **Tagged on GitHub:** slang-math @ **v0.3.1**; Aether @ **v0.7.6**; Harmonia @ **v0.7.13**;
   Hyperion @ **v0.7.13**; Theia @ **v0.7.14**. Verified: `git ls-remote --tags origin` ==
   `git tag -l` in all five repos, and the `FetchContent` pins resolve (Theia → Harmonia
