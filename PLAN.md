@@ -98,6 +98,130 @@ the sibling clones.
 
 ## 3. How to continue
 
+### GI-SMS #2 continuation checkpoint — 2026-11-03
+
+**Current authorization:** commit and push on the development/WIP branches below.
+Do not merge or push into `main`; no tags, releases or dependency-pin changes.
+This supersedes earlier task-local "no push" notes in the historical receipts.
+**#2 is not complete.** Animation and `perf5/wavefront-stage1` remain parked.
+
+| Repository | Stable source checkpoint | Development branch | Preserved prototype |
+| --- | --- | --- | --- |
+| Harmonia | `fd252f77411de3fe28f1cda8a097fe7a867a43df` | `dev/gi-sms-restir` | `wip/gi-sms-spatial-reuse`, original snapshot `4545db1` |
+| Hyperion | `049f34c8398be97327e18c756cf48eeaa2076058` | `dev/gi-sms-restir` | No separate prototype changes |
+| Theia | `76e24720da5dd00cc5e067e12ea75b3ad2b99f75` | `dev/gi-sms-restir` | `wip/gi-sms-spatial-reuse`, original snapshot `da3bebd` |
+
+Pre-SMS `main` baselines (verified identical locally and remotely, with no SMS
+source files): Harmonia `a649bbb11e3fc309cd1ed8fd0a1b1107c0c0ee09`, Hyperion
+`49c1f21ebdea3f7ef40bfee32eae9dfcf6295295`, Theia
+`257c8b495d6516e347a0be43d83b256ab8f0ad1e`. The development branches preserve
+21 / 10 / 6 existing unpublished commits respectively, before handoff commits.
+
+The development branches contain the verified local-SMS milestone plus this
+handoff, not the unfinished reuse wiring. All previously unpublished commits
+are reachable from them. The WIP branches preserve the exact original changes
+(one Harmonia file and 17 Theia files, including untracked sources); the snapshot
+commits are archival, **not acceptance claims**. Local `main` was returned to
+`origin/main` only after preserving the work. Leave all three working trees on
+`dev/gi-sms-restir` when stopping. Switch Harmonia and Theia together when resuming
+reuse: Theia's WIP depends on Harmonia's helpers/cache hook. Do not mix branch sets.
+
+#### Pause verification plan and receipts
+
+Oracle: the owner's request to preserve all work off `main`, push development
+branches, and leave a stable, reproducible stopping point. This is branch/docs
+work, not a behavioral estimator change; a broken-estimator negative control is
+not applicable to this pause. Existing feature controls retain their own scope.
+
+| Item | Acceptance / exact check | Status |
+| --- | --- | --- |
+| Preserve unfinished work | Before switching, compare every original `git hash-object -- <path>` with `git rev-parse <snapshot>:<path>`; all 18 blobs must match. | DONE: all 18 match in `4545db1` / `da3bebd`. |
+| Stable source | In each repository, `cmake --build build --parallel 2`, then `ctest --test-dir build -LE analysis -V`; suites strictly serial across repositories, no validation diagnostics. | Running; record results here before final push. |
+| Remote continuation | `git -c push.followTags=false push -u origin refs/heads/dev/gi-sms-restir:refs/heads/dev/gi-sms-restir`, plus the explicit WIP ref in Harmonia/Theia; compare `git rev-parse <branch>` against `git ls-remote --heads origin <branch>`. | WIP snapshots pushed and exact remote SHA verified; development push pending. |
+| Main isolation / clean stop | `git rev-parse main origin/main` and remote `git ls-remote --heads origin main` must match the pre-push remote-main receipt; `git status --porcelain` empty on each development branch. | Local main aligned; final remote/clean check pending. |
+
+Environment: Windows, Release, clang-cl/Ninja, Vulkan SDK 1.4.363.0 / Slang
+2026.17, RTX 5070. Existing CMake caches use sibling Harmonia/Aether/slang-math
+source overrides; committed FetchContent pins are unchanged.
+Dependency source revisions: clean Aether `b12ec6a4748cce50e244c88d0f5cffd9dfe4e9ec`
+and clean slang-math `ae605e2f5cf6b2f1b33f973d2ecf7ea5217ae9d7`, both on their
+already-synced main branches (no changes/pushes made to either dependency).
+Renderer entry shaders are touched before rebuilding so stale imported Slang programs cannot
+stand in for the stable source. This is an author-run existing-build-tree check,
+not an independent clean-environment re-grade. Analysis lanes and full galleries
+are not part of this pause rerun. Pre-push Q2–Q6 lint passed for all three repos,
+including the archived WIP C++ files (exit 0, zero failing repositories).
+
+Machine-local preservation/test receipts are under
+`C:\Users\norbe\AppData\Local\Temp\opencode\`:
+`gi_sms_pause_inventory.json`, `gi_sms_pause_lint.log`,
+`gi_sms_pause_verification.json`, and `gi_sms_pause_{repo}_{build,ctest}.log`.
+These generated logs and prior EXRs remain local/ignored, not source artifacts.
+
+#### Verified capability versus unfinished work
+
+- Stable: shared solver, actual-event ownership, resumable uncapped reciprocal
+  trials, Hong directional regions/priors, Hyperion mirror/glass/Beer/SDS, and
+  Theia's local receiver/prefix production, continuation, ready-only resolve,
+  accumulation/export failure handling. Earlier complete non-analysis receipts
+  are H143 / Hy71 / T45; detailed radiometric/control evidence remains below.
+- WIP only: pure pairwise MIS/RIS helpers, native forward/inverse shifts, target
+  cache, and optional current-frame spatial estimator. Selected finite-domain
+  and shift units passed before the final wiring. The completed shift-control
+  logs reject ignored target budget, disabled inverse identity and changed light
+  endpoint; all three exact restores pass. These are unit/source receipts, not
+  rendered reuse acceptance. The final reuse wiring and
+  `SmsGiReuseFrameFixture.*` have **not been built or executed**.
+- The read-only spatial review has now returned. It found three concrete numeric
+  risks in the WIP, not the stable checkpoints: (1) the unconditional target-cache
+  hook can overflow `value*pLight` even with reuse disabled; (2) attenuated prefixes
+  can underflow physical F to a zero proxy despite a finite weighted estimate;
+  (3) materializing `count/P(C)/pLight` can overflow despite a finite radiometric
+  product. First repair these on WIP with reuse-off bypass and consistently
+  range-safe/factored positive proxies and weights. Add HDR/tiny-prefix/light-PDF
+  controls; do not zero-clamp, discard candidates or treat reciprocal counts as
+  exact PDFs. The fixes are intentionally not attempted during this pause: the
+  incomplete feature is isolated for continuation at the owner's request.
+- Review found no additional concrete exact-arithmetic support/MIS error, but
+  that is source-only evidence. The mirror reuse fixture does not establish
+  conditional-prefix, glass/Beer/SDS, mixed-depth or curved-boundary reuse.
+- Still outstanding: rendered reuse plus support/inverse/MIS controls; curved
+  and complex radiometry; actual successful reconnection/cached-suffix counts;
+  equal-time quality, reciprocal-tail/runtime and stability evidence; **both**
+  review galleries and owner approval before publication. Do not report #2 done.
+
+#### Exact resume sequence (PowerShell, from `C:\Development\GitHub`)
+
+Read this section and all three AGENTS.md files first. Confirm clean trees before
+switching; do not reset or discard unrelated work. Development/WIP pushes remain
+authorized, but `main`, tags, releases and dependency pins remain out of scope.
+
+```powershell
+git -C Harmonia switch wip/gi-sms-spatial-reuse
+git -C Theia switch wip/gi-sms-spatial-reuse
+git -C Hyperion switch dev/gi-sms-restir
+```
+
+Repair the three numeric findings above before accepting or enabling reuse.
+Then, in a Visual Studio developer shell with the documented SDK/toolchain:
+
+```powershell
+cmake --build Harmonia/build --parallel 2
+cmake --build Hyperion/build --parallel 2
+cmake --build Theia/build --parallel 2
+Theia/build/tests/theia_module_tests.exe --gtest_filter="SmsResamplingFixture.*:SmsSceneFixture.NativeManifoldShift*"
+Theia/build/tests/theia_module_tests.exe --gtest_filter="SmsGiReuseFrameFixture.*"
+```
+
+Do not overlap builds/GPU work with mutation runners. Available machine-local
+runners: `verify_sms_shift_controls.py`, `verify_sms_resampling_controls.py`, and
+`verify_theia_sms_controls.py` in the scratch directory above. They are not
+portable repository tools yet; inspect their source/restore logic before reuse.
+Re-run local mirror/Snell/Beer/SDS gates and family regression after the cache/
+resolve changes. Extend rendered reuse beyond the ordinary mirror fixture before
+any general acceptance or production enablement. Return to the stable source by
+switching **both** Harmonia and Theia to `dev/gi-sms-restir` and rebuilding.
+
 **SDS prefix verification plan (H `042fc74`, Hy `1d0dd6e`):** collect the first
 eligible opaque non-specular receiver after a PT-sampled specular prefix. Keep
 one slot/path; do not extend ownership to later diffuse vertices. Null or
