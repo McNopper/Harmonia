@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <bit>
 #include <charconv>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -17,6 +18,7 @@
 
 #include "harmonia/app/App.hpp"
 #include "harmonia/core/Barrier.hpp"
+#include "harmonia/core/Env.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
 #include "harmonia/core/ProcessPriority.hpp"
@@ -189,13 +191,30 @@ int App::renderOffscreen() {
     // Restored to the previous class on return, so an interactive session is unaffected.
     core::ScopedBackgroundPriority backgroundPriority;
 
+    const bool frameTiming = core::getEnvString("HARMONIA_FRAME_TIMING") == std::optional<std::string>{"1"};
     for (std::uint32_t i = 0; i < frameCount; ++i) {
-        if (!renderSceneReferred()) {
+        const auto frameStarted = std::chrono::steady_clock::now();
+        const auto rendered = renderSceneReferred();
+        if (!rendered) {
             core::Logger::error("Offscreen frame failed; no incomplete capture will be exported");
             // Derived renderer resources are destroyed before App's base
             // destructor: retire earlier slots before returning to their owner.
             static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
             return 1;
+        }
+        if (frameTiming) {
+            // Qualification only: observe this logical frame's complete steady work,
+            // excluding process startup and image encoding. No timing-dependent
+            // sampling, ownership or dispatch decision is made here.
+            if (const auto result =
+                    core::waitTimelineSemaphore(deviceContext().device, m_frameSync.timeline(), *rendered);
+                result != VK_SUCCESS) {
+                static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+                return 1;
+            }
+            const auto elapsed =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - frameStarted).count();
+            core::Logger::info("frame_timing_ms:{}:{:.6f}", i, elapsed);
         }
         // Courtesy yield between frames, in addition to the priority drop above. It is
         // NOT sufficient on its own: on Windows this is SwitchToThread(), which per

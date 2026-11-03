@@ -105,6 +105,16 @@ and verified locally: H149/149, Hy72/72, T57/57, zero compiler warnings/logged
 VUIDs/skips. The owner authorizes continuing SMS to demonstrated correctness, not
 a main merge or another release. No temporal merge or tolerance relaxation.
 
+**Harness checkpoint:** `tools/qualify_sms.py` now fails closed on nonfinite
+images, invalid ROI/shape/reference energy and stale/missing outputs. It records
+commit/dirty state, executables, shader bundles, inputs and runner identity.
+Completed-frame wall timing (`HARMONIA_FRAME_TIMING=1`) excludes startup/output
+but includes all logical-frame completion waits. Equal time covers off/local/reuse,
+per-seed MSE/error bars and at most one timing-only refinement. Nine CPU contract
+tests and ruff pass; real C1 smoke passes in every mode. Shared completion tests
+6/6 and all lint lanes pass. Three fixture errors were corrected openly; the
+first timing-control genuinely rejected a missed budget before its mock was fixed.
+
 **Current execution queue:** repair the qualification harness before trusting any
 new acceptance result, then diagnose the existing C1 spatial estimator with real
 shift counters. Work stays on dev; GPU jobs remain strictly serial.
