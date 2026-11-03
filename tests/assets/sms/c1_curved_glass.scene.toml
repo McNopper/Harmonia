@@ -1,0 +1,52 @@
+# C1 — curved delta-glass caustic (GI-SMS qualification, fixed scene).
+#
+# One closed smooth-glass sphere (TRIANGULATED OBJ — identical geometry in both
+# renderers; the Aether sphere primitive is analytic in Hyperion but tessellated
+# in Theia and must not be used for cross-renderer comparison) above a diffuse
+# floor, finite area emitter overhead, black environment (preview preset: no
+# IBL). Camera frames the floor region under the sphere where the transmission
+# caustic lands. Receiver-inclusive depth: camera -> floor receiver -> up to two
+# glass events -> emitter requires max_depth >= 4.
+
+material_libraries = ["sms_qualification.materials.toml"]
+
+[render]
+reference = "presets/preview.render.toml"
+samples_per_pixel = 64
+max_depth = 5
+
+[camera]
+vertical_field_of_view = 43.0
+ev100 = 7.0
+translate = [0.0, 1.3, -2.4]
+rotate_x = -18.0
+rotate_y = 180.0
+
+[[mesh]]
+name = "floor"
+type = "box"
+half_extents = [3.0, 0.05, 3.0]
+
+[[mesh]]
+name = "caster"
+path = "sms_sphere_r05.obj"
+
+[[mesh]]
+name = "emitter"
+type = "box"
+half_extents = [0.5, 0.01, 0.5]
+
+[[instance]]
+mesh = "floor"
+material = "DiffuseFloor"
+translate = [0.0, -0.05, 0.0]
+
+[[instance]]
+mesh = "caster"
+material = "GlassDelta"
+translate = [0.0, 0.5, 0.0]
+
+[[instance]]
+mesh = "emitter"
+material = "Emitter"
+translate = [0.0, 2.5, 0.0]

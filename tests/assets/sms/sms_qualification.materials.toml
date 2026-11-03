@@ -1,0 +1,40 @@
+# GI-SMS qualification materials — C1/C2/C3 fixed scenes (Harmonia/tests/assets/sms).
+#
+# OpenPBR Surface TOML. Colorspace lin_rec709_scene (consumer converts).
+# Delta casters: transmission_weight >= 0.5 with zero roughness maps to the
+# renderers' delta-glass mode (MaterialLibrary flags = 2), which is the SMS
+# supported caster class. Emission uses the Cornell emitter scale (10000 nits).
+
+model = "openpbr"
+colorspace = "lin_rec709_scene"
+
+[DiffuseFloor]
+base_color = [0.500, 0.500, 0.500]
+specular_roughness = 1.0
+
+[Wall]
+base_color = [0.725, 0.710, 0.680]
+specular_roughness = 1.0
+
+[Emitter]
+emission_color = [1.000, 1.000, 1.000]
+emission_luminance = 10000.0
+
+[GlassDelta]
+base_color = [1.000, 1.000, 1.000]
+transmission_weight = 1.0
+specular_ior = 1.52
+specular_roughness = 0.0
+
+[GlassAbsorbing]
+base_color = [1.000, 1.000, 1.000]
+transmission_weight = 1.0
+specular_ior = 1.52
+specular_roughness = 0.0
+transmission_depth = 1.0
+transmission_color = [0.600, 0.800, 0.900]
+
+[RoughGold]
+base_color = [1.000, 0.782, 0.344]
+base_metalness = 1.0
+specular_roughness = 0.30

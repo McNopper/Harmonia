@@ -1,0 +1,80 @@
+# C3 — support boundary and mixed PT ownership (GI-SMS qualification).
+#
+# C1 geometry (shared triangulated OBJ casters) plus an opaque blocker (partial
+# shadow / visibility boundary across the caustic), a rough metal sphere
+# (PT-owned: no supported delta chain), and a back wall providing ordinary
+# diffuse indirect. The camera frames the caustic, the blocker boundary and the
+# rough sphere so supported, PT-owned and mixed transport are all visible in one
+# image.
+
+material_libraries = ["sms_qualification.materials.toml"]
+
+[render]
+reference = "presets/preview.render.toml"
+samples_per_pixel = 64
+max_depth = 5
+
+[camera]
+vertical_field_of_view = 48.0
+ev100 = 7.0
+translate = [0.0, 1.7, -3.6]
+rotate_x = -14.0
+rotate_y = 180.0
+
+[[mesh]]
+name = "floor"
+type = "box"
+half_extents = [3.0, 0.05, 3.0]
+
+[[mesh]]
+name = "caster"
+path = "sms_sphere_r05.obj"
+
+[[mesh]]
+name = "rough"
+path = "sms_sphere_r035.obj"
+
+[[mesh]]
+name = "blocker"
+type = "box"
+half_extents = [0.22, 0.45, 0.22]
+
+[[mesh]]
+name = "wall"
+type = "box"
+half_extents = [3.0, 1.5, 0.05]
+
+[[mesh]]
+name = "emitter"
+type = "box"
+half_extents = [0.3, 0.01, 0.3]
+
+[[instance]]
+mesh = "floor"
+material = "DiffuseFloor"
+translate = [0.0, -0.05, 0.0]
+
+[[instance]]
+mesh = "caster"
+material = "GlassDelta"
+translate = [0.0, 0.5, 0.0]
+
+[[instance]]
+mesh = "rough"
+material = "RoughGold"
+translate = [-1.4, 0.35, 0.4]
+
+[[instance]]
+mesh = "blocker"
+material = "Wall"
+translate = [1.1, 0.4, 0.3]
+
+[[instance]]
+mesh = "wall"
+material = "Wall"
+translate = [0.0, 1.5, 3.0]
+
+[[instance]]
+mesh = "emitter"
+material = "Emitter"
+translate = [0.0, 2.5, 0.0]

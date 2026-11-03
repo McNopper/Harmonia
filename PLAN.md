@@ -98,6 +98,157 @@ the sibling clones.
 
 ## 3. How to continue
 
+### GI-SMS #2 — bounded finish plan / next-model handoff
+
+**This is the current execution queue.** Older numbered plans and receipts below
+are history, not instructions to restart completed work. The owner requested a
+concrete completion plan before switching models. This change prepares that plan
+only; it does not implement the remaining feature or approve a main merge.
+
+#### Starting point — preserve, do not redo
+
+| Repository | Work branch | Last verified checkpoint before this planning-only change |
+| --- | --- | --- |
+| Harmonia | `wip/gi-sms-spatial-reuse` | `c4b8f17` |
+| Theia | `wip/gi-sms-spatial-reuse` | `a9452d9` |
+| Hyperion | `dev/gi-sms-restir` | `cd4b3e7` |
+
+Verified already: local/reference SMS, R/TT/Beer transport, first-receiver path
+ownership, uncapped resumable trials, Hong directional regions/priors, planar
+mirror/glass/absorption/mirror-prefix reuse, numeric/support/inverse controls,
+and ready-only accumulation/export. Latest evidence: H143, Hy71 (reference
+sampler/prior remain byte-exact), T57 product tests; six numeric units, seven
+failure/restoration controls; mirror MSE128 reuse/local `.491742`. These do not
+establish curved correctness or equal-time speed/quality. Do not rerun them as
+"new progress" unless a changed candidate invalidates their evidence key.
+
+**Guardrails:** work only on these non-main branches; build locally before
+pushing; keep local/remote main at the pre-SMS revisions listed below. No tags,
+releases or dependency-pin changes. GPU jobs/builds stay serial. Keep monolithic
+GI; animation/wavefront remain parked. No trial cap, failed-frame export, geometric
+clamp, relaxed root tolerances, ownership-by-solve-success, exact-PDF treatment of
+reciprocal counts, or recursive temporal reuse. Spatial reuse stays default-off
+until the qualification gates pass. No changes to Aether main are needed.
+
+#### Fixed qualification set — no growing scene collection
+
+Use the existing planar glass fixture as calibration **C0**; it is not a new
+research task. Add only three small, deterministic, test-only scene packages
+under `Harmonia/tests/assets/sms/`, shared as data by both applications:
+
+| Case | Fixed purpose / contents | Observable evidence |
+| --- | --- | --- |
+| C1 curved glass | One closed smooth-glass triangulated sphere, diffuse receiver, finite area emitter, black environment; IOR 1.5, zero roughness, no normal maps/dispersion/scattering. | Nonzero completed TT paths and accepted inverse-checked shifts; visible curved caustic. |
+| C2 absorption + prefix | Reuse C1 geometry with colored pure absorption (.6/.8/.9, depth 1) and a camera view through a supported specular prefix. | Nonzero eligible prefixed receivers and tail roots; RGB Beer/prefix energy preserved. |
+| C3 boundary / mixed PT | C1-derived small room with an opaque blocker, another diffuse surface and a rough/PT-owned object; fixed camera framing includes a support boundary and PT indirect ROI. | Missing-shift support, nonzero PT indirect/reconnection/cached-suffix use, and receiver-depth 2/3/4 boundaries are exercised. |
+
+Store camera, geometry/material parameters, working color space, light, depth,
+fixed spatial ROIs and file hashes in one small qualification manifest. Freeze
+it before grading the candidate. Use the same triangle geometry and OpenPBR
+materials in both renderers; do not compare a triangle caster with an analytic
+sphere or silently promote a zero-roughness metal to legacy delta mirror.
+R remains covered by the existing mirror gates and the supported glass events.
+If the proposed prefix arrangement or C3 does not generate its required paths,
+fix the scene first; a mode flag alone is not evidence that the path ran.
+Validate every new/edited scene with `Aether/build/aether-validate.exe <scene> --all`.
+
+#### Execution order — close one row before moving on
+
+| Step | Concrete change / owner | Done when | Status |
+| --- | --- | --- | --- |
+| 1. Application modes | Theia `src/demo/main.cpp`, `Application.hpp`, **both** GiPass config construction sites in `Application.cpp`; Hyperion demo config/parser. Add `--sms-mode off\|local\|reuse` (reuse Theia-only). Default remains local during qualification. Off disables both SMS estimation and its PT partition. Preserve mode on initialization, resize and scene reload. | Actual application captures in each supported mode exit 0 with finite EXR/PNG, correct logged mode and zero validation diagnostics; an invalid mode exits 2 without images. Resize retains the requested mode. | DONE: Theia `--sms-mode off/local/reuse` and Hyperion `off/local` wired at both Theia config sites (init+resize) and the single Hyperion tracer site; invalid values exit 2 without images (cornell). All-mode 160×120 captures exit 0 with EXR+PNG and no diagnostics; resize reads the stored mode. Hyperion off required one shader repair: raygen now initializes EVERY slot's metadata unconditionally (the resolve/validate pass requires samples/dimensions even for Absent slots); collection stays resolution-gated. Hy71 passed with the shader change. Two intermediate attempts (zero-fill of the work buffer, TRANSFER_DST usage) did NOT fix the failure and were reverted; the failed `--sms-mode off` captures (GPU error bits 2) and the diagnosis are preserved in scratch logs. Hosted CI remains unverified. |
+| 2. Observable paths + assets | Add renderer-owned diagnostic collection and a single-purpose `Theia/tools/qualify_sms.py` runner/manifest for C0–C3. Do not create a new general benchmarking framework or change the 24-byte producer / 16-byte prefix ABI just for logging. | Off reports zero SMS work; local reports roots but no reuse; reuse reports accepted shifts. C3 reports genuinely nonzero PT indirect, accepted reconnections and cached-suffix use. No host readback drives dispatch/trial counts. | PARTIAL: runner `qualify_sms.py` (smoke/reference/correctness/performance/stability; JSON manifest with heads, input hashes, timings, exits; copies fixtures into the ignored run dir and rewrites material/mesh references absolute because the loader resolves them against assetsDir) and C1–C3 TOML scenes + shared material library under `Harmonia/tests/assets/sms/` exist and validate (`aether-validate` exit 0 each). Caster geometry uses committed triangulated UV-sphere OBJs (`sms_sphere_r05/r035`) shared by BOTH renderers — the Aether sphere primitive is analytic in Hyperion but tessellated in Theia and caused a first correctness attempt at 1.104 pooled ratio on mismatched geometry (preserved in scratch receipts). C1 smoke passes in all modes; C1 reference accepted at 4096 spp (split-seed ROI uncertainty .183%). C2/C3 smoke + C3's PT/reconnection/suffix counters still open; per-mode SMS counters inside the renderers are not yet exposed. ABI unchanged. |
+| 3. First independent curved reference | Run **C1 only first**. Hyperion ordinary PT with SMS/partition off is the reference, not Hyperion SMS sharing the candidate's Jacobian. Compare Theia local and reuse with it. | Reference precision is sufficient and C1 passes the fixed RGB/convergence criteria below. Reuse's path counters prove it actually ran. | RUNNING: C1 reference accepted at the first ladder rung — 4096 spp, split-seed ROI uncertainty .397% ≤ .5% (Hyperion `--sms-mode off`, seeds 17/91). Correctness stage against it is running. |
+| 4. Early equal-time go/no-go | Measure C1 before expanding acceptance work. Include initial GI, priors, every continuation, resolve and CPU completion waits. Compare off/local/reuse with identical scene/settings. | Reuse has lower pooled linear-RGB MSE than local at matched elapsed time, not merely at matched frames. If not, profile the measured bottleneck and fix/retest this same case before adding more tests/gallery work. | NOT STARTED |
+| 5. Finish bounded transport qualification | Apply the same reference/quality procedure to C2/C3. Reuse existing inverse/MIS controls; add only a targeted rendered control for any uncovered support/ownership gap. Exercise the remaining-depth boundary and unsupported PT complement. | C2/C3 pass RGB gates; C3 proves nonzero ordinary indirect/reconnection/suffix use with no lost/doubled energy. C2 also demonstrates equal-time caustic quality benefit. | NOT STARTED |
+| 6. Stability / tails | C1–C3 repeated fixed-seed captures, camera motion, resize and scene reload; targeted numeric/GPU failure injection. Collect continuation and reciprocal-tail diagnostics after waited GPU completion. | Repeat static captures are deterministic, 64 moving-camera frames + 3 resize cycles + 3 scene switches are validation-clean, failures export no images, and tail/runtime results are recorded without a trial cap or dropped pending samples. | NOT STARTED |
+| 7. Final code checkpoint | Choose/document the accepted production setting; local build and final applicable product/analysis/lint gates; one explicit hosted check or later main-target PR after local success. Avoid retuning the estimator to fit the fixtures. | Accepted mode is used by normal Application rendering, final checks pass, limitations/metrics are documented; no external CI-green claim without an actual run. Keep main untouched pending owner authorization. | NOT STARTED |
+| 8. Review deliverables | Regenerate both existing galleries once, after steps 1–7. Hyperion 1280×720/64 spp; Theia 1280×720/256 frames. Include the C1–C3 comparison sheet separately from normal showcase scenes. | Owner reviews both galleries and the accuracy/equal-time/stability summary. Mark #2 complete only when this and all previous rows are accepted. | NOT STARTED |
+
+**Exact next implementation task is step 1, not a sampler rewrite.** Source
+inspection confirms Theia's Application currently never sets `smsSpatialReuse`
+in either GiPass configuration, and neither executable exposes the proposed
+mode flag. Do not assume the commands below work until step 1 is implemented.
+
+#### Frozen numerical and measurement protocol
+
+- Start at 320×240, black environment for C1/C2, fixed exposure/color space and
+  receiver-inclusive depth chosen to include the supported prefix/tail. Seeds
+  are exactly `17, 91, 1234, 2026`; freeze all settings in the manifest.
+- Reference ladder: ordinary PT at 4096 → 16384 → 65536 spp, advancing **only**
+  if independent seed/split-reference uncertainty in each fixed ROI's RGB energy
+  exceeds 0.5%. If still insufficient, report a reference-budget blocker; do not
+  silently call a noisy reference ground truth or add unlimited render rounds.
+- Candidate correctness: 512 and 2048 complete frames per seed in local/reuse
+  modes. At 2048 frames require pooled RGB energy within the existing 2% bound
+  against the qualified reference, and report each seed separately. Require
+  lower pooled error at 2048 than 512. ROIs come from geometry/reference, never
+  candidate brightness. Do not normalize away an energy/tint error. The 0.5%
+  reference-precision prerequisite is a proposed measurement rule, not evidence
+  that any new reference already exists.
+- Equal time: exclude scene loading/pipeline warmup, but include **all** steady
+  logical-frame work and completion waits. Independent timing pilots: three
+  fixed 64-frame runs per mode. Freeze mode-specific frame counts targeting
+  2 s and 8 s **before** the four quality seeds. Render each chosen count to full
+  completion and report actual elapsed times; refine timing once if budgets
+  differ by more than 5%. Never stop sample-dependent Bernoulli work at the time
+  limit, discard the last frame, or select counts using the quality results.
+- Success is a demonstrable equal-time MSE reduction on C1 and C2, with raw
+  timings/error bars reported, not an invented FPS target or a claim that every
+  scene speeds up. C3 must retain correct supported and PT-owned energy. If the
+  result is inconclusive, label it inconclusive rather than changing the goal.
+- Diagnostics: eligible receivers, completed R/TT roots, shift attempts/accepts,
+  inverse/support rejection counts, actual PT indirect/reconnection/suffix use,
+  continuations per logical frame, and mean/p95/p99/max reciprocal counts (or
+  explicitly labeled GPU histogram bounds). Counters are observations only;
+  they cannot alter sampling, ownership, dispatch counts or completion policy.
+- One failed gate means: preserve the failure → smallest reproduction → root
+  cause → focused fix → rerun that gate. Do not launch galleries/full suites to
+  hide an unexplained failure. If two focused attempts still leave the cause
+  unexplained, stop with the exact blocker for owner review. This is a work
+  escalation rule, never a renderer trial cap.
+- Full suites are a stage/checkpoint boundary activity, not the inner edit loop.
+  Reuse verified evidence only when code, shader, fixture and environment keys
+  still match. No new scene categories, temporal reuse, wavefront work, format
+  expansion or new transport classes without an explicit scope decision.
+
+#### Commands / artifacts the next model must leave behind
+
+Commands below containing `--sms-mode` / `qualify_sms.py` are **implemented and
+verified for steps 1–2** (mode flags in both demo apps; runner stages
+smoke/reference verified on C1). The runner emits commit/scene hashes, options,
+seeds, timings, errors and exit codes into ignored `Theia/build/sms-qualification/`;
+only fixture data, runner and short summaries live in git.
+
+```powershell
+# Existing build commands (serial, from C:\Development\GitHub).
+cmake --build Harmonia/build --parallel 2
+cmake --build Hyperion/build --parallel 2
+cmake --build Theia/build --parallel 2
+
+# Planned normal-Application smoke after step 1.
+Theia/build/theia.exe --scene shaderball_transmission --sms-mode reuse --width 160 --height 120 --offscreen-frames 2 --rng-seed 17 --validation --output Theia/build/sms-qualification/smoke.exr
+
+# Planned single-purpose stage entry points after step 2.
+python Theia/tools/qualify_sms.py --stage smoke --case C1
+python Theia/tools/qualify_sms.py --stage reference --case C1
+python Theia/tools/qualify_sms.py --stage correctness --case C1
+python Theia/tools/qualify_sms.py --stage performance --case C1
+# Only after C1's go/no-go: repeat reference/correctness for C2/C3 and performance for C2.
+python Theia/tools/qualify_sms.py --stage stability --case C1
+
+# Final product checks; run relevant analysis/lint lanes as documented by AGENTS.
+ctest --test-dir Harmonia/build -LE analysis --output-on-failure
+ctest --test-dir Hyperion/build -LE analysis --output-on-failure
+ctest --test-dir Theia/build -LE analysis --output-on-failure
+```
+
+**Handoff discipline:** each row ends in a small verified code checkpoint and a
+short PLAN update containing commands/results and the next open row. Commit/push
+only development/WIP refs after local success. Main, tags, pins and galleries
+await their separate authorization/review. The next model should report which
+row it is closing, not present a primitive test pass as completion of #2.
+
 ### GI-SMS #2 continuation checkpoint — 2026-11-03
 
 **Current authorization:** commit and push on the development/WIP branches below.
@@ -214,26 +365,12 @@ owner has now authorized active resumption on the development/WIP branches.
   Keep SMS spatial reuse experimental/default-off until curved/mixed-depth and
   visibility support, actual reconnection/suffix counters, equal-time quality,
   reciprocal-tail/runtime/stability and both review galleries are accepted.
-- The read-only spatial review has now returned. It found three concrete numeric
-  risks in the WIP, not the stable checkpoints: (1) the unconditional target-cache
-  hook can overflow `value*pLight` even with reuse disabled; (2) attenuated prefixes
-  can underflow physical F to a zero proxy despite a finite weighted estimate;
-  (3) materializing `count/P(C)/pLight` can overflow despite a finite radiometric
-  product. First repair these on WIP with reuse-off bypass and consistently
-  range-safe/factored positive proxies and weights. Add HDR/tiny-prefix/light-PDF
-  controls; do not zero-clamp, discard candidates or treat reciprocal counts as
-  exact PDFs. The fixes are intentionally not attempted during this pause: the
-  incomplete feature is isolated for continuation at the owner's request.
-  On active resumption these repairs are implemented in the WIP and have selected
-  numeric GPU/control evidence (Theia PLAN); production enablement and actual
-  rendered reuse still require their separate acceptance checks.
-- Review found no additional concrete exact-arithmetic support/MIS error, but
-  that is source-only evidence. The mirror reuse fixture does not establish
-  conditional-prefix, glass/Beer/SDS, mixed-depth or curved-boundary reuse.
-- Still outstanding: rendered reuse plus support/inverse/MIS controls; curved
-  and complex radiometry; actual successful reconnection/cached-suffix counts;
-  equal-time quality, reciprocal-tail/runtime and stability evidence; **both**
-  review galleries and owner approval before publication. Do not report #2 done.
+- Scene assets and the machine-local qualification runner are the new step-2
+  deliverables; see the bounded finish plan above for their current status.
+  C1 correctness attempts and the analytic-vs-triangulated sphere finding are
+  recorded there. The analytic-sphere primitive must never be used as a
+  cross-renderer caster: `ISceneBuilder::addSphereMesh` is analytic (AABB BLAS)
+  in Hyperion but tessellated in Theia by contract.
 
 #### Exact resume sequence (PowerShell, from `C:\Development\GitHub`)
 
