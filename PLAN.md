@@ -203,6 +203,17 @@ owner has now authorized active resumption on the development/WIP branches.
   Hyperion sampler/prior hashes remain byte-exact. This accepts the ordinary
   mirror fixture only, not general curved/conditional-prefix reuse or equal-time
   performance. Theia PLAN defines the next glass/Beer/SDS rendered slice.
+  That slice now passes selected gates after a new largest-uniform RIS regression
+  exposed loss of precision in log-CDF selection: choose the first positive
+  candidate and compare a bounded probability instead of adding log(u) to total.
+  Six numeric units/seven controls, glass/Beer/mirror-prefix SDS and the PT-owned
+  depth cutoff pass; disabled rendered reuse fails the MSE assertion, exact
+  restore passes.
+  Full current Theia product regression now passes T57/57 (exit 0, zero validation
+  diagnostics/skipped tests), with warning-clean build and local Q2-Q6 lint.
+  Keep SMS spatial reuse experimental/default-off until curved/mixed-depth and
+  visibility support, actual reconnection/suffix counters, equal-time quality,
+  reciprocal-tail/runtime/stability and both review galleries are accepted.
 - The read-only spatial review has now returned. It found three concrete numeric
   risks in the WIP, not the stable checkpoints: (1) the unconditional target-cache
   hook can overflow `value*pLight` even with reuse disabled; (2) attenuated prefixes
