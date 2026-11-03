@@ -226,6 +226,39 @@ owner has now authorized active resumption on the development/WIP branches.
 
 #### Exact resume sequence (PowerShell, from `C:\Development\GitHub`)
 
+**CI maintenance steering:** the owner selected automatic CI on pushes to `main`
+and PRs targeting `main`, skipping ordinary development/WIP pushes, and requires
+local builds before pushes. Keep manual dispatch available; do not modify `main`.
+Failed-run logs identify GCC `-Werror=dangling-else` at four Harmonia test macro
+sites and renderer CI checking out pre-SMS Harmonia main (missing SmsPass.hpp /
+sms_transport.slang), rather than the matching GI development branch.
+
+| CI item | Acceptance / oracle | Verification |
+| --- | --- | --- |
+| Automatic triggers | Main push and main-target PR run; development push and other-target PR do not. | `actionlint` / `yamllint`, parsed workflow event-matrix check with a broadened-trigger negative control. |
+| Matching sibling source | GI-SMS PR/manual contexts select the corresponding Harmonia development/WIP branch; main and unrelated branch contexts retain Harmonia main. No release/pin change. | Workflow expression/context cases, checkout branch existence and required SMS file presence; forced-main negative control must fail GI contexts. |
+| GCC portability | Add braces at the four reported test macro sites, preserving every assertion and input. | Local GCC syntax compile against the affected real GoogleTest TUs (original rejects dangling else, candidate passes), local Windows build and H143 product regression. |
+| Local-first push | Every touched repo builds warning-clean before its workflow/source checkpoint is pushed. | Serial `cmake --build <repo>/build --parallel 2`, local lint, then explicit development/WIP ref pushes only. No externally green CI claim without a run. |
+
+CI repair receipts: original affected GCC translation units reject only the
+reported dangling-else sites (exit 1); both braced candidates pass local WSL GCC
+syntax compilation (exit 0). This is two-TU syntax evidence, **not** a complete
+Linux link/build or Linux GPU run. Local Windows builds of Harmonia, Hyperion and
+Theia all exit 0 with no compiler diagnostics; H143/143 regression passes after
+the brace change (24.72 s, zero validation diagnostics). Q2-Q6 preflight passes
+all three repositories. Parsed event/ref model: 24 cases pass; three broadened
+push-trigger and two forced-main sibling controls reject. Failed hosted runs are
+retained as history; no hosted green result is claimed yet. Auxiliary worktrees
+on the existing H/Theia development branches receive only CI/docs/brace fixes;
+the numeric reuse feature stays confined to WIP and main stays pre-SMS.
+
+Machine-local CI receipts: `ci_*_sms_failed.log`,
+`ci_gcc_{baseline,candidate}_test_sms*.cpp.log`, `ci_local_*_build.log`,
+`ci_local_Harmonia_ctest.log`, `ci_local_lint.log`; replay scripts are
+`verify_sms_ci_gcc.py` (WSL) and `verify_sms_ci_policy.py` in the approved scratch
+directory. Ordinary development pushes now skip hosted CI, but every code push
+still requires its local build and relevant verification first.
+
 **Active resumption plan (owner authorized development/WIP commits and pushes):**
 finish the interrupted Theia stable check without repeating H143/Hy71; then
 resume the paired WIP branches. Before implementation, the numeric repair is
