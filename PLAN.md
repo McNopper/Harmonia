@@ -136,9 +136,9 @@ not applicable to this pause. Existing feature controls retain their own scope.
 | Item | Acceptance / exact check | Status |
 | --- | --- | --- |
 | Preserve unfinished work | Before switching, compare every original `git hash-object -- <path>` with `git rev-parse <snapshot>:<path>`; all 18 blobs must match. | DONE: all 18 match in `4545db1` / `da3bebd`. |
-| Stable source | In each repository, `cmake --build build --parallel 2`, then `ctest --test-dir build -LE analysis -V`; suites strictly serial across repositories, no validation diagnostics. | Running; record results here before final push. |
-| Remote continuation | `git -c push.followTags=false push -u origin refs/heads/dev/gi-sms-restir:refs/heads/dev/gi-sms-restir`, plus the explicit WIP ref in Harmonia/Theia; compare `git rev-parse <branch>` against `git ls-remote --heads origin <branch>`. | WIP snapshots pushed and exact remote SHA verified; development push pending. |
-| Main isolation / clean stop | `git rev-parse main origin/main` and remote `git ls-remote --heads origin main` must match the pre-push remote-main receipt; `git status --porcelain` empty on each development branch. | Local main aligned; final remote/clean check pending. |
+| Stable source | In each repository, `cmake --build build --parallel 2`, then `ctest --test-dir build -LE analysis -V`; suites strictly serial across repositories, no validation diagnostics. | H143 and Hy71 pass, build/test exits 0 and zero validation diagnostics. Theia-only verification is resumed after the interruptions below; do not assume a fresh T45 pass yet. |
+| Remote continuation | `git -c push.followTags=false push -u origin refs/heads/dev/gi-sms-restir:refs/heads/dev/gi-sms-restir`, plus the explicit WIP ref in Harmonia/Theia; compare `git rev-parse <branch>` against `git ls-remote --heads origin <branch>`. | DONE: all five branches pushed, exact local/remote tips and upstreams verified. |
+| Main isolation / clean stop | `git rev-parse main origin/main` and remote `git ls-remote --heads origin main` must match the pre-push remote-main receipt; `git status --porcelain` empty on each development branch. | DONE: audit exit 0; local/remote main pre-SMS, all pre-existing remote refs (including tags) unchanged, all three trees clean. Repeat after any further handoff commits. |
 
 Environment: Windows, Release, clang-cl/Ninja, Vulkan SDK 1.4.363.0 / Slang
 2026.17, RTX 5070. Existing CMake caches use sibling Harmonia/Aether/slang-math
@@ -157,6 +157,22 @@ Machine-local preservation/test receipts are under
 `gi_sms_pause_inventory.json`, `gi_sms_pause_lint.log`,
 `gi_sms_pause_verification.json`, and `gi_sms_pause_{repo}_{build,ctest}.log`.
 These generated logs and prior EXRs remain local/ignored, not source artifacts.
+
+The final-ref audit command is
+`powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\norbe\AppData\Local\Temp\opencode\verify_gi_sms_pause.ps1`
+(exit 0, receipt `gi_sms_pause_final_audit.json`). It checks original blob
+preservation, exact stable runtime source, clean development trees, upstreams,
+local/remote tip equality, unchanged main and every pre-existing remote ref.
+The initial suite driver retained H143 (22.97 s) and Hy71 (423.64 s), then
+PowerShell stopped on CMake's expected `-- GLOB mismatch!` regeneration stderr
+before completing Theia. This is a wrapper interruption, not a compiler/test
+failure. The next Theia attempt was interrupted by an OpenCode server restart
+after configure; its shell notification exited 4 with no completed test receipt.
+Resume only Theia, preserving H/Hy evidence. Use native stdout/stderr capture
+without promoting the regeneration notice to a terminating PowerShell error.
+If the application exits before the remaining check finishes, all source is
+already committed/pushed: treat that check as incomplete and rerun it next time,
+not as a green result. Partial build outputs can be rebuilt normally.
 
 #### Verified capability versus unfinished work
 
