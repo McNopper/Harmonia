@@ -197,9 +197,12 @@ owner has now authorized active resumption on the development/WIP branches.
   logs reject ignored target budget, disabled inverse identity and changed light
   endpoint; all three exact restores pass. These are unit/source receipts, not
   rendered reuse acceptance. The numeric-repair WIP now compiles, and five pure
-  GPU numeric tests plus six failure/restoration controls pass. Actual local/
-  reuse rendered acceptance and the default Hyperion byte-exact gate are pending;
-  this is not an acceptance claim for `SmsGiReuseFrameFixture.*`.
+  GPU numeric tests plus six failure/restoration controls pass. Eight selected
+  local/reuse frame tests also pass validation-clean: mirror reuse ratios
+  .998317 / 1.000240 / .997181 / .999980, MSE128 reuse/local .491742. Default
+  Hyperion sampler/prior hashes remain byte-exact. This accepts the ordinary
+  mirror fixture only, not general curved/conditional-prefix reuse or equal-time
+  performance. Theia PLAN defines the next glass/Beer/SDS rendered slice.
 - The read-only spatial review has now returned. It found three concrete numeric
   risks in the WIP, not the stable checkpoints: (1) the unconditional target-cache
   hook can overflow `value*pLight` even with reuse disabled; (2) attenuated prefixes
