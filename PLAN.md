@@ -196,8 +196,10 @@ owner has now authorized active resumption on the development/WIP branches.
   and shift units passed before the final wiring. The completed shift-control
   logs reject ignored target budget, disabled inverse identity and changed light
   endpoint; all three exact restores pass. These are unit/source receipts, not
-  rendered reuse acceptance. The final reuse wiring and
-  `SmsGiReuseFrameFixture.*` have **not been built or executed**.
+  rendered reuse acceptance. The numeric-repair WIP now compiles, and five pure
+  GPU numeric tests plus six failure/restoration controls pass. Actual local/
+  reuse rendered acceptance and the default Hyperion byte-exact gate are pending;
+  this is not an acceptance claim for `SmsGiReuseFrameFixture.*`.
 - The read-only spatial review has now returned. It found three concrete numeric
   risks in the WIP, not the stable checkpoints: (1) the unconditional target-cache
   hook can overflow `value*pLight` even with reuse disabled; (2) attenuated prefixes
@@ -208,6 +210,9 @@ owner has now authorized active resumption on the development/WIP branches.
   controls; do not zero-clamp, discard candidates or treat reciprocal counts as
   exact PDFs. The fixes are intentionally not attempted during this pause: the
   incomplete feature is isolated for continuation at the owner's request.
+  On active resumption these repairs are implemented in the WIP and have selected
+  numeric GPU/control evidence (Theia PLAN); production enablement and actual
+  rendered reuse still require their separate acceptance checks.
 - Review found no additional concrete exact-arithmetic support/MIS error, but
   that is source-only evidence. The mirror reuse fixture does not establish
   conditional-prefix, glass/Beer/SDS, mixed-depth or curved-boundary reuse.
