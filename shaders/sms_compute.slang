@@ -2,7 +2,12 @@
 // types and three read-only scene arrays. Include after the renderer's imports.
 // The scene supplies trace/project for roots and raw occluded for visibility;
 // never infer visibility from successful shading-normal reconstruction.
+#ifndef SMS_HELPERS_ONLY
 [[vk::push_constant]] SmsQueuePush pc;
+#endif
+#ifndef SMS_STORE_LOCAL_TARGET
+#define SMS_STORE_LOCAL_TARGET(slot,work,value)
+#endif
 
 bool prepareLight(inout SmsWorkRecord work) {
     uint count = work.words[13].z;
@@ -115,6 +120,7 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
     return all(isfinite(value)) && all(value >= 0.0.xxx);
 }
 
+#ifndef SMS_HELPERS_ONLY
 #ifdef SMS_BUILD_PRIOR
 [shader("compute")]
 [numthreads(128,1,1)]
@@ -221,6 +227,7 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
             float3 base;
             if (!contribution(work, root, count, base)) { smsQueueError(pc, kSmsQueueNumericError); return; }
             work.words[11].xyz = asuint(base);
+            SMS_STORE_LOCAL_TARGET(slot,work,base);
             if (all(base == 0.0.xxx)) { phase = kSmsDone; break; }
             smsStoreRoot(work, root, count);
             SmsConditionalRegion conditional=makeSmsConditionalRegion(normalize(root[0].position-receiver),resolution);
@@ -252,4 +259,5 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
     pc.work[slot] = work;
     if (phase != kSmsDone) smsQueueAppend(pc, slot);
 }
+#endif
 #endif
