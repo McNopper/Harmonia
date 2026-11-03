@@ -34,6 +34,7 @@ install_manifest.txt
 *.iobj
 *.obj
 !assets/**/*.obj
+!tests/assets/sms/*.obj
 *.pdb
 *.pch
 *.tlog/
@@ -85,5 +86,5 @@ shaders/math_gen.hpp
 shaders/math_export_test.cpp
 shaders/math_export_test.slang
 
-# Paper PDFs — reference only, not redistributed (see papers/README.md for links)
+# Paper PDFs ï¿½ reference only, not redistributed (see papers/README.md for links)
 papers/*.pdf
