@@ -257,6 +257,13 @@ medium-boundary direction, CDF identity and solve-independent ownership match.
 Theia active wiring is implemented in the working tree, builds and passes a
 160×120 / four-frame actual Application completion smoke (validation 0), but its
 independent GiPass radiometry/control and broader acceptance are not yet verified.
+Theia local active integration is now verified separately: T45/45 validation-
+clean, architecture/tidy/dead and moving-camera TAA pass. Actual GiPass mirror,
+closed glass, colored absorption, SDS, relative-depth and production-configuration
+energies pass per-seed/channel 2% gates; missing/doubled/overlap/RGB/prefix controls
+fail and restores pass, actual GPU error exports no image. See Theia/PLAN.md for
+receipts and ROI/normal-reference qualifications. This completes local candidates,
+not SMS manifold reuse or final equal-time/stability/gallery acceptance.
 
 **2c.2 verification plan (H `3ac0de6`, Hy `1cc64a5`):**
 Finite-domain GPU probe uses 65,536 draws/case, exact mass / conditional-alpha
