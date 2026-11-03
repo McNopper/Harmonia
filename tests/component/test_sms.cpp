@@ -734,8 +734,9 @@ TEST_F(SmsFixture, SmsQueueGridAndPaddingMatchWideIntegerOracle) {
         EXPECT_EQ(outputs[i][0], gx) << i;
         EXPECT_EQ(outputs[i][1], gy) << i;
         EXPECT_EQ(outputs[i][2], index < count ? 1U : 0U) << i;
-        if (index < count)
+        if (index < count) {
             EXPECT_EQ(outputs[i][3], index) << i;
+        }
     }
 }
 
@@ -895,8 +896,9 @@ TEST_F(SmsFixture, SmsPartitionConditionalCoverIncludesSeamsPolesAndEquivalentDi
         EXPECT_EQ(outputs[i].x, 0.0F) << "Missing permitted seed tile at probe " << i;
         EXPECT_GT(outputs[i].y, 0.0F);
         EXPECT_LE(outputs[i].y, 1.0F);
-        if (inputs[i].grid.x <= 3)
+        if (inputs[i].grid.x <= 3) {
             EXPECT_EQ(outputs[i].y, 1.0F);
+        }
     }
 }
 
@@ -952,8 +954,9 @@ TEST_F(SmsFixture, SmsPriorMixtureAndConditionalDensityMatchFiniteDomain) {
         EXPECT_NEAR(outputs[i].y, alpha, 1e-6);
         EXPECT_NEAR(outputs[i].z, probability, .012) << "Conditional mixture must use Eq. 9, not the initial alpha";
         EXPECT_EQ(outputs[i].w, 0.0F);
-        if (probability == 0)
+        if (probability == 0) {
             EXPECT_EQ(outputs[i].z, 0.0F);
+        }
     }
 }
 
