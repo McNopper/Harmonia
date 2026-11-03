@@ -1,6 +1,7 @@
 // Common compute source, specialized by the renderer's concrete scene/hit/texture
 // types and three read-only scene arrays. Include after the renderer's imports.
-// Keeping the entry-point call graph intact preserves the established FP codegen.
+// The scene supplies trace/project for roots and raw occluded for visibility;
+// never infer visibility from successful shading-normal reconstruction.
 [[vk::push_constant]] SmsQueuePush pc;
 
 bool prepareLight(inout SmsWorkRecord work) {
@@ -61,8 +62,7 @@ bool samplePath(inout SMS_SCENE scene, float3 receiver, float3 light, float4 u,
     float3 edge = light - root[count-1u].position;
     float distance = length(edge);
     if (!(distance > kRayEpsilon + kMediumEpsilon)) return false;
-    SMS_HIT blocker;
-    return !scene.trace(root[count-1u].position, edge / distance, distance-kRayEpsilon, blocker);
+    return !scene.occluded(root[count-1u].position, edge / distance, distance-kRayEpsilon);
 }
 
 bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out float3 value) {

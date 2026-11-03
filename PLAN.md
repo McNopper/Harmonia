@@ -167,7 +167,8 @@ design: one shared compute include with six explicit renderer aliases, preservin
 the original concrete entry-point call graph. Geometry still implements the typed
 ISmsProjector contract, and texture access ISurfaceTextureSampler. The exact
 32-image gate is unchanged; this is a design correction, not a tolerance change.
-The shared-include main sampler now produces byte-identical SPIR-V, SHA-256
+At extraction checkpoint H `0e4eda9` / Hy `f9c5995`, the main sampler produced
+byte-identical SPIR-V, SHA-256
 `9778594237923a4fabff377867a82a697fe8622b526ce50cb66469d5d0d8b017`,
 254,400 bytes, versus committed pre-extraction source. The prior program is also
 byte-identical: 123,184 bytes, SHA-256
@@ -177,7 +178,7 @@ absolute difference. Prefix-weight and conditional-alpha/mass controls fail,
 exact restored shaders pass. Full H142/Hy69/T38 passes validation-clean, canonical
 architecture and H/Hy tidy/dead pass, Theia control unchanged 0/76,800 pixels.
 The original function/macro expansion was source-reviewed against the baseline.
-**Required support follow-up after the pure extraction checkpoint:** source review
+**Support follow-up after the pure extraction checkpoint:** source review
 of the new Theia adapter found that production's geometric-normal fallback must
 not become an SMS miss (zero/exactly cancelling/tiny blended vertex normals).
 Match production's squared-length branch, with zero derivatives on geometric
@@ -187,9 +188,54 @@ adds fallback and raw-occlusion fixtures; all four native tests and wrong-normal
 missing-fallback, wrong-cutoff and missing-occlusion controls pass/reject as intended,
 with exact restored shaders passing. Apply
 the corresponding production-matching fallback/raw-visibility contract to the
-Hyperion adapter and the shared visibility call site as a separately verified
-behavior fix before enabling Theia SMS. In particular test a mixed zero-normal
+Hyperion adapter and shared visibility call site in the behavior-fix receipt
+below, before enabling Theia SMS. In particular test a mixed zero-normal
 planar mirror against the independent virtual emitter, not only all-zero normals.
+
+**Support/visibility behavior-fix plan (H `0e4eda9`, Hy `f9c5995`, T `608a5da`):**
+extend `SmsSceneFixture.ProductionReaderMatchesTransformedTriangleAndEllipsoidDifferentials`
+with all-zero, exact-cancelling, tiny-blend and mixed-zero normals, and compare
+the fallback directly to actual RT G-buffer normals as well as the flat-plane
+oracle. Add finite-distance opaque visibility checks including analytic spheres.
+First run these additions against the unchanged adapter and require the expected
+normal/visibility failures. Match production's normalized-vertex / blended-length
+fallback with zero fallback derivatives; keep visibility on a raw TLAS query.
+Wire the common samplePath visibility through `scene.occluded`, for both adapters.
+Add `SmsFallbackFrameFixture.*` with mixed-zero caster normals; four fixed seeds,
+2% independent virtual-emitter energy and 128/32 sample MSE regression. Restore
+the old normal field and shading-dependent visibility in isolated controls;
+they must fail the matching GPU/renderer assertions, restored candidate pass.
+Then full family regression, validation and focused source review. This is a
+behavior correction, separate from the completed bit-exact extraction checkpoint;
+do not call it a pixel-identical refactoring or change the energy tolerances.
+Baseline support receipt: the extended production-reader test fails unchanged
+adapter `f9c5995` as intended (exit 1, validation 0): exact cancellation becomes
+a miss, the tiny-blend derivative is 200,000 instead of zero, mixed-zero normal
+error is .148032, and opaque visibility reports the cancelling-normal blocker
+clear (ray 6). Actual RT G-buffer fallback checks pass in that same run. The
+mixed-zero rendered baseline was also run before the production correction.
+That rendered baseline fails all four seeds at .635797 / .646512 / .628923 /
+.644350 reflected-energy ratio (validation 0), while actual RT uses the expected
+geometric fallback. Also add a finite black blocker at x=1, y=[1.1,1.2], z=[-2,2]
+and restrict the receiver oracle to x>1.3. Direct/camera/receiver→mirror legs stay
+clear; independently intersect the mirror→emitter leg with that rectangle in the
+virtual-emitter quadrature. `SmsVisibilityFrameFixture.*` uses 512 samples × four
+seeds, pooled reflected energy within 2%. Omitting the COMMON visibility call must
+fail this rendered gate, restored candidate pass (direct query tests alone do
+not prove the sampler actually uses occlusion).
+**Executed support/visibility checkpoint:** the corrected mixed-zero four-seed
+ratios are .991267 / 1.010980 / .981383 / 1.008340, matching the ordinary flat-
+mirror receipt; normal/finite-distance/analytic-sphere reader checks and actual
+RT G-buffer fallbacks pass. The finite-blocker ratios are .983174 / 1.014450 /
+1.013130 / .981179 (pooled about .997983). Restoring the old normal field,
+restoring shading-dependent visibility, and omitting the COMMON visibility call
+each fail their matching GPU/render gate; exact restores pass. Focused source
+review finds no introduced query/field/ownership/oracle blocker; normalize(0)
+portability remains tied to the unchanged actual-RT reference. Full family
+H142/Hy71/T38 validation-clean, canonical architecture and H/Hy tidy/dead pass;
+Theia control stays 0/76,800 changed pixels. Theia native compute entries compile
+but receiver production, active completion/candidates/reuse and final acceptance
+remain outstanding. No pixel-identical refactoring claim is made for this behavior fix.
 
 **2c.2 verification plan (H `3ac0de6`, Hy `1cc64a5`):**
 Finite-domain GPU probe uses 65,536 draws/case, exact mass / conditional-alpha
