@@ -29,11 +29,12 @@
 
 namespace harmonia::app {
 
-std::uint64_t App::renderSceneReferred() {
+std::expected<std::uint64_t, VkResult> App::renderSceneReferred() {
     const std::uint32_t slot = m_frameSync.currentSlot();
 
     // Wait for the previous use of this frame slot to complete.
-    m_frameSync.waitSlotComplete(slot);
+    if (const auto result = m_frameSync.waitSlotComplete(slot); result != VK_SUCCESS)
+        return std::unexpected(result);
 
     const VkCommandBuffer renderCmd = m_frameSync.renderCmd(slot);
     vkResetCommandBuffer(renderCmd, 0);
@@ -43,9 +44,9 @@ std::uint64_t App::renderSceneReferred() {
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     };
-    if (vkBeginCommandBuffer(renderCmd, &beginInfo) != VK_SUCCESS) {
+    if (const auto result = vkBeginCommandBuffer(renderCmd, &beginInfo); result != VK_SUCCESS) {
         core::Logger::error("Failed to begin render command buffer");
-        return m_frameSync.completionValue(slot);
+        return std::unexpected(result);
     }
 
     // The renderer produces a linear image in the scene-referred working
@@ -89,9 +90,9 @@ std::uint64_t App::renderSceneReferred() {
         }
     }
 
-    if (vkEndCommandBuffer(stagesCmd) != VK_SUCCESS) {
+    if (const auto result = vkEndCommandBuffer(stagesCmd); result != VK_SUCCESS) {
         core::Logger::error("Failed to end render command buffer");
-        return m_frameSync.completionValue(slot);
+        return std::unexpected(result);
     }
 
     const std::uint64_t signalValue = m_frameSync.nextSignalValue();
@@ -126,7 +127,7 @@ std::uint64_t App::renderSceneReferred() {
         if (submitResult == VK_ERROR_DEVICE_LOST) {
             vulkan_init::reportDeviceFault(m_context.deviceContext());
         }
-        return m_frameSync.completionValue(slot);
+        return std::unexpected(submitResult);
     }
 
     m_frameSync.markSlotComplete(slot, signalValue);
@@ -146,7 +147,11 @@ int App::renderOffscreen() {
     core::ScopedBackgroundPriority backgroundPriority;
 
     for (std::uint32_t i = 0; i < frameCount; ++i) {
-        renderSceneReferred();
+        if (!renderSceneReferred()) {
+            core::Logger::error("Offscreen frame failed; no incomplete capture will be exported");
+            static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+            return 1;
+        }
         // Courtesy yield between frames, in addition to the priority drop above. It is
         // NOT sufficient on its own: on Windows this is SwitchToThread(), which per
         // Microsoft "will not switch execution to another processor, even if that
@@ -159,7 +164,10 @@ int App::renderOffscreen() {
         // time -- see AGENTS.md.
         std::this_thread::yield();
     }
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (vkDeviceWaitIdle(m_context.deviceContext().device) != VK_SUCCESS) {
+        static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+        return 1;
+    }
 
     const bool isPng = (m_config.outputFile.extension() == ".png");
     bool ok = true;
@@ -199,7 +207,8 @@ int App::renderOffscreen() {
 }
 
 bool App::saveExr(const std::filesystem::path& path) {
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (core::waitDeviceQuiescent(m_context.deviceContext().device) != VK_SUCCESS)
+        return false;
     return harmonia::presentation::ImageCapture::saveExr(
         m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
 }

@@ -283,7 +283,7 @@ int App::mainLoop() {
 
     while (m_running) {
         SDL_Event event{};
-        while (SDL_PollEvent(&event)) {
+        while (m_running && SDL_PollEvent(&event)) {
             if (onEvent(event)) {
                 continue;
             }
@@ -294,6 +294,11 @@ int App::mainLoop() {
                 handleResize(extent.width, extent.height);
             }
         }
+
+        // A fatal rebuild must not process another resize or call client code
+        // against a swapchain that the failed recreation may have retired.
+        if (!m_running)
+            break;
 
         const std::uint64_t now = SDL_GetTicksNS();
         const float dtSeconds = static_cast<float>(now - lastTick) * 1e-9F;
@@ -306,7 +311,11 @@ int App::mainLoop() {
 
         // Save the frame slot before renderSceneReferred advances it.
         const std::uint32_t slot = m_frameSync.currentSlot();
-        const std::uint64_t renderValue = renderSceneReferred();
+        const auto renderValue = renderSceneReferred();
+        if (!renderValue) {
+            static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+            return 1;
+        }
         ++m_pacingRenderedFrames;
         // I6: --frames-per-flip — N accumulation frames per swapchain flip. The render
         // half runs every iteration; only the display/present half is gated, so N = 1 is
@@ -314,7 +323,7 @@ int App::mainLoop() {
         ++m_framesSinceFlip;
         if (m_framesSinceFlip >= std::max(m_config.framesPerFlip, 1U)) {
             m_framesSinceFlip = 0U;
-            presentFrame(slot, renderValue);
+            presentFrame(slot, *renderValue);
             ++m_pacingFlippedFrames;
         }
         // I6 pacing diagnostic: the measurable frames-per-flip oracle — one line per
@@ -333,8 +342,9 @@ int App::mainLoop() {
         std::this_thread::yield();
     }
 
-    vkDeviceWaitIdle(m_context.deviceContext().device);
-    return 0;
+    if (core::waitDeviceQuiescent(m_context.deviceContext().device) != VK_SUCCESS)
+        return 1;
+    return m_stagePipelineFailed ? 1 : 0;
 }
 
 void App::handleResize(std::uint32_t w, std::uint32_t h) {
@@ -371,10 +381,16 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
     };
     if (m_swapchain.recreate(newExtent) != VK_SUCCESS) {
         core::Logger::error("presentation::Swapchain recreate failed");
+        m_stagePipelineFailed = true;
+        m_running = false;
         return;
     }
 
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (core::waitDeviceQuiescent(m_context.deviceContext().device) != VK_SUCCESS) {
+        m_stagePipelineFailed = true;
+        m_running = false;
+        return;
+    }
 
     // Reset frame command buffers (to INITIAL) + completion values before destroying any
     // resources they reference. (Timeline signal values stay monotonic across a resize.)
@@ -398,7 +414,10 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
         return;
     }
     ++m_extentEpoch;
-    rebuildStagePipeline();
+    if (!rebuildStagePipeline()) {
+        m_running = false;
+        return;
+    }
 
     if (m_config.displayOverlay) {
         m_displayRenderer.onResize(m_swapchain.extent());

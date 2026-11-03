@@ -147,8 +147,8 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-**CI:** `.github/workflows/build.yml` runs on `windows-latest` + `ubuntu-26.04` for every
-push/PR — **pure build** for the renderer targets (their test suites need a GPU and stay a
+**CI:** `.github/workflows/build.yml` runs on `windows-latest` + `ubuntu-26.04` for
+main pushes and main-target PRs; manual dispatch remains available. It is **pure build** for the renderer targets (their test suites need a GPU and stay a
 local activity); Aether/slang-math additionally run their CPU suites. Checkouts set
 `lfs: true` (Aether's assets are Git LFS). The Linux leg installs the SDK tarball (cached),
 bridges SDL3, and builds with the image's g++ under the same `-Wall -Wextra -Werror

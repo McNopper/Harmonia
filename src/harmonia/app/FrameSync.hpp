@@ -48,7 +48,7 @@ class FrameSync {
     }
     /// Block until the previous submission on this slot is done (timeline wait on its
     /// completion value). No-op when the slot is idle (completion value 0).
-    void waitSlotComplete(std::uint32_t slot, std::uint64_t timeoutNs = UINT64_MAX) const noexcept;
+    [[nodiscard]] VkResult waitSlotComplete(std::uint32_t slot, std::uint64_t timeoutNs = UINT64_MAX) const noexcept;
     /// Allocate the next monotonic timeline signal value.
     [[nodiscard]] std::uint64_t nextSignalValue() noexcept { return m_nextTimelineValue++; }
     /// Record that this slot's latest submission signals @p value.

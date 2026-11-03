@@ -54,34 +54,45 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
         return std::unexpected(imageResult);
     }
 
-    const VkImageViewCreateInfo viewInfo{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0U,
-        .image = image.m_image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = format,
-        .components =
-            VkComponentMapping{
-                .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-            },
-        .subresourceRange =
-            VkImageSubresourceRange{
-                .aspectMask = aspect,
-                .baseMipLevel = 0U,
-                .levelCount = mipLevels,
-                .baseArrayLayer = 0U,
-                .layerCount = 1U,
-            },
-    };
+    // Transfer/host-copy-only images cannot have views (VUID image-04441).
+    constexpr VkImageUsageFlags kViewUsage =
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
+        VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT | VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR;
+    if ((usage & kViewUsage) != 0U) {
+        const VkImageViewCreateInfo viewInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0U,
+            .image = image.m_image,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = format,
+            .components =
+                VkComponentMapping{
+                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                },
+            .subresourceRange =
+                VkImageSubresourceRange{
+                    .aspectMask = aspect,
+                    .baseMipLevel = 0U,
+                    .levelCount = mipLevels,
+                    .baseArrayLayer = 0U,
+                    .layerCount = 1U,
+                },
+        };
 
-    const VkResult viewResult = vkCreateImageView(ctx.device, &viewInfo, nullptr, &image.m_view);
-    if (viewResult != VK_SUCCESS) {
-        vmaDestroyImage(ctx.allocator, image.m_image, image.m_allocation);
-        return std::unexpected(viewResult);
+        const VkResult viewResult = vkCreateImageView(ctx.device, &viewInfo, nullptr, &image.m_view);
+        if (viewResult != VK_SUCCESS) {
+            vmaDestroyImage(ctx.allocator, image.m_image, image.m_allocation);
+            return std::unexpected(viewResult);
+        }
     }
 
     image.m_allocator = ctx.allocator;
@@ -94,7 +105,8 @@ std::expected<Image, VkResult> Image::create(const DeviceContext& ctx,
     if (!debugName.empty()) {
         const std::string baseName(debugName);
         ctx.setDebugName(VK_OBJECT_TYPE_IMAGE, image.m_image, baseName.c_str());
-        ctx.setDebugName(VK_OBJECT_TYPE_IMAGE_VIEW, image.m_view, (baseName + " View").c_str());
+        if (image.m_view != VK_NULL_HANDLE)
+            ctx.setDebugName(VK_OBJECT_TYPE_IMAGE_VIEW, image.m_view, (baseName + " View").c_str());
     }
 
     return image;

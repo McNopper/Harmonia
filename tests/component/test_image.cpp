@@ -69,7 +69,7 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                     0,
-                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                     VK_ACCESS_2_TRANSFER_WRITE_BIT);
 
     const VkImageSubresourceRange fullRange{
@@ -85,9 +85,9 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
     img->transition(*cmd,
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                     VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                    VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                     VK_ACCESS_2_TRANSFER_READ_BIT);
 
     const VkBufferImageCopy region{
@@ -109,4 +109,14 @@ TEST_F(VulkanFixture, Image_TransitionClearAndReadback) {
         EXPECT_NEAR(pixels[i].b, kClear.float32[2], 1e-5F) << "pixel " << i << " B";
         EXPECT_NEAR(pixels[i].a, kClear.float32[3], 1e-5F) << "pixel " << i << " A";
     }
+}
+TEST_F(VulkanFixture, Image_TransferOnlyHasNoView) {
+    auto image = harmonia::core::Image::create(deviceCtx(),
+                                               {8, 8},
+                                               VK_FORMAT_R8G8B8A8_UNORM,
+                                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                               VK_IMAGE_ASPECT_COLOR_BIT);
+    ASSERT_TRUE(image.has_value());
+    EXPECT_TRUE(image->isValid());
+    EXPECT_EQ(image->view(), VK_NULL_HANDLE);
 }

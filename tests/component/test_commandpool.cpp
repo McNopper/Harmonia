@@ -12,12 +12,28 @@
 #include <cstring>
 #include <gtest/gtest.h>
 
+#include "fixtures/VulkanFaultScope.hpp"
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 
 TEST_F(VulkanFixture, CommandPool_HandleNonNull) {
     EXPECT_NE(commandPool().handle(), VK_NULL_HANDLE);
+}
+
+TEST_F(VulkanFixture, CommandPool_WaitFailureRetiresBeforeFreeingResources) {
+    const auto cmd = commandPool().beginOneShot();
+    ASSERT_TRUE(cmd.has_value());
+    VulkanFaultScope faults;
+    faults.failWait = true;
+    faults.idleFailures = 1;
+    faults.arm();
+    EXPECT_EQ(commandPool().endOneShot(*cmd), VK_ERROR_OUT_OF_HOST_MEMORY);
+    EXPECT_TRUE(faults.waitInjected);
+    EXPECT_GE(faults.idleCalls, 2U);
+    EXPECT_TRUE(faults.retired);
+    EXPECT_FALSE(faults.unsafeDestroy);
+    EXPECT_FALSE(faults.unsafeFree);
 }
 
 // Record a vkCmdFillBuffer command in a one-shot command buffer, submit it,

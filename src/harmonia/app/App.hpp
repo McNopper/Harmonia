@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <expected>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -181,7 +182,7 @@ class App {
     int mainLoop();
     [[nodiscard]] int renderOffscreen(); /// Record + submit the renderer into the HDR image; returns the timeline
     /// value signalled on completion and advances the frame slot.
-    std::uint64_t renderSceneReferred();
+    std::expected<std::uint64_t, VkResult> renderSceneReferred();
     /// Acquire, tonemap, present the given completed scene-referred frame.
     void presentFrame(std::uint32_t slot, std::uint64_t renderValue);
     [[nodiscard]] std::optional<std::uint32_t> acquireFrame(std::uint32_t slot) noexcept;
@@ -196,7 +197,7 @@ class App {
     /// One-shot diagnostic: when VK_KHR_calibrated_timestamps is supported, sample the
     /// GPU<->host clock relationship and log it (exercises the extension's entry points).
     void logGpuClockCalibration() noexcept;
-    void rebuildStagePipeline();
+    [[nodiscard]] bool rebuildStagePipeline();
     /// Applies the scene's stage toggles on top of the CLI defaults; enforces
     /// the two-tier output contract (no denoiser for --output / --no-postfx).
     /// Returns false on a contract violation — the scene load is aborted.
@@ -229,6 +230,7 @@ class App {
     std::vector<std::unique_ptr<pipeline::IRenderPass>> m_sceneStages;
     std::vector<std::unique_ptr<pipeline::IRenderPass>> m_displayStages;
     bool m_sceneOutputUsesDenoised = false;
+    bool m_stagePipelineFailed = false;
     GreenScreenRenderer m_displayRenderer{};
     std::optional<scene::IblProbe> m_iblProbe;
 

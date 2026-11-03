@@ -5,8 +5,20 @@
 
 #include <cstdint>
 #include <span>
+#include <thread>
 
 namespace harmonia::core {
+
+/// A failed host wait does not establish completion. Submitted resources must
+/// stay alive until the device is quiescent or lost, even after allocation errors.
+[[nodiscard]] inline VkResult waitDeviceQuiescent(VkDevice device) noexcept {
+    for (;;) {
+        const auto result = vkDeviceWaitIdle(device);
+        if (result == VK_SUCCESS || result == VK_ERROR_DEVICE_LOST)
+            return result;
+        std::this_thread::yield();
+    }
+}
 
 /// MOD2: timeline semaphore for one-shot submits (replaces VkFence — unifies all sync
 /// on one primitive; the frame path already uses timeline semaphores exclusively).
