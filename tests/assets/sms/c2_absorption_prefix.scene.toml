@@ -1,0 +1,62 @@
+# C2 — pure-absorption curved glass with a supported specular camera prefix.
+#
+# Same geometry as C1 but the sphere (shared triangulated OBJ caster) carries
+# colored pure absorption (transmission_depth = 1, no scatter -> exact
+# Beer-Lambert), and the camera looks through a second delta-glass pane before
+# the floor receiver: the camera prefix is specular, so the first eligible opaque
+# receiver (floor) is collected with frozen prefix throughput. Receiver-inclusive
+# depth: camera -> pane (1) -> floor receiver -> up to two sphere events ->
+# emitter requires max_depth >= 5.
+
+material_libraries = ["sms_qualification.materials.toml"]
+
+[render]
+reference = "presets/preview.render.toml"
+samples_per_pixel = 64
+max_depth = 6
+
+[camera]
+vertical_field_of_view = 43.0
+ev100 = 7.0
+translate = [0.0, 1.6, -4.2]
+rotate_x = -12.0
+rotate_y = 180.0
+
+[[mesh]]
+name = "floor"
+type = "box"
+half_extents = [3.0, 0.05, 3.0]
+
+[[mesh]]
+name = "caster"
+path = "sms_sphere_r05.obj"
+
+[[mesh]]
+name = "pane"
+type = "box"
+half_extents = [1.5, 1.2, 0.03]
+
+[[mesh]]
+name = "emitter"
+type = "box"
+half_extents = [0.3, 0.01, 0.3]
+
+[[instance]]
+mesh = "floor"
+material = "DiffuseFloor"
+translate = [0.0, -0.05, 0.0]
+
+[[instance]]
+mesh = "caster"
+material = "GlassAbsorbing"
+translate = [0.0, 0.5, 0.0]
+
+[[instance]]
+mesh = "pane"
+material = "GlassDelta"
+translate = [0.0, 1.0, -2.6]
+
+[[instance]]
+mesh = "emitter"
+material = "Emitter"
+translate = [0.0, 2.5, 0.0]

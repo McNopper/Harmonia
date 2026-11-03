@@ -2,7 +2,20 @@
 // types and three read-only scene arrays. Include after the renderer's imports.
 // The scene supplies trace/project for roots and raw occluded for visibility;
 // never infer visibility from successful shading-normal reconstruction.
+#ifndef SMS_HELPERS_ONLY
 [[vk::push_constant]] SmsQueuePush pc;
+#endif
+#ifndef SMS_STORE_LOCAL_TARGET
+#define SMS_STORE_LOCAL_TARGET(slot,work,value)
+#endif
+#ifndef SMS_CONTRIBUTION_ZERO
+#define SMS_CONTRIBUTION_ZERO 0.0.xxx
+#endif
+#ifndef SMS_FINISH_CONTRIBUTION
+#define SMS_FINISH_CONTRIBUTION(base,response,geometric,Le,pdf,prefix,value) \
+    value = base * response * geometric * Le / pdf * prefix; \
+    return all(isfinite(value)) && all(value >= 0.0.xxx);
+#endif
 
 bool prepareLight(inout SmsWorkRecord work) {
     uint count = work.words[13].z;
@@ -66,7 +79,7 @@ bool samplePath(inout SMS_SCENE scene, float3 receiver, float3 light, float4 u,
 }
 
 bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out float3 value) {
-    value = 0.0.xxx;
+    value = SMS_CONTRIBUTION_ZERO;
     float3 prefix=asfloat(work.words[9].xyz);
     if (!all(isfinite(prefix)) || any(prefix<0.0.xxx)) return false;
     float3 receiver = smsReceiverPosition(work), light = smsLightPosition(work);
@@ -111,10 +124,10 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
     float pdf = asfloat(work.words[5].w);
     if (!(pdf > 0.0) || !isfinite(pdf)) return false;
     float3 Le = float3(asfloat(work.words[6].w), asfloat(work.words[7].xy));
-    value = base * response * geometric * Le / pdf * prefix;
-    return all(isfinite(value)) && all(value >= 0.0.xxx);
+    SMS_FINISH_CONTRIBUTION(base,response,geometric,Le,pdf,prefix,value)
 }
 
+#ifndef SMS_HELPERS_ONLY
 #ifdef SMS_BUILD_PRIOR
 [shader("compute")]
 [numthreads(128,1,1)]
@@ -221,6 +234,7 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
             float3 base;
             if (!contribution(work, root, count, base)) { smsQueueError(pc, kSmsQueueNumericError); return; }
             work.words[11].xyz = asuint(base);
+            SMS_STORE_LOCAL_TARGET(slot,work,base);
             if (all(base == 0.0.xxx)) { phase = kSmsDone; break; }
             smsStoreRoot(work, root, count);
             SmsConditionalRegion conditional=makeSmsConditionalRegion(normalize(root[0].position-receiver),resolution);
@@ -252,4 +266,5 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
     pc.work[slot] = work;
     if (phase != kSmsDone) smsQueueAppend(pc, slot);
 }
+#endif
 #endif
