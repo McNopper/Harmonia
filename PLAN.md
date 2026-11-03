@@ -165,6 +165,16 @@ probe was used for diagnosis and removed from the suite; the independent oracle
 script is committed for the repair. Do not tune sampling until this Jacobian is
 fixed and the oracle/production values agree.
 
+**Likely implementation defect isolated.** At the independent oracle root, the
+production transmission half vector `wi + eta*wo` is parallel to the surface
+normal (`dot=-1`), not tangent. The tangent-constrained root uses
+`-wi + eta*wo` at entry and `wi + eta/eta_i*wo` at exit (equivalently the
+toward-surface incident vector plus relative-eta outgoing vector). Thus
+`smsConstraintBlocks` solves the wrong transmission constraint on curved chains.
+Correcting it requires updating the shared solver, admissibility checks,
+geometric Jacobian and dependent fixtures together; it is not a safe local one-line
+change. Production estimator bytes remain restored pending that coordinated fix.
+
 **Decision boundary:** do not merge SMS to main or continue to C2/C3 acceptance as
 if C1 passed. A different proposal/variance-reduction design would be new research
 requiring an explicit scope decision and unbiasedness review. More blind neighbors,
