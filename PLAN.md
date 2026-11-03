@@ -115,6 +115,26 @@ tests and ruff pass; real C1 smoke passes in every mode. Shared completion tests
 6/6 and all lint lanes pass. Three fixture errors were corrected openly; the
 first timing-control genuinely rejected a missed budget before its mock was fixed.
 
+**Measured diagnosis and repair:** the old sparse-root explanation was wrong.
+Both sphere OBJs had inward winding (all 3,968 C1 triangles had negative
+geometric-normal/center dot products). With outward winding restored and vertex
+positions/normals unchanged, the first C1 frame reports 44,524 eligible receivers,
+883 roots, 883 canonical candidates, 124,525 valid neighbor domains and 2,476
+root-bearing neighbors. Reuse makes 2,512 canonical inverse attempts with 2,443
+accepts and 2,476 neighbor inverse attempts with 2,405 accepts; 2,259 neighbors
+are selected. Off reports all zero. A planar fixture independently proves the
+observation path. Shift failure reasons are returned to the caller, so custom
+shader fixture layouts do not inherit the diagnostics descriptors. Full T58/58,
+zero validation/skips; all lint lanes pass. The outward-winding control fails on
+the old assets and passes on the corrected assets, and all three scenes validate.
+Reference/quality/performance must now be regenerated because fixture hashes changed.
+
+**Equal-time measurement policy:** the first real run had an 8 s seed outside the
+5% budget. Record that as `timing-inconclusive` while still collecting all modes
+and seeds; never label it accepted equal-time evidence. Only comparisons within
+5% for every mode/seed may pass. A separate CPU control checks this path. Do not
+use the prior timing-only failed run as a quality result.
+
 **Current execution queue:** repair the qualification harness before trusting any
 new acceptance result, then diagnose the existing C1 spatial estimator with real
 shift counters. Work stays on dev; GPU jobs remain strictly serial.
