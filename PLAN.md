@@ -98,6 +98,15 @@ the sibling clones.
 
 ## 3. How to continue
 
+**CI/local-first policy:** automatic CI is main pushes and main-target PRs;
+manual dispatch remains available. Ordinary development/WIP pushes skip CI.
+Renderer GI-SMS PR/manual jobs select the matching Harmonia branch, not pre-SMS
+main. The four GCC dangling-else test sites are braced without changing assertions.
+Two-TU local GCC syntax checks pass; local Windows build/H143 regression and
+family lint pass. This is not a complete Linux build or a hosted green CI claim.
+Build/check locally before an authorized push. Main and dependency pins remain
+unchanged; this development branch retains local-SMS runtime without WIP reuse.
+
 ### GI-SMS #2 continuation checkpoint — 2026-11-03
 
 **Current authorization:** commit and push on the development/WIP branches below.
