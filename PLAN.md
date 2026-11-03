@@ -136,15 +136,15 @@ Full family re-run passes H142/142, Hy69/69, T34/34 with zero validation message
 canonical architecture and H/Hy tidy/dead pass. Theia reference control remains
 0/76,800 changed pixels. SDS can now be checkpointed locally; full #2 is not done.
 
-**Next common-sampler extraction (after the SDS receipt):** share the light
-proposal, supported-tail sampling, contribution and initial/repeat/prior controller
-functions through one typed scene interface. Its renderer-specific operations are
-material/emitter/CDF reads, nearest vertex trace/project, and receiver BSDF/frame
-evaluation. Keep actual geometry reconstruction and descriptor layouts in each
-renderer. Alternatives considered: textual macro/type aliases preserve fewer
-signatures but leak descriptor names and obscure the boundary; a typed generic
-interface hides the scene policy while retaining one monomorphized common trial
-site. Choose the typed interface; no solver/transport/math changes in this slice.
+**Common-sampler extraction (after the SDS receipt):** share the light proposal,
+supported-tail sampling, contribution and initial/repeat/prior controller in one
+compute include. Six explicit aliases bind renderer scene/hit/texture types and
+material/emitter/CDF arrays. Geometry reconstruction and descriptor layouts stay
+renderer-owned; common BSDF/frame mathematics stays together in Harmonia.
+The initially selected typed-dispatch alternative was rejected by the exact-pixel
+gate (evidence below). The compile-time include retains the original concrete
+entry-point call graph and the existing typed projector/texture contracts.
+No solver/transport/math changes are permitted in this slice.
 Require exact existing EXR receipt comparison, all mirror/Snell/Beer/SDS gates and
 the family regression before a separate local refactoring checkpoint. Then wire
 Theia to that contract, rather than copying and evolving a second sampler.
@@ -152,6 +152,44 @@ Theia to that contract, rather than copying and evolving a second sampler.
 directory bind 32 EXRs (8 fixture families × 4 seeds), 393,216 RGB pixels, to
 the pre-extraction commits. Require zero changed pixels and zero max absolute
 error without normalization; retain the exact-difference mask for review.
+Extraction status: selected mirror/SDS energy checks pass but the first typed
+extraction fails exact pixels (1,828 changed among the 8 regenerated images;
+the other 24 are not yet regraded). Max difference is .000863661. Hold the
+refactoring checkpoint and isolate expression/code-generation changes; do not
+relax the zero-pixel gate or misreport unchanged old artifacts as new evidence.
+The first build exposed missing direct bsdf/math imports, now repaired; this
+was a deterministic compile error, not a flaky runtime retry.
+Known-good committed-source replay regenerates the 8 mirror/SDS EXRs exactly,
+so capture reproducibility is not the cause. Moving the receiver expression back,
+restoring the full hit type, and retaining global push constants did not remove
+the typed-dispatch drift. Reject that extraction shape. Use the other considered
+design: one shared compute include with six explicit renderer aliases, preserving
+the original concrete entry-point call graph. Geometry still implements the typed
+ISmsProjector contract, and texture access ISurfaceTextureSampler. The exact
+32-image gate is unchanged; this is a design correction, not a tolerance change.
+The shared-include main sampler now produces byte-identical SPIR-V, SHA-256
+`9778594237923a4fabff377867a82a697fe8622b526ce50cb66469d5d0d8b017`,
+254,400 bytes, versus committed pre-extraction source. The prior program is also
+byte-identical: 123,184 bytes, SHA-256
+`a05bfa2dfa0177fe950612226c4139b4c8b19b8dd37185fd4dd1a9ed5d0597a0`.
+Fresh full 32-image regrade passes at 0/393,216 changed pixels and zero maximum
+absolute difference. Prefix-weight and conditional-alpha/mass controls fail,
+exact restored shaders pass. Full H142/Hy69/T38 passes validation-clean, canonical
+architecture and H/Hy tidy/dead pass, Theia control unchanged 0/76,800 pixels.
+The original function/macro expansion was source-reviewed against the baseline.
+**Required support follow-up after the pure extraction checkpoint:** source review
+of the new Theia adapter found that production's geometric-normal fallback must
+not become an SMS miss (zero/exactly cancelling/tiny blended vertex normals).
+Match production's squared-length branch, with zero derivatives on geometric
+fallbacks. A visibility ray must use an actual opaque occlusion query, not report
+"clear" because a blocker's shading reconstruction failed. The new Theia adapter
+adds fallback and raw-occlusion fixtures; all four native tests and wrong-normal,
+missing-fallback, wrong-cutoff and missing-occlusion controls pass/reject as intended,
+with exact restored shaders passing. Apply
+the corresponding production-matching fallback/raw-visibility contract to the
+Hyperion adapter and the shared visibility call site as a separately verified
+behavior fix before enabling Theia SMS. In particular test a mixed zero-normal
+planar mirror against the independent virtual emitter, not only all-zero normals.
 
 **2c.2 verification plan (H `3ac0de6`, Hy `1cc64a5`):**
 Finite-domain GPU probe uses 65,536 draws/case, exact mass / conditional-alpha
