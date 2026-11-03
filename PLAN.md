@@ -135,6 +135,32 @@ and seeds; never label it accepted equal-time evidence. Only comparisons within
 5% for every mode/seed may pass. A separate CPU control checks this path. Do not
 use the prior timing-only failed run as a quality result.
 
+**C1 acceptance remains BLOCKED after fixing real root generation.** The outward
+reference is accepted at 4096 spp (split-seed uncertainty .430%). Local SMS fails
+at 512 frames: pooled RGB ratio 1.144638, mean per-seed MSE 365.1014. At 2048 the
+measured local ratio is 1.072171 and reuse ratio 1.071827, still outside 2%.
+Local/reuse mean MSE is 57.9716/57.4312 (only ~1% lower), so no efficiency benefit
+is established. Three seeds are near one while seed 91 remains 1.298398; its ratio
+falls to 1.049630 at 8192 frames. This is long-tailed convergence, not evidence of
+an unbiased implementation passing the bounded gate. A 16384-frame attempt timed
+out with no image; the completed 8192 result is the diagnostic receipt.
+
+Focused attempts preserved in scratch: 15 neighbors give ratio 1.071694 and mean
+MSE 56.8113 (not worth the cost), so production remains at three. Disabling the
+prior gives ratio 3.901104 and MSE 10435.39. Raising pilot walks 128 -> 256 gives
+ratio 1.301860 and MSE 157.2278, so production remains at 128. Reciprocal work is
+not capped; observed completed trials reach max 175. Hyperion local at 512 has
+per-seed ratios 1.298514, .894005, .846967, .841042. PT-only C1 has no matching
+firefly pixels, isolating the issue to SMS weighting rather than retained PT paths.
+
+**Decision boundary:** do not merge SMS to main or continue to C2/C3 acceptance as
+if C1 passed. A different proposal/variance-reduction design would be new research
+requiring an explicit scope decision and unbiasedness review. More blind neighbors,
+pilot walks, temporal reuse, trial caps, clamps or tolerance changes are not an
+accepted fix. Full product/lint verification applies to the restored code only,
+not to the failed estimator experiments. The winding fix and diagnostics remain
+valid and are retained.
+
 **Current execution queue:** repair the qualification harness before trusting any
 new acceptance result, then diagnose the existing C1 spatial estimator with real
 shift counters. Work stays on dev; GPU jobs remain strictly serial.
