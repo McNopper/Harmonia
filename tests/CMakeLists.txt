@@ -60,6 +60,7 @@ compile_slang_shaders(harmonia_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders
     sms_transport_test.slang
     sms_partition_test.slang
     sms_prior_test.slang
+    sms_path_test.slang
     sms_queue_prior_test.slang
     "${PROJECT_SOURCE_DIR}/shaders/sms_queue_control.slang"
     "${PROJECT_SOURCE_DIR}/shaders/sms_queue_validate.slang")

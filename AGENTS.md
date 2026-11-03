@@ -51,6 +51,14 @@ Renderer namespaces stay separate
 rasterizer-base constraint: `harmonia::rt` must stay a separable capability — a future
 rasterizer path consumes `scene` without `rt`.
 
+**Local GI-SMS work:** `shaders/sms_compute.slang` is the concrete shared compute
+include; `sms_path.slang` owns the actual-event PT/SMS partition independently of
+root-solve success. Geometry/descriptor adapters remain renderer-owned. The
+resumable `pipeline::SmsPass` publishes ready only after full-slot validation and
+resolve; never accumulate/export pending or failed work. Theia integration/reuse
+and final scene/gallery acceptance remain tracked in PLAN.md, not completed by
+the shared-library checkpoints alone.
+
 **Material model = OpenPBR Surface** (Academy Software Foundation). The shared OpenPBR BSDF
 (`shaders/bsdf_shared.slang`) — diffuse (Fujii/EON), F82 conductor Fresnel (with the
 `F90 = saturate(50·F0)` vanishing-interface fade, Lagarde/Frostbite — no lobe-weight gates),

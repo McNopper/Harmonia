@@ -956,3 +956,27 @@ TEST_F(SmsFixture, SmsPriorMixtureAndConditionalDensityMatchFiniteDomain) {
             EXPECT_EQ(outputs[i].z, 0.0F);
     }
 }
+
+TEST_F(SmsFixture, SmsPathOwnershipMatchesActualSupportedEventPaths) {
+    using Words = std::array<std::uint32_t, 4>;
+    // D-R-L, S-D-R-L, D-TT-L, insufficient TT budget, later D,
+    // null/scattering/pure-absorption prefix, direct/internal bulk exits,
+    // wrong object, longer R chain, insufficient R budget, excluded tiny
+    // glass weight, termination and null continuation. No solve outcome enters.
+    constexpr std::array<std::uint32_t, 16> expectedKinds{3, 3, 5, 0, 0, 0, 0, 3, 5, 0, 0, 0, 0, 0, 0, 0};
+    constexpr std::array<bool, 16> expectedCapture{
+        true, true, true, true, false, false, false, true, true, true, true, true, false, true, true, true};
+    std::vector<Words> inputs;
+    for (std::uint32_t mode = 0; mode < expectedKinds.size(); ++mode)
+        inputs.push_back({mode, 0, 0, 0});
+    std::vector<sm::float4> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Words, sm::float4>(inputs, outputs, "sms_path_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t mode = 0; mode < outputs.size(); ++mode) {
+        SCOPED_TRACE(mode);
+        EXPECT_EQ(outputs[mode].x, expectedKinds[mode] == 3 || expectedKinds[mode] == 5 ? 1.0F : 0.0F);
+        EXPECT_EQ(outputs[mode].y, static_cast<float>(expectedKinds[mode]));
+        EXPECT_EQ(outputs[mode].z, 0.0F);
+        EXPECT_EQ(outputs[mode].w, expectedCapture[mode] ? 1.0F : 0.0F);
+    }
+}

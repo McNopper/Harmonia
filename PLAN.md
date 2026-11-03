@@ -237,6 +237,27 @@ Theia control stays 0/76,800 changed pixels. Theia native compute entries compil
 but receiver production, active completion/candidates/reuse and final acceptance
 remain outstanding. No pixel-identical refactoring claim is made for this behavior fix.
 
+**Next shared ownership/GI slice (H `6b4a59b`, Hy `7183545`, T `73e0091`):**
+factor the actual-event classifier into a shared path-state helper used by both
+renderers. Preserve the existing Hyperion semantics, including first receiver,
+specular-only prefix, receiver-relative R/TT budget, pure-absorber direct exit,
+and invalidation on later diffuse/null/scattering/extra specular events. Verify
+`harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsPathOwnership*` against
+an independently enumerated terminal-path table (not solver outcomes), with wrong
+depth and missing-prefix-invalidation controls. Then adopt in Hyperion and Theia,
+using the existing rendered R/TT/Beer/SDS/depth controls as the integration oracle.
+This shared classifier is prerequisite plumbing, not active Theia/GI completion.
+Executed shared-classifier receipt: all 16 terminal-path cases pass; missing
+prefix gating, wrong TT depth and retained internal-reflection controls fail,
+exact restores pass. H143/143 validation-clean plus tidy/dead pass. Hyperion's
+unchanged payload fields now adapt to the common helper; its full 71-test
+regression passes validation-clean. Source-only review confirms mapped material,
+raw sidedness, post-integrator direction, current-receiver ordering, incoming
+medium-boundary direction, CDF identity and solve-independent ownership match.
+Theia active wiring is implemented in the working tree, builds and passes a
+160×120 / four-frame actual Application completion smoke (validation 0), but its
+independent GiPass radiometry/control and broader acceptance are not yet verified.
+
 **2c.2 verification plan (H `3ac0de6`, Hy `1cc64a5`):**
 Finite-domain GPU probe uses 65,536 draws/case, exact mass / conditional-alpha
 tolerance 1e-6 and absolute per-tile frequency tolerance .012. Include empty/full
