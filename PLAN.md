@@ -153,6 +153,18 @@ not capped; observed completed trials reach max 175. Hyperion local at 512 has
 per-seed ratios 1.298514, .894005, .846967, .841042. PT-only C1 has no matching
 firefly pixels, isolating the issue to SMS weighting rather than retained PT paths.
 
+**Independent oracle found the curved defect.** A fresh double-precision
+receiver -> two-sphere-interface -> light solver (`Harmonia/tools/sms_curved_oracle.py`)
+solves the Snell constraints to residual $5.06e-17$ and computes the receiver
+solid-angle Jacobian by central finite differences. At the receipt root, the
+independent geometric term is `0.0040998597330524035`. The production GPU term
+returns `0.010009538382291794` for the identical vertex/root data, about
+`2.441x` too large. Existing planar slab, mirror and paraxial-curvature tests do
+not cover this non-conformal curved two-interface basis. The failing exact-value
+probe was used for diagnosis and removed from the suite; the independent oracle
+script is committed for the repair. Do not tune sampling until this Jacobian is
+fixed and the oracle/production values agree.
+
 **Decision boundary:** do not merge SMS to main or continue to C2/C3 acceptance as
 if C1 passed. A different proposal/variance-reduction design would be new research
 requiring an explicit scope decision and unbiasedness review. More blind neighbors,

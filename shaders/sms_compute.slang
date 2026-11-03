@@ -9,7 +9,7 @@
 #define SMS_STORE_LOCAL_TARGET(slot,work,value)
 #endif
 #ifndef SMS_DIAG_COMPLETE
-#define SMS_DIAG_COMPLETE(reciprocal)
+#define SMS_DIAG_COMPLETE(reciprocal,conditionalMass,reciprocalWeight)
 #endif
 #ifndef SMS_CONTRIBUTION_ZERO
 #define SMS_CONTRIBUTION_ZERO 0.0.xxx
@@ -255,7 +255,7 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
             if (reciprocal.status == 1u) {
                 float weight;
                 if (!completedSmsReciprocal(reciprocal, weight)) { smsQueueError(pc, kSmsQueueNumericError); return; }
-                SMS_DIAG_COMPLETE(reciprocal)
+                SMS_DIAG_COMPLETE(reciprocal,asfloat(work.words[11].w),weight)
                 weight=smsConditionalWeight(weight,asfloat(work.words[11].w));
                 float3 estimate = asfloat(work.words[11].xyz) * weight;
                 if (!all(isfinite(estimate))) { smsQueueError(pc, kSmsQueueNumericError); return; }
