@@ -194,6 +194,26 @@ check wrongly looked for an unrun C3 artifact; its corrected archive check uses
 the existing C1 copies of both meshes. This was a check-path correction, not a
 geometry change or renderer retry.
 
+**Joined-candidate verification receipt:** all three local Windows builds exit
+0 with zero compiler warnings. Serial selected regressions pass Harmonia 53/53
+(19.10 s), Hyperion 24/24 (351.64 s), Theia 27/27 (243.96 s): each `ctest` exits
+0, with zero validation diagnostics, zero skipped/not-run tests and no retries.
+104 product tests were selected; 90 H + 47 Hy + 30 T = 167 other non-analysis
+tests were excluded, along with all analysis lanes. This is not a full-suite run.
+`lint-preflight.ps1 -Repos @('Harmonia','Hyperion','Theia')` exits 0: all six lint
+lanes clean in each repo. No new Linux/hosted-CI success is claimed.
+
+Evidence anchors: Harmonia `b542b4c`, Theia `6373588`, Hyperion `eda12ff`;
+runtime/shader/test/workflow trees match their reviewed source tips (H `fee0614`,
+T `64fa14d`, Hy `128b220`). The only added runtime data are the byte-identical
+packaged meshes at H `c93260a`; subsequent changes are documentation only.
+Builds use the existing sibling-source overrides, not a clean default-pinned
+dependency build. Logs and exit summaries are in approved scratch
+`sms_consolidation_review/{Harmonia,Hyperion,Theia}.{build,tests}.log` and
+`results.json`; CPU controls, archived-mesh checks and cached-image reanalysis
+also exit 0 as specified above. The open findings are intentionally not repaired
+by this consolidation, except for S1's missing data.
+
 **CI/local-first policy:** automatic CI is main pushes and main-target PRs;
 manual dispatch remains available. Ordinary development/WIP pushes skip CI.
 Renderer GI-SMS PR/manual jobs select the matching Harmonia branch, not pre-SMS
