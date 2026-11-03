@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/core/OneShot.hpp"
 
 namespace harmonia::presentation {
 
@@ -369,9 +370,11 @@ VkResult Swapchain::recreate(VkExtent2D newExtent) {
     // Extension-absent fallback: the legacy pre-recreate device idle (unchanged
     // behavior — the fence path is what removes it on capable devices).
     if (m_ctx->swapchainMaintenance1Supported) {
-        quiesceForRecreate();
+        if (const auto result = quiesceForRecreate(); result != VK_SUCCESS)
+            return result;
     } else {
-        vkDeviceWaitIdle(m_ctx->device);
+        if (const auto result = core::waitDeviceQuiescent(m_ctx->device); result != VK_SUCCESS)
+            return result;
     }
 
     // Pass the old swapchain so the driver can retire it and reuse resources.
@@ -389,7 +392,7 @@ VkResult Swapchain::recreate(VkExtent2D newExtent) {
     return VK_SUCCESS;
 }
 
-void Swapchain::quiesceForRecreate() {
+VkResult Swapchain::quiesceForRecreate() {
     const VkDevice device = m_ctx->device;
 
     // 1. Wait (bounded) every fence still chained to a queued present.
@@ -410,7 +413,8 @@ void Swapchain::quiesceForRecreate() {
             core::Logger::warn("Swapchain recreate: present fence wait failed (VkResult {}) — falling back to "
                                "vkDeviceWaitIdle",
                                static_cast<int>(waitResult));
-            vkDeviceWaitIdle(device);
+            if (const auto result = core::waitDeviceQuiescent(device); result != VK_SUCCESS)
+                return result;
         }
     }
 
@@ -435,6 +439,7 @@ void Swapchain::quiesceForRecreate() {
         if (releaseResult != VK_SUCCESS) {
             core::Logger::warn("Swapchain recreate: vkReleaseSwapchainImagesKHR failed (VkResult {})",
                                static_cast<int>(releaseResult));
+            return releaseResult;
         }
     }
 
@@ -442,6 +447,7 @@ void Swapchain::quiesceForRecreate() {
     //    the fresh swapchain starts clean (its fences are new anyway).
     m_presentFencePending.assign(m_presentFencePending.size(), false);
     m_acquired.assign(m_acquired.size(), false);
+    return VK_SUCCESS;
 }
 
 VkSwapchainKHR Swapchain::handle() const noexcept {

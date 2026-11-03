@@ -33,7 +33,8 @@ std::expected<std::uint64_t, VkResult> App::renderSceneReferred() {
     const std::uint32_t slot = m_frameSync.currentSlot();
 
     // Wait for the previous use of this frame slot to complete.
-    m_frameSync.waitSlotComplete(slot);
+    if (const auto result = m_frameSync.waitSlotComplete(slot); result != VK_SUCCESS)
+        return std::unexpected(result);
 
     const VkCommandBuffer renderCmd = m_frameSync.renderCmd(slot);
     vkResetCommandBuffer(renderCmd, 0);
@@ -208,7 +209,10 @@ int App::renderOffscreen() {
         // time -- see AGENTS.md.
         std::this_thread::yield();
     }
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (vkDeviceWaitIdle(m_context.deviceContext().device) != VK_SUCCESS) {
+        static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+        return 1;
+    }
 
     const bool isPng = (m_config.outputFile.extension() == ".png");
     bool ok = true;
@@ -248,7 +252,8 @@ int App::renderOffscreen() {
 }
 
 bool App::saveExr(const std::filesystem::path& path) {
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (core::waitDeviceQuiescent(m_context.deviceContext().device) != VK_SUCCESS)
+        return false;
     return harmonia::presentation::ImageCapture::saveExr(
         m_context.deviceContext(), m_commandPool, sceneOutputImage(), path, m_workingColorSpace);
 }

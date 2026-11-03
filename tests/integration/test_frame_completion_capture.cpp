@@ -338,5 +338,5 @@ TEST(FrameCompletionCapture, FatalResizeErrorStaysLatchedAcrossQueuedRebuilds) {
     cfg.outputFile.clear(); // interactive event path, not the offscreen loop
     EXPECT_NE(app.run(std::move(cfg)), 0);
     EXPECT_TRUE(faults.computeInjected);
-    EXPECT_EQ(app.completedSecondResize, 1U) << "The second queued rebuild must actually succeed";
+    EXPECT_EQ(app.completedSecondResize, 0U) << "The fatal first rebuild must prevent the queued retry";
 }

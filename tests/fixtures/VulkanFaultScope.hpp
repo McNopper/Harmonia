@@ -21,6 +21,11 @@ class VulkanFaultScope {
         vkDestroySemaphore = m_destroy;
         vkFreeCommandBuffers = m_free;
         vkCreateComputePipelines = m_compute;
+        vkResetCommandBuffer = m_reset;
+        vkDestroyImage = m_destroyImage;
+        vkDestroyImageView = m_destroyView;
+        vkDestroyPipeline = m_destroyPipeline;
+        vkCreateSwapchainKHR = m_createSwapchain;
         s_active = nullptr;
     }
     void arm() noexcept {
@@ -32,6 +37,11 @@ class VulkanFaultScope {
         m_destroy = vkDestroySemaphore;
         m_free = vkFreeCommandBuffers;
         m_compute = vkCreateComputePipelines;
+        m_reset = vkResetCommandBuffer;
+        m_destroyImage = vkDestroyImage;
+        m_destroyView = vkDestroyImageView;
+        m_destroyPipeline = vkDestroyPipeline;
+        m_createSwapchain = vkCreateSwapchainKHR;
         s_active = this;
         vkWaitSemaphores = wait;
         vkQueueSubmit2 = submit;
@@ -39,6 +49,11 @@ class VulkanFaultScope {
         vkDestroySemaphore = destroy;
         vkFreeCommandBuffers = freeBuffers;
         vkCreateComputePipelines = compute;
+        vkResetCommandBuffer = reset;
+        vkDestroyImage = destroyImage;
+        vkDestroyImageView = destroyView;
+        vkDestroyPipeline = destroyPipeline;
+        vkCreateSwapchainKHR = createSwapchain;
         m_installed = true;
     }
     static VkResult cleanupForTest(VkDevice device) noexcept {
@@ -54,6 +69,11 @@ class VulkanFaultScope {
     bool retiredBySubject = false, unsafeSemaphoreDestruction = false, unsafeCommandFree = false;
     bool testRecoveryUsed = false;
     std::uint32_t idleCalls = 0;
+    // Release-lifetime ordering observers (also used by generic capture tests).
+    bool idleInjected = false, unsafeReset = false, unsafeResourceDestruction = false;
+    bool failSwapchain = false, swapchainInjected = false;
+    std::uint32_t swapchainCalls = 0;
+    VkDevice deviceForReset = VK_NULL_HANDLE;
 
   private:
     static VKAPI_ATTR VkResult VKAPI_CALL compute(VkDevice device,
@@ -101,6 +121,7 @@ class VulkanFaultScope {
         ++self.idleCalls;
         if (self.idleAllocationFailures != 0) {
             --self.idleAllocationFailures;
+            self.idleInjected = true;
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
         const auto result = self.m_idle(device);
@@ -119,6 +140,7 @@ class VulkanFaultScope {
             self.testRecoveryUsed = true;
             self.m_idle(device);
         }
+        self.protectDestruction(device);
         self.m_destroy(device, semaphore, allocator);
     }
     static VKAPI_ATTR void VKAPI_CALL freeBuffers(VkDevice device,
@@ -131,7 +153,58 @@ class VulkanFaultScope {
             self.testRecoveryUsed = true;
             self.m_idle(device);
         }
+        self.protectDestruction(device);
         self.m_free(device, pool, count, buffers);
+    }
+    [[nodiscard]] bool requiresRetirement() const {
+        return (waitInjected || submitInjected || idleInjected) && !retiredBySubject;
+    }
+    void protectDestruction(VkDevice device) {
+        if (requiresRetirement()) {
+            unsafeResourceDestruction = true;
+            // Independent safety net: deliberately not credited as subject retirement.
+            static_cast<void>(m_idle(device));
+        }
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL reset(VkCommandBuffer cmd, VkCommandBufferResetFlags flags) {
+        auto& self = *s_active;
+        if (self.requiresRetirement()) {
+            self.unsafeReset = true;
+            if (self.deviceForReset != VK_NULL_HANDLE)
+                static_cast<void>(self.m_idle(self.deviceForReset));
+        }
+        return self.m_reset(cmd, flags);
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroyImage(VkDevice device,
+                                                   VkImage image,
+                                                   const VkAllocationCallbacks* allocator) {
+        s_active->protectDestruction(device);
+        s_active->m_destroyImage(device, image, allocator);
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroyView(VkDevice device,
+                                                  VkImageView view,
+                                                  const VkAllocationCallbacks* allocator) {
+        s_active->protectDestruction(device);
+        s_active->m_destroyView(device, view, allocator);
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroyPipeline(VkDevice device,
+                                                      VkPipeline pipeline,
+                                                      const VkAllocationCallbacks* allocator) {
+        s_active->protectDestruction(device);
+        s_active->m_destroyPipeline(device, pipeline, allocator);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL createSwapchain(VkDevice device,
+                                                          const VkSwapchainCreateInfoKHR* info,
+                                                          const VkAllocationCallbacks* allocator,
+                                                          VkSwapchainKHR* swapchain) {
+        auto& self = *s_active;
+        ++self.swapchainCalls;
+        if (self.failSwapchain) {
+            self.failSwapchain = false;
+            self.swapchainInjected = true;
+            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        }
+        return self.m_createSwapchain(device, info, allocator, swapchain);
     }
     inline static VulkanFaultScope* s_active{};
     bool m_installed = false;
@@ -142,6 +215,11 @@ class VulkanFaultScope {
     PFN_vkDestroySemaphore m_destroy{};
     PFN_vkFreeCommandBuffers m_free{};
     PFN_vkCreateComputePipelines m_compute{};
+    PFN_vkResetCommandBuffer m_reset{};
+    PFN_vkDestroyImage m_destroyImage{};
+    PFN_vkDestroyImageView m_destroyView{};
+    PFN_vkDestroyPipeline m_destroyPipeline{};
+    PFN_vkCreateSwapchainKHR m_createSwapchain{};
 };
 
 #endif // TESTS_FIXTURES_VULKANFAULTSCOPE_HPP

@@ -83,7 +83,7 @@ App::~App() {
 }
 
 int App::run(Config&& config) {
-    m_stagePipelineFailed = false; // fatal status is latched for this entire run
+    m_stagePipelineFailed = false;
     m_config = std::move(config);
     m_defaultStages = m_config.stages;
 
@@ -165,8 +165,8 @@ bool App::bootstrap() {
     if (!createHdrImage() || !createDenoisedImage() || !createToneMapper()) {
         return false;
     }
-    if (!rebuildStagePipeline())
-        return false;
+    // Scene stages are created only after applying the scene's overrides in
+    // loadScene. An ultimately disabled accumulation stage must not be required.
     if (!m_hdrImage.isValid()) {
         return false;
     }
@@ -491,7 +491,11 @@ std::filesystem::path App::resolveScenePath(const std::filesystem::path& sceneFi
 bool App::loadScene(const std::filesystem::path& sceneFile) {
     const std::filesystem::path resolved = resolveScenePath(sceneFile);
 
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (core::waitDeviceQuiescent(m_context.deviceContext().device) != VK_SUCCESS) {
+        m_stagePipelineFailed = true;
+        m_running = false;
+        return false;
+    }
     m_iblProbe.reset();
     onSceneUnload();
 
@@ -586,12 +590,13 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
         m_running = false;
         return false;
     }
+
     return true;
 }
 
 void App::shutdown() noexcept {
     if (m_context.deviceContext().device != VK_NULL_HANDLE) {
-        vkDeviceWaitIdle(m_context.deviceContext().device);
+        static_cast<void>(core::waitDeviceQuiescent(m_context.deviceContext().device));
         m_frameSync.destroy();
     }
 

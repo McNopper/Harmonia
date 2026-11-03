@@ -283,7 +283,7 @@ int App::mainLoop() {
 
     while (m_running) {
         SDL_Event event{};
-        while (SDL_PollEvent(&event)) {
+        while (m_running && SDL_PollEvent(&event)) {
             if (onEvent(event)) {
                 continue;
             }
@@ -294,6 +294,11 @@ int App::mainLoop() {
                 handleResize(extent.width, extent.height);
             }
         }
+
+        // A fatal rebuild must not process another resize or call client code
+        // against a swapchain that the failed recreation may have retired.
+        if (!m_running)
+            break;
 
         const std::uint64_t now = SDL_GetTicksNS();
         const float dtSeconds = static_cast<float>(now - lastTick) * 1e-9F;
@@ -337,7 +342,8 @@ int App::mainLoop() {
         std::this_thread::yield();
     }
 
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (core::waitDeviceQuiescent(m_context.deviceContext().device) != VK_SUCCESS)
+        return 1;
     return m_stagePipelineFailed ? 1 : 0;
 }
 
@@ -375,10 +381,16 @@ void App::handleResize(std::uint32_t w, std::uint32_t h) {
     };
     if (m_swapchain.recreate(newExtent) != VK_SUCCESS) {
         core::Logger::error("presentation::Swapchain recreate failed");
+        m_stagePipelineFailed = true;
+        m_running = false;
         return;
     }
 
-    vkDeviceWaitIdle(m_context.deviceContext().device);
+    if (core::waitDeviceQuiescent(m_context.deviceContext().device) != VK_SUCCESS) {
+        m_stagePipelineFailed = true;
+        m_running = false;
+        return;
+    }
 
     // Reset frame command buffers (to INITIAL) + completion values before destroying any
     // resources they reference. (Timeline signal values stay monotonic across a resize.)

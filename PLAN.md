@@ -71,10 +71,8 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.16 - VK16 device-lost forensics (device_fault + address binding report), SM6 remainder (`sm::trs`, `float3x3`, pi dedup), Context lifecycle extraction, architecture directive recorded (renderers receive flat lists). slang-math v0.5.0, Aether v0.8.0.
-  slang-math **v0.4.0** - pin bumped, `sm::saturate` available). All five repos
-  verified tag-synced with GitHub.
-- **Last shipped:** v0.7.15 - **H-05** color-space seam guards (5 fail-fast guards + 8 no-GPU tests) + **SM6** `sm::saturate` (27 sites); tests 90->98. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
+- **Release:** v0.7.19 - general rendering correctness and fail-safe GPU resource lifetimes; Aether v0.8.1, slang-math v0.8.0. No SMS integration is included.
+- **Last shipped:** v0.7.18 - Aether pin v0.8.1. Prior v0.7.16 - VK16 device-lost forensics + SM6 remainder. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
   module, contract edge removed) + **AR2** (layered CMake targets) + **T-03** narrow
   barrier face + the Q1/Q3 quality wave - see Baseline.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
@@ -2286,6 +2284,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
+- **v0.7.19** (Hyperion v0.7.18, Theia v0.8.1): **general rendering correctness.** Discrete events no longer expose continuous BSDF/NEE densities; requested accumulation fails closed after scene overrides; frame-slot/resize/reload/shutdown/save retirement precedes resource reuse/destruction; swapchain retirement checks failed waits and fatal recreation stops queued events; transfer-only images have no views. Full local H109/Hy55/T34, warning-clean builds and all lint lanes; baseline/mutation controls fail and exact restores pass. README galleries refreshed at 1280x720, 64 spp Hyperion and 256-frame Theia. No SMS integration. Dependencies: Aether v0.8.1, slang-math v0.8.0.
 - **Tagged on GitHub:** slang-math @ **v0.3.1**; Aether @ **v0.7.6**; Harmonia @ **v0.7.13**;
   Hyperion @ **v0.7.13**; Theia @ **v0.7.14**. Verified: `git ls-remote --tags origin` ==
   `git tag -l` in all five repos, and the `FetchContent` pins resolve (Theia → Harmonia

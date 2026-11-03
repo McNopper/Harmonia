@@ -101,10 +101,10 @@ void FrameSync::onResize(std::uint32_t swapchainImageCount) noexcept {
     }
 }
 
-void FrameSync::waitSlotComplete(std::uint32_t slot, std::uint64_t timeoutNs) const noexcept {
+VkResult FrameSync::waitSlotComplete(std::uint32_t slot, std::uint64_t timeoutNs) const noexcept {
     const std::uint64_t value = m_frames[slot].completionValue;
     if (value == 0U) {
-        return;
+        return VK_SUCCESS;
     }
     const VkSemaphore wait = m_timelineSemaphore;
     const VkSemaphoreWaitInfo waitInfo{
@@ -115,7 +115,7 @@ void FrameSync::waitSlotComplete(std::uint32_t slot, std::uint64_t timeoutNs) co
         .pSemaphores = &wait,
         .pValues = &value,
     };
-    vkWaitSemaphores(m_device, &waitInfo, timeoutNs);
+    return vkWaitSemaphores(m_device, &waitInfo, timeoutNs);
 }
 
 void FrameSync::resetSlots() noexcept {

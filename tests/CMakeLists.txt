@@ -39,6 +39,7 @@ add_executable(harmonia_component_tests
     component/test_sms.cpp
     component/test_sms_queue.cpp
     component/test_frame_completion.cpp
+    component/test_bsdf_measure.cpp
 )
 
 target_link_libraries(harmonia_component_tests
@@ -74,6 +75,14 @@ target_compile_definitions(harmonia_component_tests PRIVATE
 
 gtest_discover_tests(harmonia_component_tests PROPERTIES RUN_SERIAL TRUE)
 
+set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/shaders")
+compile_slang_shaders(harmonia_bsdf_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bsdf_measure_test.slang")
+unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
+add_dependencies(harmonia_component_tests harmonia_bsdf_test_shaders)
+target_compile_definitions(harmonia_component_tests PRIVATE
+    HARMONIA_TEST_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders")
+
 # ---------------------------------------------------------------------------
 # Integration tests — full Context creation end-to-end
 # ---------------------------------------------------------------------------
@@ -83,6 +92,7 @@ add_executable(harmonia_integration_tests
     integration/test_scene_loader.cpp
     integration/test_ibl_probe_encoding.cpp
     integration/test_frame_completion_capture.cpp
+    integration/test_capture_failures.cpp
 )
 
 target_link_libraries(harmonia_integration_tests

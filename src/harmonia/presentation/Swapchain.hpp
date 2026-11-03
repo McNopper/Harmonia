@@ -85,7 +85,7 @@ class Swapchain {
     /// Quiesce the live swapchain before recreation: bounded wait on the pending
     /// present fences, then release still-acquired images. No device idle — that is
     /// the fence/release half's purpose. Call only with the extension enabled.
-    void quiesceForRecreate();
+    [[nodiscard]] VkResult quiesceForRecreate();
 };
 
 } // namespace harmonia::presentation
