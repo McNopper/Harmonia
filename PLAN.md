@@ -98,6 +98,27 @@ the sibling clones.
 
 ## 3. How to continue
 
+### General rendering hotfixes — approved execution plan (2026-11-03)
+
+The owner prioritizes general bug fixes and integration before returning to SMS.
+Work on `fix/general-rendering-correctness` from the preserved main baselines:
+Harmonia `a649bbb`, Hyperion `49c1f21`, Theia `257c8b4`. SMS remains untouched on
+`dev/gi-sms-restir`; no SMS modules, tags, releases or dependency-pin changes are
+part of this hotfix. Integrate only after local verification.
+
+| Item | Observable acceptance / oracle | Verification |
+| --- | --- | --- |
+| Sampling/history | `--spp N` schedules N total samples; frame streams advance; CLI seeds affect samples; shared accumulation is the only history owner | Hyperion SamplingPlan / FrameSampling / CaptureSamplingContract tests; baseline shader/application controls must fail; fixed-seed replay and differing-seed captures |
+| Failure handling | Requested accumulation failure exports no images; failed host waits retire submitted resources before destruction; transfer-only images have no views | Harmonia fault-injection component/integration tests, with independent destruction counters and baseline controls |
+| BSDF measures | Discrete mirror/smooth/thin transmission events contribute no continuous eval/pdf, while ordinary rough transport remains intact | GPU BSDF measure tests with sampler/event and continuous-query oracles; old shader control must fail |
+| Timestamp lifecycle | First-use, reused and previously skipped query pairs reset on-device, without hostQueryReset | Theia PassTimer Vulkan test; omitted-reset negative control must fail |
+| Integration | No SMS dependency or pin drift; serial warning-clean builds, product regressions and lint | `cmake --build <repo>/build --parallel 2`; `ctest --test-dir <repo>/build -LE analysis -V` for H, Hy, T serially; root `lint-preflight.ps1` |
+
+Evidence uses the existing local Windows sibling-source builds, not a Linux or
+hosted-CI claim. Record every failed control and restored pass, selected/full
+scope, skips and retries. Fresh-context review of failure safety is required
+before integration; independent state oracles remain necessary as well.
+
 **Status quo:** All adoptable papers are implemented or partially implemented.
 The remaining work is wavefront refactoring (PERF5/PERF4) and completing the GI-SMS
 Bernoulli-trial estimator.
