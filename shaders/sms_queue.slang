@@ -20,8 +20,9 @@ struct SmsQueuePush {
     uint* outputIndices;
     SmsQueueHeader* inputHeader;
     SmsQueueHeader* outputHeader;
-    uint capacity, operation, trialBudget, pad;
-}; // 56B, 8-byte alignment
+    uint capacity, operation, trialBudget, userFlags;
+    uint* userData;
+}; // 64B, 8-byte alignment; auxiliary prior data is opaque to the queue
 
 void smsQueueError(SmsQueuePush pc, uint error) {
     uint ignored;

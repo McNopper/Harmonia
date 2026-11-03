@@ -98,6 +98,61 @@ the sibling clones.
 
 ## 3. How to continue
 
+**2c.2 verification plan (H `3ac0de6`, Hy `1cc64a5`):**
+Finite-domain GPU probe uses 65,536 draws/case, exact mass / conditional-alpha
+tolerance 1e-6 and absolute per-tile frequency tolerance .012. Include empty/full
+unions, duplicate bits, wrap and non-square regions for N=1/2/3/4/16/32.
+Prior renderer comparisons use 512 samples per fixed seed (17/91/1234/2026),
+pooled four-seed energy within 2% in every channel, and lower aggregate image MSE
+than the no-prior N=16 sampler at the same sample budget. Individual seed ratios
+are reported; existing N=1 per-seed radiometry gates stay unchanged.
+
+Implement Hong §4,
+Eqs. 7–9: per-frame 16×16 pixel-block priors, 128 unrestricted pilot walks,
+important-tile union I, alpha=.8 with nonzero uniform coverage, exact conditional
+mixture/region mass. The family's directional U already includes caster choice
+through the first hardware hit; use a sparse per-light/block union over those
+directions, rather than inventing a second explicit object-selection PMF. Keep
+the existing normalized light proposal. This uses the paper's seed prior in the
+global directional parameterization; it does not claim its separate explicit
+light/object-pair selection optimization. Multiple objects/modes remain covered
+by U and the unchanged uniform component. Prior construction never contributes
+radiance, uses no reciprocal trials, and is frozen before all main initial /
+repeat trials. Missing prior entries mean the exact uniform distribution.
+
+| Deliverable | Acceptance / oracle | Verification |
+| --- | --- | --- |
+| Prior/conditional sampler | I empty/full/partial, mask union duplicates, rectangular C including wrap/poles, Eq. 8 mass and Eq. 9 conditional mixture match exact finite-domain probabilities | `harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsPrior*` |
+| GPU frame wiring | clear/build once after frozen light prep, never update during reciprocal continuation; GPU-generated pilot dispatch; no host count reads; bounded sparse capacity covers at most128 pilots/block | selected prior controller tests + actual `SmsPriorFrameFixture.*` |
+| Radiometry / quality | four fixed seeds, 2% independent mirror/slab/Beer energy; no-prior and N=1 receipts preserved; compare same-budget MSE without claiming equal-time wins yet | `hyperion_module_tests.exe --gtest_filter=SmsPriorFrameFixture.*` + regression |
+| Sensitive checks | wrong conditional alpha or omitted region mass must fail; exact restore passes | isolated GPU controls, full family validation + source review |
+
+Use the existing work/queue ABI plus an opaque optional auxiliary pointer; keep
+new renderer-specific scene traversal in Hyperion. Theia integration follows
+this prior checkpoint. No trial cap, recursive temporal merge, release or push.
+**Executed prior checkpoint:** finite-domain probabilities and GPU build-once
+ordering pass. Mirror / glass / absorption pooled MSE ratios versus no prior at
+the same 512-sample budget are 0.0735051 / 0.058157 / 0.0588911. Pooled energy
+ratios are approximately 1.00164 (mirror), 0.998991 (glass), and
+(0.999428,0.999507,0.999549) (absorption RGB), all within 2%. N=1 prior reference
+receipts stay exact. Wrong adjusted-alpha and region-mass controls fail both
+finite-domain and actual render gates; exact restores pass. Focused source review
+finds no joint-law/support/hash/order/lifetime blocker (source-only). Full family
+H142/142, Hy63/63, T33/33 validation-clean, architecture and applicable tidy/dead
+pass; Theia control unchanged 0/76,800 pixels. No equal-time or Theia reuse claim.
+Required transport follow-up before claiming SDS coverage: collect the first
+eligible non-specular receiver after a PT-sampled specular camera prefix, not
+only depth zero. Freeze its prefix throughput and remaining depth in the same
+single work slot; PT keeps later diffuse vertices, null/scattering prefixes and
+unsupported tails. Verify an independent two-planar-mirror/virtual-camera fixture
+with non-unit prefix reflectance, so omitted prefix throughput is a strong failing
+control. Prefix reuse is separate from the primary-receiver spatial shift stage.
+Prior-control detail: forcing alpha=.8 even for an empty I∩C correctly caused
+an explicit GPU sampling error before radiometry, not the planned energy failure.
+The shader was restored. The valid-domain wrong-alpha control now preserves
+alpha=0 for empty intersections but wrongly uses .8 for nonempty ones, so it
+must be rejected specifically by density/energy checks rather than invalid rank.
+
 **2c.1 verification plan (H `0472ffc`, Hy `f29eb14`):**
 Numerical support control added: one root may have two tolerance-equivalent
 returned directions on opposite sides of a tile boundary. Exact enumeration of
@@ -416,7 +471,7 @@ wavefront + PERF4 recovery arc in `Theia/PLAN.md`, not an unconditional rewrite.
 
 | # | Task | Track | Status | Notes |
 |---|------|-------|--------|-------|
-| 1 | **GI-SMS** (Hong et al., SIGA 2025) — caustic estimator, partitioning + spatial ReSTIR | GI | **in progress** | Hyperion is integrated: exact mirror, flat closed glass and colored pure-absorption energy/ownership checkpoints pass. Next: Hong trust regions/prior, Theia local candidates + inverse-checked spatial MIS, then curved-scene quality/performance and both galleries. |
+| 1 | **GI-SMS** (Hong et al., SIGA 2025) — caustic estimator, partitioning + spatial ReSTIR | GI | **in progress** | Hyperion mirror/glass/absorption, trust regions and per-frame directional priors pass radiometry/control checkpoints. Next: specular-camera-prefix coverage, Theia local candidates + inverse-checked spatial MIS, then curved-scene equal-time/stability evidence and both galleries. |
 | 2 | **C11: ReSTIR SSS** (Werner et al., HPG 2024) — reservoir resampling over shared BSSRDF | C | **done** | Existing reconnection shift handles SSS paths (x_k captured after medium exit). SSS-specific shifts (reconnection through medium) are a future refinement. |
 | 3 | **PERF5: megakernel → wavefront** (Padilla et al., 2026) — scheduling prerequisite for PERF4 | PERF | **parked** | Theia stage-1 cost ~2× monolithic GI; retained on `perf5/wavefront-stage1`. Re-entry requires a credible combined compaction/reordering recovery budget; see `Theia/PLAN.md`. |
 | 4 | **PERF4: ray reordering** (Meister et al., 2025) — sort rays in wavefront buffer | PERF | **pending** | Combined with PERF5 re-entry, after GI-SMS. Published trace-only speedups are not total-GI speedups; sorting, traffic and barriers must be included. |
@@ -1107,7 +1162,7 @@ Slang warnings; no renderer source was changed in this checkpoint.
 | 2b.2 | Reciprocal estimator and trial-stream tests against a finite categorical distribution with known root/failure probabilities. Define root equivalence, independence, exact trial counting and resource policy before shader wiring. | Known $1/p_k$ moments and failure behavior pass; capped/truncated and correlated-stream controls are rejected. No claim that QMC marginals alone prove the geometric stopping-time law. |
 | 2b.3 | Hyperion: one camera-visible diffuse receiver → one smooth mirror → finite emissive area light. Validate solver reprojection, full contribution and path ownership. | Independent virtual-emitter integration agrees in linear radiance; missing/doubled contributions fail; ordinary PT controls remain correct. No new BSDF approximation. |
 | 2b.4 | Closed glass slab: two refractive interfaces, no roughness, dispersion, normal maps or scattering. Start with depth-zero tint, then pure absorption as a separate change. | Independent Snell/Fresnel/measure calculation agrees, exit/TIR controls pass, and Beer attenuation scales with actual interior distance. Same material semantics as the existing renderer. |
-| 2c.1 — next | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; prior distribution is a separate follow-up. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
+| 2c.1 | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; prior distribution is a separate follow-up. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
 | 2d.1 | Theia local SMS candidates, **before** spatial reuse. Shared mathematics lives in Harmonia; closest-hit/geometry adapters stay renderer-specific. | Matches the independently validated Hyperion estimator under statistical convergence checks; non-caustic regression scenes pass. |
 | 2d.2 | Spatial SMS reuse with manifold forward/inverse shifts and explicit GRIS support/MIS accounting. Raw local candidates are the starting inputs. | Identity/no-reuse controls and failed-inverse cases pass; energy does not drift under reuse; no naive recursive temporal merge. |
 | 2e | Equal-time quality/performance comparison, complex dragon/teapot integration and owner review. | Report variance, energy, tail/runtime behavior and temporal stability, then both renderer galleries before release approval. |

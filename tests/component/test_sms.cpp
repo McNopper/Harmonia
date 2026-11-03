@@ -899,3 +899,60 @@ TEST_F(SmsFixture, SmsPartitionConditionalCoverIncludesSeamsPolesAndEquivalentDi
             EXPECT_EQ(outputs[i].y, 1.0F);
     }
 }
+
+TEST_F(SmsFixture, SmsPriorMixtureAndConditionalDensityMatchFiniteDomain) {
+    using Words = std::array<std::uint32_t, 4>;
+    std::vector<Words> inputs;
+    for (auto n : {1U, 2U, 3U, 4U, 16U, 32U})
+        for (std::uint32_t pattern = 0; pattern < 4; ++pattern)
+            for (std::uint32_t mode = 0; mode < 3; ++mode)
+                for (auto target : {0U, (n / 2) * n + n / 2, n * n - 1})
+                    inputs.push_back({n, pattern, mode, target});
+    std::vector<sm::float4> outputs;
+    ASSERT_NO_FATAL_FAILURE((runCompute<Words, sm::float4>(inputs, outputs, "sms_prior_test.spv")));
+    ASSERT_EQ(outputs.size(), inputs.size());
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+        SCOPED_TRACE(i);
+        const auto n = inputs[i][0], pattern = inputs[i][1], mode = inputs[i][2], target = inputs[i][3];
+        const auto important = [&](std::uint32_t index) {
+            return pattern == 1 || (pattern == 2 && (index == 0 || index == (n / 2) * n + n / 2)) ||
+                   (pattern == 3 && (index % n + index / n) % 2 == 0);
+        };
+        std::uint32_t ox = 0, oy = 0, ex = n, ey = n;
+        if (mode == 1) {
+            ox = oy = n - 1;
+            ex = ey = std::min(n, 3U);
+        }
+        if (mode == 2) {
+            ox = (n / 2 + 2 * n - 2) % n;
+            oy = (n / 2 + n - 1) % n;
+            ex = std::min(4U, n);
+            ey = std::min(3U, n);
+        }
+        const auto contains = [&](std::uint32_t index) {
+            return (index % n + n - ox) % n < ex && (index / n + n - oy) % n < ey;
+        };
+        std::uint32_t count = 0, intersection = 0;
+        for (std::uint32_t tile = 0; tile < n * n; ++tile) {
+            if (important(tile)) {
+                ++count;
+                if (contains(tile))
+                    ++intersection;
+            }
+        }
+        const double area = double(ex * ey) / double(n * n);
+        const bool uniform = count == 0 || count == n * n;
+        const double mass = uniform ? area : .8 * double(intersection) / count + .2 * area;
+        const double alpha = uniform ? 0 : (.8 * double(intersection) / count) / mass;
+        const double probability = !contains(target)
+                                       ? 0
+                                       : alpha * (important(target) && intersection > 0 ? 1.0 / intersection : 0) +
+                                             (1 - alpha) / double(ex * ey);
+        EXPECT_NEAR(outputs[i].x, mass, 1e-6);
+        EXPECT_NEAR(outputs[i].y, alpha, 1e-6);
+        EXPECT_NEAR(outputs[i].z, probability, .012) << "Conditional mixture must use Eq. 9, not the initial alpha";
+        EXPECT_EQ(outputs[i].w, 0.0F);
+        if (probability == 0)
+            EXPECT_EQ(outputs[i].z, 0.0F);
+    }
+}

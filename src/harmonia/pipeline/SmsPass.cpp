@@ -10,7 +10,8 @@ namespace harmonia::pipeline {
 namespace {
 struct SmsQueuePush {
     VkDeviceAddress work, inputIndices, outputIndices, inputHeader, outputHeader;
-    std::uint32_t capacity, operation, trialBudget, pad;
+    std::uint32_t capacity, operation, trialBudget, userFlags;
+    VkDeviceAddress userData;
 };
 static_assert(sizeof(SmsQueuePush) == SmsPass::kPushSize);
 
@@ -69,14 +70,19 @@ std::expected<SmsPass, VkResult> SmsPass::create(const DeviceContext& ctx,
                                                  const std::filesystem::path& stepSpv,
                                                  const std::filesystem::path& validateSpv,
                                                  std::uint32_t trialBudget,
-                                                 VkShaderStageFlags pushStages) {
+                                                 VkShaderStageFlags pushStages,
+                                                 const std::filesystem::path& priorSpv,
+                                                 VkDeviceAddress userData) {
     if (!ctx.isValid() || layout == VK_NULL_HANDLE || trialBudget == 0U || capacity > kMaxCapacity)
+        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+    if (priorSpv.empty() != (userData == 0))
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     SmsPass pass;
     pass.m_layout = layout;
     pass.m_pushStages = pushStages;
     pass.m_capacity = capacity;
     pass.m_trialBudget = trialBudget;
+    pass.m_userData = userData;
     const auto slots = std::max<VkDeviceSize>(capacity, 1);
     constexpr auto storage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     auto work = core::Buffer::create(ctx,
@@ -114,6 +120,12 @@ std::expected<SmsPass, VkResult> SmsPass::create(const DeviceContext& ctx,
     if (!validate)
         return std::unexpected(validate.error());
     pass.m_validate = std::move(*validate);
+    if (!priorSpv.empty()) {
+        auto prior = createPipeline(ctx, layout, priorSpv);
+        if (!prior)
+            return std::unexpected(prior.error());
+        pass.m_prior = std::move(*prior);
+    }
     return pass;
 }
 
@@ -126,7 +138,8 @@ void SmsPass::push(VkCommandBuffer cmd, std::uint32_t operation) const noexcept 
                           m_capacity,
                           operation,
                           m_trialBudget,
-                          0};
+                          m_prior != VK_NULL_HANDLE ? 1U : 0U,
+                          m_userData};
     vkCmdPushConstants(cmd, m_layout, m_pushStages, 0, sizeof(pc), &pc);
 }
 
@@ -141,6 +154,7 @@ VkResult SmsPass::recordBegin(VkCommandBuffer cmd) noexcept {
     if (cmd == VK_NULL_HANDLE || m_control == VK_NULL_HANDLE)
         return VK_ERROR_INITIALIZATION_FAILED;
     m_input = 0;
+    m_priorRecorded = false;
     queueBarrier(cmd);
     control(cmd, 0);
     m_started = true;
@@ -158,6 +172,13 @@ VkResult SmsPass::recordBatch(VkCommandBuffer cmd) noexcept {
     queueBarrier(cmd);
     control(cmd, 2);
     m_input = 1U - m_input;
+    if (m_prior != VK_NULL_HANDLE && !m_priorRecorded) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_prior);
+        push(cmd, 0);
+        vkCmdDispatchIndirect(cmd, m_headers[m_input].handle(), 48);
+        queueBarrier(cmd);
+        m_priorRecorded = true;
+    }
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_validate);
     push(cmd, 0);
     vkCmdDispatchIndirect(cmd, m_headers[m_input].handle(), 32);

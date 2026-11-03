@@ -22,7 +22,7 @@ static_assert(sizeof(Record) == Pass::kWorkRecordSize);
 
 class SmsQueueFixture : public VulkanFixture {
   protected:
-    void makePass(Pass& pass, std::uint32_t capacity) {
+    void makePass(Pass& pass, std::uint32_t capacity, bool prior = false) {
         const auto& ctx = deviceCtx();
         const VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, Pass::kPushSize};
         VkPipelineLayoutCreateInfo info{};
@@ -33,13 +33,28 @@ class SmsQueueFixture : public VulkanFixture {
         ASSERT_EQ(vkCreatePipelineLayout(ctx.device, &info, nullptr, &raw), VK_SUCCESS);
         layout = harmonia::core::UniquePipelineLayout{ctx.device, raw};
         const std::filesystem::path shaders{HARMONIA_TEST_SHADER_DIR};
+        if (prior) {
+            auto data = harmonia::core::Buffer::create(ctx,
+                                                       16,
+                                                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                                       VMA_MEMORY_USAGE_GPU_TO_CPU,
+                                                       "test.sms.prior.stage");
+            ASSERT_TRUE(data.has_value());
+            auxiliary = std::move(*data);
+            const std::array<std::uint32_t, 4> zero{};
+            auxiliary.uploadData(zero.data(), sizeof(zero));
+        }
         auto candidate = Pass::create(ctx,
                                       capacity,
                                       layout,
                                       shaders / "sms_queue_control.spv",
                                       shaders / "sms_queue_test.spv",
                                       shaders / "sms_queue_validate.spv",
-                                      1);
+                                      1,
+                                      VK_SHADER_STAGE_COMPUTE_BIT,
+                                      prior ? shaders / "sms_queue_prior_test.spv" : std::filesystem::path{},
+                                      prior ? auxiliary.deviceAddress() : 0);
         ASSERT_TRUE(candidate.has_value()) << static_cast<int>(candidate.error());
         pass = std::move(*candidate);
     }
@@ -103,6 +118,7 @@ class SmsQueueFixture : public VulkanFixture {
 
     // Declared before pass locals in tests, so pipeline layout outlives pipelines.
     harmonia::core::UniquePipelineLayout layout;
+    harmonia::core::Buffer auxiliary;
 };
 } // namespace
 
@@ -225,4 +241,25 @@ TEST_F(SmsQueueFixture, DroppedPendingRecordCannotPublishReady) {
     ASSERT_NO_FATAL_FAILURE(begin(pass, inputs));
     ASSERT_NO_FATAL_FAILURE(batch(pass));
     ASSERT_NO_FATAL_FAILURE(expectStatus(pass, Completion::Failed, 2));
+}
+
+TEST_F(SmsQueueFixture, PriorRunsAfterPreparationOncePerLogicalFrame) {
+    Pass pass;
+    ASSERT_NO_FATAL_FAILURE(makePass(pass, 1, true));
+    std::array<Record, 1> input{};
+    input[0][0] = 2;
+    input[0][62] = input[0][63] = 1;
+    for (std::uint32_t frame = 1; frame <= 2; ++frame) {
+        ASSERT_NO_FATAL_FAILURE(begin(pass, input));
+        for (auto expected : {Completion::Pending, Completion::Pending, Completion::Ready}) {
+            ASSERT_NO_FATAL_FAILURE(batch(pass));
+            ASSERT_NO_FATAL_FAILURE(expectStatus(pass, expected));
+        }
+        std::array<std::uint32_t, 4> result{};
+        ASSERT_EQ(auxiliary.readData(result.data(), sizeof(result)), VK_SUCCESS);
+        EXPECT_EQ(result[0], frame) << "Prior must not rebuild during reciprocal continuation";
+        EXPECT_EQ(result[1], 1U);
+        EXPECT_EQ(result[2], 1U) << "Preparation must precede prior walks";
+        EXPECT_EQ(result[3], 2U) << "Main root steps start only after the prior";
+    }
 }

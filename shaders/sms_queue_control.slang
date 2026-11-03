@@ -20,6 +20,10 @@ void main() {
         initial.capacity = pc.capacity;
         initial.status = pc.capacity == 0u ? kSmsQueueReady : kSmsQueuePending;
         smsQueueGrid(initial);
+        uint2 dimensions=uint2(0,0);
+        if (pc.userFlags!=0u && pc.capacity!=0u) dimensions=pc.work[0].words[15].zw;
+        initial.reserved[1]=uint4(dimensions.x/16u+(dimensions.x%16u!=0u?1u:0u),
+            dimensions.y/16u+(dimensions.y%16u!=0u?1u:0u),1u,0u);
         *pc.inputHeader = initial;
     }
     if (pc.operation <= 1u) {
@@ -32,6 +36,7 @@ void main() {
         validation.count = pc.capacity;
         smsQueueGrid(validation);
         output.reserved[0] = uint4(validation.dispatchX, validation.dispatchY, validation.dispatchZ, pc.capacity);
+        output.reserved[1] = pc.inputHeader->reserved[1];
         *pc.outputHeader = output;
     } else {
         SmsQueueHeader output = *pc.outputHeader;

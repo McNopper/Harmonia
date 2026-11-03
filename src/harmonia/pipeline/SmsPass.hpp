@@ -26,7 +26,7 @@ class SmsPass {
   public:
     inline static constexpr VkDeviceSize kWorkRecordSize = 256;
     inline static constexpr VkDeviceSize kQueueHeaderSize = 64;
-    inline static constexpr std::uint32_t kPushSize = 56;
+    inline static constexpr std::uint32_t kPushSize = 64;
     // Slang emits 32-bit OpPtrAccessChain elements (signed in SPIR-V). This is
     // a resource-slot limit, not a reciprocal-trial limit.
     inline static constexpr std::uint32_t kMaxCapacity = 0x7FFFFFFFU;
@@ -44,7 +44,9 @@ class SmsPass {
            const std::filesystem::path& stepSpv,
            const std::filesystem::path& validateSpv,
            std::uint32_t trialBudget = 16,
-           VkShaderStageFlags pushStages = VK_SHADER_STAGE_COMPUTE_BIT);
+           VkShaderStageFlags pushStages = VK_SHADER_STAGE_COMPUTE_BIT,
+           const std::filesystem::path& priorSpv = {},
+           VkDeviceAddress userData = 0);
 
     [[nodiscard]] VkResult recordBegin(VkCommandBuffer cmd) noexcept;
     [[nodiscard]] VkResult recordBatch(VkCommandBuffer cmd) noexcept;
@@ -63,6 +65,8 @@ class SmsPass {
     core::UniquePipeline m_control;
     core::UniquePipeline m_step;
     core::UniquePipeline m_validate;
+    core::UniquePipeline m_prior;
+    VkDeviceAddress m_userData = 0;
     core::Buffer m_work;
     std::array<core::Buffer, 2> m_indices;
     std::array<core::Buffer, 2> m_headers;
@@ -70,6 +74,7 @@ class SmsPass {
     std::uint32_t m_trialBudget = 0;
     std::uint32_t m_input = 0;
     bool m_started = false;
+    bool m_priorRecorded = false;
 };
 
 } // namespace harmonia::pipeline
