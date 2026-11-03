@@ -155,8 +155,9 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-**CI:** `.github/workflows/build.yml` runs on `windows-latest` + `ubuntu-26.04` for every
-push/PR — **pure build** for the renderer targets (their test suites need a GPU and stay a
+**CI:** `.github/workflows/build.yml` runs on `windows-latest` + `ubuntu-26.04` for pushes
+to `main` and PRs targeting `main`; manual dispatch remains available. Ordinary
+development/WIP pushes do not trigger CI. It is **pure build** for renderer targets (their test suites need a GPU and stay a
 local activity); Aether/slang-math additionally run their CPU suites. Checkouts set
 `lfs: true` (Aether's assets are Git LFS). The Linux leg installs the SDK tarball (cached),
 bridges SDL3, and builds with the image's g++ under the same `-Wall -Wextra -Werror
@@ -214,6 +215,9 @@ on a freshly-linked test exe (cold DLL load / AV scan on its first run), just re
 ## Conventions
 
 - Commit, but do **not** push unless asked.
+- Build the current candidate locally, warning-clean, and run the applicable local
+  verification/lint before any authorized development/WIP push. Local Windows
+  success does not establish a Linux build or hosted CI success.
 - **Logging:** the shared `Logger` prefixes each line with a per-app tag. Applications call
   `Logger::setTag("...")` once at startup (Hyperion → `[HYPERION]`, Theia → `[THEIA]`); the
   Harmonia default is `[HARMONIA]`. Keep the tag uppercase to match the `[INFO]` level style.
