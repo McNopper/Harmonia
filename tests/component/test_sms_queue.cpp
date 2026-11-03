@@ -148,9 +148,11 @@ TEST_F(SmsQueueFixture, PendingWorkResumesWithoutDroppedOrRepeatedSlots) {
         EXPECT_EQ(output[i][4], 1U) << i;
         EXPECT_EQ(output[i][5], i % 3 == 0 ? 0U : 1U) << i;
         EXPECT_EQ(output[i][6], i % 3 == 0 ? 0U : 1U) << i;
-        for (std::size_t word = 1; word < output[i].size(); ++word)
-            if (word < 4 || word > 7)
+        for (std::size_t word = 1; word < output[i].size(); ++word) {
+            if (word < 4 || word > 7) {
                 EXPECT_EQ(output[i][word], inputs[i][word]) << i << ":" << word;
+            }
+        }
         EXPECT_EQ(output[i][7], inputs[i][0] == 0 ? 0U : 4U);
     }
     // A new frame must reset stale ping-pong counts; no old work can leak in.
