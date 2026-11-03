@@ -136,7 +136,7 @@ not applicable to this pause. Existing feature controls retain their own scope.
 | Item | Acceptance / exact check | Status |
 | --- | --- | --- |
 | Preserve unfinished work | Before switching, compare every original `git hash-object -- <path>` with `git rev-parse <snapshot>:<path>`; all 18 blobs must match. | DONE: all 18 match in `4545db1` / `da3bebd`. |
-| Stable source | In each repository, `cmake --build build --parallel 2`, then `ctest --test-dir build -LE analysis -V`; suites strictly serial across repositories, no validation diagnostics. | H143 and Hy71 pass, build/test exits 0 and zero validation diagnostics. Theia-only verification is resumed after the interruptions below; do not assume a fresh T45 pass yet. |
+| Stable source | In each repository, `cmake --build build --parallel 2`, then `ctest --test-dir build -LE analysis -V`; suites strictly serial across repositories, no validation diagnostics. | DONE: H143/143, Hy71/71 and T45/45 pass; all build/test exits 0, zero validation diagnostics. H/Hy retained; only interrupted Theia resumed. |
 | Remote continuation | `git -c push.followTags=false push -u origin refs/heads/dev/gi-sms-restir:refs/heads/dev/gi-sms-restir`, plus the explicit WIP ref in Harmonia/Theia; compare `git rev-parse <branch>` against `git ls-remote --heads origin <branch>`. | DONE: all five branches pushed, exact local/remote tips and upstreams verified. |
 | Main isolation / clean stop | `git rev-parse main origin/main` and remote `git ls-remote --heads origin main` must match the pre-push remote-main receipt; `git status --porcelain` empty on each development branch. | DONE: audit exit 0; local/remote main pre-SMS, all pre-existing remote refs (including tags) unchanged, all three trees clean. Repeat after any further handoff commits. |
 
@@ -174,6 +174,16 @@ If the application exits before the remaining check finishes, all source is
 already committed/pushed: treat that check as incomplete and rerun it next time,
 not as a green result. Partial build outputs can be rebuilt normally.
 
+**Completed pause re-grade:** Harmonia 143/143 (22.97 s), Hyperion 71/71
+(423.64 s), and the resumed Theia 45/45 (212.51 s). All build/test exits are 0;
+all validation-message scans are zero. Each repo excludes its three `analysis`
+lanes, with no skipped product tests. Theia's build/test completion is recorded
+in `gi_sms_pause_Theia_build_after_restart.log` and
+`gi_sms_pause_Theia_ctest.log`; earlier wrapper/server interruptions remain
+recorded above, not hidden as a clean first attempt. These results establish the
+stable local-SMS source only, not the archived spatial-reuse prototype. The
+owner has now authorized active resumption on the development/WIP branches.
+
 #### Verified capability versus unfinished work
 
 - Stable: shared solver, actual-event ownership, resumable uncapped reciprocal
@@ -207,6 +217,29 @@ not as a green result. Partial build outputs can be rebuilt normally.
   review galleries and owner approval before publication. Do not report #2 done.
 
 #### Exact resume sequence (PowerShell, from `C:\Development\GitHub`)
+
+**Active resumption plan (owner authorized development/WIP commits and pushes):**
+finish the interrupted Theia stable check without repeating H143/Hy71; then
+resume the paired WIP branches. Before implementation, the numeric repair is
+bounded by the following observable criteria. Keep the 24-byte producer ABI and
+16-byte prefix cache, actual-event ownership, frozen endpoints and reciprocal
+trial law unchanged. Proxy representation may change, not its mathematical role.
+
+| Numeric repair item | Oracle / acceptance | Planned verification |
+| --- | --- | --- |
+| Reuse-off cache isolation | A finite local estimate cannot fail because an unused physical-F proxy overflows/underflows. | Selected production-local mirror/Snell/Beer/SDS fixtures, plus an HDR cache-bypass GPU control. Hyperion sampler/prior SPIR-V must retain the recorded exact hashes. |
+| Factored proxy and weighting | Preserve finite final radiometry for the review's `value=1e38,pLight=4`, `value=1e-20,pLight=1e-30`, and `F=1e-30,pLight=1e-38,count=4` counterexamples; no clamp/drop or reciprocal-as-PDF substitution. | `Theia/build/tests/theia_module_tests.exe --gtest_filter="SmsResamplingFixture.*"`; GPU range cases compared with independently evaluated double-precision products/log identities. Original materialized-product/UCW controls must fail the named finite-output assertions. |
+| Log-domain MIS/RIS integrity | Preserve RGB expectation (10,10,10), missing-support compensation and alternative domain-proxy scales, including cross-domain scales outside float materialization range. | The same finite-domain GPU fixture, plus exact selection-boundary and wrong-support/MIS/normalization controls; restored candidate must pass. |
+| Actual reuse wiring | Compile native sampler/resolve, leave work/cache immutable during resolve, preserve ordinary mirror radiometry and reduce same-budget error; this is not a general/equal-time acceptance claim. | `cmake --build Theia/build --parallel 2`, then `Theia/build/tests/theia_module_tests.exe --gtest_filter="SmsGiReuseFrameFixture.*"`; afterward extend glass/Beer/SDS and support boundaries. |
+
+Design candidate: explicit zero support plus positive log2 proxies, separate
+reciprocal/conditional/light factors, log-sum-exp pairwise/RIS arithmetic and
+final-only RGB materialization. A pre-code independent double-precision model
+preserves (10,10,10) for scales (1,1,1), (1.5,1/7,9),
+(1e-40,1e38,1e-30) and (1e38,1e-40,1e30), maximum absolute error 1.07e-13.
+The three reviewed range examples reproduce nonfinite/zero legacy float
+intermediates while the factored model retains the finite weighted estimates.
+These are arithmetic planning receipts only, not GPU or implementation evidence.
 
 Read this section and all three AGENTS.md files first. Confirm clean trees before
 switching; do not reset or discard unrelated work. Development/WIP pushes remain
