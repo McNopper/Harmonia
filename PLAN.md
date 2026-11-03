@@ -96,6 +96,33 @@ the sibling clones.
 
 ## 3. How to continue
 
+### SMS correctness continuation — post-release (2026-11-03)
+
+Published Harmonia v0.7.19, Hyperion v0.7.18 and Theia v0.8.1 now carry the general
+fixes and refreshed galleries; their exact local full builds and dual-OS CI passed.
+Those published changes are merged back into all three `dev/gi-sms-restir` branches
+and verified locally: H149/149, Hy72/72, T57/57, zero compiler warnings/logged
+VUIDs/skips. The owner authorizes continuing SMS to demonstrated correctness, not
+a main merge or another release. No temporal merge or tolerance relaxation.
+
+**Current execution queue:** repair the qualification harness before trusting any
+new acceptance result, then diagnose the existing C1 spatial estimator with real
+shift counters. Work stays on dev; GPU jobs remain strictly serial.
+
+| Item | Acceptance / independent oracle | Verification |
+| --- | --- | --- |
+| Harness integrity | Nonfinite images, wrong dimensions, stale/missing outputs and invalid reference energy are rejected; the performance stage executes | `python -B -m unittest tools.test_qualify_sms -v` from Theia; broken/finite controls; baseline tuple crash reproduced by a regression test |
+| Provenance | Every accepted reference is tied to commits, dirty diffs, executables, shader bundles, scene/material/mesh inputs and the runner; changed inputs cannot reuse it | Manifest inspection plus CPU stale-reference control; render manifests include exit codes/options |
+| Correctness metrics | Finite 512/2048 C1-C3 data, four seeds, pooled RGB energy and mean per-seed MSE; 2048 error improves for both modes | Independent Hyperion SMS-off references, explicit per-seed results, cached finite vs NaN controls |
+| Equal time | Actual completed-frame wall time excludes startup/output but includes renderer, continuations and completion waits; off/local/reuse budgets match within 5%, with at most one timing-only refinement | Opt-in per-frame host timing records, independent 64-frame pilots, CPU log/budget controls, actual per-seed times and error bars |
+| C1 reuse diagnosis | Disjoint counters identify roots, neighbor domains/candidates, inverse attempts/accepts and selected neighbor paths; no contradictory state classifications | Diagnostic descriptor buffer read only after GPU completion, with disabled-diagnostics zero-effect checks and unit/production captures |
+| Acceptance | Curved quality/equal-time benefit, mixed PT ownership, deterministic stability, resize/reload and tails | Repeat the frozen bounded scenes and gates; spatial reuse remains default-off until demonstrated. No claim of main readiness without owner approval |
+
+Older review/history below remains evidence, but the earlier sparse-root diagnosis
+stays withdrawn. Do not choose temporal caching, extra seeds or reduced scope
+before the measured failure is understood. Full product suites/lint run at code
+checkpoints; hosted CI is not implied by local evidence.
+
 ### SMS consolidation and implementation review — 2026-11-03
 
 **Authoritative reassessment; supersedes the older handoff diagnoses below.**
