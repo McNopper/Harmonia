@@ -6,9 +6,10 @@ import sms_transport;
 
 // words: 0 receiver P/material, 1 raw N/phase, 2 raw Ng/uv.x,
 // 3 raw tangent/uv.y, 4 wo/pixel, 5 light P/area pdf, 6 light N/Le.r,
-// 7 Le.gb/Philox key, 8/9 root P/instance, 10 root materials/count/event,
+// 7 Le.gb/Philox key, 8/9 root P/instance (9.xyz holds prefix RGB until root storage), 10 root materials/count/event,
 // 11 root's unweighted RGB / P(C), 12 reciprocal low/high/status / tile resolution,
-// 13 root eta0/eta1/emitterCount/maxDepth, 14 exposure/spp/frame/seed (then conditional origin),
+// 13 root eta0/eta1/emitterCount (then light ID)/remaining receiver-inclusive depth,
+// 14 exposure/spp/frame/seed (then conditional origin),
 // 15 sample/reserved (then conditional extent)/width/height. No renderer descriptors here.
 uint smsPhase(SmsWorkRecord work) { return work.words[1].w; }
 void smsSetPhase(inout SmsWorkRecord work, uint phase) { work.words[1].w = phase; }

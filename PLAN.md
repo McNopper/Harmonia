@@ -98,6 +98,61 @@ the sibling clones.
 
 ## 3. How to continue
 
+**SDS prefix verification plan (H `042fc74`, Hy `1d0dd6e`):** collect the first
+eligible opaque non-specular receiver after a PT-sampled specular prefix. Keep
+one slot/path; do not extend ownership to later diffuse vertices. Null or
+scattering prefixes stay PT-owned. Freeze prefix RGB throughput before the root
+storage fields are used, multiply it once in the contribution, and freeze the
+receiver's remaining depth. Match both R/TT ownership gates to that remaining
+budget. Same frozen endpoints / common root site / uncapped trials remain.
+Independent fixture: non-unit (.4) camera-prefix planar mirror, diffuse floor,
+white tail mirror and finite area emitter. Virtual-camera projection plus direct
+and both virtual-emitter integrals includes the prefix mirror reused as a tail.
+Command `hyperion_module_tests.exe --gtest_filter=SmsSdsFrameFixture.*`;
+512 samples × four fixed seeds, 2% reflected-energy gate. Omitting prefix
+throughput must fail; no-prior/N=1 controls and the existing primary fixtures
+must remain valid. This verifies SDS transport, not prefix spatial reuse.
+Source-review follow-up: add shifted-camera slab fixtures with receiver budgets
+3 and 4 (global depths 4 and 5). A .4 planar prefix maps to the existing independent
+Snell/Beer oracle's virtual camera. Without absorption, B=3 must have zero TT
+energy; with pure absorption, its uncharged internal exit remains PT-owned and
+must preserve Beer energy. B=4 must preserve TT/Beer energy in both cases. Run
+`hyperion_module_tests.exe --gtest_filter=SmsSdsGlassFrameFixture.*:SmsSdsAbsorptionFrameFixture.*`.
+Use 512 samples × four fixed seeds for B=4; pool four seeds at 4096 samples for
+the PT-only absorption B=3 control (2% RGB gate). Replacing receiver remaining
+depth with global maxDepth must fail the B=3 rendered checks, exact restore pass.
+This adds depth-boundary evidence; null/scattering and multiple-prefix coverage
+remain source-reviewed, not independently rendered by these fixtures.
+**Executed SDS checks:** mirror-prefix four-seed reflected-energy ratios at 512
+samples are .999864 / .999988 / .997711 / 1.00187; insufficient R budget contributes
+only direct lighting. Prefix-weight omission fails and exact restore passes.
+Shifted ordinary slab B=3 is exactly zero across all four seeds; B=4 achromatic
+ratios are .997445 / .996110 / .996263 / 1.000820. Shifted pure-absorption B=3
+ratios span .999125–1.006210 (PT-owned, 4096 samples/seed); B=4 ratios span
+.996511–1.001020 (512 samples/seed). All four selected slab tests pass with zero
+validation messages. Global-depth mutants fail both B=3 checks; exact restores
+pass. Source-only review confirms aperture/virtual-camera/oracle/depth coverage.
+Full family re-run passes H142/142, Hy69/69, T34/34 with zero validation messages;
+canonical architecture and H/Hy tidy/dead pass. Theia reference control remains
+0/76,800 changed pixels. SDS can now be checkpointed locally; full #2 is not done.
+
+**Next common-sampler extraction (after the SDS receipt):** share the light
+proposal, supported-tail sampling, contribution and initial/repeat/prior controller
+functions through one typed scene interface. Its renderer-specific operations are
+material/emitter/CDF reads, nearest vertex trace/project, and receiver BSDF/frame
+evaluation. Keep actual geometry reconstruction and descriptor layouts in each
+renderer. Alternatives considered: textual macro/type aliases preserve fewer
+signatures but leak descriptor names and obscure the boundary; a typed generic
+interface hides the scene policy while retaining one monomorphized common trial
+site. Choose the typed interface; no solver/transport/math changes in this slice.
+Require exact existing EXR receipt comparison, all mirror/Snell/Beer/SDS gates and
+the family regression before a separate local refactoring checkpoint. Then wire
+Theia to that contract, rather than copying and evolving a second sampler.
+`check_sms_refactor_receipts.py snapshot` / `compare` in the approved scratch
+directory bind 32 EXRs (8 fixture families × 4 seeds), 393,216 RGB pixels, to
+the pre-extraction commits. Require zero changed pixels and zero max absolute
+error without normalization; retain the exact-difference mask for review.
+
 **2c.2 verification plan (H `3ac0de6`, Hy `1cc64a5`):**
 Finite-domain GPU probe uses 65,536 draws/case, exact mass / conditional-alpha
 tolerance 1e-6 and absolute per-tile frequency tolerance .012. Include empty/full
