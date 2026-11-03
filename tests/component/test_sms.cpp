@@ -481,6 +481,46 @@ TEST_F(SmsFixture, SmsGeometryTwoInterfaceSlabMatchesIndependentSnellAreaFormula
         expectGeometric(outputs[i], expected[i]);
 }
 
+TEST_F(SmsFixture, SmsGeometryCurvedGlassMatchesIndependentFiniteDifferenceOracle) {
+    // Independent NumPy double-precision root and central-difference Jacobian;
+    // generator: tools/sms_curved_oracle.py. All derivatives share one sphere
+    // parameterization: dpd* = R*dnd* (u = theta, v = phi); dndv is the true
+    // dn/dphi, NOT dpdv.
+    SmsGeometryInput input{};
+    input.receiver = {-1.2, 0, -0.3, 2};
+    input.light = {1.5, 2.5, 0.8, 0};
+    input.lightDu = {1, 0, 0, 0};
+    input.lightDv = {0, 1, 0, 0};
+    setManifoldVertex(input,
+                      0,
+                      {-0.1431543687861345, 0.04746626872162513, -0.15722610709648374},
+                      {-0.286308737572269, -0.9050674625567497, -0.3144522141929675},
+                      1.5F,
+                      1.0F,
+                      {0.6093303772570811, -0.4252680192785325, 0.6692261225704335},
+                      {0.7394212589191068, 0, -0.6732430481323095});
+    input.vertexData[3] = {0.30466518862854053, -0.21263400963926626, 0.33461306128521673, 0};
+    input.vertexData[4] = {0.3697106294595534, 0, -0.33662152406615475, 0};
+    setManifoldVertex(input,
+                      1,
+                      {0.495778746031743, 0.45427140899119983, 0.04596010169203663},
+                      {0.991557492063486, -0.09145718201760035, 0.09192020338407327},
+                      1.0F / 1.5F,
+                      1.0F,
+                      {-0.09106671374388049, -0.9958090097289738, -0.0084421437141647},
+                      {-0.09230706138026497, 0, 0.99573058927570368});
+    input.vertexData[10] = {-0.045533356871940246, -0.4979045048644869, -0.00422107185708235, 0};
+    input.vertexData[11] = {-0.046153530690132484, 0, 0.49786529463785184, 0};
+    const std::vector<SmsGeometryInput> oracleInputs{input};
+    std::vector<SmsGeometryOutput> outputs;
+    ASSERT_NO_FATAL_FAILURE(
+        (runCompute<SmsGeometryInput, SmsGeometryOutput>(oracleInputs, outputs, "sms_geometry_test.spv")));
+    ASSERT_EQ(outputs.size(), 1U);
+    ASSERT_EQ(outputs[0].status.x, 1.0F);
+    const double expected = 0.0040998597330524035;
+    EXPECT_NEAR(outputs[0].value.x, expected, expected * 2.0e-4) << outputs[0].value.x;
+}
+
 TEST_F(SmsFixture, SmsGeometryCurvatureMatchesParaxialMirrorOptics) {
     std::vector<SmsGeometryInput> inputs;
     for (float radius : {1.0F, -10.0F}) {

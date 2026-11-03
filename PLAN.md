@@ -153,27 +153,40 @@ not capped; observed completed trials reach max 175. Hyperion local at 512 has
 per-seed ratios 1.298514, .894005, .846967, .841042. PT-only C1 has no matching
 firefly pixels, isolating the issue to SMS weighting rather than retained PT paths.
 
-**Independent oracle found the curved defect.** A fresh double-precision
-receiver -> two-sphere-interface -> light solver (`Harmonia/tools/sms_curved_oracle.py`)
-solves the Snell constraints to residual $5.06e-17$ and computes the receiver
-solid-angle Jacobian by central finite differences. At the receipt root, the
-independent geometric term is `0.0040998597330524035`. The production GPU term
-returns `0.010009538382291794` for the identical vertex/root data, about
-`2.441x` too large. Existing planar slab, mirror and paraxial-curvature tests do
-not cover this non-conformal curved two-interface basis. The failing exact-value
-probe was used for diagnosis and removed from the suite; the independent oracle
-script is committed for the repair. Do not tune sampling until this Jacobian is
-fixed and the oracle/production values agree.
+**Curved-glass geometry resolved: the production formula was exact; the
+fixture data was defective.** A double-precision replica of the untouched
+`smsGeometricTerm` reproduces the GPU output `0.010009538382291794` to
+`3.3e-7` relative (float32 precision) when fed the fixture's data, and
+reproduces the independent oracle value `0.0040998597330524035` to `2.6e-9`
+once the fixture's `dndv` is corrected. Root cause: the curved-oracle fixture
+passed `dndv = dpdv` instead of the true `dn/dv` (for the R=0.5 sphere,
+`dn/dphi = 2*dpdv`); the inconsistent `dndu`/`dndv` scales corrupted the
+constraint-Jacobian normal-derivative terms. The earlier "transmission
+half-vector defect" hypothesis is withdrawn: `h` parallel to the shading
+normal at refraction roots is expected, and the second-position-derivative
+terms cancel exactly at admissible roots (`h` is tangent-free), which the
+original formula implements correctly. The committed regression
+`SmsGeometryCurvedGlassMatchesIndependentFiniteDifferenceOracle` now passes
+with the untouched shader, and `tools/sms_curved_oracle.py` emits a fully
+consistent per-vertex derivative set (`dpd* = R*dnd*`) so fixture data can be
+copied without recomputation. The removed-term shader experiment was reverted
+before commit and never shipped.
 
-**Likely implementation defect isolated.** At the independent oracle root, the
-production transmission half vector `wi + eta*wo` is parallel to the surface
-normal (`dot=-1`), not tangent. The tangent-constrained root uses
-`-wi + eta*wo` at entry and `wi + eta/eta_i*wo` at exit (equivalently the
-toward-surface incident vector plus relative-eta outgoing vector). Thus
-`smsConstraintBlocks` solves the wrong transmission constraint on curved chains.
-Correcting it requires updating the shared solver, admissibility checks,
-geometric Jacobian and dependent fixtures together; it is not a safe local one-line
-change. Production estimator bytes remain restored pending that coordinated fix.
+**C1 bias excluded; the blocker is contribution-tail variance
+(2026-11-03).** Convergence ladder on the current build and scene (accepted
+4096-spp reference, four harness seeds): `local` pooled ROI ratio `1.1446`
+@512f (seed-std `0.291`) -> `1.0722` @2048f (`0.151`) -> `1.0165` @8192f
+(`0.047`, seeds 17/91); `reuse@2048` pooled `1.0718`. Plain-PT Theia @5827f
+reads `0.996/0.997` and the reference is converged to `+0.10%` (65536 spp),
+so the scene, PT baseline and reference are clean. No rung shows
+statistically significant bias (t ~ 0.5-1.0) and the excess dilutes as
+rare-firefly dilution predicts; the historical fixed "+7%" claim is
+withdrawn. The blocker is structural: with per-seed ROI-total std `14%` at
+2048 frames, the harness `+-2%` energy gate at 512/2048 frames is
+unreachable for any estimator with this tail weight. Meeting C1 requires
+principled tail-variance reduction with an unbiasedness review - a research
+scope decision, not an estimator repair; caps, clamps, tolerance changes
+and blind parameter increases remain rejected per the decision boundary.
 
 **Decision boundary:** do not merge SMS to main or continue to C2/C3 acceptance as
 if C1 passed. A different proposal/variance-reduction design would be new research

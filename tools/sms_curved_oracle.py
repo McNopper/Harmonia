@@ -4,6 +4,7 @@ Solves a receiver -> two sphere interfaces -> light chain with NumPy, then
 finite-differences the receiver solid-angle Jacobian per unit light area.
 """
 import json
+import sys
 from pathlib import Path
 import numpy as np
 
@@ -115,25 +116,42 @@ jacobian = np.stack(jacobian, axis=1)
 expected_geometric = float(np.sqrt(np.linalg.det(jacobian.T @ jacobian)))
 normal1 = normal(z[0], z[1])
 normal2 = normal(z[2], z[3])
-tangent1 = tangents(z[0], z[1])[0]
-tangent2 = tangents(z[2], z[3])[0]
+tangent1_u, tangent1_v = tangents(z[0], z[1])
+tangent2_u, tangent2_v = tangents(z[2], z[3])
+# One consistent parameterization per vertex (u = theta, v = phi):
+# dpd* = R * dnd*, where dnd* are the true unit-normal derivatives.
+vertices = []
+for index, (theta, phi, normal_v, tangent_u, tangent_v) in enumerate((
+        (z[0], z[1], normal1, tangent1_u, tangent1_v),
+        (z[2], z[3], normal2, tangent2_u, tangent2_v))):
+    vertices.append({
+        'position': point(theta, phi).tolist(),
+        'normal': normal_v.tolist(),
+        'dpdu': (R * tangent_u).tolist(),
+        'dpdv': (R * tangent_v).tolist(),
+        'dndu': tangent_u.tolist(),
+        'dndv': tangent_v.tolist(),
+    })
 receipt = {
     'sphere_radius': R,
     'center': CENTER.tolist(),
     'receiver': RECEIVER.tolist(),
     'light': LIGHT.tolist(),
+    'eta_into': ETA_INTO,
     'angles': z.tolist(),
     'point1': p1.tolist(),
     'point2': p2.tolist(),
     'normal1': normal1.tolist(),
     'normal2': normal2.tolist(),
-    'tangent1': tangent1.tolist(),
-    'tangent2': tangent2.tolist(),
+    'tangent1': tangent1_u.tolist(),
+    'tangent2': tangent2_u.tolist(),
+    'vertex0': vertices[0],
+    'vertex1': vertices[1],
     'residual_norm': float(np.linalg.norm(residual(z))),
     'expected_geometric': expected_geometric,
     'jacobian': jacobian.tolist(),
 }
-Path(r'C:\Users\norbe\AppData\Local\Temp\opencode\sms-c1-outward').mkdir(parents=True, exist_ok=True)
-Path(r'C:\Users\norbe\AppData\Local\Temp\opencode\sms-c1-outward\curved_oracle.json').write_text(
-    json.dumps(receipt, indent=2), encoding='utf-8')
+output = Path(__file__).with_name('curved_oracle.json') if len(sys.argv) < 2 else Path(sys.argv[1])
+output.parent.mkdir(parents=True, exist_ok=True)
+output.write_text(json.dumps(receipt, indent=2), encoding='utf-8')
 print(json.dumps(receipt, indent=2))
