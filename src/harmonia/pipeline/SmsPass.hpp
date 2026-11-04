@@ -46,7 +46,8 @@ class SmsPass {
            std::uint32_t trialBudget = 16,
            VkShaderStageFlags pushStages = VK_SHADER_STAGE_COMPUTE_BIT,
            const std::filesystem::path& priorSpv = {},
-           VkDeviceAddress userData = 0);
+           VkDeviceAddress userData = 0,
+           const std::filesystem::path& temporalSpv = {});
 
     [[nodiscard]] VkResult recordBegin(VkCommandBuffer cmd) noexcept;
     [[nodiscard]] VkResult recordBatch(VkCommandBuffer cmd) noexcept;
@@ -66,6 +67,7 @@ class SmsPass {
     core::UniquePipeline m_step;
     core::UniquePipeline m_validate;
     core::UniquePipeline m_prior;
+    core::UniquePipeline m_temporal;
     VkDeviceAddress m_userData = 0;
     core::Buffer m_work;
     std::array<core::Buffer, 2> m_indices;

@@ -72,7 +72,8 @@ std::expected<SmsPass, VkResult> SmsPass::create(const DeviceContext& ctx,
                                                  std::uint32_t trialBudget,
                                                  VkShaderStageFlags pushStages,
                                                  const std::filesystem::path& priorSpv,
-                                                 VkDeviceAddress userData) {
+                                                 VkDeviceAddress userData,
+                                                 const std::filesystem::path& temporalSpv) {
     if (!ctx.isValid() || layout == VK_NULL_HANDLE || trialBudget == 0U || capacity > kMaxCapacity)
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     if (priorSpv.empty() != (userData == 0))
@@ -126,6 +127,12 @@ std::expected<SmsPass, VkResult> SmsPass::create(const DeviceContext& ctx,
             return std::unexpected(prior.error());
         pass.m_prior = std::move(*prior);
     }
+    if (!temporalSpv.empty()) {
+        auto temporal = createPipeline(ctx, layout, temporalSpv);
+        if (!temporal)
+            return std::unexpected(temporal.error());
+        pass.m_temporal = std::move(*temporal);
+    }
     return pass;
 }
 
@@ -178,6 +185,14 @@ VkResult SmsPass::recordBatch(VkCommandBuffer cmd) noexcept {
         vkCmdDispatchIndirect(cmd, m_headers[m_input].handle(), 48);
         queueBarrier(cmd);
         m_priorRecorded = true;
+    }
+    // The temporal merge is internally gated on the ready status, so it does
+    // full work only on the batch where validation runs meaningfully.
+    if (m_temporal != VK_NULL_HANDLE) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_temporal);
+        push(cmd, 0);
+        vkCmdDispatchIndirect(cmd, m_headers[m_input].handle(), 32);
+        queueBarrier(cmd);
     }
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_validate);
     push(cmd, 0);
