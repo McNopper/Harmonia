@@ -196,6 +196,18 @@ accepted fix. Full product/lint verification applies to the restored code only,
 not to the failed estimator experiments. The winding fix and diagnostics remain
 valid and are retained.
 
+**Scope decision (2026-11-04): the accepted fix is the published-method port.**
+The owner directive is that SMS work reuses established papers rather than
+inventing estimators. The in-scope variance remedy is therefore the port of
+Hong, Duan, Wang, Yuksel, Zeltner, Lin, "Sample Space Partitioning and
+Spatiotemporal Resampling for Specular Manifold Sampling", SIGGRAPH Asia 2025
+(DOI `10.1145/3757377.3763927`, reference code
+`github.com/Utah-Graphics-Lab/PSMS-ReSTIR`): tile trust regions, conditional
+sample spaces for Bernoulli trials, per-block priors, and manifold-shift GRIS
+reuse. This supersedes the generic "new research" boundary above for that
+specific paper; caps, clamps, tolerance changes and blind parameter increases
+remain rejected.
+
 **Current execution queue:** repair the qualification harness before trusting any
 new acceptance result, then diagnose the existing C1 spatial estimator with real
 shift counters. Work stays on dev; GPU jobs remain strictly serial.
