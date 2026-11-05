@@ -71,8 +71,9 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.19 - general rendering correctness and fail-safe GPU resource lifetimes; Aether v0.8.1, slang-math v0.8.0. No SMS integration is included.
-- **Last shipped:** v0.7.18 - Aether pin v0.8.1. Prior v0.7.16 - VK16 device-lost forensics + SM6 remainder. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
+- **Release:** v0.7.20 - GI-SMS spatiotemporal reuse foundations (the PSMS-ReSTIR port's
+  shared layer); Aether v0.8.1, slang-math v0.8.0.
+- **Last shipped:** v0.7.19 - general rendering correctness and fail-safe GPU resource lifetimes. Prior v0.7.18 - Aether pin v0.8.1. Prior v0.7.16 - VK16 device-lost forensics + SM6 remainder. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
   module, contract edge removed) + **AR2** (layered CMake targets) + **T-03** narrow
   barrier face + the Q1/Q3 quality wave - see Baseline.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
@@ -2427,6 +2428,16 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
+- **v0.7.20** (Hyperion v0.7.19, Theia v0.8.2): **GI-SMS spatiotemporal reuse
+  foundations.** The resumable `SmsPass` gains the optional temporal dispatch slot;
+  the `SmsReservoir` ABI stores weight/mass as uint float-bits (writing `asuint` into
+  float fields stored sane GRIS weights ~2e3 as ~1e9 values and exploded the C-track
+  pooled energy by 2270x before the fix); `contribution()` grows zero-path
+  observation hooks (`SMS_ZERO_*`, no-op defaults); the shared compute support set
+  extends to the full SMS module family. Qualified with Theia on the C1/C2/C3 track:
+  pooled-energy bias 0.15-1.2% at the 8192-frame gate, deterministic same-seed
+  captures, and a 2.5x equal-time MSE win on absorption-prefix chains (parity on
+  light-tailed scenes). Dependencies unchanged: Aether v0.8.1, slang-math v0.8.0.
 - **v0.7.19** (Hyperion v0.7.18, Theia v0.8.1): **general rendering correctness.** Discrete events no longer expose continuous BSDF/NEE densities; requested accumulation fails closed after scene overrides; frame-slot/resize/reload/shutdown/save retirement precedes resource reuse/destruction; swapchain retirement checks failed waits and fatal recreation stops queued events; transfer-only images have no views. Full local H109/Hy55/T34, warning-clean builds and all lint lanes; baseline/mutation controls fail and exact restores pass. README galleries refreshed at 1280x720, 64 spp Hyperion and 256-frame Theia. No SMS integration. Dependencies: Aether v0.8.1, slang-math v0.8.0.
 - **Tagged on GitHub:** slang-math @ **v0.3.1**; Aether @ **v0.7.6**; Harmonia @ **v0.7.13**;
   Hyperion @ **v0.7.13**; Theia @ **v0.7.14**. Verified: `git ls-remote --tags origin` ==
