@@ -208,16 +208,16 @@ reuse. This supersedes the generic "new research" boundary above for that
 specific paper; caps, clamps, tolerance changes and blind parameter increases
 remain rejected.
 
-**PSMS-ReSTIR port audit (2026-11-04; updated 2026-11-05).** Sections 3, 4
+**PSMS-ReSTIR port audit (2026-11-04; updated 2026-11-06).** Sections 3, 4
 and 5.2 of the paper are implemented and verified faithful (periodic 3x3
 trust regions with per-proposal termination, prior-mixed conditional
 Bernoulli spaces with Eqs. 7-9 marginals and `trials/P(C)` weights,
-inverse-checked J=1 shifts with the 5-iteration cap, log-domain GRIS
-pairwise MIS). Section 5 temporal/spatial reuse is implemented with five
-bring-up defects fixed (see the Theia PLAN receipts, including the
-SmsReservoir float-bits ABI fix in `sms_types.slang` here); the
-mirror-fixture energy systematic remains open. The reference implementation
-is sparse-cloned at `external/PSMS-ReSTIR`.
+inverse-checked J=1 shifts with the 5-iteration cap, log-domain GRIS pairwise
+MIS). Section 5 temporal/spatial reuse is implemented with eleven bring-up
+defects fixed (see the Theia PLAN receipts, including the SmsReservoir
+float-bits ABI fix in `sms_types.slang` here; the mirror fixture now passes
+at 0.99-0.994 vs analytic with reuse beating local at equal budget). The
+reference implementation is sparse-cloned at `external/PSMS-ReSTIR`.
 
 **Current execution queue:** repair the qualification harness before trusting any
 new acceptance result, then diagnose the existing C1 spatial estimator with real

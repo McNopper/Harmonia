@@ -19,6 +19,16 @@
     value = base * response * geometric * Le / pdf * prefix; \
     return all(isfinite(value)) && all(value >= 0.0.xxx);
 #endif
+// Zero-path observation hooks (bring-up instrumentation; no-op by default).
+#ifndef SMS_ZERO_BACKFACE
+#define SMS_ZERO_BACKFACE()
+#endif
+#ifndef SMS_ZERO_BASE
+#define SMS_ZERO_BASE(base)
+#endif
+#ifndef SMS_ZERO_RESPONSE
+#define SMS_ZERO_RESPONSE(response)
+#endif
 
 bool prepareLight(inout SmsWorkRecord work) {
     uint count = work.words[13].z;
@@ -87,7 +97,7 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
     if (!all(isfinite(prefix)) || any(prefix<0.0.xxx)) return false;
     float3 receiver = smsReceiverPosition(work), light = smsLightPosition(work);
     float3 lightNormal = asfloat(work.words[6].xyz);
-    if (dot(lightNormal, root[count-1u].position - light) <= 0.0) return true;
+    if (dot(lightNormal, root[count-1u].position - light) <= 0.0) { SMS_ZERO_BACKFACE(); return true; }
     GpuMaterial receiverMat = SMS_MATERIALS[work.words[0].w];
     SMS_TEXTURE_SAMPLER tex;
     float3 wo = asfloat(work.words[4].xyz);
@@ -98,7 +108,7 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
     float ignored;
     float3 base = evalBSDF(receiverMat, wo, wi, f.normal, f.T, f.B, f.coatN, f.coatT, f.coatB, f.backface) *
         abs(dot(f.normal, wi)) * shadowTerminatorFactor(f.normal, f.geoNormal, wi, ignored);
-    if (all(base == 0.0.xxx)) return true;
+    if (all(base == 0.0.xxx)) { SMS_ZERO_BASE(base); return true; }
     float3 response = 1.0.xxx;
     for (uint i = 0u; i < count; ++i) {
         float3 previous = i == 0u ? receiver : root[i-1u].position;
@@ -120,7 +130,7 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
             mediumBoundaryTransmittance(response,sigmaT,true,length(root[1].position-root[0].position));
         }
     }
-    if (all(response == 0.0.xxx)) return true;
+    if (all(response == 0.0.xxx)) { SMS_ZERO_RESPONSE(response); return true; }
     float3x3 lightFrame = buildFrameFromZ(lightNormal);
     float geometric;
     if (!smsGeometricTerm(receiver, root, count, light, lightFrame[0], lightFrame[1], geometric)) return false;
