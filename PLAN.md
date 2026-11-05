@@ -240,7 +240,13 @@ stays withdrawn. Do not choose temporal caching, extra seeds or reduced scope
 before the measured failure is understood. Full product suites/lint run at code
 checkpoints; hosted CI is not implied by local evidence.
 
-### SMS consolidation and implementation review — 2026-11-03
+### SMS consolidation and implementation review - 2026-11-03
+
+> **SUPERSEDED (2026-11-06): the C track shipped.** The consolidation branch
+> `dev/gi-sms-restir` was merged to `main` in all three repos, qualified on the
+> C1/C2/C3 track, and released as Harmonia v0.7.20 / Theia v0.8.2 / Hyperion
+> v0.7.19. Work continues on `main`; the branch is retired. The narrative below
+> is historical record only.
 
 **Authoritative reassessment; supersedes the older handoff diagnoses below.**
 The owner approved consolidation/review, not an SMS main merge, new release pins

@@ -55,9 +55,10 @@ rasterizer path consumes `scene` without `rt`.
 include; `sms_path.slang` owns the actual-event PT/SMS partition independently of
 root-solve success. Geometry/descriptor adapters remain renderer-owned. The
 resumable `pipeline::SmsPass` publishes ready only after full-slot validation and
-resolve; never accumulate/export pending or failed work. Theia integration/reuse
-and final scene/gallery acceptance remain tracked in PLAN.md, not completed by
-the shared-library checkpoints alone.
+resolve; never accumulate/export pending or failed work. Theia's spatiotemporal
+reuse on the shared SmsPass is shipped (Theia v0.8.2, qualified on the C1/C2/C3
+track; see the Theia PLAN Baseline) - the shared-library checkpoints above are
+complete for the current scope.
 
 **Material model = OpenPBR Surface** (Academy Software Foundation). The shared OpenPBR BSDF
 (`shaders/bsdf_shared.slang`) — diffuse (Fujii/EON), F82 conductor Fresnel (with the
