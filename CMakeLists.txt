@@ -265,6 +265,9 @@ set(HARMONIA_ENTRY_SHADERS
     tonemap.slang
     subgroup_bench_atomic.comp.slang
     subgroup_bench_scan.comp.slang
+    perf4_probe.rgen.slang
+    perf4_probe.rchit.slang
+    perf4_probe.rmiss.slang
 )
 
 # Layered targets (AR2): the include-DAG of ARCHITECTURE.md expressed as
