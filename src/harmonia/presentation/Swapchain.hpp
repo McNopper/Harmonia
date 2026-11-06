@@ -79,7 +79,7 @@ class Swapchain {
     VkSurfaceKHR m_surface{};
     VkPhysicalDevice m_physicalDevice{};
     harmonia::core::UniqueSwapchainKHR m_swapchain;
-    bool m_presentTimingEnabled = false; ///< VK18 (2026 revision): surface + feature both confirmed.
+    bool m_presentTimingEnabled = false;       ///< VK18 (2026 revision): surface + feature both confirmed.
     std::uint64_t m_presentTimingDomainId = 0; ///< VK18: timing domain chosen at swapchain setup.
     VkFormat m_format{VK_FORMAT_UNDEFINED};
     VkColorSpaceKHR m_colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
