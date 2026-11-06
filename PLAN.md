@@ -433,28 +433,51 @@ exists. One direction, sequenced — not two parallel denoiser tracks.
 |----|------------------------|-----------|--------|--------|
 | DN3 | **Converging Algorithm-Agnostic Denoising for Monte Carlo Rendering** (Denisova, Manetti, Bocchi, Iadanza - I3D 2024, [doi:10.1145/3675384](https://doi.org/10.1145/3675384); green-OA PDF at [hdl 2158/1388592](https://hdl.handle.net/2158/1388592)) | **Converging per-pixel blend layer, algorithm-agnostic - it wraps any denoiser.** **PARTIALLY SHIPPED since v0.7.9:** the shipped `denoiser.slang` implements the constant-W simplification (blend weight `kConvRef/(M + kConvRef)`, `kConvRef = 256`, `M` = the ReSTIR reservoir effective sample count from the HDR alpha channel) - the output provably fades to the noisy input as M grows (identity limit), so the interactive window converges where the fixed-radius core alone never could. The paper-exact per-pixel estimator (Eq. 7: `W = I * v_I / v_d` from the per-pixel convergence-curve fit `log(v) = a*log(I) + b`) REMAINS unimplemented - the shipped constant W ignores v_I/v_d entirely; implementing it needs the paper full text (green-OA PDF geo-blocked for this machine at spike time, 2026-11-06). Convergence receipt: `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` (denoised-vs-truth error 0.0165 at M=1 down to the ~0.0035 filter-bias floor at M=4096, monotone with a bounded crossover lag - the lag is what the Eq. 7 estimator removes). | converging | **partially shipped (constant-W) - Eq. 7 estimator pending paper access** |
 
-**DN3 milestone plan (2026-11-06 planning spike; updated on the `dn3/converging-blend` branch).**
-Integration surface: `shaders/denoiser.slang` (302 lines - the temporal pass already computes
-the gradient/variance signals the error estimator consumes; the atrous spatial core stays) plus
-the denoiser-stage wiring in `SceneOutputCopyPassDenoise.cpp`. The paper is algorithm-agnostic,
-so the remaining work is a contained change to ONE shader, not a denoiser replacement.
-Milestones, strictly sequenced:
+**DN3-M1 COMPLETE (2026-11-06, paper full text read - `C:\Temp\Pathtracing\3675384.pdf`).**
+Algorithm spec, mapped onto our pipeline:
 
-- **DN3-M1 - algorithm spec:** IN PROGRESS on `dn3/converging-blend` - the integration surface
-  is mapped (8 bindings, push-constant ABI inventoried); the paper full text is geo-blocked for
-  this machine (the green-OA PDF sits at the UniFi handle), so the paper-exact estimator mapping
-  completes once the PDF is obtainable.
-- **DN3-M2 - refinement (remaining DN3 substance):** replace the shipped constant-W blend
-  (`kConvRef = 256`) with the paper-exact per-pixel Eq. 7 estimator (`W = I*v_I/v_d` from the
-  per-pixel convergence-curve fit); the `v_I`/`v_d` inputs are the gradient/variance textures
-  (bindings 6/7) plus the temporal variance history. Gated on DN3-M1.
-- **DN3-M3 - verification:** convergence receipts DONE on the branch -
-  `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` drives the real denoiser pass at
-  M = 1/16/256/4096 with MC-scaled synthetic noise: denoised-vs-truth error 0.0165 -> 0.0036
-  (16x at M=1; the ~0.0035 floor is the fixed-radius filter bias the PLAN documents), monotone
-  with a bounded constant-W crossover lag (the lag is exactly what the Eq. 7 estimator removes).
-  DEN2 offscreen bit-identity unchanged (offscreen keeps the denoiser identity). Remaining:
-  production-scene convergence receipts (interactive accumulation vs matching-spp reference).
+- **Blend (paper Eq. 2):** `output = (I*n + W*D) / (I + W)` where `I` = the accumulated
+  sample count (`PassContext.frameSampleIndex`), `n` = the accumulated HDR (the pass'
+  `hdrBuffer` - must be bound separately from the atrous ping-pong source, NEW binding 8),
+  `D` = the denoised output, `W` = the per-pixel denoised weight. The shipped constant-W
+  variant is Eq. 2 with `W = 256`; the paper makes W adaptive.
+- **Weight (paper Eq. 14):** `log(W) = (log(SURE) - b) / a` where `(a, b)` are the per-pixel
+  convergence-curve coefficients and `SURE` is the Stein Unbiased Risk Estimate of the
+  denoised pixel - i.e. W is the iteration at which the noisy MC variance would equal the
+  denoised pixel's estimated error.
+- **Convergence curve (paper Eq. 7):** `log(v_I) = a*log(I) + b` per pixel, fitted from the
+  LAST TWO variance points - exactly our bindings 6 (`gGradientVariance`, current) and
+  7 (`gPrevGradientVariance`, previous) at their sample counts (`I`, `I_prev` via push
+  constants): `a = (log v - log v_prev) / (log I - log I_prev)`, `b = log v - a*log I`.
+  Fallback when either variance is 0 or `I_prev` unknown: `a = -1`, `b = log(v*I)` (pure MC
+  scaling) - recovers the paper's `a ~ -1` observation for MC integration.
+- **SURE (paper Eq. 12 + 13):** `SURE = -sigma^2 + ||D - n||^2 + 2*sigma^2*(D' - D)/epsilon`
+  with `sigma^2` = the per-pixel variance (binding 6 G-channel) and `D'` = the filter applied
+  to the perturbed input `n + epsilon*b` (Eq. 13, K = 1 perturbation, epsilon = 1, `b` a
+  static N(0,1) noise texture). Implementation: ONE extra pre-pass writes a scratch copy of
+  the input plus the perturbation; ONE extra atrous chain pass (passIndex 0 semantics) filters
+  it into a D' scratch (NEW bindings 9/10 + the noise texture binding 11). SURE < 0 clamps to
+  0 (the paper's low-count zeroing strategy; the magnitude-strategy switch when the mean
+  variance drops below the mean SURE is deferred - the paper itself flags it as unproven).
+- **Smoothing:** the paper Gaussian-blurs (w = 11) both the variance and SURE images. Our
+  variance is already smoothed (temporal blend + the gradient atrous passes); SURE smoothing
+  reuses the same gradient-filter infrastructure (deferred to a polish step if noisy).
+- **Start threshold:** blending engages from sample count >= 16 (paper: artifacts below 16,
+  excels from 16, curves stable from 64); below the threshold the shipped constant-W blend
+  applies unchanged (both are presentation-only; offscreen identity per the v0.7.4 two-tier
+  contract is unaffected - DEN2 stays the gate).
+- **Convergence proof (paper sec. 2.2 + 2.6):** with increasing I, the variance estimate
+  tightens (-> 0), SURE becomes an unbiased risk estimate (normality of the sample mean per
+  CLT), the curve inversion assigns W per the denoised error, and W -> 0 whenever the denoised
+  error exceeds the (vanishing) MC error - so the blend converges to the noisy input, which
+  converges to the reference. Distinct from the shipped constant-W blend, which converges to
+  the noisy input via W = const regardless of per-pixel error.
+
+**DN3-M2/M3 remain as milestones:** implement the bindings/push/plumbing + shader math above,
+extend `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` (converging mode arms must show
+the crossover lag CLOSE vs the constant-W baseline and must still converge), production-scene
+receipts. Reference implementation: github.com/kruunua/MCPTBlender (linked from the paper).
+Paper discussion sec. 4 explicitly nominates SVGF-class filters (our case) as future work.
 
 **DN1 layering (after DN3-M3):** RaNAD (SIG 2026) inference on VK1/VK9 cooperative matrices
 consumes the DN3 architecture - a separate adjudication with its own planning spike (the
