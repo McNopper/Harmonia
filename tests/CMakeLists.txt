@@ -35,6 +35,7 @@ add_executable(harmonia_component_tests
     component/test_image.cpp
     component/test_accumulation_pass.cpp
     component/test_scene_output_copy_pass.cpp
+    component/test_subgroup_bench.cpp
     component/test_commandpool.cpp
     component/test_sms.cpp
     component/test_sms_queue.cpp

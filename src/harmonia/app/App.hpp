@@ -205,6 +205,15 @@ class App {
     /// One-shot diagnostic: when VK_KHR_calibrated_timestamps is supported, sample the
     /// GPU<->host clock relationship and log it (exercises the extension's entry points).
     void logGpuClockCalibration() noexcept;
+    void logGpuMemoryBudget() noexcept;
+
+    // VK18 (VK_EXT_present_timing) rolling cadence statistics — telemetry only.
+    bool m_presentTimingLog = false;
+    std::uint64_t m_presentTimingSamples = 0;
+    std::uint64_t m_presentTimingIntervalSumNs = 0;
+    std::uint64_t m_presentTimingIntervalMaxNs = 0;
+    std::uint64_t m_presentTimingIncomplete = 0;
+    std::uint64_t m_presentTimingLastNs = 0;
     [[nodiscard]] bool rebuildStagePipeline();
     /// Applies the scene's stage toggles on top of the CLI defaults; enforces
     /// the two-tier output contract (no denoiser for --output / --no-postfx).

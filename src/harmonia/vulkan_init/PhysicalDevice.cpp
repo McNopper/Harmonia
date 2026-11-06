@@ -162,6 +162,8 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         // the former VK_EXT_swapchain_maintenance1 alias is not probed — pre-promotion
         // drivers degrade to the legacy resize path (recreate()'s device-idle fallback).
         info.swapchainMaintenance1Supported = hasExtension(device, VK_KHR_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME);
+        info.memoryBudgetSupported = hasExtension(device, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+        info.presentTimingSupported = hasExtension(device, VK_EXT_PRESENT_TIMING_EXTENSION_NAME);
         const PresentExtensionSupport present = queryPresentExtensions(device);
         info.presentIdSupported = present.presentId;
         info.presentWaitSupported = present.presentWait;

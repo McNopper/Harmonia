@@ -47,6 +47,21 @@ class Swapchain {
     VkResult waitForPresent(std::uint64_t presentId, std::uint64_t timeoutNs = UINT64_MAX);
     VkResult recreate(VkExtent2D newExtent);
 
+    /// One consumed VK18 present-timing record (2026 revision): the MOD6 present id it
+    /// belonged to, the driver's target presentation time, the time of the requested
+    /// presentation stage that fired last (IMAGE_FIRST_PIXEL_VISIBLE when reported),
+    /// and whether the record is complete.
+    struct PresentTimingSample {
+        std::uint64_t presentId = 0;
+        std::uint64_t targetTime = 0;
+        std::uint64_t lastStageTime = 0;
+        bool complete = false;
+    };
+
+    /// Drains the swapchain's past-presentation-timing queue (VK18). Empty when the
+    /// capability is absent or the queue holds no records. Non-fatal on query failure.
+    [[nodiscard]] std::vector<PresentTimingSample> pollPresentTiming() const;
+
     [[nodiscard]] VkSwapchainKHR handle() const noexcept;
     [[nodiscard]] VkFormat format() const noexcept;
     [[nodiscard]] VkColorSpaceKHR colorSpace() const noexcept;
@@ -64,6 +79,8 @@ class Swapchain {
     VkSurfaceKHR m_surface{};
     VkPhysicalDevice m_physicalDevice{};
     harmonia::core::UniqueSwapchainKHR m_swapchain;
+    bool m_presentTimingEnabled = false; ///< VK18 (2026 revision): surface + feature both confirmed.
+    std::uint64_t m_presentTimingDomainId = 0; ///< VK18: timing domain chosen at swapchain setup.
     VkFormat m_format{VK_FORMAT_UNDEFINED};
     VkColorSpaceKHR m_colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
     VkExtent2D m_extent{};

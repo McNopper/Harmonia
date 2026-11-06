@@ -1,6 +1,7 @@
 #include "harmonia/presentation/Swapchain.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -153,6 +154,25 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     if (ctx.presentIdSupported) {
         swapchainFlags |= VK_SWAPCHAIN_CREATE_PRESENT_ID_2_BIT_KHR;
     }
+    // VK18 (2026 revision): consuming past-presentation timings requires the swapchain
+    // to opt in at creation — gate on the device feature AND the per-surface capability.
+    bool presentTimingSurface = false;
+    if (ctx.presentTimingSupported) {
+        VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo{};
+        surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+        surfaceInfo.surface = surface;
+        VkPresentTimingSurfaceCapabilitiesEXT timingCaps{};
+        timingCaps.sType = VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT;
+        VkSurfaceCapabilities2KHR caps2{};
+        caps2.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
+        caps2.pNext = &timingCaps;
+        presentTimingSurface =
+            vkGetPhysicalDeviceSurfaceCapabilities2KHR(ctx.physicalDevice, &surfaceInfo, &caps2) == VK_SUCCESS &&
+            timingCaps.presentTimingSupported == VK_TRUE;
+        if (presentTimingSurface) {
+            swapchainFlags |= VK_SWAPCHAIN_CREATE_PRESENT_TIMING_BIT_EXT;
+        }
+    }
 
     const VkSwapchainCreateInfoKHR createInfo{
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -190,6 +210,37 @@ std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
     result = vkGetSwapchainImagesKHR(ctx.device, swapchain.m_swapchain, &imageCount, swapchain.m_images.data());
     if (result != VK_SUCCESS) {
         return std::unexpected(result);
+    }
+
+    // VK18 (2026 revision): enumerate the swapchain's timing domains, size the
+    // record queue. Non-fatal — a driver that advertises the feature but rejects
+    // the setup simply keeps presentations untagged.
+    if (presentTimingSurface) {
+        VkSwapchainTimeDomainPropertiesEXT domains{};
+        domains.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_TIME_DOMAIN_PROPERTIES_EXT;
+        std::uint64_t domainsCounter = 0;
+        std::vector<VkTimeDomainKHR> domainList;
+        std::vector<std::uint64_t> domainIds;
+        if (vkGetSwapchainTimeDomainPropertiesEXT(ctx.device, swapchain.m_swapchain, &domains, &domainsCounter) ==
+                VK_SUCCESS &&
+            domains.timeDomainCount > 0U) {
+            domainList.resize(domains.timeDomainCount);
+            domainIds.resize(domains.timeDomainCount);
+            domains.pTimeDomains = domainList.data();
+            domains.pTimeDomainIds = domainIds.data();
+            if (vkGetSwapchainTimeDomainPropertiesEXT(ctx.device, swapchain.m_swapchain, &domains, &domainsCounter) !=
+                VK_SUCCESS) {
+                domains.timeDomainCount = 0;
+            }
+        }
+        const bool haveDomain = domains.timeDomainCount > 0U;
+        if (haveDomain && vkSetSwapchainPresentTimingQueueSizeEXT != nullptr &&
+            vkSetSwapchainPresentTimingQueueSizeEXT(ctx.device, swapchain.m_swapchain, imageCount + 2U) == VK_SUCCESS) {
+            swapchain.m_presentTimingEnabled = true;
+            swapchain.m_presentTimingDomainId = domainIds[0];
+        } else {
+            harmonia::core::Logger::warn("Present timing: queue-size/domain setup failed — timing records stay off");
+        }
     }
 
     swapchain.m_views.reserve(imageCount);
@@ -304,22 +355,47 @@ VkResult Swapchain::present(VkQueue queue, std::uint32_t imageIndex, VkSemaphore
         presentFence = m_presentFences[imageIndex];
         m_presentFencePending[imageIndex] = true;
     }
-    const VkSwapchainPresentFenceInfoKHR presentFenceInfo{
+    VkSwapchainPresentFenceInfoKHR presentFenceInfo{
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_KHR,
         .pNext = nullptr,
         .swapchainCount = 1U,
         .pFences = &presentFence,
     };
-    // Optional present-info pNext chain: present id (MOD6) → present fence (MOD4 v1).
+    // VK18 (2026 revision): record this present's stage timings (no target-time
+    // scheduling — the query-only adoption; I-track target scheduling comes later).
+    const bool chainPresentTiming = m_ctx != nullptr && m_ctx->presentTimingSupported && m_presentTimingEnabled;
+    const VkPresentTimingInfoEXT timingInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT,
+        .pNext = nullptr,
+        .flags = 0,
+        .targetTime = 0,
+        .timeDomainId = m_presentTimingDomainId,
+        .presentStageQueries =
+            VK_PRESENT_STAGE_QUEUE_OPERATIONS_END_BIT_EXT | VK_PRESENT_STAGE_IMAGE_FIRST_PIXEL_VISIBLE_BIT_EXT,
+        .targetTimeDomainPresentStage = VK_PRESENT_STAGE_IMAGE_FIRST_PIXEL_VISIBLE_BIT_EXT,
+    };
+    const VkPresentTimingsInfoEXT timingsInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT,
+        .pNext = nullptr,
+        .swapchainCount = 1U,
+        .pTimingInfos = &timingInfo,
+    };
+
+    // Optional present-info pNext chain: present id (MOD6) → present fence (MOD4 v1)
+    // → present timings (VK18).
+    const void* timingsTail = chainPresentTiming ? static_cast<const void*>(&timingsInfo) : nullptr;
     if (chainPresentFence) {
-        presentIdInfo.pNext = &presentFenceInfo;
+        presentFenceInfo.pNext = timingsTail;
+    }
+    if (tagPresentId) {
+        presentIdInfo.pNext = chainPresentFence ? static_cast<const void*>(&presentFenceInfo) : timingsTail;
     }
 
     const VkPresentInfoKHR presentInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext = tagPresentId        ? &presentIdInfo
+        .pNext = tagPresentId        ? static_cast<const void*>(&presentIdInfo)
                  : chainPresentFence ? static_cast<const void*>(&presentFenceInfo)
-                                     : nullptr,
+                                     : timingsTail,
         .waitSemaphoreCount = waitSemaphore != VK_NULL_HANDLE ? 1U : 0U,
         .pWaitSemaphores = waitSemaphore != VK_NULL_HANDLE ? &waitSemaphore : nullptr,
         .swapchainCount = 1U,
@@ -351,6 +427,53 @@ VkResult Swapchain::waitForPresent(std::uint64_t presentId, std::uint64_t timeou
         .timeout = timeoutNs,
     };
     return vkWaitForPresent2KHR(m_ctx->device, m_swapchain, &waitInfo);
+}
+
+std::vector<Swapchain::PresentTimingSample> Swapchain::pollPresentTiming() const {
+    std::vector<PresentTimingSample> samples;
+    if (!m_presentTimingEnabled || m_ctx == nullptr || vkGetPastPresentationTimingEXT == nullptr) {
+        return samples;
+    }
+    const VkPastPresentationTimingInfoEXT info{
+        .sType = VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_INFO_EXT,
+        .pNext = nullptr,
+        .flags = 0,
+        .swapchain = m_swapchain,
+    };
+    VkPastPresentationTimingPropertiesEXT props{};
+    props.sType = VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_PROPERTIES_EXT;
+    if (vkGetPastPresentationTimingEXT(m_ctx->device, &info, &props) != VK_SUCCESS ||
+        props.presentationTimingCount == 0U) {
+        return samples;
+    }
+    // Stage arrays: the records carry per-record counts known only after this call,
+    // so scratch a bounded buffer per record (the stage enum has 4 bits total).
+    constexpr std::uint32_t kMaxStages = 4U;
+    std::vector<VkPastPresentationTimingEXT> records(props.presentationTimingCount);
+    std::vector<std::array<VkPresentStageTimeEXT, kMaxStages>> stages(props.presentationTimingCount);
+    props.pPresentationTimings = records.data();
+    for (std::uint32_t i = 0; i < props.presentationTimingCount; ++i) {
+        records[i].pPresentStages = stages[i].data();
+    }
+    if (vkGetPastPresentationTimingEXT(m_ctx->device, &info, &props) != VK_SUCCESS) {
+        return samples;
+    }
+    samples.reserve(props.presentationTimingCount);
+    for (std::uint32_t i = 0; i < props.presentationTimingCount && i < records.size(); ++i) {
+        const VkPastPresentationTimingEXT& record = records[i];
+        PresentTimingSample sample;
+        sample.presentId = record.presentId;
+        sample.targetTime = record.targetTime;
+        sample.complete = record.reportComplete == VK_TRUE;
+        std::uint32_t stageCount = record.presentStageCount < kMaxStages ? record.presentStageCount : kMaxStages;
+        for (std::uint32_t s = 0; s < stageCount; ++s) {
+            if (record.pPresentStages[s].time > sample.lastStageTime) {
+                sample.lastStageTime = record.pPresentStages[s].time;
+            }
+        }
+        samples.push_back(sample);
+    }
+    return samples;
 }
 
 VkResult Swapchain::recreate(VkExtent2D newExtent) {

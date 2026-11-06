@@ -16,6 +16,7 @@
 
 #include "harmonia/app/AppDetail.hpp"
 #include "harmonia/core/Barrier.hpp"
+#include "harmonia/core/Env.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/core/OneShot.hpp"
 #include "harmonia/core/ProcessPriority.hpp"
@@ -138,6 +139,11 @@ bool App::bootstrap() {
     }
     m_context = std::move(*context);
     logGpuClockCalibration();
+    logGpuMemoryBudget();
+    m_presentTimingLog = core::getEnvString("HARMONIA_PRESENT_TIMING") == std::optional<std::string>{"1"};
+    if (m_presentTimingLog && m_context.deviceContext().presentTimingSupported) {
+        core::Logger::info("Present timing telemetry enabled (HARMONIA_PRESENT_TIMING=1)");
+    }
 
     auto pool = core::CommandPool::create(m_context.deviceContext(), m_context.physicalDeviceInfo().graphicsFamily);
     if (!pool) {
@@ -221,6 +227,35 @@ void App::logGpuClockCalibration() noexcept {
 
     const double periodNs = m_context.physicalDeviceInfo().properties.properties.limits.timestampPeriod;
     core::Logger::info("Calibrated GPU clock: {:.4f} ns/tick, GPU<->host max deviation {} ns", periodNs, maxDeviation);
+}
+
+void App::logGpuMemoryBudget() noexcept {
+    // VK21 (VK_EXT_memory_budget): per-heap VRAM budget vs current usage at startup —
+    // the grounding for the offscreen-capture guard in renderOffscreen().
+    const auto& ctx = m_context.deviceContext();
+    if (!ctx.memoryBudgetSupported) {
+        return;
+    }
+    VkPhysicalDeviceMemoryBudgetPropertiesEXT budgetProps{};
+    budgetProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+    VkPhysicalDeviceMemoryProperties2 memProps2{};
+    memProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+    memProps2.pNext = &budgetProps;
+    vkGetPhysicalDeviceMemoryProperties2(ctx.physicalDevice, &memProps2);
+    constexpr std::uint64_t kMiB = 1024U * 1024U;
+    for (std::uint32_t heap = 0; heap < memProps2.memoryProperties.memoryHeapCount; ++heap) {
+        const VkMemoryHeap& heapProps = memProps2.memoryProperties.memoryHeaps[heap];
+        const std::uint64_t budgetMiB = budgetProps.heapBudget[heap] / kMiB;
+        const std::uint64_t usageMiB = budgetProps.heapUsage[heap] / kMiB;
+        const auto percentage =
+            budgetMiB > 0U ? static_cast<double>(usageMiB) * 100.0 / static_cast<double>(budgetMiB) : 0.0;
+        core::Logger::info("GPU memory heap {}: {} — budget {} MiB, used {} MiB ({:.0f}%)",
+                           heap,
+                           (heapProps.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0U ? "device-local" : "host",
+                           budgetMiB,
+                           usageMiB,
+                           percentage);
+    }
 }
 
 bool App::createHdrImage() {

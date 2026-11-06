@@ -185,6 +185,37 @@ int App::renderOffscreen() {
     const std::uint32_t frameCount = offscreenFrameCount();
     core::Logger::info("Offscreen render: {} frame(s) -> {}", frameCount, m_config.outputFile.string());
 
+    // VK21 guard: warn when a device-local heap is near its budget before a large
+    // capture — the display-GPU DWM demotion scenario (driver pages render targets
+    // out and interactive use of the machine degrades while the capture runs).
+    {
+        const auto& ctx = m_context.deviceContext();
+        if (ctx.memoryBudgetSupported) {
+            VkPhysicalDeviceMemoryBudgetPropertiesEXT budgetProps{};
+            budgetProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+            VkPhysicalDeviceMemoryProperties2 memProps2{};
+            memProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+            memProps2.pNext = &budgetProps;
+            vkGetPhysicalDeviceMemoryProperties2(ctx.physicalDevice, &memProps2);
+            for (std::uint32_t heap = 0; heap < memProps2.memoryProperties.memoryHeapCount; ++heap) {
+                const VkMemoryHeap& heapProps = memProps2.memoryProperties.memoryHeaps[heap];
+                if ((heapProps.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) == 0U || budgetProps.heapBudget[heap] == 0U) {
+                    continue;
+                }
+                const auto usage = static_cast<double>(budgetProps.heapUsage[heap]);
+                const auto budget = static_cast<double>(budgetProps.heapBudget[heap]);
+                if (usage / budget > 0.9) {
+                    core::Logger::warn("GPU memory heap {} at {:.0f}% of budget ({} / {} MiB) before capture — "
+                                       "expect paging; interactive use may degrade",
+                                       heap,
+                                       usage * 100.0 / budget,
+                                       usage / (1024.0 * 1024.0),
+                                       budget / (1024.0 * 1024.0));
+                }
+            }
+        }
+    }
+
     // Headless capture is a batch job: run it BELOW_NORMAL so every other process on the
     // machine preempts it automatically and stays responsive. This is the actual
     // mechanism -- the per-frame yield below is only a hint (see the comment there).

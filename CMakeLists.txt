@@ -263,6 +263,8 @@ set(HARMONIA_ENTRY_SHADERS
     denoiser.slang
     tonemap_vert.slang
     tonemap.slang
+    subgroup_bench_atomic.comp.slang
+    subgroup_bench_scan.comp.slang
 )
 
 # Layered targets (AR2): the include-DAG of ARCHITECTURE.md expressed as
@@ -285,6 +287,7 @@ set(HARMONIA_core_SOURCES
     src/harmonia/core/ShaderModule.cpp
 )
 set(HARMONIA_low_level_SOURCES
+    src/harmonia/vulkan_init/Capabilities.cpp
     src/harmonia/vulkan_init/Context.cpp
     src/harmonia/vulkan_init/ContextLifecycle.cpp
     src/harmonia/vulkan_init/DeviceFault.cpp

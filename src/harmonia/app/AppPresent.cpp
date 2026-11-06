@@ -275,6 +275,37 @@ void App::presentAndHandleResize(std::uint32_t imageIndex) noexcept {
         }
     }
     m_frameSync.setSwapchainLayout(imageIndex, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+    // VK18: drain past-presentation timings into rolling cadence statistics.
+    // Telemetry only — no pacing, ownership or dispatch decision reads these values.
+    if (m_presentTimingLog) {
+        for (const auto& sample : m_swapchain.pollPresentTiming()) {
+            ++m_presentTimingSamples;
+            if (sample.lastStageTime != 0U) {
+                if (m_presentTimingLastNs != 0U && sample.lastStageTime > m_presentTimingLastNs) {
+                    const std::uint64_t interval = sample.lastStageTime - m_presentTimingLastNs;
+                    m_presentTimingIntervalSumNs += interval;
+                    m_presentTimingIntervalMaxNs =
+                        interval > m_presentTimingIntervalMaxNs ? interval : m_presentTimingIntervalMaxNs;
+                }
+                m_presentTimingLastNs = sample.lastStageTime;
+            }
+            if (!sample.complete) {
+                ++m_presentTimingIncomplete;
+            }
+            if (m_presentTimingSamples % 120U == 0U && m_presentTimingIntervalSumNs > 0U) {
+                const auto intervals = m_presentTimingSamples > 1U ? m_presentTimingSamples - 1U : 1U;
+                const double meanMs =
+                    static_cast<double>(m_presentTimingIntervalSumNs) / 1.0e6 / static_cast<double>(intervals);
+                const double maxMs = static_cast<double>(m_presentTimingIntervalMaxNs) / 1.0e6;
+                core::Logger::info("[present-timing] n={} mean_interval={:.3f} ms max_interval={:.3f} ms incomplete={}",
+                                   m_presentTimingSamples,
+                                   meanMs,
+                                   maxMs,
+                                   m_presentTimingIncomplete);
+            }
+        }
+    }
 }
 
 int App::mainLoop() {

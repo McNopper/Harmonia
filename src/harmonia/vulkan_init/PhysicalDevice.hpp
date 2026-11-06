@@ -25,7 +25,9 @@ struct PhysicalDeviceInfo {
     bool deviceFaultSupported = false;          ///< VK_EXT_device_fault is available (VK16 device-lost forensics).
     bool addressBindingReportSupported = false; ///< VK_EXT_device_address_binding_report is available (VK16).
     bool swapchainMaintenance1Supported =
-        false; ///< VK_KHR_swapchain_maintenance1 is available (MOD4 v1 fence/release half).
+        false;                           ///< VK_KHR_swapchain_maintenance1 is available (MOD4 v1 fence/release half).
+    bool memoryBudgetSupported = false;  ///< VK_EXT_memory_budget is available (VK21 VRAM budget queries).
+    bool presentTimingSupported = false; ///< VK_EXT_present_timing is available (VK18; feature gated in Context).
 };
 
 class PhysicalDevice {

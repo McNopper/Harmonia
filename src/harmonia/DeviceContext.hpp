@@ -31,9 +31,16 @@ struct DeviceContext {
     bool deviceFaultSupported = false;     ///< VK_EXT_device_fault enabled (VK16 device-lost forensics).
     bool addressBindingReportSupported = false; ///< VK_EXT_device_address_binding_report enabled (VK16).
     bool swapchainMaintenance1Supported =
-        false; ///< VK_KHR_swapchain_maintenance1 enabled (MOD4 v1: per-present fences +
-               ///< vkReleaseSwapchainImagesKHR on resize — the fence/release half; present
-               ///< scaling was probed (0 modes on the reference GPU) and stays out).
+        false;                            ///< VK_KHR_swapchain_maintenance1 enabled (MOD4 v1: per-present fences +
+                                          ///< vkReleaseSwapchainImagesKHR on resize — the fence/release half; present
+                                          ///< scaling was probed (0 modes on the reference GPU) and stays out).
+    bool memoryBudgetSupported = false;   ///< VK_EXT_memory_budget enabled (VK21 VRAM budget queries).
+    bool presentTimingSupported = false;  ///< VK_EXT_present_timing enabled (VK18 present telemetry).
+    bool subgroupRotateSupported = false; ///< VK_KHR_shader_subgroup_rotate enabled (VK4; incl. clustered bit).
+    bool shaderMaximalReconvergenceSupported = false; ///< VK_KHR_shader_maximal_reconvergence enabled (VK4).
+    bool shaderSubgroupUniformControlFlowSupported =
+        false;                               ///< VK_KHR_shader_subgroup_uniform_control_flow enabled (VK4).
+    bool shaderQuadControlSupported = false; ///< VK_KHR_shader_quad_control enabled (VK4).
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
     /// VK_NULL_HANDLE when the device has no dedicated compute queue family.
