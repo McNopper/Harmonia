@@ -431,7 +431,34 @@ exists. One direction, sequenced — not two parallel denoiser tracks.
 
 | ID | Paper (venue year, DOI) | Relevance | Litmus | Status |
 |----|------------------------|-----------|--------|--------|
-| DN3 | **Converging Algorithm-Agnostic Denoising** (Denisova & Bocchi — I3D 2024, [doi:10.1145/3675384](https://doi.org/10.1145/3675384)) | Provably converging, integrator-agnostic — replaces the fixed-radius à-trous core in the shared estimator; parity by construction rather than by stage-disable. | converging | **next** |
+| DN3 | **Converging Algorithm-Agnostic Denoising for Monte Carlo Rendering** (Denisova, Manetti, Bocchi, Iadanza - I3D 2024, [doi:10.1145/3675384](https://doi.org/10.1145/3675384); green-OA PDF at [hdl 2158/1388592](https://hdl.handle.net/2158/1388592)) | **Converging per-pixel blend layer, algorithm-agnostic - it wraps any denoiser.** The method predicts the denoised/noisy blend weight per pixel from error estimates during progressive rendering, with an analytical convergence guarantee; no deep learning. Correction to the earlier characterization (2026-11-06 spike): the fixed-radius atrous core is NOT replaced - it stays as the denoised-image producer and its non-convergence is neutralized by the blend (weight shifts toward the noisy input as error estimates rise, and the blend provably converges to the reference). Fits our accumulation+denoiser progressive loop directly; the variance/gradient signals the denoiser already computes are the error-estimate inputs the method consumes. | converging | **planned (milestones below)** |
+
+**DN3 milestone plan (2026-11-06 planning spike).** Integration surface: `shaders/denoiser.slang`
+(302 lines - temporal pass already computes the gradient/variance signals the error estimator
+consumes; the atrous spatial core stays) + the denoiser-stage wiring in
+`SceneOutputCopyPassDenoise.cpp`. The paper is algorithm-agnostic, so the implementation is a
+contained surgical change to ONE shader, not a denoiser replacement. Milestones, strictly
+sequenced:
+
+- **DN3-M1 - algorithm spec (0.5-1 day):** full paper read (green-OA PDF); map the error
+  estimator, the blend-weight prediction, and the analytical convergence proof onto our
+  buffers (history HDR, gradient/variance textures, accumulation sample count); freeze the
+  pass-level ABI (push constants, textures) before any shader edit.
+- **DN3-M2 - implementation (2-4 days):** error estimate + blend weight + converging blend in
+  the temporal pass; atrous core unchanged; behind `--denoiser-mode` (default keeps the
+  shipped filter; converging mode opt-in for the qualification lane).
+- **DN3-M3 - verification (1-2 days):** (a) DEN2 offscreen bit-identity must hold unchanged;
+  (b) convergence receipts - interactive accumulation sequence compared against the matching-
+  spp reference: the denoised-window vs reference gap must shrink to the noise floor as
+  samples grow (the litmus the fixed-radius core structurally fails); (c) low-spp visual
+  comparison + validation-clean; (d) full suites + lint.
+
+**DN1 layering (after DN3-M3):** RaNAD (SIG 2026) inference on VK1/VK9 cooperative matrices
+consumes the DN3 architecture - a separate adjudication with its own planning spike (the
+negative-result constraint on the ReSTIR-candidate input channel already applies). Planning
+scope note: the on-device inference stack (weights, cooperative-matrix matmul scheduling,
+activation layout) is new engineering - the largest single track in the family queue.
+
 | DN1 | **Ragged Neighborhood Attention (RaNAD)** neural denoiser (SIG 2026) — deep-image denoiser for the low-spp interactive window; recovers plausible detail a spatial filter cannot. Presentation-only (identity offscreen per v0.7.4), so it does not touch the parity invariant. Implementation-unblocked by `VK_KHR_cooperative_matrix` (BF16/Float8 compute — VK1): the tensor-class matmul a neural net needs, on-device, no CUDA/TensorRT. | bypassable (presentation) | backlog |
 | DN5 | **Generalized Unbiased Reconstruction for Gradient-Domain Rendering** (Yan et al. — TOG 2025, [doi:10.1145/3763297](https://doi.org/10.1145/3763297)) | Unbiased reconstruction; only meaningful if Harmonia adds gradient features (GI-GD, watchlist) — do not start before GI-GD is promoted. | converging | watchlist |
 
