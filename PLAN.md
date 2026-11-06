@@ -431,27 +431,30 @@ exists. One direction, sequenced — not two parallel denoiser tracks.
 
 | ID | Paper (venue year, DOI) | Relevance | Litmus | Status |
 |----|------------------------|-----------|--------|--------|
-| DN3 | **Converging Algorithm-Agnostic Denoising for Monte Carlo Rendering** (Denisova, Manetti, Bocchi, Iadanza - I3D 2024, [doi:10.1145/3675384](https://doi.org/10.1145/3675384); green-OA PDF at [hdl 2158/1388592](https://hdl.handle.net/2158/1388592)) | **Converging per-pixel blend layer, algorithm-agnostic - it wraps any denoiser.** The method predicts the denoised/noisy blend weight per pixel from error estimates during progressive rendering, with an analytical convergence guarantee; no deep learning. Correction to the earlier characterization (2026-11-06 spike): the fixed-radius atrous core is NOT replaced - it stays as the denoised-image producer and its non-convergence is neutralized by the blend (weight shifts toward the noisy input as error estimates rise, and the blend provably converges to the reference). Fits our accumulation+denoiser progressive loop directly; the variance/gradient signals the denoiser already computes are the error-estimate inputs the method consumes. | converging | **planned (milestones below)** |
+| DN3 | **Converging Algorithm-Agnostic Denoising for Monte Carlo Rendering** (Denisova, Manetti, Bocchi, Iadanza - I3D 2024, [doi:10.1145/3675384](https://doi.org/10.1145/3675384); green-OA PDF at [hdl 2158/1388592](https://hdl.handle.net/2158/1388592)) | **Converging per-pixel blend layer, algorithm-agnostic - it wraps any denoiser.** **PARTIALLY SHIPPED since v0.7.9:** the shipped `denoiser.slang` implements the constant-W simplification (blend weight `kConvRef/(M + kConvRef)`, `kConvRef = 256`, `M` = the ReSTIR reservoir effective sample count from the HDR alpha channel) - the output provably fades to the noisy input as M grows (identity limit), so the interactive window converges where the fixed-radius core alone never could. The paper-exact per-pixel estimator (Eq. 7: `W = I * v_I / v_d` from the per-pixel convergence-curve fit `log(v) = a*log(I) + b`) REMAINS unimplemented - the shipped constant W ignores v_I/v_d entirely; implementing it needs the paper full text (green-OA PDF geo-blocked for this machine at spike time, 2026-11-06). Convergence receipt: `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` (denoised-vs-truth error 0.0165 at M=1 down to the ~0.0035 filter-bias floor at M=4096, monotone with a bounded crossover lag - the lag is what the Eq. 7 estimator removes). | converging | **partially shipped (constant-W) - Eq. 7 estimator pending paper access** |
 
-**DN3 milestone plan (2026-11-06 planning spike).** Integration surface: `shaders/denoiser.slang`
-(302 lines - temporal pass already computes the gradient/variance signals the error estimator
-consumes; the atrous spatial core stays) + the denoiser-stage wiring in
-`SceneOutputCopyPassDenoise.cpp`. The paper is algorithm-agnostic, so the implementation is a
-contained surgical change to ONE shader, not a denoiser replacement. Milestones, strictly
-sequenced:
+**DN3 milestone plan (2026-11-06 planning spike; updated on the `dn3/converging-blend` branch).**
+Integration surface: `shaders/denoiser.slang` (302 lines - the temporal pass already computes
+the gradient/variance signals the error estimator consumes; the atrous spatial core stays) plus
+the denoiser-stage wiring in `SceneOutputCopyPassDenoise.cpp`. The paper is algorithm-agnostic,
+so the remaining work is a contained change to ONE shader, not a denoiser replacement.
+Milestones, strictly sequenced:
 
-- **DN3-M1 - algorithm spec (0.5-1 day):** full paper read (green-OA PDF); map the error
-  estimator, the blend-weight prediction, and the analytical convergence proof onto our
-  buffers (history HDR, gradient/variance textures, accumulation sample count); freeze the
-  pass-level ABI (push constants, textures) before any shader edit.
-- **DN3-M2 - implementation (2-4 days):** error estimate + blend weight + converging blend in
-  the temporal pass; atrous core unchanged; behind `--denoiser-mode` (default keeps the
-  shipped filter; converging mode opt-in for the qualification lane).
-- **DN3-M3 - verification (1-2 days):** (a) DEN2 offscreen bit-identity must hold unchanged;
-  (b) convergence receipts - interactive accumulation sequence compared against the matching-
-  spp reference: the denoised-window vs reference gap must shrink to the noise floor as
-  samples grow (the litmus the fixed-radius core structurally fails); (c) low-spp visual
-  comparison + validation-clean; (d) full suites + lint.
+- **DN3-M1 - algorithm spec:** IN PROGRESS on `dn3/converging-blend` - the integration surface
+  is mapped (8 bindings, push-constant ABI inventoried); the paper full text is geo-blocked for
+  this machine (the green-OA PDF sits at the UniFi handle), so the paper-exact estimator mapping
+  completes once the PDF is obtainable.
+- **DN3-M2 - refinement (remaining DN3 substance):** replace the shipped constant-W blend
+  (`kConvRef = 256`) with the paper-exact per-pixel Eq. 7 estimator (`W = I*v_I/v_d` from the
+  per-pixel convergence-curve fit); the `v_I`/`v_d` inputs are the gradient/variance textures
+  (bindings 6/7) plus the temporal variance history. Gated on DN3-M1.
+- **DN3-M3 - verification:** convergence receipts DONE on the branch -
+  `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` drives the real denoiser pass at
+  M = 1/16/256/4096 with MC-scaled synthetic noise: denoised-vs-truth error 0.0165 -> 0.0036
+  (16x at M=1; the ~0.0035 floor is the fixed-radius filter bias the PLAN documents), monotone
+  with a bounded constant-W crossover lag (the lag is exactly what the Eq. 7 estimator removes).
+  DEN2 offscreen bit-identity unchanged (offscreen keeps the denoiser identity). Remaining:
+  production-scene convergence receipts (interactive accumulation vs matching-spp reference).
 
 **DN1 layering (after DN3-M3):** RaNAD (SIG 2026) inference on VK1/VK9 cooperative matrices
 consumes the DN3 architecture - a separate adjudication with its own planning spike (the

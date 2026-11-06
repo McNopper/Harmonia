@@ -8,12 +8,14 @@
 #include <cstring>
 #include <filesystem>
 #include <gtest/gtest.h>
+#include <limits>
 #include <slang-math/slang-math.hpp>
 #include <vector>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/core/Logger.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 
@@ -365,4 +367,140 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_NoOpWhenDenoiserOutputMissing) {
     EXPECT_NEAR(pixels[0].g, expected.g, 1e-5F);
     EXPECT_NEAR(pixels[0].b, expected.b, 1e-5F);
     EXPECT_NEAR(pixels[0].a, expected.a, 1e-5F);
+}
+
+// DN3 convergence receipt (branch dn3/converging-blend): the shipped converging
+// blend (constant-W, kConvRef = 256, shipped v0.7.9) must fade to identity as
+// the reservoir sample count M grows. MC noise amplitude scales as 1/sqrt(M),
+// so the denoised-vs-truth error must decrease toward the noise floor - the
+// property the fixed-radius atrous core structurally lacked.
+TEST_F(VulkanFixture, SceneOutputCopyPass_DN3BlendConvergesWithSampleCount) {
+    constexpr VkExtent2D kExtent{16U, 8U};
+    constexpr float kMu = 0.5F;
+    constexpr std::array<float, 4> kSampleCounts{1.0F, 16.0F, 256.0F, 4096.0F};
+
+    auto hdr = harmonia::core::Image::create(deviceCtx(),
+                                             kExtent,
+                                             VK_FORMAT_R32G32B32A32_SFLOAT,
+                                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                             VK_IMAGE_ASPECT_COLOR_BIT,
+                                             "test.dn3.hdr");
+    ASSERT_TRUE(hdr.has_value()) << static_cast<int>(hdr.error());
+    auto denoised = harmonia::core::Image::create(deviceCtx(),
+                                                  kExtent,
+                                                  VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                  VK_IMAGE_ASPECT_COLOR_BIT,
+                                                  "test.dn3.denoised");
+    ASSERT_TRUE(denoised.has_value()) << static_cast<int>(denoised.error());
+    auto gNormal = harmonia::core::Image::create(deviceCtx(),
+                                                 kExtent,
+                                                 VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                 VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                 VK_IMAGE_ASPECT_COLOR_BIT,
+                                                 "test.dn3.gnormal");
+    ASSERT_TRUE(gNormal.has_value()) << static_cast<int>(gNormal.error());
+    auto gDepth = harmonia::core::Image::create(deviceCtx(),
+                                                kExtent,
+                                                VK_FORMAT_R32_SFLOAT,
+                                                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                VK_IMAGE_ASPECT_COLOR_BIT,
+                                                "test.dn3.gdepth");
+    ASSERT_TRUE(gDepth.has_value()) << static_cast<int>(gDepth.error());
+
+    std::vector<sm::float4> normalPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    std::vector<float> depthPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+        for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+            const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
+            normalPixels[idx] = sm::float4(0.5F, 0.5F, 1.0F, 0.0F);
+            depthPixels[idx] = 2.0F;
+        }
+    }
+    uploadRgbaImage(deviceCtx(), commandPool(), *gNormal, normalPixels);
+    uploadDepthImage(deviceCtx(), commandPool(), *gDepth, depthPixels);
+
+    auto pass =
+        harmonia::pipeline::SceneOutputCopyPass::create(deviceCtx(),
+                                                        kExtent,
+                                                        std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv",
+                                                        harmonia::pipeline::SceneOutputCopyPass::Settings{
+                                                            .strength = 0.75F,
+                                                            .iterations = 3U,
+                                                            .useHistory = false,
+                                                            .historyBlend = 0.1F,
+                                                        });
+    ASSERT_TRUE(pass.has_value()) << static_cast<int>(pass.error());
+    pass->onResize(kExtent);
+
+    std::vector<sm::float4> hdrPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    double prevErr = std::numeric_limits<double>::max();
+    double firstErr = -1.0;
+    double firstInputErr = -1.0;
+    bool first = true;
+    for (const float sampleCount : kSampleCounts) {
+        const float noiseAmp = 0.12F / std::sqrt(sampleCount); // MC standard error ~ 1/sqrt(M)
+        double inputErrSum = 0.0;
+        for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+            for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+                const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
+                const int pattern = static_cast<int>((x * 17U + y * 29U) % 9U) - 4;
+                const float value = std::max(kMu + static_cast<float>(pattern) * noiseAmp, 0.0F);
+                hdrPixels[idx] = sm::float4(value, value, value, sampleCount); // alpha = M
+                inputErrSum += std::abs(static_cast<double>(value) - static_cast<double>(kMu));
+            }
+        }
+        uploadRgbaImage(deviceCtx(), commandPool(), *hdr, hdrPixels);
+
+        auto cmd = commandPool().beginOneShot();
+        ASSERT_TRUE(cmd.has_value()) << static_cast<int>(cmd.error());
+        const harmonia::pipeline::PassContext passContext{
+            .cmd = *cmd,
+            .frameIndex = 0,
+            .extent = kExtent,
+            .fixedView = true,
+            .accumulationResetToken = 1U,
+            .hdrBuffer = &*hdr,
+            .gNormalView = gNormal->view(),
+            .gDepthView = gDepth->view(),
+            .denoised = &*denoised,
+            .swapchainView = VK_NULL_HANDLE,
+            .colorSpace = harmonia::utils::OutputColorSpace::eSDR,
+        };
+        pass->record(passContext);
+        ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
+
+        const auto denoisedPixels = readRgbaImage(deviceCtx(), commandPool(), *denoised);
+        ASSERT_EQ(denoisedPixels.size(), hdrPixels.size());
+        const auto pixelCount = static_cast<double>(kExtent.width) * static_cast<double>(kExtent.height);
+        double outputErrSum = 0.0;
+        for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+            for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+                const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
+                const float luma =
+                    0.2627F * denoisedPixels[idx].r + 0.6780F * denoisedPixels[idx].g + 0.0593F * denoisedPixels[idx].b;
+                outputErrSum += std::abs(static_cast<double>(luma) - static_cast<double>(kMu));
+            }
+        }
+        const double inputErr = inputErrSum / pixelCount;
+        const double outputErr = outputErrSum / pixelCount;
+        harmonia::core::Logger::info(
+            "DN3 convergence: M={:.0f} input_err {:.5f} denoised_err {:.5f}", sampleCount, inputErr, outputErr);
+        if (first) {
+            EXPECT_LT(outputErr, inputErr) << "at M=1 the converging blend must denoise";
+            firstErr = outputErr;
+            firstInputErr = inputErr;
+            first = false;
+        } else {
+            // Constant-W crossover lag: near the optimal switch point the blend
+            // lags the ideal per-pixel switch by a small bounded amount (this
+            // lag is what the paper's per-pixel Eq. 7 estimator removes).
+            EXPECT_LE(outputErr, prevErr + 1.0e-3) << "constant-W crossover lag must stay bounded";
+        }
+        prevErr = outputErr;
+    }
+    EXPECT_LT(prevErr, firstErr) << "final error must sit below the M=1 error - convergence receipt";
+    EXPECT_LT(firstErr, firstInputErr) << "M=1 denoised error must beat the raw noisy input error";
 }
