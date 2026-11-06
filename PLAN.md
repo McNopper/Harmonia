@@ -71,9 +71,13 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.20 - GI-SMS spatiotemporal reuse foundations (the PSMS-ReSTIR port's
-  shared layer); Aether v0.8.1, slang-math v0.8.0.
-- **Last shipped:** v0.7.19 - general rendering correctness and fail-safe GPU resource lifetimes. Prior v0.7.18 - Aether pin v0.8.1. Prior v0.7.16 - VK16 device-lost forensics + SM6 remainder. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
+- **Release:** v0.7.21 - Vulkan capability wave: VK21 memory budget, VK18 present-timing
+  telemetry (query-only), VK4 subgroup set adopted + compaction micro-benchmark; the
+  capability track closed (VK19 stay-verdict, VK20/VK22 verified, VK5 blocked-by-driver
+  documented). Aether v0.8.1, slang-math v0.8.0.
+- **Last shipped:** v0.7.20 - GI-SMS spatiotemporal reuse foundations (the PSMS-ReSTIR
+  port's shared layer). Prior v0.7.19 - general rendering correctness and fail-safe GPU
+  resource lifetimes. Prior v0.7.18 - Aether pin v0.8.1. Prior v0.7.16 - VK16 device-lost forensics + SM6 remainder. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
   module, contract edge removed) + **AR2** (layered CMake targets) + **T-03** narrow
   barrier face + the Q1/Q3 quality wave - see Baseline.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
@@ -1275,6 +1279,26 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
+- **v0.7.21** (Theia v0.8.3, Hyperion v0.7.20): **Vulkan capability wave + capability-track
+  closure.** VK21 `VK_EXT_memory_budget` shipped: per-heap budget/usage logged at startup,
+  offscreen-capture guard warns above 90% device-local budget (the DWM-demotion scenario).
+  VK18 `VK_EXT_present_timing` (2026 revision) shipped as query-only telemetry: swapchain
+  opt-in at creation (`VK_SWAPCHAIN_CREATE_PRESENT_TIMING_BIT_EXT`, device feature + per-surface
+  gate), record queue sized, per-present stage queries, per-frame drain into rolling cadence
+  stats behind `HARMONIA_PRESENT_TIMING=1` (receipt: n=480, mean 20.4 ms, max 41.4 ms,
+  incomplete 0); target-time scheduling stays an I-track follow-up. VK4 subgroup set adopted:
+  all four probed→enabled (rotate via Vulkan14Features — promoted, VUID-pNext-10360) with the
+  compaction micro-benchmark receipt (4 194 304 elements × 64 iterations: atomic 1.0235 ms/iter
+  vs subgroup-prefix 0.9874 ms/iter, exact-multiset validation; per-workgroup base reservation
+  is scheduling-ordered — the bit-identical-compaction insight for PERF5 10e). Capability track
+  closed: VK19 verdict stay-on-descriptor-buffer (revisit triggers recorded), VK20/VK22 verified
+  (VK22: Slang 2026.17 exposes none of the quartet — probe `tools/check_slang_ngsm.py` committed),
+  VK5 blocked-by-driver-defect with a revival protocol. Context.cpp (1102 lines) exceeded its
+  architecture gate — the device capability surface extracted to
+  `vulkan_init/Capabilities.{hpp,cpp}` (Context.cpp 437 lines, test_arch green). Driver 621.14
+  re-audit: 295 device extensions unchanged, all capability rows re-verified. Full suites:
+  Harmonia 154/154 (bench included), Theia 61/61, Hyperion 75/75. Dependencies unchanged:
+  Aether v0.8.1, slang-math v0.8.0.
 - **v0.7.20** (Hyperion v0.7.19, Theia v0.8.2): **GI-SMS spatiotemporal reuse
   foundations.** The resumable `SmsPass` gains the optional temporal dispatch slot;
   the `SmsReservoir` ABI stores weight/mass as uint float-bits (writing `asuint` into
