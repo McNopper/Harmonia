@@ -71,11 +71,13 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.21 - Vulkan capability wave: VK21 memory budget, VK18 present-timing
+- **Release:** v0.7.22 - DN3 converging denoiser implemented (paper-exact, opt-in; crossover
+  lag closed 4-20x in receipts); PERF4 measured-uneconomical verdict; capability track closed.
+  Aether v0.8.1, slang-math v0.8.0.
+- **Prior:** v0.7.21 - Vulkan capability wave: VK21 memory budget, VK18 present-timing
   telemetry (query-only), VK4 subgroup set adopted + compaction micro-benchmark; the
   capability track closed (VK19 stay-verdict, VK20/VK22 verified, VK5 blocked-by-driver
-  documented). Aether v0.8.1, slang-math v0.8.0.
-- **Last shipped:** v0.7.20 - GI-SMS spatiotemporal reuse foundations (the PSMS-ReSTIR
+  documented). Prior v0.7.20 - GI-SMS spatiotemporal reuse foundations (the PSMS-ReSTIR
   port's shared layer). Prior v0.7.19 - general rendering correctness and fail-safe GPU
   resource lifetimes. Prior v0.7.18 - Aether pin v0.8.1. Prior v0.7.16 - VK16 device-lost forensics + SM6 remainder. Prior v0.7.14 - **AR1** (`harmonia/scene` rt-free, `harmonia/scene_rt`
   module, contract edge removed) + **AR2** (layered CMake targets) + **T-03** narrow
@@ -429,7 +431,7 @@ exists. One direction, sequenced — not two parallel denoiser tracks.
 
 | ID | Paper (venue year, DOI) | Relevance | Litmus | Status |
 |----|------------------------|-----------|--------|--------|
-| DN3 | **Converging Algorithm-Agnostic Denoising for Monte Carlo Rendering** (Denisova, Manetti, Bocchi, Iadanza - I3D 2024, [doi:10.1145/3675384](https://doi.org/10.1145/3675384); green-OA PDF at [hdl 2158/1388592](https://hdl.handle.net/2158/1388592)) | **Converging per-pixel blend layer, algorithm-agnostic - it wraps any denoiser.** **PARTIALLY SHIPPED since v0.7.9:** the shipped `denoiser.slang` implements the constant-W simplification (blend weight `kConvRef/(M + kConvRef)`, `kConvRef = 256`, `M` = the ReSTIR reservoir effective sample count from the HDR alpha channel) - the output provably fades to the noisy input as M grows (identity limit), so the interactive window converges where the fixed-radius core alone never could. The paper-exact per-pixel estimator (Eq. 7: `W = I * v_I / v_d` from the per-pixel convergence-curve fit `log(v) = a*log(I) + b`) REMAINS unimplemented - the shipped constant W ignores v_I/v_d entirely; implementing it needs the paper full text (green-OA PDF geo-blocked for this machine at spike time, 2026-11-06). Convergence receipt: `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` (denoised-vs-truth error 0.0165 at M=1 down to the ~0.0035 filter-bias floor at M=4096, monotone with a bounded crossover lag - the lag is what the Eq. 7 estimator removes). | converging | **partially shipped (constant-W) - Eq. 7 estimator pending paper access** |
+| DN3 | **Converging Algorithm-Agnostic Denoising for Monte Carlo Rendering** (Denisova, Manetti, Bocchi, Iadanza - I3D 2024, [doi:10.1145/3675384](https://doi.org/10.1145/3675384); green-OA PDF at [hdl 2158/1388592](https://hdl.handle.net/2158/1388592)) | **Converging per-pixel blend layer, algorithm-agnostic - it wraps any denoiser.** **PARTIALLY SHIPPED since v0.7.9:** the shipped `denoiser.slang` implements the constant-W simplification (blend weight `kConvRef/(M + kConvRef)`, `kConvRef = 256`, `M` = the ReSTIR reservoir effective sample count from the HDR alpha channel) - the output provably fades to the noisy input as M grows (identity limit), so the interactive window converges where the fixed-radius core alone never could. The paper-exact per-pixel estimator (Eq. 7: `W = I * v_I / v_d` from the per-pixel convergence-curve fit `log(v) = a*log(I) + b`) REMAINS unimplemented - the shipped constant W ignores v_I/v_d entirely; implementing it needs the paper full text (green-OA PDF geo-blocked for this machine at spike time, 2026-11-06). Convergence receipt: `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` (denoised-vs-truth error 0.0165 at M=1 down to the ~0.0035 filter-bias floor at M=4096, monotone with a bounded crossover lag - the lag is what the Eq. 7 estimator removes). | converging | **implemented (v0.7.22, opt-in converging mode; paper-exact Eq. 7 estimator from the user-provided paper full text)** |
 
 **DN3-M1 COMPLETE (2026-11-06, paper full text read - `C:\Temp\Pathtracing\3675384.pdf`).**
 Algorithm spec, mapped onto our pipeline:
@@ -471,12 +473,26 @@ Algorithm spec, mapped onto our pipeline:
   converges to the reference. Distinct from the shipped constant-W blend, which converges to
   the noisy input via W = const regardless of per-pixel error.
 
-**DN3-M2/M3 remain as milestones:** implement the bindings/push/plumbing + shader math above,
-extend `SceneOutputCopyPass_DN3BlendConvergesWithSampleCount` (converging mode arms must show
-the crossover lag CLOSE vs the constant-W baseline and must still converge), production-scene
-Method references (used by the algorithm): Li, Wu, Chuang - *SURE-based optimization for adaptive sampling and reconstruction* (TOG 2012, [doi:10.1145/2228356.2228360](https://doi.org/10.1145/2228356.2228360)); Ramani, Blu, Unser - *Monte-Carlo SURE* (IEEE TIP 2008, [doi:10.1109/TIP.2008.2001402](https://doi.org/10.1109/TIP.2008.2001402)); Firmino, Frisvad, Jensen - *Progressive denoising of Monte Carlo rendered images* (CGF 2022, [doi:10.1111/cgf.144118](https://doi.org/10.1111/cgf.144118)).
-receipts. Reference implementation: github.com/kruunua/MCPTBlender (linked from the paper).
-Paper discussion sec. 4 explicitly nominates SVGF-class filters (our case) as future work.
+**DN3-M2/M3 - DONE (v0.7.22, branch `dn3/converging-blend`):** the paper-exact blend is
+implemented - SURE (Eq. 12/13, K = 1 perturbed re-filter with static hash draws,
+negative-SURE zeroing), the per-pixel Eq. 14 weight from the Eq. 7 curve fitted from the last
+two variance points (bindings 6/7; fallback `a = -1`), and the Eq. 2 blend against the
+original accumulated input (binding 8). Engages from 16 samples with valid variance guidance;
+below it and without `convergingMode` the shipped constant-W blend applies unchanged.
+Verified: `SceneOutputCopyPass_DN3M2PaperBlendClosesCrossoverLag` - the constant-W crossover
+lag is CLOSED (error 0.0034 -> 0.0008 at M = 256 and 0.0036 -> 0.0002 at M = 4096, monotone,
+validation-clean); DEN2 offscreen identity unaffected.
+
+- **DN3-M4 - production-scene convergence receipts (backlog):** the visible demonstration of
+  the crossover fix on real content - drive dragon_teapot (glass/transmission, the bias-floor
+  regime) plus one diffuse-light control through the real window pass chain at
+  spp = 16/64/256/1024/4096 in three modes (raw accumulation, shipped constant-W, converging
+  blend), compare each against the matching high-spp identity reference: raw falls ~1/spp,
+  constant-W plateaus at the ~0.0035 bias floor, converging keeps descending past the plateau.
+  Artifacts: per-spp rel-MSE curves + difference crops (expected signature: softened
+  transmission boundaries and dulled thin-film/fuzz high frequencies in constant-W, recovered
+  in converging). Harness: Theia replay test or tools receipt script reusing the pass-chain
+  driver + `compare_renders.py`; ~1-2 days.
 
 **DN1 layering (after DN3-M3):** RaNAD (SIG 2026) inference on VK1/VK9 cooperative matrices
 consumes the DN3 architecture - a separate adjudication with its own planning spike (the
@@ -1330,6 +1346,23 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
+- **v0.7.22** (Harmonia-internal; renderer pins unchanged until the next coordinated wave):
+  **DN3 converging denoiser implemented (paper-exact, opt-in) + PERF4 measured verdict.**
+  The paper-exact converging blend (Denisova, Manetti, Bocchi, Iadanza - I3D 2024) lands in
+  the shared denoiser behind `convergingMode` (opt-in): SURE (Eq. 12/13, K = 1 perturbed
+  re-filter with static hash draws, negative-SURE zeroing) estimates the denoised error, the
+  per-pixel Eq. 14 weight inverts the Eq. 7 convergence curve (fitted from the last two
+  variance points, bindings 6/7, fallback `a = -1`), and Eq. 2 blends toward the original
+  accumulated input (binding 8). Engages from 16 samples; offscreen identity (DEN2) unchanged.
+  Receipts: the constant-W crossover lag is CLOSED - 0.0034 -> 0.0008 at M = 256 and
+  0.0036 -> 0.0002 at M = 4096, monotone, validation-clean. PERF4 feasibility spike: ray
+  reordering yields at most ~6% at interactive ray counts with sort cost two orders of
+  magnitude above savings - measured-uneconomical, PERF5 stays parked, revisit triggers
+  recorded. Capability track closed (VK19/20/22 verdicts, VK5 blocked-by-driver documented);
+  the C-W frontier watchlist and other unused-paper references removed from the tracks.
+  Context.cpp split (capability surface -> `vulkan_init/Capabilities.{hpp,cpp}`,
+  SceneOutputCopyPassDenoise.cpp -> `SceneOutputCopyPassDN3.cpp`), test_arch green.
+  Full suites 157/157. Dependencies unchanged: Aether v0.8.1, slang-math v0.8.0.
 - **v0.7.21** (Theia v0.8.3, Hyperion v0.7.20): **Vulkan capability wave + capability-track
   closure.** VK21 `VK_EXT_memory_budget` shipped: per-heap budget/usage logged at startup,
   offscreen-capture guard warns above 90% device-local budget (the DWM-demotion scenario).
