@@ -330,6 +330,7 @@ set(HARMONIA_passes_SOURCES
     src/harmonia/pipeline/SmsPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPassDenoise.cpp
+    src/harmonia/pipeline/SceneOutputCopyPassDN3.cpp
     src/harmonia/presentation/ImageCapture.cpp
     src/harmonia/presentation/Swapchain.cpp
     src/harmonia/presentation/ToneMapper.cpp

@@ -84,6 +84,20 @@ std::expected<SceneOutputCopyPass, VkResult> SceneOutputCopyPass::create(const D
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = nullptr,
         },
+        VkDescriptorSetLayoutBinding{
+            .binding = 8,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr,
+        },
+        VkDescriptorSetLayoutBinding{
+            .binding = 9,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr,
+        },
     };
     const VkDescriptorSetLayoutCreateInfo setLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -198,6 +212,14 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
         }
     }
 
+    // DN3-M2: a reset invalidates the Eq. 7 curve's second point (the previous
+    // frame's sample count) - the estimator falls back to pure MC scaling.
+    const bool denoiserResetNow = ctx.denoiserResetToken != m_lastResetToken;
+    const std::uint32_t sampleCount = ctx.frameSampleIndex + 1U;
+    const std::uint32_t prevSampleCount =
+        (denoiserResetNow || m_prevSampleCount == 0U || m_prevResetToken != ctx.denoiserResetToken) ? 0U
+                                                                                                    : m_prevSampleCount;
+
     if (ctx.denoiserResetToken != m_lastResetToken) {
         resetHistory(ctx.denoiserResetToken);
     }
@@ -252,7 +274,16 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
         .hasGradientVariance = hasGradientVariance,
     };
 
-    const VkImage finalSource = recordSpatialPasses(ctx.cmd, *ctx.hdrBuffer, *ctx.denoised, grid, guides);
+    const bool convergingActive = m_settings.convergingMode && useGradient && m_perturbedOutput.isValid();
+
+    // DN3-M2: the perturbed chain runs first - it reads the original input and
+    // produces D' for the SURE estimate, both consumed by the temporal pass.
+    if (convergingActive) {
+        recordPerturbedChain(ctx.cmd, *ctx.hdrBuffer, grid, guides);
+    }
+
+    const VkImage finalSource =
+        recordSpatialPasses(ctx.cmd, *ctx.hdrBuffer, *ctx.denoised, grid, guides, convergingActive);
 
     if (finalSource != ctx.denoised->handle()) {
         copyImageRoundTrip(ctx.cmd,
@@ -264,12 +295,24 @@ void SceneOutputCopyPass::record(const PassContext& ctx) noexcept {
     }
 
     if (applyHistory) {
-        recordTemporalHistoryPass(ctx.cmd, *ctx.denoised, useGradient, hasMotionVectors, grid, guides);
+        recordTemporalHistoryPass(ctx.cmd,
+                                  *ctx.denoised,
+                                  *ctx.hdrBuffer,
+                                  useGradient,
+                                  hasMotionVectors,
+                                  grid,
+                                  guides,
+                                  sampleCount,
+                                  prevSampleCount,
+                                  convergingActive);
     }
 
     if (useGradient && applyHistory) {
         recordGradientBlur(ctx.cmd, ctx.extent, iterations, groupsX, groupsY);
     }
+
+    m_prevSampleCount = sampleCount;
+    m_prevResetToken = ctx.denoiserResetToken;
 
     restoreBarriers(ctx.cmd, ctx.hdrBuffer->handle(), ctx.denoised->handle());
 
@@ -284,6 +327,7 @@ void SceneOutputCopyPass::onResize(VkExtent2D extent) noexcept {
     if (createWorkImages(extent)) {
         m_extent = extent;
         m_firstUse = true;
+        m_perturbedFirstUse = true; // the scratch is recreated UNDEFINED
         resetHistory(m_lastResetToken + 1U);
     } else {
         core::Logger::warn("SceneDenoiserPass work image recreate failed; stage disabled for this extent");
@@ -385,12 +429,32 @@ bool SceneOutputCopyPass::createWorkImages(VkExtent2D extent) noexcept {
         return false;
     }
 
+    // DN3-M2 (converging mode): scratch for the filter applied to the perturbed
+    // input (paper Eq. 13 divergence probe). Full-res, same lifetime as the work
+    // image; only allocated when the converging blend is enabled.
+    core::Image perturbedOutput{};
+    if (m_settings.convergingMode) {
+        auto perturbed = core::Image::create(*m_ctx,
+                                             extent,
+                                             VK_FORMAT_R32G32B32A32_SFLOAT,
+                                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                             VK_IMAGE_ASPECT_COLOR_BIT,
+                                             "harmonia.denoiser.perturbedOutput");
+        if (!perturbed) {
+            core::Logger::error("SceneDenoiserPass perturbed-output image creation failed: VkResult {}",
+                                static_cast<int>(perturbed.error()));
+            return false;
+        }
+        perturbedOutput = std::move(*perturbed);
+    }
+
     m_historyImage = std::move(*history);
     m_workImage = std::move(*work);
     m_dummyMotionVectors = std::move(*dummyMv);
     m_gradientImage = std::move(gradient);
     m_prevGradientImage = std::move(prevGradient);
     m_dummyGradient = std::move(*dummyGrad);
+    m_perturbedOutput = std::move(perturbedOutput);
     return true;
 }
 

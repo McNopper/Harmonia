@@ -504,3 +504,166 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_DN3BlendConvergesWithSampleCount) {
     EXPECT_LT(prevErr, firstErr) << "final error must sit below the M=1 error - convergence receipt";
     EXPECT_LT(firstErr, firstInputErr) << "M=1 denoised error must beat the raw noisy input error";
 }
+// DN3-M2 receipt: the paper-exact converging blend (Eq. 2 + Eq. 14 SURE weight)
+// must close the constant-W crossover lag. Both arms run the identical noise
+// realization per M (deterministic pattern, amplitude 1/sqrt(M)); the converging
+// arm chains 3 frames per M (frameSampleIndex M-2, M-1, M; stable reset token)
+// so the Eq. 7 curve gets its two variance points from bindings 6/7.
+TEST_F(VulkanFixture, SceneOutputCopyPass_DN3M2PaperBlendClosesCrossoverLag) {
+    constexpr VkExtent2D kExtent{16U, 8U};
+    constexpr float kMu = 0.5F;
+    constexpr std::array<float, 4> kSampleCounts{1.0F, 16.0F, 256.0F, 4096.0F};
+
+    auto makeImage = [&](const char* name, VkFormat format) {
+        return harmonia::core::Image::create(deviceCtx(),
+                                             kExtent,
+                                             format,
+                                             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                             VK_IMAGE_ASPECT_COLOR_BIT,
+                                             name);
+    };
+    auto hdrCW = makeImage("test.dn3m2.hdrCW", VK_FORMAT_R32G32B32A32_SFLOAT);
+    auto hdrCV = makeImage("test.dn3m2.hdrCV", VK_FORMAT_R32G32B32A32_SFLOAT);
+    auto denoisedCW = makeImage("test.dn3m2.denoisedCW", VK_FORMAT_R32G32B32A32_SFLOAT);
+    auto denoisedCV = makeImage("test.dn3m2.denoisedCV", VK_FORMAT_R32G32B32A32_SFLOAT);
+    auto gNormal = makeImage("test.dn3m2.gnormal", VK_FORMAT_R32G32B32A32_SFLOAT);
+    auto gDepth = harmonia::core::Image::create(deviceCtx(),
+                                                kExtent,
+                                                VK_FORMAT_R32_SFLOAT,
+                                                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                VK_IMAGE_ASPECT_COLOR_BIT,
+                                                "test.dn3m2.gdepth");
+    ASSERT_TRUE(hdrCW.has_value() && hdrCV.has_value() && denoisedCW.has_value() && denoisedCV.has_value() &&
+                gNormal.has_value() && gDepth.has_value());
+
+    std::vector<sm::float4> normalPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    std::vector<float> depthPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+    for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+        for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+            const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
+            normalPixels[idx] = sm::float4(0.5F, 0.5F, 1.0F, 0.0F);
+            depthPixels[idx] = 2.0F;
+        }
+    }
+    uploadRgbaImage(deviceCtx(), commandPool(), *gNormal, normalPixels);
+    uploadDepthImage(deviceCtx(), commandPool(), *gDepth, depthPixels);
+
+    const std::filesystem::path denoiserSpv = std::filesystem::path(HARMONIA_SHADER_DIR) / "denoiser.spv";
+    auto passCW = harmonia::pipeline::SceneOutputCopyPass::create(
+        deviceCtx(),
+        kExtent,
+        denoiserSpv,
+        harmonia::pipeline::SceneOutputCopyPassSettings{.strength = 0.75F, .iterations = 3U, .useHistory = true});
+    auto passCV = harmonia::pipeline::SceneOutputCopyPass::create(deviceCtx(),
+                                                                  kExtent,
+                                                                  denoiserSpv,
+                                                                  harmonia::pipeline::SceneOutputCopyPassSettings{
+                                                                      .strength = 0.75F,
+                                                                      .iterations = 3U,
+                                                                      .useHistory = true,
+                                                                      .historyBlend = 0.1F,
+                                                                      .useGradient = true,
+                                                                      .convergingMode = true,
+                                                                  });
+    ASSERT_TRUE(passCW.has_value() && passCV.has_value());
+    passCW->onResize(kExtent);
+    passCV->onResize(kExtent);
+
+    constexpr std::uint64_t kResetToken = 7U;
+    double cwErr4096 = -1.0;
+    double cvErr4096 = -1.0;
+    double prevCvErr = std::numeric_limits<double>::max();
+    bool first = true;
+    for (const float sampleCount : kSampleCounts) {
+        const float noiseAmp = 0.12F / std::sqrt(sampleCount);
+        std::vector<sm::float4> hdrPixels(static_cast<std::size_t>(kExtent.width) * kExtent.height);
+        for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+            for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+                const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
+                const int pattern = static_cast<int>((x * 17U + y * 29U) % 9U) - 4;
+                const float value = std::max(kMu + static_cast<float>(pattern) * noiseAmp, 0.0F);
+                hdrPixels[idx] = sm::float4(value, value, value, sampleCount); // alpha = M
+            }
+        }
+        uploadRgbaImage(deviceCtx(), commandPool(), *hdrCW, hdrPixels);
+        uploadRgbaImage(deviceCtx(), commandPool(), *hdrCV, hdrPixels);
+
+        // constant-W arm: one record (the shipped v0.7.9 blend, no chain).
+        auto cmd = commandPool().beginOneShot();
+        ASSERT_TRUE(cmd.has_value());
+        const harmonia::pipeline::PassContext cwContext{
+            .cmd = *cmd,
+            .frameIndex = 0,
+            .frameSampleIndex = static_cast<std::uint32_t>(sampleCount) - 1U,
+            .extent = kExtent,
+            .fixedView = true,
+            .accumulationResetToken = kResetToken,
+            .denoiserResetToken = kResetToken,
+            .hdrBuffer = &*hdrCW,
+            .gNormalView = gNormal->view(),
+            .gDepthView = gDepth->view(),
+            .denoised = &*denoisedCW,
+            .swapchainView = VK_NULL_HANDLE,
+            .colorSpace = harmonia::utils::OutputColorSpace::eSDR,
+        };
+        passCW->record(cwContext);
+        ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
+        const auto cwPixels = readRgbaImage(deviceCtx(), commandPool(), *denoisedCW);
+
+        // converging arm: 3 chained frames (curve points at consecutive counts).
+        for (std::uint32_t frame = 0U; frame < 3U; ++frame) {
+            const std::uint32_t frameIndex = static_cast<std::uint32_t>(sampleCount) - 1U + frame; // M-2, M-1, M
+            auto cmdCv = commandPool().beginOneShot();
+            ASSERT_TRUE(cmdCv.has_value());
+            const harmonia::pipeline::PassContext cvContext{
+                .cmd = *cmdCv,
+                .frameIndex = frame,
+                .frameSampleIndex = frameIndex,
+                .extent = kExtent,
+                .fixedView = true,
+                .accumulationResetToken = kResetToken,
+                .denoiserResetToken = kResetToken,
+                .hdrBuffer = &*hdrCV,
+                .gNormalView = gNormal->view(),
+                .gDepthView = gDepth->view(),
+                .denoised = &*denoisedCV,
+                .swapchainView = VK_NULL_HANDLE,
+                .colorSpace = harmonia::utils::OutputColorSpace::eSDR,
+            };
+            passCV->record(cvContext);
+            ASSERT_EQ(commandPool().endOneShot(*cmdCv), VK_SUCCESS);
+        }
+        const auto cvPixels = readRgbaImage(deviceCtx(), commandPool(), *denoisedCV);
+
+        double cwSum = 0.0;
+        double cvSum = 0.0;
+        for (std::uint32_t y = 0; y < kExtent.height; ++y) {
+            for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+                const std::size_t idx = static_cast<std::size_t>(y) * kExtent.width + x;
+                const auto lw = 0.2627F * cwPixels[idx].r + 0.6780F * cwPixels[idx].g + 0.0593F * cwPixels[idx].b;
+                const auto lv = 0.2627F * cvPixels[idx].r + 0.6780F * cvPixels[idx].g + 0.0593F * cvPixels[idx].b;
+                cwSum += std::abs(static_cast<double>(lw) - static_cast<double>(kMu));
+                cvSum += std::abs(static_cast<double>(lv) - static_cast<double>(kMu));
+            }
+        }
+        const auto count = static_cast<double>(kExtent.width) * static_cast<double>(kExtent.height);
+        const double cwErr = cwSum / count;
+        const double cvErr = cvSum / count;
+        harmonia::core::Logger::info(
+            "DN3-M2 crossover: M={:.0f} constantW_err {:.5f} converging_err {:.5f}", sampleCount, cwErr, cvErr);
+        if (first) {
+            first = false;
+        } else {
+            EXPECT_LE(cvErr, prevCvErr + 1.0e-3) << "converging arm: error must not grow with M";
+        }
+        prevCvErr = cvErr;
+        if (sampleCount == 4096.0F) {
+            cwErr4096 = cwErr;
+            cvErr4096 = cvErr;
+        }
+    }
+    // The paper blend picks the better estimate per pixel: at the crossover it
+    // must not be worse than the constant-W baseline beyond noise.
+    EXPECT_LE(cvErr4096, cwErr4096 + 1.0e-3) << "paper blend must close the constant-W crossover lag";
+}

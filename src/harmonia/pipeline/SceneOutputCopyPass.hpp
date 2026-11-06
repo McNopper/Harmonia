@@ -27,6 +27,7 @@ struct SceneOutputCopyPassSettings {
     float historyBlend = kDenoiserHistoryBlend;     ///< temporal blend factor [0, 1]
     bool useGradient = true; ///< A-SVGF: gradient-driven adaptive history + variance-guided spatial filter
     float gradientAlpha = kDenoiserGradientAlpha; ///< A-SVGF: temporal blend factor for the gradient [0, 1]
+    bool convergingMode = false; ///< DN3-M2: paper-exact converging blend (Eq. 2 + Eq. 14, per-pixel SURE weight)
 };
 
 /// Shared denoiser stage operating on scene-referred HDR output before tone mapping.
@@ -90,13 +91,26 @@ class SceneOutputCopyPass final : public IRenderPass {
                                               const core::Image& hdrBuffer,
                                               const core::Image& denoised,
                                               const DispatchGrid& grid,
-                                              const DenoiseGuides& guides) noexcept;
+                                              const DenoiseGuides& guides,
+                                              bool convergingActive) noexcept;
+
+    /// DN3-M2: the same atrous sequence applied to the perturbed input (paper
+    /// Eq. 13 divergence probe, K = 1). The final output lands in
+    /// m_perturbedOutput (read by the temporal invocation's SURE blend).
+    void recordPerturbedChain(VkCommandBuffer cmd,
+                              const core::Image& hdrOriginal,
+                              const DispatchGrid& grid,
+                              const DenoiseGuides& guides) noexcept;
     void recordTemporalHistoryPass(VkCommandBuffer cmd,
                                    const core::Image& denoised,
+                                   const core::Image& hdrOriginal,
                                    bool useGradient,
                                    bool hasMotionVectors,
                                    const DispatchGrid& grid,
-                                   const DenoiseGuides& guides) noexcept;
+                                   const DenoiseGuides& guides,
+                                   std::uint32_t sampleCount,
+                                   std::uint32_t prevSampleCount,
+                                   bool convergingActive) noexcept;
     void recordGradientBlur(VkCommandBuffer cmd,
                             VkExtent2D extent,
                             std::uint32_t iterations,
@@ -122,11 +136,15 @@ class SceneOutputCopyPass final : public IRenderPass {
     core::Image m_gradientImage{};      ///< A-SVGF R32G32F gradient/variance (binding 6); full-res, history lifetime
     core::Image m_prevGradientImage{};  ///< A-SVGF R32G32F previous gradient/variance (binding 7)
     core::Image m_dummyGradient{};      ///< 1×1 R32G32F fallback bound to bindings 6/7 when useGradient is off
+    core::Image m_perturbedOutput{};    ///< DN3-M2: filter(n + ε·b) scratch (binding 9); converging mode only
     Settings m_settings;                // Default-initialized (uses NSDMIs from SceneOutputCopyPassSettings)
     VkExtent2D m_extent{};
     std::uint64_t m_lastResetToken = 0U;
+    std::uint32_t m_prevSampleCount = 0U; ///< previous frame's sample count (Eq. 7 curve second point)
+    std::uint32_t m_prevResetToken = 0U;  ///< reset token observed when m_prevSampleCount was stored
     bool m_firstUse = true;
     bool m_historyFirstUse = true;
+    bool m_perturbedFirstUse = true; ///< DN3-M2: m_perturbedOutput needs its UNDEFINED->GENERAL transition once
 };
 
 } // namespace harmonia::pipeline
