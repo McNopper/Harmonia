@@ -91,7 +91,7 @@ the sibling clones.
   corroborated 2026-11-07 — §5.1/§5.6), so the performance line has no `next` item:
   its live rows are backlog (PERF3 + the importance-driven extension, PERF6, PERF8).
   **DN1** (RaNAD) unlocks VK1/VK9 when the DN track starts. The Vulkan capability
-  queue is drained except VK23 (dev-time RT-validation tool, §5.8): VK19 verdict
+  queue is drained (VK23 was rejected under the vendor guardrail, §5.8): VK19 verdict
   (stay), VK20/VK22 verified, VK5 blocked-by-driver.
 - **Newly available (dev driver/SDK upgrade; extension surface unchanged vs driver 617.14):** the Vulkan 1.4
   capability set is verified on the dev GPU (**RTX 5070, driver 621.14 / SDK 1.4.363**, 295
@@ -139,8 +139,8 @@ estimator-affecting changes trigger the README gallery refresh convention.
 rests at externals-only (VK21/VK18 shipped, VK4 adopted with a compaction
 micro-benchmark, VK5 blocked-by-driver-defect with a recorded revival protocol,
 VK19 verdict: stay-on-descriptor-buffer, VK20 verified with revisit triggers,
-VK22 verified: no Slang surface — probe committed; VK23 = the dev-time
-RT-validation tool, the only open capability row); the performance
+VK22 verified: no Slang surface — probe committed; VK23 rejected under the
+vendor guardrail); the performance
 line has no `next` item — PERF5/PERF4 are measured-parked (§5.1, corroborated §5.6),
 the track's live rows are backlog (PERF3 + the importance-driven extension, PERF6,
 PERF8); DN1 (RaNAD neural denoiser) unlocks VK1/VK9 when the DN track starts.
@@ -1016,9 +1016,9 @@ DN1 keeps the neural slot, one-slot rule), VK23 (§5.8):
 | **Material LOD by ray class** (whitepaper §7) → **PERF8** (§5.1, backlog) | Quality/perf | Full material for primary/near-specular, reduced BRDF + conservative MIPs for diffuse-secondary, opacity-only for visibility. No material LOD today. |
 | **Importance-driven AS updates** → **PERF3 scope extension** (§5.1) | PERF3 extension | GPU hit counters → priority queue for dynamic-BLAS updates — folded into PERF3's row (beyond its original refit-vs-rebuild/compaction scope). |
 | **NRD integration** → **DN8** (§5.2, watchlist) | DN | NVIDIA's open-source, API-agnostic denoising library — cross-vendor-compliant. Tracked as a core-replacement candidate beneath DN3, explicitly **not** a DN1 competitor (the neural real-time-quality slot stays DN1's, one-slot rule). Contrast: DLSS Ray Reconstruction is NVIDIA-proprietary — a vendor-guardrail violation, never trackable; the whitepaper itself prescribes feature-tier + fallback. |
-| **NVIDIA Ray Tracing Validation for Vulkan** (driver-level) → **VK23** (§5.8, backlog) | VAL | Direct enhancement to the VAL validation gate (VAL1); actionable now — the probe→enable pattern applies. |
+| **NVIDIA Ray Tracing Validation for Vulkan** (driver-level) → **VK23** (§5.8 — **rejected**) | VAL | It is the `VK_NV_ray_tracing_validation` **vendor extension** — excluded by the §8 cross-vendor guardrail (would have been the first `VK_NV_*` in the codebase); verdict + revisit triggers recorded in §5.8. Would have sharpened VAL1's RT coverage (SBT/AS/OMM checks the Khronos layer misses). |
 
-Directly actionable follow-ups from the same source: the RTX validation adoption (above);
+Directly actionable follow-ups from the same source:
 `RAY_FLAG_FORCE_OMM_2_STATE`-style indirect opacity evaluation (OMM is shipped — VK2/VK15 — so
 this is a small flag-level perf follow-up); per-pixel timing heatmaps extending the PassTimer
 (`THEIA_PASS_TIMING`) instrumentation.
@@ -1118,7 +1118,7 @@ revalidation event, not a free upgrade. New capability detail from the 621.14 au
 | VK20 | `VK_KHR_unified_image_layouts` | **VERIFIED + EVALUATED (2026-11-06): stays watchlist.** Driver features `unifiedImageLayouts` + `unifiedImageLayoutsVideo` both true (621.14 audit). What it buys: uniform `GENERAL`-style sampling/compute-read layouts — dropping transition bookkeeping in the sync-heavy pass graph (GI → MotionVector → TAA → Accumulation → Denoise → ToneMap + capture paths). Verdict: our transition graph is explicit, validated (zero VUIDs across every suite/capture) and not a measured cost today — no pain point to justify an ergonomics migration on a KHR extension this young. **Revisit triggers:** pass-graph complexity growth, validation/transition cost showing up in timings, or promotion to core track. | CH | ~~watchlist~~ **verified · revisit triggers recorded** |
 | VK21 | `VK_EXT_memory_budget` | **SHIPPED (2026-11-06)** — per-heap budget/usage logged at startup (next to the calibrated-clock log) and a guard before every large offscreen capture: warns when a device-local heap is above 90% of budget (the observed display-GPU DWM demotion scenario). Pure query — image-neutral. | PERF, CH | **shipped** |
 | VK22 | `VK_KHR_shader_untyped_pointers` + `VK_EXT_shader_replicated_composites` + `VK_EXT_shader_64bit_indexing` + `VK_EXT_shader_long_vector` | **VERIFIED (2026-11-06): Slang 2026.17 exposes none of the four — stays gated on Slang.** Driver features all true (`shaderUntypedPointers`, `shaderReplicatedComposites`, `shader64BitIndexing`, `longVector`). The committed probe (`tools/check_slang_ngsm.py`, slangc → SPIR-V → spirv-val/spirv-dis) reports: `vector<uint, 64>` rejected (E38206 invalid element count); `Ptr<T>` undefined (E30015); C-style local pointers compile but emit only core `Shader` (no untyped-pointer capability); composite copies emit only `Shader` (no replicated composites); 64-bit index arithmetic emits only core `Int64` (no 64-bit-indexing capability). The SPIR-V capabilities never appear in emitted code — the extension surface has no Slang user-facing form in 2026.17. Re-run the probe on each SDK drop; adoption additionally waits for a consumer. | CH | ~~watchlist~~ **verified: no Slang surface · probe committed** |
-| VK23 | **NVIDIA Ray Tracing Validation for Vulkan** — driver-level RT validation layer (ships with the driver; **dev-time tool, not a device extension** — nothing ships in the app, so the cross-vendor guardrail is untouched) | VAL lane: RT-specific validation (RT pipeline / AS / OMM usage) the standard Khronos validation layer under-covers — strengthens the VAL1 offscreen-only validation gate; the established probe→enable pattern applies (engage the driver validation state when present). Directly actionable. | VAL | backlog |
+| VK23 | **NVIDIA Ray Tracing Validation for Vulkan** — **VERDICT (2026-11-07): rejected — vendor extension, §8 guardrail.** The mechanism *is* an extension: `VK_NV_ray_tracing_validation` + `VkPhysicalDeviceRayTracingValidationFeaturesNV::rayTracingValidation`, activation gated behind the `NV_ALLOW_RAYTRACING_VALIDATION=1` env var (driver 551.81+ Windows / 550.40.55+ Linux; messages ride the `VK_EXT_debug_utils` callback already registered). A **`VK_NV_*` device extension** is excluded by the cross-vendor guardrail by letter — this row's original "dev-time tool, not an extension" framing was wrong and is corrected here; it joins the guardrail-excluded `VK_NV_*` list above. **Revisit triggers:** (a) an explicit owner exception for a probe-gated, `--validation`-gated, never-shipped dev-time vendor extension; (b) equivalent implementation-level RT coverage landing in the Khronos validation layer or a KHR/EXT form. | VAL-lane value it *would* have added: execution-time RT checks in `vkCmdTraceRaysKHR` / `vkCmdBuildAccelerationStructuresKHR` (SBT integrity, payload/trace-depth limits, AS refit-sync, degenerate-triangle and OMM index warnings) that the Khronos layer cannot see — would have sharpened VAL1 | VAL | ~~backlog~~ **rejected: `VK_NV_*` vendor extension (§8) · revisit triggers recorded** |
 
 **Modernization removals — legacy → modern (drop, not just add).** The capability table above
 lists what we can *enable*; the "modern Vulkan preferred over legacy" rule (§8) means the
