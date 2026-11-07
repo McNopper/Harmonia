@@ -18,9 +18,10 @@ alongside**. If a paper supersedes a prior technique, delete the old code.
 ## Adopted
 
 The table records algorithm/model compatibility, not implementation completion.
-**SMS / GI-SMS are not integrated in either renderer** (2026-11-02 source audit);
-the shared manifold primitives are GPU-tested, but are not a caustic estimator. See the
-[bounded implementation plan](../PLAN.md#gi-sms-bounded-implementation-plan).
+**GI-SMS is shipped** (2026-11-06 coordinated wave — Harmonia v0.7.20 / Theia v0.8.2 /
+Hyperion v0.7.19): SMS sampling default-on in both renderers, spatiotemporal reuse
+qualified on the C1/C2/C3 track (supersedes the 2026-11-02 "not integrated" source
+audit). See [How to continue](../PLAN.md#3-how-to-continue).
 
 | Technique | Paper | Venue | Official link | Conflict check |
 |-----------|-------|-------|---------------|----------------|
@@ -56,7 +57,7 @@ the shared manifold primitives are GPU-tested, but are not a caustic estimator. 
 | **C9** Bounded VNDF | ✅ Same BSDF, better sampling | ✅ Faster convergence |
 | **DN3** Converging denoiser | N/A (identity in capture) | ✅ Converges to identity |
 | **GI-ENH** ReSTIR PT Enhanced | N/A (path tracer) | ✅ 2-3× cost/quality |
-| **GI-SMS** Specular manifold (planned; not integrated) | ✅ Compatible caustic-sampling improvement | ✅ Compatible interactive caustic sampling |
+| **GI-SMS** Specular manifold (**shipped** — Theia v0.8.2 + Hyperion v0.7.19) | ✅ Shipped caustic sampling | ✅ Shipped interactive caustics + spatiotemporal reuse |
 | **C11** ReSTIR SSS | ⚠️ Shared BSSRDF — must match | ✅ Real-time SSS |
 | **C12** Micrograin BSDF | ⚠️ **OpenPBR flake — must conform** | ⚠️ Same BSDF |
 | **PERF5/PERF4** | ✅ Scheduling only | ✅ Scheduling only |
