@@ -76,6 +76,12 @@ class PipelineBinaryCache {
     [[nodiscard]] static std::expected<VkPipeline, VkResult>
     graphicsPipeline(const DeviceContext& ctx, VkGraphicsPipelineCreateInfo info, const char* debugName);
 
+    /// Ray-tracing pipeline variant (same contract; deferred operation unused —
+    /// capture and consume are plain device commands; the SBT group handles of a
+    /// from-binary pipeline are the driver's own compiled groups).
+    [[nodiscard]] static std::expected<VkPipeline, VkResult>
+    rayTracingPipeline(const DeviceContext& ctx, VkRayTracingPipelineCreateInfoKHR info, const char* debugName);
+
     /// Receipt counters for tests/diagnostics: cache hits, misses (captured),
     /// and entries pruned by global-key changes.
     struct Receipts {
@@ -99,6 +105,8 @@ class PipelineBinaryCache {
     computePipelineImpl(const DeviceContext& ctx, VkComputePipelineCreateInfo info, const char* debugName) const;
     [[nodiscard]] std::expected<VkPipeline, VkResult>
     graphicsPipelineImpl(const DeviceContext& ctx, VkGraphicsPipelineCreateInfo info, const char* debugName) const;
+    [[nodiscard]] std::expected<VkPipeline, VkResult>
+    rayTracingPipelineImpl(const DeviceContext& ctx, VkRayTracingPipelineCreateInfoKHR info, const char* debugName) const;
 
     /// Rebuilds VkPipelineBinaryKHR handles from the on-disk entry for the given
     /// pipeline key. Any parse/recreation failure removes the entry (self-heal)

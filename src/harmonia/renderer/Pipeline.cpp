@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "harmonia/core/PipelineBinaryCache.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 
@@ -201,24 +202,18 @@ std::expected<Pipeline, VkResult> Pipeline::create(const DeviceContext& ctx,
         .basePipelineIndex = 0,
     };
 
-    VkPipeline rtPipeline{VK_NULL_HANDLE};
-    if (const VkResult result = vkCreateRayTracingPipelinesKHR(
-            ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rtPipelineInfo, nullptr, &rtPipeline);
-        result != VK_SUCCESS) {
-        for (VkShaderModule module : modules) {
-            vkDestroyShaderModule(ctx.device, module, nullptr);
-        }
-        return std::unexpected(result);
-    }
-
-    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, rtPipeline, "hyperion.rtPipeline");
+    auto pipelineResult = core::PipelineBinaryCache::rayTracingPipeline(ctx, rtPipelineInfo, "hyperion.rtPipeline");
 
     for (VkShaderModule module : modules) {
         vkDestroyShaderModule(ctx.device, module, nullptr);
     }
+    if (!pipelineResult) {
+        return std::unexpected(pipelineResult.error());
+    }
+    ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, *pipelineResult, "hyperion.rtPipeline");
 
     Pipeline pipeline;
-    pipeline.m_rtPipeline = harmonia::core::UniquePipeline{ctx.device, rtPipeline};
+    pipeline.m_rtPipeline = harmonia::core::UniquePipeline{ctx.device, *pipelineResult};
     return pipeline;
 }
 

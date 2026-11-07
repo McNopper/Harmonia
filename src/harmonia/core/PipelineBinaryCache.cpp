@@ -29,6 +29,22 @@ constexpr const char* kGlobalKeyFileName = "globalkey";
     return key;
 }
 
+[[nodiscard]] bool usableKey(const VkPipelineBinaryKeyKHR& key) {
+    // Degenerate-key guard: some pipeline types (observed: ray tracing on driver
+    // 621.14 — VK5 spike) get an all-zero key back from vkGetPipelineKeyKHR.
+    // Such keys cannot address entries; the pipeline type bypasses the cache
+    // entirely (plain creation) until the driver produces usable keys.
+    if (key.keySize == 0) {
+        return false;
+    }
+    for (std::uint32_t i = 0; i < key.keySize && i < VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR; ++i) {
+        if (key.key[i] != 0U) {
+            return true;
+        }
+    }
+    return false;
+}
+
 [[nodiscard]] std::string keyHex(const VkPipelineBinaryKeyKHR& key) {
     static constexpr char kDigits[] = "0123456789abcdef";
     std::string out;
@@ -213,6 +229,21 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::graphicsPipeline(const 
     return ctx.pipelineBinaryCache->graphicsPipelineImpl(ctx, info, debugName);
 }
 
+std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipeline(const DeviceContext& ctx,
+                                                                            VkRayTracingPipelineCreateInfoKHR info,
+                                                                            const char* debugName) {
+    if (ctx.pipelineBinaryCache == nullptr) {
+        VkPipeline pipeline{};
+        const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
+                                                               nullptr, &pipeline);
+        if (result != VK_SUCCESS) {
+            return std::unexpected(result);
+        }
+        return pipeline;
+    }
+    return ctx.pipelineBinaryCache->rayTracingPipelineImpl(ctx, info, debugName);
+}
+
 std::expected<std::vector<VkPipelineBinaryKHR>, std::string>
 PipelineBinaryCache::createBinaryHandlesFromEntry(const DeviceContext& ctx,
                                                   const VkPipelineBinaryKeyKHR& pipelineKey) const {
@@ -367,8 +398,15 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::computePipelineImpl(con
     // that cannot affect the binary — no application-side hashing to drift).
     const VkPipelineCreateInfoKHR keyQuery{.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR, .pNext = &info};
     VkPipelineBinaryKeyKHR pipelineKey = makeKey();
-    if (vkGetPipelineKeyKHR(ctx.device, &keyQuery, &pipelineKey) != VK_SUCCESS || pipelineKey.keySize == 0) {
+    const VkResult keyResult = vkGetPipelineKeyKHR(ctx.device, &keyQuery, &pipelineKey);
+    if (keyResult != VK_SUCCESS) {
         Logger::error("PipelineBinaryCache: key query failed for '{}' (creating uncached)", debugName);
+    } else if (!usableKey(pipelineKey)) {
+        // Expected bypass for pipeline types the driver gives no key for
+        // (ray tracing on driver 621.14 — VK5 spike receipt).
+        Logger::info("PipelineBinaryCache: '{}' bypassed (no usable driver key for this pipeline type)", debugName);
+    }
+    if (keyResult != VK_SUCCESS || !usableKey(pipelineKey)) {
         VkPipeline pipeline{};
         const VkResult result = vkCreateComputePipelines(ctx.device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
         if (result != VK_SUCCESS) {
@@ -438,8 +476,15 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::graphicsPipelineImpl(co
                                                                               const char* debugName) const {
     const VkPipelineCreateInfoKHR keyQuery{.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR, .pNext = &info};
     VkPipelineBinaryKeyKHR pipelineKey = makeKey();
-    if (vkGetPipelineKeyKHR(ctx.device, &keyQuery, &pipelineKey) != VK_SUCCESS || pipelineKey.keySize == 0) {
+    const VkResult keyResult = vkGetPipelineKeyKHR(ctx.device, &keyQuery, &pipelineKey);
+    if (keyResult != VK_SUCCESS) {
         Logger::error("PipelineBinaryCache: key query failed for '{}' (creating uncached)", debugName);
+    } else if (!usableKey(pipelineKey)) {
+        // Expected bypass for pipeline types the driver gives no key for
+        // (ray tracing on driver 621.14 — VK5 spike receipt).
+        Logger::info("PipelineBinaryCache: '{}' bypassed (no usable driver key for this pipeline type)", debugName);
+    }
+    if (keyResult != VK_SUCCESS || !usableKey(pipelineKey)) {
         VkPipeline pipeline{};
         const VkResult result = vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
         if (result != VK_SUCCESS) {
@@ -482,6 +527,74 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::graphicsPipelineImpl(co
     const void* prevTail = appendNode(info.pNext, &flags2);
     VkPipeline pipeline{};
     const VkResult result = vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
+    info.flags = originalFlags;
+    detachNode(info.pNext, &flags2, prevTail);
+    if (result != VK_SUCCESS) {
+        return std::unexpected(result);
+    }
+    ++m_receipts.misses;
+    storeFromPipeline(ctx, pipeline, pipelineKey, debugName);
+    return pipeline;
+}
+
+std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipelineImpl(const DeviceContext& ctx,
+                                                                                VkRayTracingPipelineCreateInfoKHR info,
+                                                                                const char* debugName) const {
+    const VkPipelineCreateInfoKHR keyQuery{.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR, .pNext = &info};
+    VkPipelineBinaryKeyKHR pipelineKey = makeKey();
+    const VkResult keyResult = vkGetPipelineKeyKHR(ctx.device, &keyQuery, &pipelineKey);
+    if (keyResult != VK_SUCCESS) {
+        Logger::error("PipelineBinaryCache: key query failed for '{}' (creating uncached)", debugName);
+    } else if (!usableKey(pipelineKey)) {
+        // Expected bypass for pipeline types the driver gives no key for
+        // (ray tracing on driver 621.14 — VK5 spike receipt).
+        Logger::info("PipelineBinaryCache: '{}' bypassed (no usable driver key for this pipeline type)", debugName);
+    }
+    if (keyResult != VK_SUCCESS || !usableKey(pipelineKey)) {
+        VkPipeline pipeline{};
+        const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
+                                                               nullptr, &pipeline);
+        if (result != VK_SUCCESS) {
+            return std::unexpected(result);
+        }
+        return pipeline;
+    }
+
+    auto binaries = createBinaryHandlesFromEntry(ctx, pipelineKey);
+    if (binaries.has_value()) {
+        VkPipelineBinaryInfoKHR binaryInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR,
+                                           .pNext = nullptr,
+                                           .binaryCount = static_cast<std::uint32_t>(binaries->size()),
+                                           .pPipelineBinaries = binaries->data()};
+        const void* prevTail = appendNode(info.pNext, &binaryInfo);
+        VkPipeline pipeline{};
+        const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
+                                                               nullptr, &pipeline);
+        detachNode(info.pNext, &binaryInfo, prevTail);
+        for (const VkPipelineBinaryKHR binary : *binaries) {
+            vkDestroyPipelineBinaryKHR(ctx.device, binary, nullptr);
+        }
+        if (result == VK_SUCCESS) {
+            ++m_receipts.hits;
+            Logger::info("PipelineBinaryCache: '{}' created from {} cached blob(s)", debugName, binaries->size());
+            return pipeline;
+        }
+        Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing", debugName,
+                      static_cast<int>(result));
+        std::error_code removeError;
+        std::filesystem::remove(entryPath(m_directory, pipelineKey), removeError);
+    }
+
+    VkPipelineCreateFlags2CreateInfoKHR flags2{.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO_KHR,
+                                               .pNext = nullptr,
+                                               .flags = static_cast<VkPipelineCreateFlags2KHR>(info.flags) |
+                                                        VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR};
+    const VkPipelineCreateFlags originalFlags = info.flags;
+    info.flags = 0;
+    const void* prevTail = appendNode(info.pNext, &flags2);
+    VkPipeline pipeline{};
+    const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
+                                                           nullptr, &pipeline);
     info.flags = originalFlags;
     detachNode(info.pNext, &flags2, prevTail);
     if (result != VK_SUCCESS) {
