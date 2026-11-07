@@ -35,6 +35,12 @@ audit). See [How to continue](../PLAN.md#3-how-to-continue).
 | PERF5 | Padilla et al. — *Megakernel vs Wavefront* | 2026 | [arXiv:2605.27323](https://arxiv.org/abs/2605.27323) | ✅ Scheduling only |
 | PERF4 | Meister et al. — *Ray Reordering* | 2025 | [arXiv:2506.11273](https://arxiv.org/abs/2506.11273) | ✅ Scheduling only |
 
+## Whitepapers / best-practice sources
+
+| Source | Venue | Official link | Feeds |
+|--------|-------|---------------|-------|
+| NVIDIA — *Real-Time Path Tracing in Games* (RTXPT performance whitepaper) | June 2026 | [NVIDIA-RTX/Whitepapers](https://github.com/NVIDIA-RTX/Whitepapers/tree/main/pt_performance_whitepaper) · [en PDF](https://github.com/NVIDIA-RTX/Whitepapers/blob/main/pt_performance_whitepaper/pt_performance_whitepaper_en.pdf) | PERF4/PERF5 external corroboration; PERF8 / GI-RGIR / GI-NRC / DN8 triage; VK5 probe + cache receipts (Harmonia `PLAN.md` §5.6, §5.8) |
+
 ## Tracked (backlog/watchlist)
 
 | Technique | Venue | Official link | Notes |
