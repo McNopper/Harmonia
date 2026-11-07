@@ -71,10 +71,15 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.22 - DN3 converging denoiser implemented (paper-exact, opt-in; crossover
-  lag closed 4-20x in receipts); PERF4 measured-uneconomical verdict; capability track closed.
+- **Release:** v0.7.23 - **VK5 `VK_KHR_pipeline_binary` adopted** (opt-in `core::PipelineBinaryCache`:
+  driver-key identity + global-key cache validity, blob-per-pipeline persistence; the 4 shared-pass
+  sites + `renderer::Pipeline` RT capture with the degenerate-key bypass guard; receipts: Hyperion
+  end-to-end bit-exact, Theia galleries gate-PASS); RTXPT whitepaper triage (§5.6 — PERF4/PERF5
+  corroborated; PERF8/GI-RGIR/GI-NRC/DN8) + five-repo code↔doc alignment audit.
   Aether v0.8.1, slang-math v0.8.0.
-- **Prior:** v0.7.21 - Vulkan capability wave: VK21 memory budget, VK18 present-timing
+- **Prior:** v0.7.22 - DN3 converging denoiser implemented (paper-exact, opt-in; crossover
+  lag closed 4-20x in receipts); PERF4 measured-uneconomical verdict; capability track closed.
+  Prior v0.7.21 - Vulkan capability wave: VK21 memory budget, VK18 present-timing
   telemetry (query-only), VK4 subgroup set adopted + compaction micro-benchmark; the
   capability track closed (VK19 stay-verdict, VK20/VK22 verified, VK5 blocked-by-driver
   documented). Prior v0.7.20 - GI-SMS spatiotemporal reuse foundations (the PSMS-ReSTIR
@@ -1393,6 +1398,18 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ## 9. Baseline
 
+- **v0.7.23** (Theia v0.8.4, Hyperion v0.7.21): **VK5 `VK_KHR_pipeline_binary` adopted + family
+  alignment audit.** `core::PipelineBinaryCache` (driver-key identity, global-key cache validity,
+  blob-per-pipeline persistence, best-effort fallback) wired through `DeviceContext::pipelineBinaryCache`
+  into AccumulationPass / SmsPass / SceneOutputCopyPass / ToneMapper and `renderer::Pipeline` (RT
+  capture; degenerate-key bypass guard — RT binary import fails on driver 621.14, fallback proven
+  bit-exact); opt-in via `HARMONIA_PIPELINE_BINARY_CACHE=<dir>`. Receipts:
+  `test_pipeline_binary_probe.cpp` (re-investigation — the 2026-11-06 driver-defect verdict
+  withdrawn) + `test_pipeline_binary_cache.cpp` (capture → persist → reload → consume → prune);
+  Hyperion end-to-end bit-exact; Theia galleries gate-PASS (24/30 byte-identical, 6 speckle-class
+  glass scenes). §5.6: RTXPT whitepaper triage (PERF4/PERF5 corroborated; PERF8/GI-RGIR/GI-NRC/DN8)
+  + VK23 rejected (vendor-extension guardrail); five-repo alignment audit (DN3/GI-GD/SM6/I6/VK12/
+  GI-SMS row sync; release headers Theia v0.8.3 / Hyperion v0.7.20 / Aether v0.8.1).
 - **v0.7.22** (Harmonia-internal; renderer pins unchanged until the next coordinated wave):
   **DN3 converging denoiser implemented (paper-exact, opt-in) + PERF4 measured verdict.**
   The paper-exact converging blend (Denisova, Manetti, Bocchi, Iadanza - I3D 2024) lands in
