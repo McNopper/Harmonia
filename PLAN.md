@@ -978,6 +978,38 @@ and the conference "Top-10 Fast-Forward" was geometry/differentiable/ML-focused 
 in 2026) is indexable.** The substantive 2026 ReSTIR frontier is already captured: ReSTIR PG +
 specular-manifold sampling (GI-SMS, SIGA 2025) and ReSTIR PT Enhanced (I3D 2026).
 
+**Whitepaper triage — NVIDIA-RTX *Real-Time Path Tracing in Games* (2026-11-07):** NVIDIA's
+official best-practices whitepaper for shipping real-time path tracing
+([NVIDIA-RTX/Whitepapers → `pt_performance_whitepaper`](https://github.com/NVIDIA-RTX/Whitepapers/tree/main/pt_performance_whitepaper),
+[en PDF](https://github.com/NVIDIA-RTX/Whitepapers/blob/main/pt_performance_whitepaper/pt_performance_whitepaper_en.pdf)
++ markdown, June 2026) — essentially the company's own roadmap for what the Theia tier builds.
+**External cross-validation of our measured verdicts — both confirmed:** the whitepaper never
+mentions software ray sorting (its entire performance strategy is hardware reordering — SER —
+plus radiance caching), independently supporting the **PERF4 measured-uneconomical park**; and
+RTXPT is itself a **hybrid per-signal design** (raster primary + RT budgeted per signal), not a
+monolithic wavefront — matching our architecture and supporting the **PERF5 park**. It also
+corroborates **PERF3's value** (case study: static BLAS flattening = 22% frame improvement at
+traversal samples −36%; §5's AS policy — refit-vs-rebuild rules, batching, async overlap — is a
+design document for the PERF3 row) and the **DN3 (§5.2) bias philosophy matches the §8 litmus
+verbatim** ("bias as a performance tool": the goal is not to eliminate bias; make it stable,
+predictable, artist-controllable, and validate biased techniques against a slower reference).
+**New candidates it spawns** — un-triaged, no IDs minted (the one-slot rule governs entry into
+the track tables):
+
+| Candidate | Track | Note |
+|-----------|-------|------|
+| **World-space light grids for secondary hits** (ReGIR-style) | GI | The `LightCuller` is screen-space tiled; the whitepaper is explicit that screen-space lists "should not be the main solution for secondary hits" (off-screen/indirect receivers). One of the two biggest lifts on the list. |
+| **World-space radiance cache** (SHaRC/NRC-style) | GI (DN1 link) | Flagged as "one of the strongest tools for making multi-bounce lighting practical". Big new capability; the NRC variant connects to DN1's neural-inference stack. The other of the two biggest lifts. |
+| **Material LOD by ray class** (whitepaper §7) | Quality/perf | Full material for primary/near-specular, reduced BRDF + conservative MIPs for diffuse-secondary, opacity-only for visibility. No material LOD today. |
+| **Importance-driven AS updates** | PERF3 extension | GPU hit counters → priority queue for dynamic-BLAS updates — a concrete extension beyond PERF3's current refit-vs-rebuild/compaction scope. |
+| **NRD integration** | DN | NVIDIA's open-source, API-agnostic denoising library — cross-vendor-compliant DN-track candidate. Contrast: DLSS Ray Reconstruction is NVIDIA-proprietary — a §8 guardrail decision is needed if ever considered; the whitepaper itself prescribes feature-tier + fallback. |
+| **NVIDIA Ray Tracing Validation for Vulkan** (driver-level) | VAL | Direct enhancement to the VAL validation gate (VAL1); actionable now — the probe→enable pattern applies. |
+
+Directly actionable follow-ups from the same source: the RTX validation adoption (above);
+`RAY_FLAG_FORCE_OMM_2_STATE`-style indirect opacity evaluation (OMM is shipped — VK2/VK15 — so
+this is a small flag-level perf follow-up); per-pixel timing heatmaps extending the PassTimer
+(`THEIA_PASS_TIMING`) instrumentation.
+
 ### 5.7 Parity-metric track (PAR)
 
 **The declared gate is implemented (PAR0, shipped v0.7.5).** `tools/compare_renders.py`
