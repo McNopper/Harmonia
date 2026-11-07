@@ -7,6 +7,7 @@
 #include <expected>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "harmonia/DeviceContext.hpp"
 
@@ -105,8 +106,9 @@ class PipelineBinaryCache {
     computePipelineImpl(const DeviceContext& ctx, VkComputePipelineCreateInfo info, const char* debugName) const;
     [[nodiscard]] std::expected<VkPipeline, VkResult>
     graphicsPipelineImpl(const DeviceContext& ctx, VkGraphicsPipelineCreateInfo info, const char* debugName) const;
-    [[nodiscard]] std::expected<VkPipeline, VkResult>
-    rayTracingPipelineImpl(const DeviceContext& ctx, VkRayTracingPipelineCreateInfoKHR info, const char* debugName) const;
+    [[nodiscard]] std::expected<VkPipeline, VkResult> rayTracingPipelineImpl(const DeviceContext& ctx,
+                                                                             VkRayTracingPipelineCreateInfoKHR info,
+                                                                             const char* debugName) const;
 
     /// Rebuilds VkPipelineBinaryKHR handles from the on-disk entry for the given
     /// pipeline key. Any parse/recreation failure removes the entry (self-heal)

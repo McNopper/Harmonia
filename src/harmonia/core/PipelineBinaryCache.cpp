@@ -234,8 +234,8 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipeline(cons
                                                                             const char* debugName) {
     if (ctx.pipelineBinaryCache == nullptr) {
         VkPipeline pipeline{};
-        const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
-                                                               nullptr, &pipeline);
+        const VkResult result =
+            vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
         if (result != VK_SUCCESS) {
             return std::unexpected(result);
         }
@@ -552,8 +552,8 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipelineImpl(
     }
     if (keyResult != VK_SUCCESS || !usableKey(pipelineKey)) {
         VkPipeline pipeline{};
-        const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
-                                                               nullptr, &pipeline);
+        const VkResult result =
+            vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
         if (result != VK_SUCCESS) {
             return std::unexpected(result);
         }
@@ -568,8 +568,8 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipelineImpl(
                                            .pPipelineBinaries = binaries->data()};
         const void* prevTail = appendNode(info.pNext, &binaryInfo);
         VkPipeline pipeline{};
-        const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
-                                                               nullptr, &pipeline);
+        const VkResult result =
+            vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
         detachNode(info.pNext, &binaryInfo, prevTail);
         for (const VkPipelineBinaryKHR binary : *binaries) {
             vkDestroyPipelineBinaryKHR(ctx.device, binary, nullptr);
@@ -579,7 +579,8 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipelineImpl(
             Logger::info("PipelineBinaryCache: '{}' created from {} cached blob(s)", debugName, binaries->size());
             return pipeline;
         }
-        Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing", debugName,
+        Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing",
+                      debugName,
                       static_cast<int>(result));
         std::error_code removeError;
         std::filesystem::remove(entryPath(m_directory, pipelineKey), removeError);
@@ -593,8 +594,8 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipelineImpl(
     info.flags = 0;
     const void* prevTail = appendNode(info.pNext, &flags2);
     VkPipeline pipeline{};
-    const VkResult result = vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info,
-                                                           nullptr, &pipeline);
+    const VkResult result =
+        vkCreateRayTracingPipelinesKHR(ctx.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
     info.flags = originalFlags;
     detachNode(info.pNext, &flags2, prevTail);
     if (result != VK_SUCCESS) {
