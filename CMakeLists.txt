@@ -265,6 +265,7 @@ set(HARMONIA_ENTRY_SHADERS
     tonemap.slang
     subgroup_bench_atomic.comp.slang
     subgroup_bench_scan.comp.slang
+    pipeline_binary_probe.comp.slang
     perf4_probe.rgen.slang
     perf4_probe.rchit.slang
     perf4_probe.rmiss.slang

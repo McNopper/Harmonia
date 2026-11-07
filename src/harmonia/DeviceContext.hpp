@@ -41,6 +41,8 @@ struct DeviceContext {
     bool shaderSubgroupUniformControlFlowSupported =
         false;                               ///< VK_KHR_shader_subgroup_uniform_control_flow enabled (VK4).
     bool shaderQuadControlSupported = false; ///< VK_KHR_shader_quad_control enabled (VK4).
+    bool pipelineBinarySupported =
+        false; ///< VK_KHR_pipeline_binary enabled (VK5 explicit pipeline-binary cache — investigation).
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
     /// VK_NULL_HANDLE when the device has no dedicated compute queue family.

@@ -49,6 +49,8 @@ struct SupportedFeatures {
     VkPhysicalDeviceShaderMaximalReconvergenceFeaturesKHR maximalReconvergence{};
     VkPhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR subgroupUniformControlFlow{};
     VkPhysicalDeviceShaderQuadControlFeaturesKHR quadControl{};
+    // VK5 (re-investigation): explicit pipeline-binary capture/consume cache.
+    VkPhysicalDevicePipelineBinaryFeaturesKHR pipelineBinary{};
 };
 
 [[nodiscard]] SupportedFeatures querySupportedFeatures(VkPhysicalDevice device);
@@ -72,6 +74,7 @@ struct CapabilityFlags {
     bool shaderMaximalReconvergenceSupported = false;       ///< VK4
     bool shaderSubgroupUniformControlFlowSupported = false; ///< VK4
     bool shaderQuadControlSupported = false;                ///< VK4
+    bool pipelineBinarySupported = false;                   ///< VK5
 };
 
 // One row per optional capability: on pass, the extension(s) are enabled and the
@@ -129,6 +132,10 @@ struct EnabledFeatures {
     VkPhysicalDeviceMaintenance9FeaturesKHR maintenance9{};
     VkPhysicalDeviceMaintenance10FeaturesKHR maintenance10{};
     VkPhysicalDeviceMaintenance11FeaturesKHR maintenance11{};
+    // VK5 (re-investigation): explicit pipeline-binary capture/consume cache
+    // (chained conditionally when enabled — only an enabled extension contributes
+    // its feature struct).
+    VkPhysicalDevicePipelineBinaryFeaturesKHR pipelineBinary{};
 };
 
 [[nodiscard]] const void* buildEnabledFeatures(EnabledFeatures& features,

@@ -272,6 +272,7 @@ namespace {
         ctx.shaderMaximalReconvergenceSupported = capabilities.shaderMaximalReconvergenceSupported;
         ctx.shaderSubgroupUniformControlFlowSupported = capabilities.shaderSubgroupUniformControlFlowSupported;
         ctx.shaderQuadControlSupported = capabilities.shaderQuadControlSupported;
+        ctx.pipelineBinarySupported = capabilities.pipelineBinarySupported;
         ctx.asyncComputeQueueFamily = queues.asyncComputeFamily;
     }
     return result;

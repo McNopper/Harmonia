@@ -80,6 +80,10 @@ namespace harmonia::vulkan_init {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_UNIFORM_CONTROL_FLOW_FEATURES_KHR;
     s.subgroupUniformControlFlow.pNext = &s.quadControl;
     s.quadControl.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_QUAD_CONTROL_FEATURES_KHR;
+    // VK5 (re-investigation): explicit pipeline-binary capture/consume cache —
+    // probed at the supported-chain tail after the VK4 subgroup set.
+    s.pipelineBinary.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR;
+    s.quadControl.pNext = &s.pipelineBinary;
     vkGetPhysicalDeviceFeatures2(device, &s.features2);
     return s;
 }
@@ -190,6 +194,13 @@ namespace harmonia::vulkan_init {
                         &supported.quadControl.shaderQuadControl,
                         nullptr,
                         &CapabilityFlags::shaderQuadControlSupported},
+        // VK5 (re-investigation 2026-11-07): explicit pipeline-binary capture/consume
+        // cache — KHR, ratified (extension #484, 1.4 core-track). Feature-gated like
+        // every optional row; no consumer yet (the PLAN §5.8 probe re-runs first).
+        CapabilityProbe{{VK_KHR_PIPELINE_BINARY_EXTENSION_NAME, nullptr},
+                        &supported.pipelineBinary.pipelineBinaries,
+                        nullptr,
+                        &CapabilityFlags::pipelineBinarySupported},
     };
 }
 
@@ -460,6 +471,14 @@ namespace harmonia::vulkan_init {
         // a later I-track step.
         features.presentTiming.pNext = capabilityTail;
         capabilityTail = &features.presentTiming;
+    }
+    // VK5 (re-investigation): explicit pipeline-binary capture/consume cache —
+    // linked only when the probe enabled the extension (convention).
+    if (capabilities.pipelineBinarySupported) {
+        features.pipelineBinary.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR;
+        features.pipelineBinary.pipelineBinaries = VK_TRUE;
+        features.pipelineBinary.pNext = capabilityTail;
+        capabilityTail = &features.pipelineBinary;
     }
 
     // Link the optional tail chain in order (memoryPriority → presentId → presentWait → fifoLatestReady
