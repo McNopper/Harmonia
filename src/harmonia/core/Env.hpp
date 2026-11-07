@@ -2,8 +2,15 @@
 #define HARMONIA_CORE_ENV_HPP
 
 #include <cstdlib>
+#include <filesystem>
 #include <optional>
 #include <string>
+
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace harmonia::core {
 
@@ -31,6 +38,34 @@ namespace harmonia::core {
     }
     return std::string(raw);
 #endif
+}
+
+/// Directory of the running executable (deterministic across launch CWDs).
+/// Falls back to the current directory when the platform path cannot be
+/// resolved (overlong Windows paths, exotic non-procfs Unix).
+[[nodiscard]] inline std::filesystem::path executableDirectory() {
+    std::error_code ec;
+#if defined(_WIN32)
+    wchar_t wide[MAX_PATH]{};
+    const DWORD length = GetModuleFileNameW(nullptr, wide, MAX_PATH);
+    if (length != 0U && length < MAX_PATH) {
+        const std::filesystem::path exe(std::wstring_view{wide, length});
+        if (!exe.parent_path().empty()) {
+            return exe.parent_path();
+        }
+    }
+#else
+    std::string buffer(4096, '\0');
+    const ssize_t length = ::readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+    if (length > 0) {
+        buffer.resize(static_cast<size_t>(length));
+        const std::filesystem::path exe(buffer);
+        if (!exe.parent_path().empty()) {
+            return exe.parent_path();
+        }
+    }
+#endif
+    return std::filesystem::current_path(ec);
 }
 
 } // namespace harmonia::core

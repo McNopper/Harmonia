@@ -145,20 +145,29 @@ bool App::bootstrap() {
         core::Logger::info("Present timing telemetry enabled (HARMONIA_PRESENT_TIMING=1)");
     }
 
-    // VK5: opt-in explicit pipeline-binary cache — HARMONIA_PIPELINE_BINARY_CACHE=<dir>.
-    // When set (and the KHR extension is present), shared-pass pipeline creation goes
-    // through the cache: the first run captures the driver binaries to disk, later
-    // runs create from them without compilation (cross-session cold-start cut).
-    if (const auto cacheDirectory = core::getEnvString("HARMONIA_PIPELINE_BINARY_CACHE");
-        cacheDirectory.has_value() && !cacheDirectory->empty()) {
-        auto cache = core::PipelineBinaryCache::create(m_context.deviceContext(), *cacheDirectory);
+    // VK5: explicit pipeline-binary cache — DEFAULT ON at <exe-dir>/pipeline-cache
+    // (deterministic across launch CWDs; per-renderer separation for free since each
+    // renderer's executable lives in its own directory). HARMONIA_PIPELINE_BINARY_CACHE
+    // overrides the directory; "off"/"0" disables the cache entirely.
+    std::filesystem::path cacheDirectory = core::executableDirectory() / "pipeline-cache";
+    bool cacheEnabled = true;
+    if (const auto overrideDir = core::getEnvString("HARMONIA_PIPELINE_BINARY_CACHE");
+        overrideDir.has_value() && (*overrideDir == "off" || *overrideDir == "0")) {
+        cacheEnabled = false;
+    } else if (overrideDir.has_value() && !overrideDir->empty()) {
+        cacheDirectory = *overrideDir;
+    }
+    if (cacheEnabled) {
+        auto cache = core::PipelineBinaryCache::create(m_context.deviceContext(), cacheDirectory);
         if (cache.has_value()) {
             m_pipelineBinaryCache.emplace(std::move(*cache));
             m_context.deviceContext().pipelineBinaryCache = &*m_pipelineBinaryCache;
-            core::Logger::info("Pipeline binary cache enabled (HARMONIA_PIPELINE_BINARY_CACHE={})", *cacheDirectory);
+            core::Logger::info("Pipeline binary cache enabled at '{}'", cacheDirectory.string());
         } else {
             core::Logger::error("Pipeline binary cache creation failed: {}", cache.error());
         }
+    } else {
+        core::Logger::info("Pipeline binary cache disabled (HARMONIA_PIPELINE_BINARY_CACHE=off)");
     }
 
     auto pool = core::CommandPool::create(m_context.deviceContext(), m_context.physicalDeviceInfo().graphicsFamily);
