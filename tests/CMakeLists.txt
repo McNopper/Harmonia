@@ -38,6 +38,7 @@ add_executable(harmonia_component_tests
     component/test_subgroup_bench.cpp
     component/test_perf4_reorder_probe.cpp
     component/test_pipeline_binary_probe.cpp
+    component/test_pipeline_binary_cache.cpp
     component/test_commandpool.cpp
     component/test_sms.cpp
     component/test_sms_queue.cpp

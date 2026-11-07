@@ -7,6 +7,10 @@
 #include <vma/vk_mem_alloc.h>
 
 namespace harmonia {
+// Forward declaration: non-owning cache pointer below (definition in core).
+namespace core {
+class PipelineBinaryCache;
+}
 
 /// Minimal Vulkan device state shared across modules.
 /// After volkLoadDevice() the codebase calls Vulkan entry points through volk globals,
@@ -43,6 +47,12 @@ struct DeviceContext {
     bool shaderQuadControlSupported = false; ///< VK_KHR_shader_quad_control enabled (VK4).
     bool pipelineBinarySupported =
         false; ///< VK_KHR_pipeline_binary enabled (VK5 explicit pipeline-binary cache — investigation).
+
+    /// VK5: non-owning pointer to the App-owned pipeline-binary cache; null unless
+    /// HARMONIA_PIPELINE_BINARY_CACHE=<dir> was set at startup (opt-in adoption).
+    /// Pipeline-creation sites call core::PipelineBinaryCache::computePipeline /
+    /// graphicsPipeline, which dispatch through this pointer (null = plain path).
+    const core::PipelineBinaryCache* pipelineBinaryCache = nullptr;
 
     /// Dedicated async compute queue (COMPUTE but not GRAPHICS).
     /// VK_NULL_HANDLE when the device has no dedicated compute queue family.

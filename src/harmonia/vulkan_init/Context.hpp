@@ -33,6 +33,7 @@ class Context {
     Context& operator=(Context&& other) noexcept;
     ~Context();
 
+    [[nodiscard]] DeviceContext& deviceContext() noexcept;
     [[nodiscard]] const DeviceContext& deviceContext() const noexcept;
     [[nodiscard]] VkInstance instance() const noexcept;
     [[nodiscard]] VkSurfaceKHR surface() const noexcept;

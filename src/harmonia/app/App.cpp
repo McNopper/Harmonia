@@ -145,6 +145,22 @@ bool App::bootstrap() {
         core::Logger::info("Present timing telemetry enabled (HARMONIA_PRESENT_TIMING=1)");
     }
 
+    // VK5: opt-in explicit pipeline-binary cache — HARMONIA_PIPELINE_BINARY_CACHE=<dir>.
+    // When set (and the KHR extension is present), shared-pass pipeline creation goes
+    // through the cache: the first run captures the driver binaries to disk, later
+    // runs create from them without compilation (cross-session cold-start cut).
+    if (const auto cacheDirectory = core::getEnvString("HARMONIA_PIPELINE_BINARY_CACHE");
+        cacheDirectory.has_value() && !cacheDirectory->empty()) {
+        auto cache = core::PipelineBinaryCache::create(m_context.deviceContext(), *cacheDirectory);
+        if (cache.has_value()) {
+            m_pipelineBinaryCache.emplace(std::move(*cache));
+            m_context.deviceContext().pipelineBinaryCache = &*m_pipelineBinaryCache;
+            core::Logger::info("Pipeline binary cache enabled (HARMONIA_PIPELINE_BINARY_CACHE={})", *cacheDirectory);
+        } else {
+            core::Logger::error("Pipeline binary cache creation failed: {}", cache.error());
+        }
+    }
+
     auto pool = core::CommandPool::create(m_context.deviceContext(), m_context.physicalDeviceInfo().graphicsFamily);
     if (!pool) {
         core::Logger::error("core::CommandPool creation failed: VkResult {}", static_cast<int>(pool.error()));

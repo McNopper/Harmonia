@@ -288,6 +288,7 @@ set(HARMONIA_core_SOURCES
     src/harmonia/core/HostImageUpload.cpp
     src/harmonia/core/Image.cpp
     src/harmonia/core/Logger.cpp
+    src/harmonia/core/PipelineBinaryCache.cpp
     src/harmonia/core/ShaderModule.cpp
 )
 set(HARMONIA_low_level_SOURCES

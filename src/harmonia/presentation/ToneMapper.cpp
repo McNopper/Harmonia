@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "harmonia/GpuTypes.hpp"
+#include "harmonia/core/PipelineBinaryCache.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 
 namespace harmonia::presentation {
@@ -230,16 +231,15 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
         .basePipelineIndex = 0,
     };
 
-    VkPipeline pipeline = VK_NULL_HANDLE;
-    const VkResult result = vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+    auto pipelineResult = core::PipelineBinaryCache::graphicsPipeline(ctx, pipelineInfo, "harmonia.tonemapPipeline");
 
     vkDestroyShaderModule(ctx.device, *vertModule, nullptr);
     vkDestroyShaderModule(ctx.device, *fragModule, nullptr);
 
-    if (result != VK_SUCCESS) {
-        return std::unexpected(result);
+    if (!pipelineResult) {
+        return std::unexpected(pipelineResult.error());
     }
-    mapper.m_pipeline = harmonia::core::UniquePipeline{ctx.device, pipeline};
+    mapper.m_pipeline = harmonia::core::UniquePipeline{ctx.device, *pipelineResult};
 
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE, mapper.m_pipeline.get(), "harmonia.tonemapPipeline");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mapper.m_pipelineLayout.get(), "harmonia.tonemapPipelineLayout");

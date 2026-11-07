@@ -24,6 +24,7 @@
 #include "harmonia/app/OffscreenCapture.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/core/PipelineBinaryCache.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
@@ -237,6 +238,10 @@ class App {
     Config::StagePipeline m_defaultStages{};
     SDL_Window* m_window{};
     vulkan_init::Context m_context{};
+    // VK5: opt-in explicit pipeline-binary cache (HARMONIA_PIPELINE_BINARY_CACHE=<dir>).
+    // Declared after m_context so it outlives it; the DeviceContext carries the
+    // non-owning pointer the pipeline-creation sites dispatch through.
+    std::optional<core::PipelineBinaryCache> m_pipelineBinaryCache;
     core::CommandPool m_commandPool{};
     presentation::Swapchain m_swapchain{};
     renderer::Descriptors m_descriptors{};

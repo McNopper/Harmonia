@@ -7,6 +7,7 @@
 
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/core/PipelineBinaryCache.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
 
@@ -102,14 +103,12 @@ AccumulationPass::create(const DeviceContext& ctx, VkExtent2D extent, const std:
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0,
     };
-    VkPipeline pipeline{};
-    const VkResult pipelineResult =
-        vkCreateComputePipelines(ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+    auto pipelineResult = core::PipelineBinaryCache::computePipeline(ctx, pipelineInfo, "harmonia.accum.pipeline");
     vkDestroyShaderModule(ctx.device, *module, nullptr);
-    if (pipelineResult != VK_SUCCESS) {
-        return std::unexpected(pipelineResult);
+    if (!pipelineResult) {
+        return std::unexpected(pipelineResult.error());
     }
-    pass.m_pipeline = core::UniquePipeline{ctx.device, pipeline};
+    pass.m_pipeline = core::UniquePipeline{ctx.device, *pipelineResult};
 
     if (!pass.createHistoryImage(extent)) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);

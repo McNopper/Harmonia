@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <utility>
 
+#include "harmonia/core/PipelineBinaryCache.hpp"
 #include "harmonia/core/ShaderModule.hpp"
 
 namespace harmonia::pipeline {
@@ -34,11 +35,10 @@ createPipeline(const DeviceContext& ctx, VkPipelineLayout layout, const std::fil
                                            .layout = layout,
                                            .basePipelineHandle = VK_NULL_HANDLE,
                                            .basePipelineIndex = -1};
-    VkPipeline pipeline{};
-    const auto result = vkCreateComputePipelines(ctx.device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
-    if (result != VK_SUCCESS)
-        return std::unexpected(result);
-    return core::UniquePipeline{ctx.device, pipeline};
+    auto pipelineResult = core::PipelineBinaryCache::computePipeline(ctx, info, "harmonia.sms.pipeline");
+    if (!pipelineResult)
+        return std::unexpected(pipelineResult.error());
+    return core::UniquePipeline{ctx.device, *pipelineResult};
 }
 
 void queueBarrier(VkCommandBuffer cmd) {

@@ -41,6 +41,10 @@ Context::~Context() {
     destroy();
 }
 
+DeviceContext& Context::deviceContext() noexcept {
+    return m_deviceContext;
+}
+
 const DeviceContext& Context::deviceContext() const noexcept {
     return m_deviceContext;
 }
