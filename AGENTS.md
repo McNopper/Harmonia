@@ -160,7 +160,9 @@ ctest --test-dir build --output-on-failure
 to `main` and PRs targeting `main`; manual dispatch remains available. Ordinary
 development/WIP pushes do not trigger CI. It is **pure build** for renderer targets (their test suites need a GPU and stay a
 local activity); Aether/slang-math additionally run their CPU suites. Checkouts set
-`lfs: true` (Aether's assets are Git LFS). The Linux leg installs the SDK tarball (cached),
+`lfs: true` except Aether's, which is **`lfs: false`** — build-only CI never reads asset
+binaries, and skipping the ~210 MB of Aether LFS assets per leg guards the account's
+Git LFS bandwidth quota (the Aether CPU suite runs locally with full assets). The Linux leg installs the SDK tarball (cached),
 bridges SDL3, and builds with the image's g++ under the same `-Wall -Wextra -Werror
 -Wpedantic` gate as Windows (`/W4 /WX`). The Windows leg runs the LunarG installer
   silently with the LOCAL machine's component set (core, glm, sdl2 (ships SDL2+SDL3),

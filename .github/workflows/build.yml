@@ -92,7 +92,10 @@ jobs:
         with:
           repository: McNopper/Aether
           path: Aether
-          lfs: true
+          # LFS pointers only: build-only CI never reads asset binaries
+          # (~210 MB/run of LFS bandwidth saved — quota guard). The Aether
+          # CPU suite runs locally with full LFS assets.
+          lfs: false
       - uses: actions/checkout@v4
         with:
           repository: McNopper/slang-math
