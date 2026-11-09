@@ -59,6 +59,18 @@ function(compile_slang_shaders target output_dir)
     set(_outputs)
 
     foreach(_shader IN LISTS ARGN)
+        # "file.slang:entryName" compiles a SECOND entry point from the same
+        # source module (one .spv per entry): <file_we>.<entryName>.spv. Plain
+        # names keep the historical behaviour (entry "main", <file_we>.spv).
+        set(_entry_flags "")
+        if("${_shader}" MATCHES "^(.+):([A-Za-z_][A-Za-z0-9_]*)$")
+            set(_shader "${CMAKE_MATCH_1}")
+            set(_entry_flags "-entry" "${CMAKE_MATCH_2}")
+            set(_entry_name "${CMAKE_MATCH_2}")
+        else()
+            set(_entry_name "")
+        endif()
+
         if(IS_ABSOLUTE "${_shader}")
             set(_input_shader "${_shader}")
         else()
@@ -69,7 +81,11 @@ function(compile_slang_shaders target output_dir)
         # (forward_render.task.slang → forward_render.task.spv).
         get_filename_component(_shader_name "${_input_shader}" NAME)
         string(REGEX REPLACE "\\.slang$" "" _shader_name_we "${_shader_name}")
-        set(_output_shader "${output_dir}/${_shader_name_we}.spv")
+        if(_entry_name STREQUAL "")
+            set(_output_shader "${output_dir}/${_shader_name_we}.spv")
+        else()
+            set(_output_shader "${output_dir}/${_shader_name_we}.${_entry_name}.spv")
+        endif()
 
         add_custom_command(
             OUTPUT "${_output_shader}"
@@ -82,6 +98,7 @@ function(compile_slang_shaders target output_dir)
                 -I "${_shader_root}"
                 ${_extra_include_flags}
                     ${_extra_define_flags}
+                    ${_entry_flags}
                     -o "${_output_shader}"
                     # 31000: [[vk::combinedImageSampler]] is HLSL/DXC syntax; Slang 2026.x does not
                     #        recognise it as a named attribute but still emits correct combined-image-
