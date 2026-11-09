@@ -5,7 +5,9 @@
 #include <utility>
 #include <vector>
 
+#include "aether/format/SceneAnimator.hpp"
 #include "harmonia/GpuTypes.hpp"
+#include "harmonia/scene/SceneLoader.hpp"
 
 namespace harmonia::scene {
 
@@ -24,6 +26,31 @@ std::uint32_t SceneBase::addInstance(std::uint32_t meshIndex, const Transform& t
     const std::uint32_t idx = static_cast<std::uint32_t>(m_instances.size());
     m_instances.push_back(InstanceRecord{.meshIndex = meshIndex, .transform = transform, .materialIndex = materialIdx});
     return idx;
+}
+
+void SceneBase::attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint32_t> instanceToDesc) {
+    m_animation = std::move(desc);
+    m_instanceToDesc = std::move(instanceToDesc);
+}
+
+void SceneBase::setAnimationTime(float seconds) {
+    if (!m_animation) {
+        return;
+    }
+    // Aether owns the evaluation (ANI1): tracks are sampled and the node
+    // compounding re-run; the renderers only stamp the resolved TRS through the
+    // load-time mapping. Stamping is dirty regardless of whether any track
+    // actually changed a value at @p seconds — the TLAS update path decides
+    // whether GPU work is worth it.
+    const aether::SceneDesc evaluated = aether::SceneAnimator::evaluate(*m_animation, seconds);
+    for (std::size_t i = 0; i < m_instances.size(); ++i) {
+        const std::uint32_t descIndex = m_instanceToDesc[i];
+        if (descIndex >= evaluated.instances.size()) {
+            continue;
+        }
+        m_instances[i].transform = toTransform(evaluated.instances[descIndex]);
+    }
+    m_instancesDirty = true;
 }
 
 std::uint32_t SceneBase::addLight(std::unique_ptr<Light> light) {

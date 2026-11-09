@@ -84,11 +84,6 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
     }
 }
 
-// Build an Transform (object→world, glTF T × R × S) from a parsed instance's TRS.
-[[nodiscard]] Transform toTransform(const aether::InstanceDesc& inst) {
-    return Transform{.translation = inst.translation, .rotation = inst.rotation, .scale = inst.scale};
-}
-
 // Convert Aether's renderer-agnostic object-space mesh into Harmonia's GpuVertex
 // layout. OBJ vertex tangents are zero (mirrors the previous importer; tangents
 // are derived per-hit in the shaders).
@@ -150,6 +145,9 @@ struct SceneLoadContext {
     std::unordered_map<std::string, bool> meshAlphaTested{};   // whole-mesh material
     std::unordered_set<std::string> groupAlphaTested{};        // "<mesh>\0<group>"
     std::unordered_map<std::string, std::vector<LoadedSubmesh>> meshSubmeshes{};
+    /// sceneInstance → descInstance index, recorded by placeInstances (one desc
+    /// instance may expand into several scene instances — one per submesh).
+    std::vector<std::uint32_t> instanceMapping{};
 };
 
 [[nodiscard]] bool materialIsAlphaTested(const MaterialLibrary& lib, const std::string& name) {
@@ -457,7 +455,12 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
 // ── Instances: place a mesh with a transform + material ──────────
 std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::SceneDesc& desc) {
     // ── Instances: place a mesh with a transform + material ───────────────────
-    for (const aether::InstanceDesc& inst : desc.instances) {
+    // The sceneInstance → descInstance mapping is recorded here (one desc
+    // instance may expand into several scene instances — one per submesh), so
+    // animation evaluation can stamp the right desc TRS onto the right scene
+    // instance later (SceneBase::setAnimationTime).
+    for (std::size_t descIndex = 0; descIndex < desc.instances.size(); ++descIndex) {
+        const aether::InstanceDesc& inst = desc.instances[descIndex];
         auto it = c.meshSubmeshes.find(inst.meshName);
         if (it == c.meshSubmeshes.end()) {
             core::Logger::warn("SceneLoader: instance references unknown mesh '{}' — skipping", inst.meshName);
@@ -483,6 +486,7 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
                 core::Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
                 return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
             }
+            c.instanceMapping.push_back(static_cast<std::uint32_t>(descIndex));
         }
     }
 
@@ -491,13 +495,17 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
 
 } // namespace
 
+Transform toTransform(const aether::InstanceDesc& inst) {
+    return Transform{.translation = inst.translation, .rotation = inst.rotation, .scale = inst.scale};
+}
+
 std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::filesystem::path& sceneFile,
                                                                     const std::filesystem::path& assetsDir,
                                                                     ISceneBuilder& scene,
                                                                     const DeviceContext& ctx,
                                                                     const core::CommandPool& pool) {
     // Parsing is owned by Aether — SceneLoader only resolves and uploads.
-    const std::optional<aether::SceneDesc> desc = aether::SceneParser::parse(sceneFile);
+    std::optional<aether::SceneDesc> desc = aether::SceneParser::parse(sceneFile);
     if (!desc) {
         core::Logger::error("SceneLoader: cannot open '{}'", sceneFile.string());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -528,6 +536,14 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
 
     if (auto placed = placeInstances(c, *desc); !placed) {
         return std::unexpected(placed.error());
+    }
+
+    // ANI2 seam: animated scenes keep their parsed source in the scene, so the
+    // consumer can evaluate tracks per frame (SceneBase::setAnimationTime) and
+    // stamp the resolved TRS back onto the scene instances via the recorded
+    // sceneInstance → descInstance mapping. Animation-free scenes: nothing held.
+    if (!desc->animations.empty()) {
+        scene.attachAnimation(std::move(*desc), std::move(c.instanceMapping));
     }
 
     core::Logger::info("SceneLoader: loaded '{}'", sceneFile.filename().string());

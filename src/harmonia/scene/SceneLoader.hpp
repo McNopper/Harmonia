@@ -84,6 +84,12 @@ class SceneLoader {
                                                                    const core::CommandPool& pool);
 };
 
+/// glTF-order TRS placement from an Aether instance (translation/rotation/scale
+/// are the same vocabulary in both libraries). Shared by the load path
+/// (`placeInstances`) and the animation stamping (`SceneBase::setAnimationTime`)
+/// so the desc→scene translation cannot drift between the two.
+[[nodiscard]] Transform toTransform(const aether::InstanceDesc& inst);
+
 } // namespace harmonia::scene
 
 #endif // HARMONIA_SCENE_SCENELOADER_HPP

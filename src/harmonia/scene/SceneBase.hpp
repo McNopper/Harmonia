@@ -9,12 +9,14 @@
 #include <expected>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "aether/types/OpacityMicromap.hpp"
+#include "aether/types/SceneDesc.hpp"
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
@@ -84,6 +86,36 @@ class SceneBase : public ISceneBuilder {
     /// instances were added.
     VkResult build(const DeviceContext& ctx, const core::CommandPool& pool);
 
+    // ── Animation (ANI1/ANI2 bridge — shared Aether consumption) ─────────────
+
+    /// True when an animated-scene source was attached (SceneLoader does this
+    /// whenever the parsed scene declares [[animation]] tracks).
+    [[nodiscard]] bool hasAnimation() const noexcept { return m_animation.has_value(); }
+
+    /// The attached scene's animation clock rate (ticks per second, Aether
+    /// ANI2). Meaningful only when hasAnimation().
+    [[nodiscard]] double animationFps() const noexcept { return m_animation ? m_animation->animationFps : 30.0; }
+
+    /// Evaluates the attached animation tracks at @p seconds and stamps the
+    /// resolved TRS onto the scene instances through the recorded
+    /// sceneInstance → descInstance mapping, then marks the instances dirty
+    /// (the TLAS update path consumes the flag). No-op without an attached
+    /// source. Deterministic: the same time always stamps the same transforms.
+    void setAnimationTime(float seconds);
+
+    /// Direct instance-transform mutation for non-desc-driven updates
+    /// (renderers/tests stamping world transforms themselves). Marks the
+    /// instances dirty.
+    [[nodiscard]] Transform& instanceTransform(std::size_t instanceIndex) noexcept {
+        m_instancesDirty = true;
+        return m_instances[instanceIndex].transform;
+    }
+
+    /// Manual dirty flag for bulk edits through other seams.
+    void markInstancesDirty() noexcept { m_instancesDirty = true; }
+    [[nodiscard]] bool instancesDirty() const noexcept { return m_instancesDirty; }
+    void clearInstancesDirty() noexcept { m_instancesDirty = false; }
+
     // ── Accessors (read-only) ────────────────────────────────────────────────
 
     [[nodiscard]] const std::vector<Texture>& textures() const noexcept { return m_textures; }
@@ -112,6 +144,9 @@ class SceneBase : public ISceneBuilder {
     /// scene_rt module builds the TLAS here and the derived scene stores it.
     virtual VkResult finishBuild(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
 
+    /// ANI2 seam (ISceneBuilder): stores the parsed animated-scene source.
+    void attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint32_t> instanceToDesc) override;
+
     [[nodiscard]] static std::expected<core::Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
                                                                                    const core::CommandPool& pool,
                                                                                    std::span<const std::byte> data,
@@ -127,6 +162,12 @@ class SceneBase : public ISceneBuilder {
     /// references into these and meshes keep `OpacityMicromapGroup*` pointers
     /// into them until `buildBlas`, so the storage must never reallocate.
     std::deque<aether::OpacityMicromapData> m_ommAssets;
+    /// ANI2: the attached animated-scene source + sceneInstance → descInstance
+    /// mapping (set by the loader for [[animation]] scenes; both optional).
+    std::optional<aether::SceneDesc> m_animation;
+    std::vector<std::uint32_t> m_instanceToDesc;
+    /// Set by any instance-transform mutation; the TLAS update path consumes it.
+    bool m_instancesDirty = false;
 };
 
 } // namespace harmonia::scene

@@ -4,8 +4,10 @@
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 #include <string_view>
+#include <vector>
 
 #include "aether/types/OpacityMicromap.hpp"
+#include "aether/types/SceneDesc.hpp"
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/scene/Geometry.hpp"
@@ -65,6 +67,18 @@ class ISceneBuilder {
     /// Returns the instance index, or uint32_max on failure.
     [[nodiscard]] virtual std::uint32_t
     addInstance(std::uint32_t meshIndex, const Transform& transform, std::uint32_t materialIdx) = 0;
+
+    /// ANI2 seam: attach the parsed animated-scene source plus the resolved
+    /// sceneInstance → descInstance mapping (recorded by the loader's placement
+    /// pass — one desc instance may expand into several scene instances). The
+    /// consumer evaluates the tracks per frame against the attached source
+    /// (SceneBase::setAnimationTime) and stamps the resolved TRS back onto the
+    /// scene instances. Default no-op: builders that don't support animation
+    /// ignore the attachment (the scene then reports hasAnimation() == false).
+    virtual void attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint32_t> instanceToDesc) {
+        static_cast<void>(desc);
+        static_cast<void>(instanceToDesc);
+    }
 };
 
 } // namespace harmonia::scene
