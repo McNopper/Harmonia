@@ -31,12 +31,22 @@ class AccelerationStructure {
     [[nodiscard]] VkAccelerationStructureKHR handle() const noexcept { return m_handle; }
     [[nodiscard]] VkDeviceAddress deviceAddress() const noexcept { return m_deviceAddress; }
     [[nodiscard]] const core::Buffer& buffer() const noexcept { return m_buffer; }
+    [[nodiscard]] VkAccelerationStructureTypeKHR type() const noexcept { return m_type; }
 
   private:
     core::Buffer m_buffer{};
     harmonia::core::UniqueAccelerationStructure m_handle;
     VkDeviceAddress m_deviceAddress{};
+    VkAccelerationStructureTypeKHR m_type{};
 };
+
+/// PERF3 (Harmonia slice): compact a built acceleration structure — query the
+/// compacted size, allocate the smaller AS, and run a compact-mode copy.
+/// Generic over BLAS/TLAS (type is preserved from @p src). The returned AS has
+/// a fresh device address; consumers must rebind it. Any failure leaves `src`
+/// valid and untouched (compaction is a memory optimization, never required).
+[[nodiscard]] std::expected<AccelerationStructure, VkResult>
+compactAccelerationStructure(const DeviceContext& ctx, const AccelerationStructure& src, std::string_view debugName);
 
 /// Scratch buffer for an acceleration-structure build, sized from @p sizes and
 /// aligned to the device's `minAccelerationStructureScratchOffsetAlignment`.
