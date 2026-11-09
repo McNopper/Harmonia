@@ -93,15 +93,15 @@ the sibling clones.
   suite needs a GPU).
 - **Next:** the capability track and the SMS item are closed (see section 3 and
   §5.8); **PERF5/PERF4 are measured-parked** (2026-11-06 verdicts, externally
-  corroborated 2026-11-07 — §5.1/§5.6). **Three adjudications landed 2026-11-08:**
-  the guiding slot → **GI-PG** (LS4 removed — §5.4/§5.6); **PERF3 is `next`**
-  (ANI1 done upstream in Aether — it gates ANI2 → ANI4/ANI5); **DN1-M1 planning
-  spike is `next`** (scope expanded: the Disney page positions RaNAD for deep
-  compositing/offline production with no released weights — the spike must
-  establish flat-window applicability + the training burden before any
-  engineering; DN8/NRD is the live fallback). Remaining backlog: PERF6, PERF8.
-  Vulkan capability queue: drained — VK19 stay-verdict, VK20/VK22 verified,
-  VK5 shipped (default-on), VK23 rejected (§5.8).
+  corroborated 2026-11-07 — §5.1/§5.6). **Adjudications 2026-11-08:** the guiding
+  slot → **GI-PG** (LS4 removed — §5.4/§5.6); **PERF3 is `next`** (ANI1 done
+  upstream in Aether — it gates ANI2 → ANI4/ANI5); **DN1-M1 spike executed —
+  RaNAD adjudicated NO-GO for the DN1 slot** (deep-image/offline method,
+  inapplicable to Theia's flat interactive window; no released weights; report
+  in §5.2 — the real-time neural slot stays open, DN8/NRD the non-neural
+  fallback). Remaining backlog: PERF6, PERF8. Vulkan capability queue: drained —
+  VK19 stay-verdict, VK20/VK22 verified, VK5 shipped (default-on), VK23
+  rejected (§5.8).
 - **Newly available (dev driver/SDK upgrade; extension surface unchanged vs driver 617.14):** the Vulkan 1.4
   capability set is verified on the dev GPU (**RTX 5070, driver 621.14 / SDK 1.4.363**, 295
   device extensions, slang 2026.17; the 621.14 re-audit of 2026-11-06 confirmed an identical
@@ -517,24 +517,42 @@ negative-result constraint on the ReSTIR-candidate input channel already applies
 scope note: the on-device inference stack (weights, cooperative-matrix matmul scheduling,
 activation layout) is new engineering - the largest single track in the family queue.
 
-**DN1-M1 planning spike (`next`, authorized 2026-11-08) — scope expanded by the
-project-page audit:** the Disney page positions RaNAD for **deep compositing /
-offline production** (deep-Z/deep-OID bins, multi-U-Net backbone, optimized CUDA,
-temporal windows ≤ 7 frames) and lists **no code or weights release** — while the
-DN1 slot is Theia's **flat** low-spp interactive window. The spike must therefore
-establish, from the paper full text (PDF directly downloadable from the Disney page
-— no geo-block, unlike the DN3 case): (0) **flat-window applicability** — does RaNAD
-map to flat rendering at all (degenerate 1-bin pixels, pre-accumulation sample-bins,
-or deep-only)? (1) the **training burden** absent released weights (data, compute,
-porting the CUDA-first ragged-attention pipeline to Vulkan compute + VK1/VK9), (2)
-the **VK1/VK9 enablement design** (feature chain, cooperative-matrix matmul/attention
-shapes for ragged bin neighborhoods), (3) the architecture mapping onto DN3's
-algorithm-agnostic wrapper with the standing input constraint (no ReSTIR-candidate
-channel — the Aalto negative result), (4) milestone plan + effort estimate.
-**Gate:** the GO/NO-GO implementation adjudication reads the spike report; the live
-fallback is DN8/NRD promotion (non-neural real-time tier).
+**DN1-M1 planning spike — EXECUTED 2026-11-08 (paper full text read:
+`C:\Temp\Pathtracing\ranad-paper.pdf`). Verdict: NO-GO for the DN1 slot — RaNAD is
+inapplicable to Theia's flat interactive window.** The five spike answers:
 
-| DN1 | **Ragged Neighborhood Attention for Spatiotemporal Neural Denoising of Deep Monte Carlo Renderings** - RaNAD (Zhang et al., Disney Research, **SIG 2026**, [doi:10.1145/3799902.3811128](https://doi.org/10.1145/3799902.3811128), [project page](https://studios.disneyresearch.com/2026/07/16/ragged-neighborhood-attention-for-spatiotemporal-neural-denoising-of-deep-monte-carlo-renderings/)) - deep-image denoiser for the low-spp interactive window; recovers plausible detail a spatial filter cannot. Presentation-only (identity offscreen per v0.7.4), so it does not touch the parity invariant. Implementation-unblocked by `VK_KHR_cooperative_matrix` (BF16/Float8 compute - VK1): the tensor-class matmul a neural net needs, on-device, no CUDA/TensorRT. | bypassable (presentation) | backlog |
+(0) **Flat-window applicability: no.** RaNAD's input contract is ragged per-pixel
+bins (deep-Z: depth-sorted samples; deep-OID: per-object) for **deep compositing**
+workflows (Nuke-style layered EXR). The paper never demonstrates a flat-image
+pipeline — "when its output is flattened for evaluation" is an evaluation shortcut
+only. A flat frame is the degenerate 1-bin-per-pixel case, which strips RaNA of its
+entire contribution (bin-to-bin ragged attention over depth-sorted samples); what
+remains is a generic neighborhood-attention CNN — not the paper's contribution, and
+one we hold no weights for.
+(1) **Training burden: prohibitive.** No weights, code, or training data released
+(the Disney page lists paper + supplemental only). Training used three **private
+production datasets** (Disney Hyperion deep-Z/deep-OID 90+10 + Pixar RenderMan
+deep-Z 90+9 scenes, spp ≥ 16, per-bin motion vectors) for ~1M iterations on an
+A6000-class GPU — and adopting the method would additionally require generating
+our own deep training data (a pipeline project in itself).
+(2) **VK1/VK9 mapping: does not hold.** The RaNA operator is a custom
+FlashAttention-2-inspired CUDA kernel over ragged cumulative-bin splits —
+per-pixel-dynamic bin neighborhoods do not map to VK1's fixed-tile cooperative
+matmul. VK1/VK9 stay useful for dense workloads, but no enablement design is
+justified by this technique.
+(3) **DN3 mapping: interface mismatch.** DN3's wrapper denoises flat frames;
+RaNAD denoises ragged bins — its whole contribution is preserving that structure
+for deep compositing. The Aalto input constraint (no ReSTIR-candidate channel)
+is orthogonal.
+(4) **Milestone plan: none.** No implementation milestones follow from a NO-GO;
+the slot stays open and the row records the verdict + revisit triggers.
+
+**Revisit triggers:** the family roadmap ever adds deep-EXR output for offline
+compositing; Disney releases weights/code; a flat-image RaNA variant appears in
+the literature. Until then: the real-time tier's tracked fallback is **DN8/NRD**
+(watchlist), and the shipped interactive path remains DN3 + accumulation.
+
+| DN1 | **Ragged Neighborhood Attention for Spatiotemporal Neural Denoising of Deep Monte Carlo Renderings** - RaNAD (Zhang et al., Disney Research, **SIG 2026**, [doi:10.1145/3799902.3811128](https://doi.org/10.1145/3799902.3811128), [project page](https://studios.disneyresearch.com/2026/07/16/ragged-neighborhood-attention-for-spatiotemporal-neural-denoising-of-deep-monte-carlo-renderings/)) - deep-image denoiser for the low-spp interactive window; recovers plausible detail a spatial filter cannot. Presentation-only (identity offscreen per v0.7.4), so it does not touch the parity invariant. **DN1-M1 spike verdict (2026-11-08, full text read): NO-GO for this slot** — RaNAD denoises **ragged deep images** (per-pixel bins, deep-Z/OID) for offline deep compositing; Theia's interactive window is flat and produces no bins, and the training burden is prohibitive (no weights/code/data released; three private production datasets; ~1M iterations on an A6000-class GPU). **Revisit triggers:** the family roadmap adds deep-EXR output (offline compositing); Disney releases weights/code; a flat-image RaNA variant appears in the literature. | bypassable (presentation) | **no-go (M1 spike 2026-11-08) · slot open · fallback DN8/NRD** |
 | ~~DN5~~ | removed 2026-11-06: gradient-domain reconstruction never entered the plan (GI-GD watchlist); the paper reference is dropped with it. | converging | **removed (not used)** |
 | DN8 | **NRD — NVIDIA Real-Time Denoisers** (open-source, MIT, API-agnostic compute — [github.com/NVIDIA-RTX/NRD](https://github.com/NVIDIA-RTX/NRD)); prescribed by the RTXPT performance whitepaper with feature-tier + fallback (2026-11-07 triage, §5.6) | **Replaces (candidate):** the shipped v0.7.4 fixed-radius à-trous core (`denoiser.slang`) with REBLUR/RELAX, beneath DN3's algorithm-agnostic wrapper — DN3 wraps any denoiser, NRD included. **Not a DN1 competitor**: the neural real-time-quality slot stays DN1's (one-slot rule, §5.6); NRD is the non-neural fallback if the DN1/RaNAD on-device inference stack (VK1/VK9) stalls. NVIDIA-authored but open-source + API-agnostic → no vendor-extension violation (§8); still a third-party dependency → explicit dependency call at adoption time. | bypassable (presentation) | watchlist |
 
@@ -1133,8 +1151,8 @@ revalidation event, not a free upgrade. New capability detail from the 621.14 au
 | VK4 | `VK_KHR_shader_subgroup_rotate` + `VK_KHR_shader_maximal_reconvergence` + `VK_KHR_shader_subgroup_uniform_control_flow` + `VK_KHR_shader_quad_control` (subgroupSize 32; RT + compute stages) | Warp-coherent reductions/rotations for **ReSTIR reservoir merging & compaction** → faster spatial reuse; maximal reconvergence guarantees a converged wavefront for the path integrator. **ADOPTED (2026-11-06):** all four probed→enabled (rotate rides `VkPhysicalDeviceVulkan14Features` — promoted; the standalone KHR struct must not appear next to Vulkan14Features in the device chain, VUID-pNext-10360). Micro-benchmark receipt (`tests/component/test_subgroup_bench.cpp`, 4 194 304 elements / 64 iterations, ~1/3 non-zero): atomic-compaction 1.0235 ms/iter vs subgroup-prefix compaction 0.9874 ms/iter, both arms validated as exact multisets — and the bench documents the 10e design insight: per-workgroup base reservation is scheduling-ordered, so bit-identical compaction needs the device-wide hierarchical scan the PERF5 10e persistent-wavefront structure provides. **Exploitation (ReSTIR merges, 10e live-count dispatch) gates on the PERF5 10c verdict.** Known gap: Slang 2026.17 exposes no rotate intrinsic (only WaveActive/WavePrefix/WaveReadLane families) — rotate-specific exploitation waits for slang support. | GI, PERF | **adopted · exploitation → PERF5 10e** |
 | VK5 | `VK_KHR_pipeline_binary` | Serialized/faster PSO creation — cuts cold start (first cold compile measured **90.745 ms** for one small compute pipeline; **~0.1 ms** from its captured binary) and enables cross-session pipeline reuse. Theia's surface: **9 pipeline-creation sites** (3 graphics in ForwardRendererPipelines — opaque/transparent/sky — plus 6 compute: GiPass, GpuCullPass, LightCuller, Hi-Z, motion vectors, TAA) | PERF, CH | **shipped (opt-in, 2026-11-07)** — the 2026-11-06 "driver defect" verdict was **withdrawn**: its spike code never landed (evidence not reproducible), and a from-scratch spec-faithful probe re-ran both paths clean on the same driver 621.14 (receipts: `tests/component/test_pipeline_binary_probe.cpp` — capture 0.005–0.034 ms/blob, consume dispatch-verified, global key 8 B). **Adoption:** `core::PipelineBinaryCache` (driver-key identity — no app-side hashing; global-key cache validity — **a driver update changes the global key ⇒ every cached blob invalid ⇒ all pipelines re-captured on the new driver's first run**, per spec + Khronos blog), wired through the `DeviceContext::pipelineBinaryCache` hook into the 4 shared-pass creation sites (AccumulationPass, SmsPass, SceneOutputCopyPass, ToneMapper) — 1:1 for both renderers; **default ON** at `<exe-dir>/pipeline-cache` (deterministic across launch CWDs, per-renderer separation for free); `HARMONIA_PIPELINE_BINARY_CACHE` overrides the directory, `off`/`0` disables (v0.7.23 shipped it opt-in; default-on landed on `main` — smoke receipts: warm hits, disable switch, cold re-capture). Receipts: `tests/component/test_pipeline_binary_cache.cpp` (capture → persist → fresh-instance reload → consume → global-key prune, dispatch-verified in every phase); component 58/58 + integration 21/21 with the extension enabled. **Open follow-ups:** Theia's 9 renderer-owned creation sites — **wired** (Theia v0.8.4; gallery receipts there), RT pipeline capture — **spiked + bypassed** (degenerate key + import failure on driver 621.14; guard above; revisit when drivers ship usable RT keys), `.spv` hot-reload acceleration. | ~~blocked~~ **shipped (default-on on `main`) · follow-ups recorded** |
 | VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **SHIPPED** (MOD1): all descriptor pools deleted, `DescriptorBufferWriter` shared helper. | PERF, CH | ~~backlog · blocked~~ **shipped** |
-| VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path **DN1** (the RaNAD neural denoiser) needs. Consumer is DN1; until DN1 starts this stays speculative, so backlog rather than next. | DN | backlog (→ DN1) |
-| VK9 | Reduced precision — `shaderFloat16` / `shaderBFloat16` / `shaderFloat8` | FP16/BF16/FP8 compute; consumer is DN1 (with VK1) | DN, PERF | watchlist (→ DN1) |
+| VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path **DN1** (the RaNAD neural denoiser) needs. Consumer is DN1 — **adjudicated no-go (2026-11-08, M1 spike: RaNAD inapplicable to the flat window)**; dormant until a dense cooperative-matmul consumer appears. | DN | backlog — **no consumer (DN1 no-go)** |
+| VK9 | Reduced precision — `shaderFloat16` / `shaderBFloat16` / `shaderFloat8` | FP16/BF16/FP8 compute; consumer was DN1 (with VK1) — **DN1 adjudicated no-go (2026-11-08)**; dormant until a reduced-precision consumer appears | DN, PERF | watchlist — **no consumer (DN1 no-go)** |
 | VK12 | `VK_KHR_present_id2` + `VK_KHR_present_wait2` | present-pacing v2 (supersedes the VK6 v1 pair — richer per-present timing/latency control for the interactive window); adoption = **MOD6** (drop v1) | I, PERF | ~~watchlist~~ **shipped (via MOD6 — the v1 pair is dropped)** |
 | VK13 | ~~`VK_KHR_maintenance7`–`maintenance11`~~ | **Triaged: no actionable features** — these are spec clarifications and minor struct additions (layered rendering, depth/stencil clarifications, sync edge cases); nothing our codebase uses or benefits from. | CH | ~~watchlist~~ **closed** |
 | VK14 | ~~`VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives`~~ | **SHIPPED**: `nullDescriptor` enabled (hard-required) — all dummy resources DELETED (GiPass gradient/motion images, ForwardRenderer env + tile-light buffers). `robustBufferAccess2/ImageAccess2` deliberately NOT enabled (perf cost). Compute derivatives NOT adopted (not used yet). | PERF, CH | ~~watchlist~~ **shipped** |
