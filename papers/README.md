@@ -40,6 +40,8 @@ audit). See [How to continue](../PLAN.md#3-how-to-continue).
 | Source | Venue | Official link | Feeds |
 |--------|-------|---------------|-------|
 | NVIDIA — *Real-Time Path Tracing in Games* (RTXPT performance whitepaper) | June 2026 | [NVIDIA-RTX/Whitepapers](https://github.com/NVIDIA-RTX/Whitepapers/tree/main/pt_performance_whitepaper) · [en PDF](https://github.com/NVIDIA-RTX/Whitepapers/blob/main/pt_performance_whitepaper/pt_performance_whitepaper_en.pdf) | PERF4/PERF5 external corroboration; PERF8 / GI-RGIR / GI-NRC / DN8 triage; VK5 probe + cache receipts (Harmonia `PLAN.md` §5.6, §5.8) |
+| Kazmierczyk et al. — *Joint Denoising and Upscaling via Multi-branch and Multi-scale Feature Network* | I3D 2025 | [GPUOpen article](https://gpuopen.com/learn/neural_supersampling_and_denoising_for_real-time_path_tracing) · [I3D program](https://i3dsymposium.org/2025/papers.html) | DN1 slot landscape (2026-11-09): best input-contract fit (flat 1-spp + G-buffer guides) — **no weights/code released**, tracked paper-tier |
+| AMD — FSR "Redstone" SDK (Ray Regeneration ML denoiser) | Dec 2025 – 2026 | [FSR SDK](https://gpuopen.com/amd-fsr-sdk) · [GitHub known issues](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK) | DN1 slot landscape (2026-11-09): **adjudicated out** — RDNA4-only hardware, DX12-only for the denoiser (no Vulkan), binaries + limited source (vendor-proprietary tier, §8) |
 
 ## Tracked (backlog/watchlist)
 
