@@ -86,9 +86,9 @@ forbidden: theia, hyperion
 quotes_relative: true
 repo_fallback: false
 cycles: true
-namespace_root: .hpp
-namespace_module: .hpp
-namespace_require:
+namespace_root: harmonia         # the flat vocabulary opens harmonia; nested
+namespace_module: harmonia       # modules map harmonia/<mod> -> harmonia::<mod>
+namespace_require: .hpp          # headers must ALWAYS open their namespace
 unresolved: info
 within_layer: deny              # undeclared same-layer edges: violations
 kind: library                   # public API surface: volume judged per file
