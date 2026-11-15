@@ -103,7 +103,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--scene <name>` / `-s` | Scene name (resolves against assets dir) or path. Bare arg also works. |
 | `--output <file>` / `-o` | **Headless mode**: render N frames, save EXR (untonemapped) + PNG (tonemapped), exit. |
 | `--width <n>` / `--height <n>` | Render resolution. |
-| `--validation` / `--no-validation` | Vulkan validation layers. |
+| `--validation` / `--no-validation` | Vulkan validation layers. **ON by default — the family contract is that validation is ALWAYS enabled** (AppConfig.validation = true; context creation hard-fails without the layer; test fixtures and every tool keep it on — `--no-validation` is an explicit human escape hatch that no family script passes). |
 | `--no-postfx` | Force off every post-processing stage (A-SVGF denoiser + TAA) — the interactive-window identity that `--output` enforces for offscreen capture. |
 | `--indirect-ambient <f>` | Presentation-only indirect ambient boost (scene-referred linear units). |
 

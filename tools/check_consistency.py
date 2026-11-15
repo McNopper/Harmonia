@@ -56,7 +56,6 @@ def render_theia(exe: Path, scene: str, frames: int, width: int, height: int,
         "--width", str(width),
         "--height", str(height),
         "--output", str(out),
-        "--no-validation",
     ]
     if extra_args:
         cmd.extend(extra_args)
@@ -73,7 +72,6 @@ def render_hyperion(exe: Path, scene: str, spp: int, width: int, height: int,
         "--width", str(width),
         "--height", str(height),
         "--output", str(out),
-        "--no-validation",
     ]
     print("  >", " ".join(cmd))
     subprocess.run(cmd, check=True)

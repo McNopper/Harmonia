@@ -2,9 +2,11 @@
 """
 check_vulkan_validation.py — Vulkan validation / zero-warning gate.
 
-Runs each renderer across a scene set with Vulkan validation layers ON (the
-opposite of render_and_validate.py, which passes --no-validation for speed) and
-FAILS on any validation message or app-level WARN/ERROR line.
+Runs each renderer across a scene set with Vulkan validation layers ON — the family
+contract is that validation is ALWAYS enabled (the App defaults to on, the layer is
+hard-required at context creation, and no tool passes --no-validation anymore; this
+script remains the dedicated zero-warning gate that additionally FAILS on any
+validation message or app-level WARN/ERROR line) and
 
 This is the runtime half of the "zero warnings / errors" sprint bar; the build
 half is enforced by /WX -Werror in Platform.cmake. A change is not done until

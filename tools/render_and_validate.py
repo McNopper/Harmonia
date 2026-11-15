@@ -61,7 +61,6 @@ def main() -> int:
             str(width),
             "--height",
             str(height),
-            "--no-validation",
         ])
 
         _run([
@@ -80,7 +79,6 @@ def main() -> int:
             str(width),
             "--height",
             str(height),
-            "--no-validation",
         ])
 
     if args.no_validate:

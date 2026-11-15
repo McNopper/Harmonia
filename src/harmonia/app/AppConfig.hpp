@@ -28,6 +28,13 @@ struct AppConfig {
     std::string title = "Harmonia";
     std::uint32_t width = 1920;
     std::uint32_t height = 1080;
+    /// Vulkan validation layers: ALWAYS ENABLED BY DEFAULT (family contract, 2026-11-15).
+    /// Context creation hard-fails without VK_LAYER_KHRONOS_validation, the test
+    /// fixtures all set enableValidation = true, and no family tool passes
+    /// --no-validation anymore (every render is validated — the dedicated zero-warning
+    /// gate is tools/check_vulkan_validation.py). Keep it this way: this session's
+    /// bugs (a push-constant block emitted as a descriptor, a missing TRANSFER_DST
+    /// usage) were only visible under validation.
     bool validation = true;
     /// Allow interactive window resizing. Renderers whose passes cannot
     /// recreate their targets yet should keep this off.

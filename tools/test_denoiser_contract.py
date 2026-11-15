@@ -86,12 +86,12 @@ def main() -> int:
         _run([str(args.hyperion_exe), "--scene", args.scene,
               "--spp", str(args.hyperion_spp),
               "--width", w, "--height", h,
-              "--output", str(base), "--no-validation"])
+              "--output", str(base)])
         _run([str(args.hyperion_exe), "--scene", args.scene,
               "--spp", str(args.hyperion_spp),
               *denoiser_force,
               "--width", w, "--height", h,
-              "--output", str(forced), "--no-validation"])
+              "--output", str(forced)])
         results.append(check_pair("Hyperion plain == denoiser-forced", base, forced))
 
     # ── Theia: plain vs denoiser-forced vs --no-postfx ───────────────────────
@@ -103,7 +103,7 @@ def main() -> int:
         common = ["--scene", args.scene,
                   "--offscreen-frames", str(args.theia_frames),
                   "--no-camera-jitter",
-                  "--width", w, "--height", h, "--no-validation"]
+                  "--width", w, "--height", h]
         _run([str(args.theia_exe), *common, "--output", str(base)])
         _run([str(args.theia_exe), *common, *denoiser_force, "--output", str(forced)])
         _run([str(args.theia_exe), *common, "--no-postfx", "--output", str(postfx)])
