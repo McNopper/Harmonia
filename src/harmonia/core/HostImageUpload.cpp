@@ -31,7 +31,10 @@ uploadHostImage(const DeviceContext& ctx, const CommandPool& cmdPool, const Host
 
     VkImageUsageFlags usage = VK_IMAGE_USAGE_HOST_TRANSFER_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     if (mipLevels > 1U) {
-        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT; // the blit chain reads each level
+        // The blit chain READS each source level and WRITES the next one — both
+        // transfer usages are required (validation-enforced; a missing TRANSFER_DST
+        // makes every downsample blit VUID-invalid and leaves higher mips undefined).
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
 
     auto image = Image::create(ctx, desc.extent, desc.format, usage, VK_IMAGE_ASPECT_COLOR_BIT, desc.name, mipLevels);
