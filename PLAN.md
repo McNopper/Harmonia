@@ -153,7 +153,8 @@ run in parallel across repos):
    premise absent: no dynamic BLAS (ANI4/ANI5 backlog), 1–16 instances, GPU-driven
    contract vs readback priority loop)
    → step 5's animation chain (ANI3 → ANI7 → ANI6/PAR3).
-5. **Animation chain:** ANI3 (motion vectors) → ANI7 (Hyperion sequence render) →
+5. **Animation chain:** ANI3 (motion vectors) **DONE 2026-11-15** (Theia;61/61 + static
+   bit-identical + animated end-to-end receipts in the Theia row) → ANI7 (Hyperion sequence render) →
    ANI6 (gated on PAR3 + ANI7); ANI4/ANI5 after their Aether schema lands.
 6. **Stays open by design:** DN1 (watch, no adoptable candidate), DN8 (watchlist),
    LS1/SAM1/QMC1 (research backlog), VK1/VK9/VK17 (no consumer), watchlists with
