@@ -460,16 +460,104 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
     return 0.0.xxx;
 }
 
+/// ── GI-PG (ReSTIR PG, SIGGRAPH Asia 2025 §4.5): guiding cell + one-sample MIS ──
+/// A pre-fetched spatial-hash cell (4 vMF lobes + mixture weights) handed to the
+/// integrator by the renderer that owns the grid (Theia; Hyperion passes the flag
+/// off with a zeroed cell → its path is bit-identical). The fitted distribution is a
+/// pure PROPOSAL: one-sample MIS keeps the estimator consistent as long as sampling
+/// and evaluation use the same mixed density, which the integrator guarantees by
+/// routing BOTH through this struct.
+struct PgGuideCell {
+    float4 muKappa[4]; ///< per lobe: mean direction mu (xyz) + concentration kappa (w)
+    float4 pi;         ///< mixture weights (sum 1 when valid)
+};
+
+/// Normalized vMF direction density of the mixture at omega (world space).
+float pgGuidePdf(PgGuideCell c, float3 omega) {
+    float sum = 0.0;
+    for (uint k = 0u; k < 4u; ++k) {
+        const float kappa = c.muKappa[k].w;
+        const float pk = c.pi[k];
+        if (pk <= 0.0 || kappa <= 0.0) {
+            continue;
+        }
+        // kappa/(4*pi*sinh(kappa)) * exp(kappa * mu·omega). NO tight clamp on the
+        // exponent: fp32 holds exp(±88), and the kPgKappaMax=64 clamp bounds kappa·dot
+        // to ±64 — a ±40 clamp (the original) silently truncated the sampler's own
+        // support for kappa > 40 and inflated every guided weight (fp32-verified:
+        // importance estimate 48.6/114.9 vs the exact 14.76 at kappa=45/64).
+        const float norm = (kappa < 1.0e-4) ? (1.0 / (4.0 * kPi))
+                                            : kappa / (4.0 * kPi * sinh(kappa));
+        sum += pk * norm * exp(clamp(kappa * dot(c.muKappa[k].xyz, omega), -80.0, 80.0));
+    }
+    return max(sum, 0.0);
+}
+
+/// Sample the mixture (component by pi, then the standard 3-D vMF sampler:
+/// Jupp's cos-theta transform + uniform azimuth). Returns the direction; `outPdf`
+/// is the FULL mixture density at that direction (one-sample MIS denominator).
+float3 pgGuideSample(PgGuideCell c, inout RngState seed, out float outPdf) {
+    const float u = randFloat(seed);
+    uint k = 0u;
+    float acc = 0.0;
+    for (uint i = 0u; i < 4u; ++i) {
+        acc += c.pi[i];
+        if (u < acc) {
+            k = i;
+            break;
+        }
+        k = i;
+    }
+    const float3 mu = c.muKappa[k].xyz;
+    const float kappa = c.muKappa[k].w;
+    const float u1 = max(randFloat(seed), 1.0e-7);
+    const float u2 = randFloat(seed);
+    float3 dir;
+    if (kappa < 1.0e-4 || dot(mu, mu) < 1.0e-8) {
+        // Near-uniform lobe OR a zero-mean direction (isotropic cells fit mu ~ 0 when
+        // their directions cancel): sample the sphere DIRECTLY — building a frame
+        // around mu = 0 would normalize a zero vector to NaN, every guide draw would
+        // be rejected, and the mixed-density fallback would then re-weight the BSDF
+        // draw by qB/qMix where qG cannot reach (up to 2x bright, one-sided).
+        // Density: pgGuidePdf at mu=0 is the isotropic 1/(4pi) (kappa/sinh(kappa) ~ 1
+        // at the kPgKappaMin=0.01 floor) — matches this sampler exactly.
+        const float cz = 1.0 - 2.0 * u1;
+        const float sz = sqrt(max(1.0 - cz * cz, 0.0));
+        const float phi = 2.0 * kPi * u2;
+        dir = float3(sz * cos(phi), sz * sin(phi), cz);
+    } else {
+        float cosT;
+        if (kappa < 1.0e-4) {
+            cosT = 2.0 * u1 - 1.0;
+        } else {
+            cosT = 1.0 + (1.0 / kappa) * log(u1 + (1.0 - u1) * exp(-2.0 * kappa));
+            cosT = clamp(cosT, -1.0, 1.0);
+        }
+        const float sinT = sqrt(max(1.0 - cosT * cosT, 0.0));
+        const float phi = 2.0 * kPi * u2;
+        // Orthonormal frame around mu (branchless-ish: pick a non-parallel helper).
+        const float3 helper = (abs(mu.z) < 0.999) ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
+        const float3 t = normalize(cross(helper, mu));
+        const float3 b = cross(mu, t);
+        dir = normalize(sinT * cos(phi) * t + sinT * sin(phi) * b + cosT * mu);
+    }
+    outPdf = pgGuidePdf(c, dir);
+    return dir;
+}
+
 /// Next-event estimation against the environment via 2D-separable-CDF importance sampling,
 /// combined with the BSDF sampling strategy through the MIS balance heuristic.
 /// Returns the (throughput-free) radiance contribution; the caller scales by throughput.
 /// Ref: PBR Book 4e §13.4.3; Veach §9.2.
+/// GI-PG: `pgGuideOn` folds the one-sample-MIS mixed density into the balance heuristic
+/// (the continuation strategy samples with density 0.5*q_bsdf + 0.5*q_guide when on).
 EnvNeeSample evalEnvNEESample<T : ITracer>(
     T tracer, SurfaceHit surf,
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
-    inout RngState seed, out NeeEventCapture cap)
+    inout RngState seed, out NeeEventCapture cap,
+    bool pgGuideOn, PgGuideCell pgCell) // GI-PG: mixed continuation density when on
 {
     cap.wi = 0.0.xxx;
     cap.raw = 0.0.xxx;
@@ -505,6 +593,12 @@ EnvNeeSample evalEnvNEESample<T : ITracer>(
                 float3 Le      = sampleEnvMapLatLong(envMap, envSampler, wi) * envLuminanceScale;
                 float  bsdfPdf = pdfBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
+                // GI-PG: the continuation technique samples with the one-sample-MIS
+                // mixture density when guiding is active at this vertex, so the balance
+                // heuristic must use THAT density (not the raw BSDF pdf) to stay exact.
+                if (pgGuideOn) {
+                    bsdfPdf = 0.5 * bsdfPdf + 0.5 * pgGuidePdf(pgCell, wi);
+                }
                 float  misW    = envPdf / (envPdf + bsdfPdf); // balance heuristic
                 float3 bsdfVal = evalBSDF(surf.mat, surf.wo, wi,
                     surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
@@ -529,11 +623,12 @@ float3 evalEnvNEE<T : ITracer>(
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
-    inout RngState seed, out NeeEventCapture cap)
+    inout RngState seed, out NeeEventCapture cap,
+    bool pgGuideOn, PgGuideCell pgCell) // GI-PG: mixed continuation density when on
 {
     return evalEnvNEESample(
         tracer, surf, marginalCdf, conditionalCdf, envW, envH, hasEnvMap, envLuminanceScale,
-        envMap, envSampler, seed, cap).contribution;
+        envMap, envSampler, seed, cap, pgGuideOn, pgCell).contribution;
 }
 
 /// Estimate the outgoing radiance contribution at one surface vertex and advance the path.
@@ -547,7 +642,11 @@ void integrateSurface<T : ITracer>(
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
-    inout PathState state)
+    inout PathState state,
+    // GI-PG (ReSTIR PG §4.5): pre-fetched guiding cell + the caller's eligibility
+    // gate. `false` + a zeroed cell reproduces the pre-GI-PG path bit-identically
+    // (Hyperion and every non-guided call site pass exactly that).
+    bool pgGuideOn, PgGuideCell pgCell)
 {
     // 1) Emission. A front-face emitter hit terminates the path; the emission itself is
     //    added only when it is not already accounted for by NEE (see evalEmissionGuarded).
@@ -604,7 +703,7 @@ void integrateSurface<T : ITracer>(
     NeeEventCapture capEnv;
     state.radiance += state.throughput * evalEnvNEE(
         tracer, surf, marginalCdf, conditionalCdf, envW, envH, hasEnvMap, envLuminanceScale,
-        envMap, envSampler, state.seed, capEnv);
+        envMap, envSampler, state.seed, capEnv, pgGuideOn, pgCell);
     if (captureHere) {
         state.rec.tri = capTri;
         state.rec.env = capEnv;
@@ -614,6 +713,57 @@ void integrateSurface<T : ITracer>(
     // 5) BSDF continuation sample.
     BSDFSample bsdfSample = sampleBSDF(surf.mat, surf.wo,
         surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface, state.seed);
+    // GI-PG §4.5 one-sample MIS (alpha = 0.5): with equal probability the continuation
+    // is drawn from the fitted guiding mixture instead of the BSDF, and BOTH branches
+    // are re-weighted by the mixed density 0.5*q_bsdf + 0.5*q_guide at the chosen
+    // direction — the estimator stays consistent as long as sampling and evaluation
+    // agree (the caller gates eligibility; non-eligible vertices keep the exact
+    // pre-GI-PG path). Delta samples are never re-directed (guiding is for
+    // rough, non-metal, non-transmissive, non-subsurface vertices only).
+    if (pgGuideOn && !bsdfSample.isDelta) {
+        // One-sample MIS (paper §4.5, alpha = 0.5): coin picks the technique; a
+        // rejected guide draw is REDRAWN (bounded), and if every attempt fails the
+        // BSDF draw is kept as a PURE f/qB contribution (no mixed reweight) — that
+        // fallback is exactly unbiased (0.5*∫f + 0.5*(1-Paf)*∫f + 0.5*Paf*∫f = ∫f),
+        // whereas re-weighting it by the mixed density added
+        // 0.5*P_rej*∫(qB - qG)f/q_mix > 0 — the measured one-sided +0.022 bias.
+        const bool coinBsdf = randFloat(state.seed) >= 0.5;
+        bool guidedTaken = false;
+        bool guideExhausted = false;
+        if (!coinBsdf) {
+            for (uint attempt = 0u; attempt < 4u; ++attempt) {
+                float qGuide;
+                const float3 guidedDir = pgGuideSample(pgCell, state.seed, qGuide);
+                const float qBsdf = pdfBSDF(surf.mat, surf.wo, guidedDir,
+                    surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
+                const float qMix = 0.5 * qBsdf + 0.5 * qGuide;
+                const float cosG = dot(surf.normal, guidedDir);
+                if (qMix > 0.0 && cosG > 0.0) {
+                    const float3 fG = evalBSDF(surf.mat, surf.wo, guidedDir,
+                        surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
+                    bsdfSample.direction = guidedDir;
+                    bsdfSample.pdf = qMix;
+                    bsdfSample.weight = fG * cosG / qMix;
+                    guidedTaken = true;
+                    break;
+                }
+            }
+            guideExhausted = !guidedTaken; // P ~ P_rej^4 (negligible); keep pure f/qB
+        }
+        if (!guidedTaken && !guideExhausted && bsdfSample.pdf > 0.0) {
+            // BSDF-coin draw: fold the guide density in at the chosen direction so the
+            // pdf FIELD is the true marginal (it flows into lastBsdfPdf / the
+            // reconnection records and must match pgSamplingPdf's re-evaluations).
+            const float qB = pdfBSDF(surf.mat, surf.wo, bsdfSample.direction,
+                surf.normal, surf.T, surf.B, surf.coatN, surf.coatT, surf.coatB, surf.backface);
+            const float qG = pgGuidePdf(pgCell, bsdfSample.direction);
+            const float qMix = 0.5 * qB + 0.5 * qG;
+            if (qMix > 0.0) {
+                bsdfSample.weight *= qB / max(qMix, 1.0e-10);
+                bsdfSample.pdf = qMix;
+            }
+        }
+    }
     if (bsdfSample.pdf <= 0.0 ||
         max(bsdfSample.weight.x, max(bsdfSample.weight.y, bsdfSample.weight.z)) <= 0.0 ||
         !all(isfinite(bsdfSample.weight))) {
