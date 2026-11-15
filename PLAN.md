@@ -96,12 +96,7 @@ the sibling clones.
   corroborated 2026-11-07 — §5.1/§5.6). **Adjudications 2026-11-08:** the guiding
   slot → **GI-PG** (LS4 removed — §5.4/§5.6); **PERF3 is `next`** (ANI1 done
   upstream in Aether — it gates ANI2 → ANI4/ANI5); **PERF3 integrated into
-  Hyperion (2026-11-09 — §5.1/§5.2)**; **DN1: the no-go candidate (RaNAD) struck
-  from the pipeline 2026-11-09** (deep-image/offline method, closed weights;
-  verdict report kept as a tombstone in §5.2). The real-time neural slot stays
-  open — researched landscape recorded in the DN1 row (AMD FSR Ray Regeneration
-  adjudicated out; I3D 2025 joint denoise+upscale tracked paper-tier), DN8/NRD
-  the non-neural fallback. Remaining backlog: none in the performance track (PERF8
+  Hyperion (2026-11-09 — §5.1/§5.2)**. Remaining backlog: none in the performance track (PERF8
   closed 2026-11-15). Vulkan capability
   queue: drained —
   VK19 stay-verdict, VK20/VK22 verified, VK5 shipped (default-on), VK23
@@ -152,16 +147,16 @@ run in parallel across repos):
    investigation; solved at the end if required**; PERF3 extension **removed 2026-11-15** —
    premise absent: no dynamic BLAS (ANI4/ANI5 backlog), 1–16 instances, GPU-driven
    contract vs readback priority loop)
-   → step 5's animation chain (ANI3 + ANI7 done → ANI6/PAR3).
+   → step 5's animation chain (ANI3 + ANI7 + ANI6 done; PAR3 removed - non-AI).
 5. **Animation chain:** ANI3 (motion vectors) **DONE 2026-11-15** (Theia;61/61 + static
    bit-identical + animated end-to-end receipts in the Theia row) → ANI7 (sequence render)
    **DONE 2026-11-15** (shared `--sequence-frames`, pinned output-frame tick, per-frame
    EXR+PNG; receipts in the Hyperion ANI7 row: frame0 == classic capture bit-identical,
-   determinism, 166/166 + 43/43 + 61/61) → ANI6 (gated on PAR3 + ANI7 → next: PAR3);
-   ANI4/ANI5 after their Aether schema lands.
-6. **Stays open by design:** DN1 (watch, no adoptable candidate), DN8 (watchlist),
-   LS1/SAM1/QMC1 (research backlog), VK1/VK9/VK17 (no consumer), watchlists with
-   recorded triggers.
+   determinism, 166/166 + 43/43 + 61/61) → ANI6 (animated parity gate) **DONE 2026-11-15** (PAR3 removed by the non-AI directive;
+   video metric = compare_sequences.py; receipts in the ANI6 row + the section 7 open
+   finding); ANI4/ANI5 after their Aether schema lands.
+6. **Stays open by design:** DN8 (watchlist), SAM1/QMC1 (research backlog),
+   VK17 (no consumer), watchlists with recorded triggers.
 
 ### GI-SMS: shipped - work continues on `main` (2026-11-06)
 
@@ -195,10 +190,8 @@ VK19 verdict: stay-on-descriptor-buffer, VK20 verified with revisit triggers,
 VK22 verified: no Slang surface — probe committed; VK23 rejected under the
 vendor guardrail); the performance
 line has no `next` item — the non-serving performance items are removed (PERF4/PERF5/PERF6/BV4, 2026-11-15; tombstones + the measurements in §5.1, corroborated §5.6),
-the track's live rows are backlog (the PERF3 importance-driven extension);
-the DN track's neural slot (DN1) is **open - no adoptable candidate** after the
-2026-11-09 research pass (DN1 row, §5.2); VK1/VK9 stay dormant until a dense
-cooperative-matmul consumer appears.
+the track's live rows are backlog (none - the PERF3 importance-driven extension was removed 2026-11-15);
+the DN track is non-neural only (owner decision 2026-11-15).
 
 ### Architecture lens - layer assignment
 
@@ -464,22 +457,14 @@ the denoiser is an interactive presentation stage and is **identity for offscree
 (`--output`), for both renderers (§8 guardrails).
 
 That contract is a workaround for a defective filter, not the end state.
-**Replacement candidates for the shipped core:** DN8 (NRD, watchlist — non-neural)
-and the DN1 neural slot (open — see the DN1 row for the researched landscape). The
-presentation-only
-denoiser layer holds **two distinct concerns**, not one:
+**Replacement candidate for the shipped core:** DN8 (NRD, watchlist — non-neural). The
+presentation-only denoiser layer holds **two distinct concerns**, not one:
 
 - **Convergence (DN3).** A provably converging kernel makes the *denoised* image approach the
   true image as samples increase, so the interactive window and the reference stop being two
   different pictures. Fixes the root defect of the fixed-radius à-trous core.
-- **Real-time quality at low spp (DN1).** Theia's games-grade window runs at a few samples per
-  frame before accumulation resolves it; a neural denoiser recovers plausible detail in that
-  regime that a spatial filter cannot. This is a *quality tier for a different operating point*,
-  not a fallback to the converging path — both are identity offscreen (v0.7.4), and neither
-  stands in for the other.
 
-DN3 lands first (it settles the architecture); DN1 layers on top once the converging core
-exists. One direction, sequenced — not two parallel denoiser tracks.
+DN3 is the single tracked direction for the presentation-only denoiser layer - one technique per slot.
 
 | ID | Paper (venue year, DOI) | Relevance | Litmus | Status |
 |----|------------------------|-----------|--------|--------|
@@ -546,54 +531,15 @@ validation-clean); DEN2 offscreen identity unaffected.
   in converging). Harness: Theia replay test or tools receipt script reusing the pass-chain
   driver + `compare_renders.py`; ~1-2 days.
 
-**DN1 layering (after DN3-M3):** a neural denoiser (when the slot gains an adoptable
-candidate) consumes the DN3 architecture as a separate adjudication with its own planning
-spike (the negative-result constraint on the ReSTIR-candidate input channel already applies).
-Planning scope note: the on-device inference stack (weights, cooperative-matrix matmul
-scheduling, activation layout — VK1/VK9) is new engineering - the largest single track in
-the family queue; it stays dormant until a candidate justifies the enablement design.
 
-**DN1-M1 spike tombstone (executed 2026-11-08; candidate removed from the pipeline
-2026-11-09 by owner decision):** RaNAD (Disney, SIG 2026) — NO-GO. Ragged deep-image input
-contract (deep-Z/OID bins for offline compositing) — inapplicable to Theia's flat window;
-no weights/code/data released (three private production datasets, ~1M iterations on an
-A6000-class GPU); the RaNA operator (custom FlashAttention-2-style kernel over ragged bins)
-does not map to VK1's fixed-tile cooperative matmul. Full five-point report in git history
-(commit `7d4514c`). Revisit triggers: deep-EXR output enters the roadmap; Disney releases
-weights/code; a flat-image RaNA variant appears in the literature.
-
-**Slot landscape re-research (2026-11-09, owner directive: replace no-go candidates,
-track only what fits the harnesses — flat screen-space, cross-vendor, released artifacts):**
-
-- **AMD FSR Ray Regeneration (FSR "Redstone" SDK 2.x, Dec 2025)** — adjudicated **out**,
-  the AMD analog of DLSS Ray Reconstruction: ML denoiser requiring **RDNA 4 hardware**
-  (RX 9000-class only), **DX12-only** for the denoiser (the FSR SDK's own known-issues
-  table: "Vulkan is currently not supported for Ray Regeneration"), binaries + limited
-  source. Vendor-proprietary tier with analytical fallback — the whitepaper's
-  feature-tier-and-fallback pattern, never a cross-vendor slot owner (§8).
-- **"Joint Denoising and Upscaling via Multi-branch and Multi-scale Feature Network"**
-  (Kazmierczyk et al., AMD, **I3D 2025**, [GPUOpen article](https://gpuopen.com/learn/neural_supersampling_and_denoising_for_real-time_path_tracing))
-  — the best input-contract fit found: single lightweight multi-branch U-Net, flat 1-spp
-  color + albedo/normal/roughness/depth/specular-hit-distance guides (all present in
-  Theia's G-buffer), temporally accumulated, joint denoise + supersample. **Adopt
-  precondition:** weights/code release (none found as of 2026-11-09) or an explicit
-  local-training decision — tracked paper-tier only, no planning spike until then.
-
-| DN1 | **Real-time neural denoising** — slot for the low-spp interactive window (recovers plausible detail a spatial filter cannot). Presentation-only (identity offscreen per v0.7.4), so it does not touch the parity invariant. **The no-go candidate (RaNAD, Disney SIG 2026) was struck from the pipeline 2026-11-09** (deep-image/offline input contract, closed weights — tombstone above). **Researched landscape (2026-11-09, §5.2 research notes):** AMD FSR Ray Regeneration adjudicated out (RDNA4-only hardware, DX12-only, limited source — vendor-proprietary tier, §8); I3D 2025 joint denoise+upscale (Kazmierczyk et al.) is the best input-contract fit — flat 1-spp + G-buffer guides, temporally accumulated — but ships **no weights/code**: tracked paper-tier, adopt only on release or an explicit local-training decision. Until a candidate qualifies: the interactive path remains DN3 + accumulation, and the tracked fallback is **DN8/NRD**. | bypassable (presentation) | **open · paper-tier candidate (weights unreleased) · fallback DN8/NRD** |
 | ~~DN5~~ | removed 2026-11-06: gradient-domain reconstruction never entered the plan (GI-GD watchlist); the paper reference is dropped with it. | converging | **removed (not used)** |
-| DN8 | **NRD — NVIDIA Real-Time Denoisers** (open-source, MIT, API-agnostic compute — [github.com/NVIDIA-RTX/NRD](https://github.com/NVIDIA-RTX/NRD)); prescribed by the RTXPT performance whitepaper with feature-tier + fallback (2026-11-07 triage, §5.6) | **Replaces (candidate):** the shipped v0.7.4 fixed-radius à-trous core (`denoiser.slang`) with REBLUR/RELAX, beneath DN3's algorithm-agnostic wrapper — DN3 wraps any denoiser, NRD included. **Not a DN1 competitor**: the neural real-time-quality slot stays DN1's (one-slot rule, §5.6); NRD is the non-neural fallback while the neural slot has no adoptable candidate. NVIDIA-authored but open-source + API-agnostic → no vendor-extension violation (§8); still a third-party dependency → explicit dependency call at adoption time. | bypassable (presentation) | watchlist |
+| DN8 | **NRD — NVIDIA Real-Time Denoisers** (open-source, MIT, API-agnostic compute — [github.com/NVIDIA-RTX/NRD](https://github.com/NVIDIA-RTX/NRD)); prescribed by the RTXPT performance whitepaper with feature-tier + fallback (2026-11-07 triage, §5.6) | **Replaces (candidate):** the shipped v0.7.4 fixed-radius à-trous core (`denoiser.slang`) with REBLUR/RELAX, beneath DN3's algorithm-agnostic wrapper — DN3 wraps any denoiser, NRD included. **The non-neural replacement candidate for the shipped filter core. NVIDIA-authored but open-source + API-agnostic → no vendor-extension violation (§8); still a third-party dependency → explicit dependency call at adoption time. | bypassable (presentation) | watchlist |
 
-*Dropped:* DN2 and DN4 were further candidates for the **convergence** slot DN3 owns; DN7
-(Adaptive Fusion Network) was a direct competitor for the **neural real-time** slot DN1 owns;
+*Dropped:* DN2 and DN4 were further candidates for the **convergence** slot DN3 owns;
 DN6 (PatchEX) is TAA-class presentation work with no parity value. One technique per slot.
 *Shipped (v0.7.5):* **DEN2** — the two-tier-contract regression test (offscreen capture
 bit-identical with the denoiser stage on vs off, both renderers).
 
-*Negative result to design against:* feeding a neural denoiser the raw 1-spp ReSTIR initial
-candidates as an extra input does **not** resolve correlation artifacts ("Neural Denoising
-under Correlated Noise from ReSTIR Path Tracing", Aalto MSc thesis 2026,
-[urn](https://aaltodoc.aalto.fi/items/03b862af-bd57-4c2e-afb0-5d39c5d5f0b9)) — DN1 should not
-budget for that input channel.
 
 ### 5.3 Interactivity track (I)
 
@@ -614,10 +560,9 @@ IS/QMC) → safe on the path to Hyperion.
 
 | ID | Paper (venue year, DOI) | Relevance to Theia↔Hyperion | Litmus | Status |
 |----|-------------------------|-----------------------------|--------|--------|
-| LS1 | **Neural Importance Sampling of Many Lights** (Figueiredo, He, Bako, Kalantari — SIG 2025, [doi:10.1145/3721238.3730754](https://doi.org/10.1145/3721238.3730754)) | Learned per-point light selection for the light-selection slot ReSTIR DI occupies today; only after GI-SMS, since ReSTIR PT owns that slot (§5.5). | converging | backlog |
 | SAM1 | **MARS — Multi-sample Allocation via RR & Splitting** (Meyer, Rath, Yazici, Slusallek — SIGA 2024, [doi:10.1145/3680528.3687636](https://doi.org/10.1145/3680528.3687636)) | Fixed-point per-technique sample allocation; optimizes MIS efficiency of the shared integrator. | converging | backlog |
 | QMC1 | **SZ Sequences — binary-based (0,2^q)-sequences** (Ahmed, Pharr, Ostromoukhov, Huang — 2025, [arXiv:2505.20434](https://arxiv.org/abs/2505.20434)) | Drop-in Sobol' replacement, bitwise matrices, up to ~1.93× error reduction. Both consistent → only variance changes. **One sequence ships**: measure SZ on our scenes, then either replace Owen-Sobol' outright or close the item — never carry both. | converging | backlog |
-| ~~LS4~~ | removed 2026-11-08: the guiding slot was adjudicated to GI-PG (§5.5) — reservoir-native guiding extends the GI-ENH-upgraded machinery with no new inference dependencies; the neural distribution-factorization approach would duplicate the slot with a second framework. Paper reference dropped with the decision. | converging | **removed (not used)** |
+| ~~LS4~~ | removed 2026-11-08: the guiding slot was adjudicated to GI-PG (§5.5) — reservoir-native guiding extends the GI-ENH-upgraded machinery with no new inference dependencies. Paper reference dropped with the decision. | converging | **removed (not used)** |
 
 ### 5.5 Global illumination track (GI) — ReSTIR ecosystem
 
@@ -1027,10 +972,9 @@ Any irreducible bias is rejected from the converging path (presentation-only at 
 
 **One slot, one technique.** Where several papers target the same slot, exactly one is tracked
 and the others are dropped — no parallel candidates, no opt-in alternates, no low-end tiers.
-A "slot" is an operating regime, not a component: the denoiser layer has two distinct regimes
-(convergence vs low-spp real-time quality) and so carries two techniques, DN3 and DN1 — they
-do not compete. Current slot assignments: caustics → **GI-SMS** (not GI-BDPT); denoiser
-convergence → **DN3** (not DN2 / DN4); denoiser real-time quality → **DN1** (not DN7);
+A "slot" is an operating regime, not a component.
+Current slot assignments: caustics → **GI-SMS** (not GI-BDPT); denoiser
+convergence → **DN3** (not DN2 / DN4);
 multi-bounce Smith → **C4** (not C10); guiding → **GI-PG** (adjudicated 2026-11-08 —
 reservoir-native, extends the GI-ENH-upgraded machinery, no new inference dependencies;
 LS4 removed, §5.4); LDS → one of Owen-Sobol' / SZ after measurement (QMC1).
@@ -1039,9 +983,7 @@ LS4 removed, §5.4); LDS → one of Owen-Sobol' / SZ after measurement (QMC1).
 
 - *ReSTIR DI vs ReSTIR PT* — mutually exclusive; PT **absorbs** DI into the unified reservoir.
   Don't run both (enforced in code: `useRestirDi = m_useRestirDi && !m_useRestirPt`).
-- *Neural GI proxies* (Vertex-Features neural GI, NeLiF, learned light-transport embeddings,
-  Gaussian-radiance-field reflections) → **REJECT.** Irreducible bias, diverges from Hyperion.
-  Not as a low-end tier, not opt-in, not labelled — rejected outright.
+- *Neural/AI techniques of any kind* - **permanently excluded** (owner decision 2026-11-15, section 8 guardrails; do not re-triage): irreducible bias risk and divergence from Hyperion - not as a low-end tier, not opt-in, not labelled.
 - *Denoiser paradigm* — **the denoiser is a presentation stage and is identity for offscreen
   capture** (shipped v0.7.4; guardrail in §8). A-SVGF is *not* converging — fixed pixel
   radius. The tracked fix is DN3 (converging kernel), gated by DEN2 ✓ (regression test,
@@ -1049,8 +991,7 @@ LS4 removed, §5.4); LDS → one of Owen-Sobol' / SZ after measurement (QMC1).
   "vanish-at-convergence" test.
 - *Low-discrepancy sequences* — Owen-scrambled Sobol' is the incumbent; SZ (QMC1) is measured
   and then either replaces it or is closed. The shared library carries exactly one sequence.
-- *Cross-vendor re-implementation* — NVIDIA-authored techniques (ReSTIR PG/SMS, neural
-  many-light) ship CUDA/TensorRT reference impls; re-target to **Vulkan compute shaders +
+- *Cross-vendor re-implementation* — NVIDIA-authored techniques (ReSTIR PG/SMS and other NVIDIA-authored techniques) ship CUDA/TensorRT reference impls; re-target to **Vulkan compute shaders +
   ray_query only** (no NV/AMD/INTEL extensions, no CUDA). Treat their code as algorithm
   reference, never a dependency.
 
@@ -1079,8 +1020,7 @@ design document for the PERF3 row) and the **DN3 (§5.2) bias philosophy matches
 verbatim** ("bias as a performance tool": the goal is not to eliminate bias; make it stable,
 predictable, artist-controllable, and validate biased techniques against a slower reference).
 **New candidates it spawns** — **triaged same day (2026-11-07)** into the track tables:
-GI-RGIR + GI-NRC (§5.5), PERF8 + a PERF3 scope extension (§5.1), DN8 (§5.2 watchlist —
-DN1 keeps the neural slot, one-slot rule), VK23 (§5.8):
+GI-RGIR + GI-NRC (§5.5), PERF8 + a PERF3 scope extension (§5.1), DN8 (§5.2 watchlist), VK23 (§5.8):
 
 | Candidate | Track | Note |
 |-----------|-------|------|
@@ -1088,7 +1028,7 @@ DN1 keeps the neural slot, one-slot rule), VK23 (§5.8):
 | **World-space radiance cache** (SHaRC/NRC-style) → ~~**GI-NRC**~~ (§5.5, **done 2026-11-15**) | GI | Flagged as "one of the strongest tools for making multi-bounce lighting practical". **Landed (non-neural SHaRC variant, real-time tier)** — the dormant VK1/VK9 inference stack was not needed; full record + receipts in the §5.5 row. |
 | **Material LOD by ray class** (whitepaper §7) → **PERF8** (§5.1, **done 2026-11-15**) | Quality/perf | Full material for primary/near-specular, reduced BRDF + conservative MIPs for diffuse-secondary, opacity-only for visibility. Landed with the mip-chain/maxLod dependency (receipts in the §5.1 row). |
 | **Importance-driven AS updates** → **PERF3 scope extension** (§5.1) | PERF3 extension | GPU hit counters → priority queue for dynamic-BLAS updates — folded into PERF3's row (beyond its original refit-vs-rebuild/compaction scope). |
-| **NRD integration** → **DN8** (§5.2, watchlist) | DN | NVIDIA's open-source, API-agnostic denoising library — cross-vendor-compliant. Tracked as a core-replacement candidate beneath DN3, explicitly **not** a DN1 competitor (the neural real-time-quality slot stays DN1's, one-slot rule). Contrast: DLSS Ray Reconstruction is NVIDIA-proprietary — a vendor-guardrail violation, never trackable; the whitepaper itself prescribes feature-tier + fallback. |
+| **NRD integration** → **DN8** (§5.2, watchlist) | DN | NVIDIA's open-source, API-agnostic denoising library — cross-vendor-compliant. Tracked as a core-replacement candidate beneath DN3, Contrast: DLSS Ray Reconstruction is NVIDIA-proprietary — a vendor-guardrail violation, never trackable; the whitepaper itself prescribes feature-tier + fallback. |
 | **NVIDIA Ray Tracing Validation for Vulkan** (driver-level) → **VK23** (§5.8 — **rejected**) | VAL | It is the `VK_NV_ray_tracing_validation` **vendor extension** — excluded by the §8 cross-vendor guardrail (would have been the first `VK_NV_*` in the codebase); verdict + revisit triggers recorded in §5.8. Would have sharpened VAL1's RT coverage (SBT/AS/OMM checks the Khronos layer misses). |
 
 Directly actionable follow-ups from the same source:
@@ -1115,8 +1055,6 @@ indict the estimator. (Akin to the low-spp reference trap, Aether/AGENTS.md.)
 
 | ID | Task | Status |
 |----|------|--------|
-| PAR2 | **MILO** lightweight perceptual metric for image/latent optimization (Cogalan et al. - TOG/SIG 2025, [doi:10.1145/3763340](https://doi.org/10.1145/3763340)) - cheap full-reference metric to drive Theia-vs-Hyperion loss/tuning. **2026-11-15 triage:** released upstream (github.com/ugurcogalan06/MILO) but it is a learned multiscale CNN - adopting means adding a torch-class dependency + weights to the tools lane (current sanctioned set: stdlib/numpy/OpenEXR/imageio), so it is **blocked on the owner's dependency decision**; revisit on (a) a dependency sanction or (b) a distilled lightweight reimplementation, and only ever as an optional/offline tuner, never a blocking gate. | **blocked (dependency decision)** |
-| PAR3 | **CGVQM+D** CG video-quality metric + dataset (Jindal, Sadaka, Thomas, Sochenov, Kaplanyan — CGF/EG 2025, [doi:10.1111/cgf.70221](https://doi.org/10.1111/cgf.70221)) — first CG-specific *video* metric; required by ANI6 (animated parity), so it lands with the animation track. | backlog |
 | PAR1 | **tone-map-aware perceptual metric** (SIG 2026, "Adapting Quality Metrics to Tone Mapping") - alongside SSIM/FLIP for the AgX/ACES gate. Owns the tone-mapping-QA slot; PAR6 (Jiang et al., IEEE TMM 2025) was the duplicate candidate and is dropped. **DONE 2026-11-15:** the tone-mapped metric layer landed in `tools/compare_renders.py` - `--tonemap {aces,agx}` selects the operator for the display-referred evaluation (AgX ported byte-faithful from `tonemap.slang`: matrices/S-curve identical, Rec.2020→Rec.709 through the existing composed chain), SSIM + `tm_mean_diff` + `tm_PSNR` evaluate the image the display pipeline would show, and `--tm-mean-threshold` ANDs the tone-mapped mean into the strict `all` gate (opt-in; default gate behavior unchanged). Receipts: `tools/test_compare_metrics.py` (19 checks: identical→0/1, monotonicity, AgX range/ramp/distinctness, gate hook on/off, mask path) registered as ctest `test_compare_metrics` (label analysis) + e2e smokes on real captures (self-compare PASS; AgX-gate pair: SSIM 0.999636 agx+sRGB, tm_mean_diff 0.053 gated PASS). | **done** |
 | PAR4 | Perceptual-uniformity error metric for HDR colour spaces (Azimi, Kim, Finlayson, Mantiuk - EI/HVEI 2026, [doi:10.2352/ei.2026.38.10.hvei-237](https://doi.org/10.2352/ei.2026.38.10.hvei-237)); complements HDR-FLIP. **DONE 2026-11-15 (core):** implemented in `tools/compare_renders.py` as per-pixel Euclidean distance in **BT.2100 ICtCp** (standard constants throughout: BT.2087 Rec.2020→XYZ, BT.2100 XYZ→LMS→ICtCp, ST 2084 PQ encode; documented convention 1.0 scene-linear = 10000 nits; identical pairs are exactly 0) - reported as `ictec_dE` mean/max on every run. The row's function (perceptual-uniformity error over HDR) ships with standard, documented math; swap in the paper's specific weighting verbatim if it differs when needed. Receipts: `test_compare_metrics.py` (identical→0, monotone in deviation, finite at 50-55 HDR, mask path). | **done (core)** |
 
@@ -1130,7 +1068,7 @@ RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Driver 621.14 re-audit (2
 re-verified present, the cross-vendor guardrail exclusions unchanged (KHR forms of clusters /
 linear-swept-spheres / cooperative-vector / ray-tracing-maintenance2 all still absent). Runtime
 revalidation on 621.14: all three suites green (Harmonia 153/153, Theia 61/61, Hyperion 75/75),
-smoke capture zero validation messages. Every row below is verified **present** on this GPU: VK1 (incl. `shaderBFloat16CooperativeMatrix` + `shaderFloat8CooperativeMatrix`), VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), VK9 (float16 + bfloat16 + float8), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
+smoke capture zero validation messages. Every row below is verified **present** on this GPU: VK4 (rotate + rotateClustered + maximal_reconvergence), VK5 (pipeline binaries + internal cache/compression), VK7 (+ `descriptorBufferCaptureReplay` -- the MOD1 blocker is VMA-side only, not hardware), and the adopted VK2/VK6/VK8/VK10. All entries are core / `KHR` / `EXT` → compliant
 with the cross-vendor guardrail (§8). They follow the established **probe→enable** pattern in
 `Context.cpp` (cf. `serSupported` / `dgcSupported` /
 `positionFetchSupported` / `meshShaderSupported`): each is *optional* and engaged only when
@@ -1168,19 +1106,13 @@ but excluded by the cross-vendor guardrail (§8): `VK_NV_cluster_acceleration_st
 `VK_NV_low_latency2`, `VK_NV_present_metering`, `VK_NV_cooperative_vector`,
 `VK_NV_cuda_kernel_launch`. **First action before any adoption:** rebuild all three repos
 with the SDK's slang 2026.17 and run the full test suites — a compiler change is a
-revalidation event, not a free upgrade. New capability detail from the 621.14 audit:
-`VK_EXT_cooperative_matrix_maintenance1` reports all extras **true** (`cooperativeMatrixReductions`,
-`Conversions`, `PerElementOperations`, `GetCoordinate` — neural-network inference primitives
-beyond plain matmul) — strengthens the VK1 basis for a future on-device inference consumer
-(VK1 currently has none)
+revalidation event, not a free upgrade. 
 
 | ID | Capability (verified present) | Enables | Track | Status |
 |----|------------------------------|---------|-------|--------|
 | VK4 | `VK_KHR_shader_subgroup_rotate` + `VK_KHR_shader_maximal_reconvergence` + `VK_KHR_shader_subgroup_uniform_control_flow` + `VK_KHR_shader_quad_control` (subgroupSize 32; RT + compute stages) | Warp-coherent reductions/rotations for **ReSTIR reservoir merging & compaction** → faster spatial reuse; maximal reconvergence guarantees a converged wavefront for the path integrator. **ADOPTED (2026-11-06):** all four probed→enabled (rotate rides `VkPhysicalDeviceVulkan14Features` — promoted; the standalone KHR struct must not appear next to Vulkan14Features in the device chain, VUID-pNext-10360). Micro-benchmark receipt (`tests/component/test_subgroup_bench.cpp`, 4 194 304 elements / 64 iterations, ~1/3 non-zero): atomic-compaction 1.0235 ms/iter vs subgroup-prefix compaction 0.9874 ms/iter, both arms validated as exact multisets — and the bench documents the 10e design insight: per-workgroup base reservation is scheduling-ordered, so bit-identical compaction needs the device-wide hierarchical scan the PERF5 10e persistent-wavefront structure provides. **Exploitation: the 10e live-count consumer was removed with PERF5 (2026-11-15) - subgroup use stays at the shipped reservoir-merge/bench sites.** Known gap: Slang 2026.17 exposes no rotate intrinsic (only WaveActive/WavePrefix/WaveReadLane families) — rotate-specific exploitation waits for slang support. | GI, PERF | **adopted - exploitation dormant (10e consumer removed)** |
 | VK5 | `VK_KHR_pipeline_binary` | Serialized/faster PSO creation — cuts cold start (first cold compile measured **90.745 ms** for one small compute pipeline; **~0.1 ms** from its captured binary) and enables cross-session pipeline reuse. Theia's surface: **9 pipeline-creation sites** (3 graphics in ForwardRendererPipelines — opaque/transparent/sky — plus 6 compute: GiPass, GpuCullPass, LightCuller, Hi-Z, motion vectors, TAA) | PERF, CH | **shipped (opt-in, 2026-11-07)** — the 2026-11-06 "driver defect" verdict was **withdrawn**: its spike code never landed (evidence not reproducible), and a from-scratch spec-faithful probe re-ran both paths clean on the same driver 621.14 (receipts: `tests/component/test_pipeline_binary_probe.cpp` — capture 0.005–0.034 ms/blob, consume dispatch-verified, global key 8 B). **Adoption:** `core::PipelineBinaryCache` (driver-key identity — no app-side hashing; global-key cache validity — **a driver update changes the global key ⇒ every cached blob invalid ⇒ all pipelines re-captured on the new driver's first run**, per spec + Khronos blog), wired through the `DeviceContext::pipelineBinaryCache` hook into the 4 shared-pass creation sites (AccumulationPass, SmsPass, SceneOutputCopyPass, ToneMapper) — 1:1 for both renderers; **default ON** at `<exe-dir>/pipeline-cache` (deterministic across launch CWDs, per-renderer separation for free); `HARMONIA_PIPELINE_BINARY_CACHE` overrides the directory, `off`/`0` disables (v0.7.23 shipped it opt-in; default-on landed on `main` — smoke receipts: warm hits, disable switch, cold re-capture). Receipts: `tests/component/test_pipeline_binary_cache.cpp` (capture → persist → fresh-instance reload → consume → global-key prune, dispatch-verified in every phase); component 58/58 + integration 21/21 with the extension enabled. **Open follow-ups:** Theia's 9 renderer-owned creation sites — **wired** (Theia v0.8.4; gallery receipts there), RT pipeline capture — **spiked + bypassed** (degenerate key + import failure on driver 621.14; guard above; revisit when drivers ship usable RT keys), `.spv` hot-reload acceleration. | ~~blocked~~ **shipped (default-on on `main`) · follow-ups recorded** |
 | VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **SHIPPED** (MOD1): all descriptor pools deleted, `DescriptorBufferWriter` shared helper. | PERF, CH | ~~backlog · blocked~~ **shipped** |
-| VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path a neural-denoiser/inference consumer would need. The former DN1 candidate (RaNAD) was adjudicated no-go (2026-11-08, M1 spike) and struck from the pipeline (2026-11-09); the slot's current paper-tier candidate does not require it. Dormant until a dense cooperative-matmul consumer appears. | DN | backlog — **no consumer** |
-| VK9 | Reduced precision — `shaderFloat16` / `shaderBFloat16` / `shaderFloat8` | FP16/BF16/FP8 compute; the former DN1 consumer (with VK1) was adjudicated no-go (2026-11-08) and struck from the pipeline; dormant until a reduced-precision consumer appears | DN, PERF | watchlist — **no consumer** |
 | VK12 | `VK_KHR_present_id2` + `VK_KHR_present_wait2` | present-pacing v2 (supersedes the VK6 v1 pair — richer per-present timing/latency control for the interactive window); adoption = **MOD6** (drop v1) | I, PERF | ~~watchlist~~ **shipped (via MOD6 — the v1 pair is dropped)** |
 | VK13 | ~~`VK_KHR_maintenance7`–`maintenance11`~~ | **Triaged: no actionable features** — these are spec clarifications and minor struct additions (layered rendering, depth/stencil clarifications, sync edge cases); nothing our codebase uses or benefits from. | CH | ~~watchlist~~ **closed** |
 | VK14 | ~~`VK_KHR_robustness2` (`robustBufferAccess2` + `nullDescriptor`) + `VK_KHR_compute_shader_derivatives`~~ | **SHIPPED**: `nullDescriptor` enabled (hard-required) — all dummy resources DELETED (GiPass gradient/motion images, ForwardRenderer env + tile-light buffers). `robustBufferAccess2/ImageAccess2` deliberately NOT enabled (perf cost). Compute derivatives NOT adopted (not used yet). | PERF, CH | ~~watchlist~~ **shipped** |
@@ -1252,7 +1184,7 @@ the estimator. (The schema slices are tracked in `Aether/PLAN.md`; render-loop w
 | ANI2 | **Per-frame TLAS refit** - when Aether emits world-transform updates (animated scenes), refit/rebuild the TLAS each frame. The update arrives as plain world transforms; refit-vs-rebuild is the renderer's internal optimization choice. **Seam shipped (2026-11-09, with PERF3):** the shared machinery lives in `harmonia::scene_rt::updateTlas` (refit when update-capable, periodic full rebuild) + the loader-recorded sceneInstance->descInstance mapping (`SceneBase::attachAnimation`/`setAnimationTime`). **DONE 2026-11-15 — both consumers:** Hyperion (`Application::record` tick + accumulation reset) and Theia (`finishBuild` with `allowUpdate = hasAnimation()`, `Scene::updateTlas`, per-frame tick + `resetAccumulation()`; receipts `Theia/tests/module/test_scene_anim.cpp`, module suite 60/60). Caveats tracked elsewhere: TAA/motion-vector correctness under animation = ANI3 (done 2026-11-15); animated sequence output = ANI7 (done 2026-11-15). | ANI1 (Aether evaluation API), PERF3 | **done** |
 | ANI4 | **Skinning (LBS/DQS)** — bone hierarchy + per-vertex bone weights; blend-skinning for articulated characters. The data schema and the CPU evaluation reference live in Aether (same directive); the GPU vertex deformation is BLAS-level update (beyond ANI2) and stays renderer-side. | ANI1, ANI2 | backlog |
 | ANI5 | **Morph targets / blendshapes** — interpolate between vertex sets (facial animation, shape keys). Schema + CPU evaluation reference in Aether; GPU deformation renderer-side (BLAS-level update). | ANI2 | backlog |
-| ANI6 | **Animated parity gate** — extend the metric set to sequences. Needs the still-image gate (PAR0) and the video metric (PAR3). | PAR0, PAR3, ANI7 | backlog |
+| ANI6 | **Animated parity gate** - extend the metric set to sequences. **DONE 2026-11-15 (non-AI):** PAR3 was removed by the owner's non-AI directive (CGVQM is a pretrained-network score), so the video metric is the sanctioned PAR0 set extended over time - `tools/compare_sequences.py` gates EVERY frame pair with the strict-AND still set (thresholds mirrored from compare_renders by `make_gate_args`) and adds the temporal layer: per-metric mean / worst-frame + index, first->last drift; the sequence gate is a strict AND across frames; pairing uses ANI7's trailing frame index (count/index mismatch = error, never zip-truncated). Receipts: ctest `test_compare_sequences` (21 checks: pairing, aggregates, strict-AND, threshold mirror, failing-subset oracle) + ruff clean; `failed_gate_labels` added to compare_renders as a behavior-preserving refactor (test_compare_metrics still ALL PASS); self-compare PASS (0.000 / 1.000); first animated parity numbers at matched 256/256 over a 4-frame animated cornell sequence: mean 2.29 / rel-mse 0.0032 / hist 0.9999 PASS, SSIM 0.886-0.914 FAIL - with the static control equal to animated frame 0 bit-for-bit, so the SSIM level belongs to the STILL gate (see the section 7 open finding: characterized variance, not bias). | PAR0, ANI7 | **done** |
 
 (ANI1 schema + evaluation API: `Aether/PLAN.md`. ANI3 object motion vectors: `Theia/PLAN.md`. ANI7 render sequence to disk: `Hyperion/PLAN.md`.)
 ### 6.3 Bounding volume track (BV) — Harmonia slice
@@ -1295,7 +1227,11 @@ AND across the metric set (PAR0); the `compare_renders.py --gate scale-aware` (a
 relative+PSNR) path remains the sanctioned looser gate for HDR transmissive fixtures
 (`Theia/README.md` gate policy).
 
-**Bias vs noise — the real question.** Theia is a *consistent* estimator of Hyperion iff
+**Metric policy (owner decision, 2026-11-15 - final):** non-AI techniques only in this avenue. Learned/neural quality metrics are permanently excluded (CGVQM's pretrained backbone, MILO's CNN, LPIPS) - their rows are removed and the decision is **not to be revisited**; the sequence/animated gate (ANI6) uses this same metric set extended over time (`tools/compare_sequences.py`).
+
+**Open finding (2026-11-15, discovered by the ANI6 receipts):** fresh-render manifest runs FAIL the SSIM threshold on the tested scenes (cornell_textured_cube 0.914, cornell_classic 0.828 at 256/256; mean/rel-mse/hist pass) - characterized **variance, not bias** by the method below (4x budget: mean ratio 0.552 ~ 1/sqrt(4), SSIM 0.828 -> 0.936), animation-independent (the static control equals animated frame 0 bit-for-bit; ANI3/ANI7 exonerated by their bit-identical receipts), reproduced through `validate_renders.py` itself. Likely cumulative Theia-side variance drift since the PAR0 calibration (recent estimator receipts were Theia-vs-Theia). Fix path = the sanctioned GI-ENH variance work, never threshold re-tuning (section 8).
+
+**Bias vs noise - the real question.** Theia is a *consistent* estimator of Hyperion iff
 Theia@∞frames → Hyperion@∞spp. Method: (1) confirm consistency (Theia N vs 4N diff → 0);
 (2) whatever remains at convergence is **bias** — root-caused in code, never tuned away.
 
@@ -1318,7 +1254,7 @@ barrier) — the bias-vs-noise method can debug against byte-stable references.
 
 **Gold-standard perceptual (optional, heavyweight):** HDR-FLIP (Andersson et al. 2020, HDR
 ext. 2021) — JND-based pair metric for HDR; pull in when the cheap set flags disagreement with
-the eye. (LPIPS is the neural alternative but needs a model.)
+the eye.
 
 Refs: Wang et al. 2004 (SSIM); Andersson et al. 2020 (FLIP); Huynh-Thu & Ghanbari 2008 (scope
 of PSNR).
@@ -1384,7 +1320,8 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   axis. The DI reservoir's temporal merge carries the same latent bias, invisible on
   light-tailed direct lighting. The only sanctioned route back to temporal memory is the
   unbiased GRIS pairwise-MIS form tracked in `Theia/PLAN.md` (*ReSTIR-PT refinements*).
-- **Do not hack to the goal** — root-cause fixes, not tuned thresholds.
+- **Non-AI techniques only - final, do not revisit (owner decision 2026-11-15):** no neural/learned/AI technique anywhere in this family (quality metrics, denoising, sampling, GI, inference). The previously triaged candidates (CGVQM, MILO, LPIPS, the DN1 neural slot, LS1, and the VK1/VK9 inference rationale) are removed from this plan - do not re-open or re-triage them.
+- **Do not hack to the goal** - root-cause fixes, not tuned thresholds.
 - **Fix bugs at once.** A bug found is root-caused and patched immediately. If an
   immediate fix is genuinely impossible (blocked behind a refactor, upstream change, or
   not-yet-understood cause), log it in the PLAN.md of the repo that carries the work, with a
@@ -1637,8 +1574,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
   estimator purity — Theia Baseline); §7 gains the vision look-and-feel review and the
   capture-purity note. **Research triage refresh (SIG/I3D/HPG 2026):** GI-ENH (ReSTIR PT
   Enhanced, I3D 2026 Best Paper) added as global next-up #10; C15 (OpenPBR 1.2 switch-over
-  delta table) tracked for the release event; GI-CV promoted to backlog; DN1 annotated with
-  the correlated-noise negative result; GI-LOD's citation recorded (stays dropped).
+  delta table) tracked for the release event; GI-CV promoted to backlog; GI-LOD's citation recorded (stays dropped).
   **Tooling**: presets, `tools/check_tidy.py` + ctest `test_tidy`,
   `HARMONIA_SANITIZER`, deterministic host FP. 89 ctest green (incl. the tidy lane);
   validation-clean headless on the 14-scene manifest set.

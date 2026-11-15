@@ -536,6 +536,12 @@ if(PROJECT_IS_TOP_LEVEL)
         add_test(NAME test_compare_metrics
                  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_compare_metrics.py)
         set_tests_properties(test_compare_metrics PROPERTIES LABELS analysis RUN_SERIAL TRUE)
+        # ANI6 sequence-gate receipts (CPU-only, no GPU): frame pairing, temporal
+        # aggregates, strict-AND-across-frames and the PAR0 threshold mirror in
+        # compare_sequences.py (the non-AI video metric - PLAN PAR3/ANI6).
+        add_test(NAME test_compare_sequences
+                 COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_compare_sequences.py)
+        set_tests_properties(test_compare_sequences PROPERTIES LABELS analysis RUN_SERIAL TRUE)
     endif()
 endif()
 

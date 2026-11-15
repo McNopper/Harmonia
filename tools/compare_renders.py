@@ -697,44 +697,40 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray,
     }
 
 
+def all_gate_checks(metrics: dict, args: argparse.Namespace) -> list[tuple[bool, str]]:
+    """(passed, label) for every ACTIVE check of the strict 'all' gate (PLAN §7).
+    Shared by evaluate_gate (AND over the pairs) and failed_gate_labels (the failing
+    subset only), so a partial failure reports exactly the checks that failed."""
+    pairs = [
+        (metrics["mean_diff"] <= args.threshold, f"mean_diff <= {args.threshold}"),
+        (metrics["rel_mse"] <= args.rel_mse_threshold, f"rel_mse <= {args.rel_mse_threshold}"),
+        (metrics["ssim"] >= args.ssim_threshold, f"SSIM >= {args.ssim_threshold}"),
+        (metrics["lum_hist_corr"] >= args.lum_hist_threshold,
+         f"lum_hist_corr >= {args.lum_hist_threshold}"),
+    ]
+    if args.psnr_threshold is not None:
+        pairs.append((metrics["psnr"] >= args.psnr_threshold,
+                      f"PSNR >= {args.psnr_threshold} dB"))
+    if args.relative_threshold is not None:
+        pairs.append((metrics["rel_mean_pct"] <= args.relative_threshold,
+                      f"rel_mean_% <= {args.relative_threshold}%"))
+    if getattr(args, "tm_mean_threshold", None) is not None:
+        pairs.append((metrics["tm_mean_diff"] <= args.tm_mean_threshold,
+                      f"tm_mean_diff <= {args.tm_mean_threshold} ({args.tonemap})"))
+    return pairs
+
+
 def evaluate_gate(metrics: dict, args: argparse.Namespace) -> tuple[bool, list[str]]:
     mean_ok = metrics["mean_diff"] <= args.threshold
-    rel_mse_ok = metrics["rel_mse"] <= args.rel_mse_threshold
-    ssim_ok = metrics["ssim"] >= args.ssim_threshold
-    hist_ok = metrics["lum_hist_corr"] >= args.lum_hist_threshold
     psnr_ok = (args.psnr_threshold is not None) and (metrics["psnr"] >= args.psnr_threshold)
     relative_ok = (args.relative_threshold is not None) and (metrics["rel_mean_pct"] <= args.relative_threshold)
-    # PAR1 opt-in: tone-mapped mean-diff under the selected tonemapper, ANDed
-    # into 'all' only when explicitly thresholded (same contract as PSNR).
-    tm_mean_ok = (getattr(args, "tm_mean_threshold", None) is None) or \
-        (metrics["tm_mean_diff"] <= args.tm_mean_threshold)
 
     if args.gate == "all":
         # Strict AND of all declared §7 metrics (PLAN.md §7: "all of them,
         # never one alone"). PSNR / rel_mean_% are ANDed in only when explicitly
         # requested via --psnr-threshold / --relative-threshold (opt-in extras).
-        checks = [
-            mean_ok,
-            rel_mse_ok,
-            ssim_ok,
-            hist_ok,
-        ]
-        labels = [
-            f"mean_diff <= {args.threshold}",
-            f"rel_mse <= {args.rel_mse_threshold}",
-            f"SSIM >= {args.ssim_threshold}",
-            f"lum_hist_corr >= {args.lum_hist_threshold}",
-        ]
-        if args.psnr_threshold is not None:
-            checks.append(psnr_ok)
-            labels.append(f"PSNR >= {args.psnr_threshold} dB")
-        if args.relative_threshold is not None:
-            checks.append(relative_ok)
-            labels.append(f"rel_mean_% <= {args.relative_threshold}%")
-        if getattr(args, "tm_mean_threshold", None) is not None:
-            checks.append(tm_mean_ok)
-            labels.append(f"tm_mean_diff <= {args.tm_mean_threshold} ({args.tonemap})")
-        return all(checks), labels
+        pairs = all_gate_checks(metrics, args)
+        return all(ok for ok, _ in pairs), [label for _, label in pairs]
     if args.gate == "mean":
         return mean_ok, [f"mean_diff <= {args.threshold}"]
     if args.gate == "psnr":
@@ -770,6 +766,16 @@ def evaluate_gate(metrics: dict, args: argparse.Namespace) -> tuple[bool, list[s
         return mean_ok or relative_psnr_pass, labels
 
     sys.exit(f"ERROR: unknown gate mode '{args.gate}'")
+
+
+def failed_gate_labels(metrics: dict, args: argparse.Namespace) -> list[str]:
+    """Labels of the checks that FAILED (empty when the gate passes). 'all' mode
+    reports only the failing subset; OR-semantics modes list every branch label on
+    failure (all of them failed for 'any'; both branch conditions for 'scale-aware')."""
+    if args.gate == "all":
+        return [label for ok, label in all_gate_checks(metrics, args) if not ok]
+    passed, labels = evaluate_gate(metrics, args)
+    return [] if passed else labels
 
 
 # ── Heatmap ───────────────────────────────────────────────────────────────────
