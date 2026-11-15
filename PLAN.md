@@ -92,7 +92,7 @@ the sibling clones.
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
   suite needs a GPU).
 - **Next:** the capability track and the SMS item are closed (see section 3 and
-  §5.8); **PERF5/PERF4 are measured-parked** (2026-11-06 verdicts, externally
+  §5.8); **PERF4/PERF5/PERF6/BV4 removed from the roadmap 2026-11-15** (measured does-not-pay / out-of-purpose - tombstones in section 5.1; probe kept as the revisit tool; the measurement itself was externally
   corroborated 2026-11-07 — §5.1/§5.6). **Adjudications 2026-11-08:** the guiding
   slot → **GI-PG** (LS4 removed — §5.4/§5.6); **PERF3 is `next`** (ANI1 done
   upstream in Aether — it gates ANI2 → ANI4/ANI5); **PERF3 integrated into
@@ -101,7 +101,7 @@ the sibling clones.
   verdict report kept as a tombstone in §5.2). The real-time neural slot stays
   open — researched landscape recorded in the DN1 row (AMD FSR Ray Regeneration
   adjudicated out; I3D 2025 joint denoise+upscale tracked paper-tier), DN8/NRD
-  the non-neural fallback. Remaining backlog: PERF6, PERF8. Vulkan capability
+  the non-neural fallback. Remaining backlog: PERF8. Vulkan capability
   queue: drained —
   VK19 stay-verdict, VK20/VK22 verified, VK5 shipped (default-on), VK23
   rejected (§5.8).
@@ -121,6 +121,29 @@ the sibling clones.
 ---
 
 ## 3. How to continue
+
+### Roadmap execution order (dependency-reviewed 2026-11-15)
+
+Removals first, then CPU-only closures, then GPU items serially (GPU receipts never
+run in parallel across repos):
+
+1. **Removed (out of purpose / measured does-not-pay):** PERF6 (RAFI — single-GPU
+   harnesses, no multi-node infrastructure), BV4 (dead dependent of the reverted
+   wavefront), PERF4/PERF5 (measured uneconomical for Theia's real-time purpose;
+   probes + PassTimer + the salvage function stay as measurement/receipt tooling).
+2. **CPU closures:** SM6-Hyperion (slang-math trig mirror sites) → CH-T1 verdict
+   (renderer-split review) → MOD4-Theia report (Harmonia fence/release landed).
+3. **Shared CPU tooling:** PAR1/PAR2/PAR4 (tone-map-aware + perceptual metrics into
+   the compare_renders gate) — precedes any parity-gated work.
+4. **GPU, serial:** ANI2-Theia half (machinery already shipped — 3-line integration)
+   → GI-ENH hybrid-shift gap 1 (prefix-replay invertibility, the bias suspect) →
+   GI-CG (upstream code) → PERF8 → GI-CV → GI-RGIR/GI-NRC/GI-PG → the PERF3
+   importance-driven extension.
+5. **Animation chain:** ANI3 (motion vectors) → ANI7 (Hyperion sequence render) →
+   ANI6 (gated on PAR3 + ANI7); ANI4/ANI5 after their Aether schema lands.
+6. **Stays open by design:** DN1 (watch, no adoptable candidate), DN8 (watchlist),
+   LS1/SAM1/QMC1 (research backlog), VK1/VK9/VK17 (no consumer), watchlists with
+   recorded triggers.
 
 ### GI-SMS: shipped - work continues on `main` (2026-11-06)
 
@@ -153,8 +176,8 @@ micro-benchmark, VK5 blocked-by-driver-defect with a recorded revival protocol,
 VK19 verdict: stay-on-descriptor-buffer, VK20 verified with revisit triggers,
 VK22 verified: no Slang surface — probe committed; VK23 rejected under the
 vendor guardrail); the performance
-line has no `next` item — PERF5/PERF4 are measured-parked (§5.1, corroborated §5.6),
-the track's live rows are backlog (the PERF3 importance-driven extension, PERF6,
+line has no `next` item — the non-serving performance items are removed (PERF4/PERF5/PERF6/BV4, 2026-11-15; tombstones + the measurements in §5.1, corroborated §5.6),
+the track's live rows are backlog (the PERF3 importance-driven extension,
 PERF8); the DN track's neural slot (DN1) is **open — no adoptable candidate** after the
 2026-11-09 research pass (DN1 row, §5.2); VK1/VK9 stay dormant until a dense
 cooperative-matmul consumer appears.
@@ -207,7 +230,7 @@ multiplayer, front end (the demos are GUI-less by design), scene-graph band (The
 covers it; Harmonia is GPU-driven by design).
 **Revisit if:** a new effect type lands (render-features band grows); HUD/menus appear (a
 front-end band would be new); ANI1 animation starts (it straddles - plan its band then);
-PERF5 megakernel->wavefront (the hint-D integrator-structure decision); VR/other
+the hint-D integrator-structure decision was retired with PERF5 (removed, measured does-not-pay); VR/other
 presentation (presentation band).
 
 - **bloat queue (`header_size`): DRAINED.** `App.cpp` split into
@@ -225,7 +248,7 @@ architecture lens). Five fronts, sequenced by coupling:
 |---|---|---|
 | 1 scene description & representation | AR1, BV, NH1, NH2, META1/2, A-01, A-03, A-05 | one seam (Aether + `harmonia/scene`), one contract change |
 | 2 frame scheduling | ComputeRig, theia/pipelines class, T-03, X-02 | internal order: pipelines class -> ComputeRig -> T-03 (each builds the face the next needs) |
-| 3 integrator & shading | GI-SMS, PERF4, SM6-*, H-05, SH-02 | SM6-* version-gated on slang-math v0.4.0 |
+| 3 integrator & shading | GI-SMS, SM6-*, H-05, SH-02 | SM6-* version-gated on slang-math v0.4.0 |
 | 4 RHI & platform | VK16, VK17+VK5, AR2 | quietest band |
 | 5 hygiene & tooling (side band) | Q1-Q6, X-01, X-03, A-02, T-04 | cross-cutting; Q1 (coverage) is the precondition for front-2 surgery |
 
@@ -243,7 +266,7 @@ items. Still open by front (see categorization v2 below): front 1 opens with AR1
 also the `harmonia/scene` 3356-line size fix) and batches BV/NH1/NH2/META1-2 plus the Aether
 hygiene items; Q1 (coverage) lands before front-2 surgery; front 2 = promote `theia/pipelines`
 to a real class -> Extract the demo ComputeRig -> T-03 barrier helper (clears the last two
-report-only signals: `demo` large + `theia/pipelines` orphan); front 3 = GI-SMS/PERF4 (SM6-*
+report-only signals: `demo` large + `theia/pipelines` orphan); front 3 = GI-SMS (SM6-*
 waits on slang-math v0.4.0); front 4 = AR2 + the VK queue; front 5 = consider-tier and CI
 hygiene. One technique per commit with render proofs. T-04 is rejected (Theia PLAN) - the uploadBuffer Middle Man is a
 deliberate expected-API -> VkResult adapter at 17 call sites; X-03 is rejected - the tools
@@ -387,10 +410,10 @@ convergence speed. **Industry GI/denoising/perceptual techniques are adopted her
 
 | ID | Task | Status |
 |----|------|--------|
-| PERF5 | **Megakernel vs Wavefront** GPU path tracing (Padilla, Webster, Kim — 2026, [arXiv:2605.27323](https://arxiv.org/abs/2605.27323); **verified** — 4-page short paper). Reports wavefront path tracing (WPT) ~16% faster than forward megakernel PT, attributed to cache locality (Nsight traces). *Kernel-scheduling* decision only; the estimator stays shared in Harmonia. Target: **one shared scheduling architecture for both renderers** unless hard evidence forces two (two loop structures = a duplicate path-tracing implementation, rejected by the one-slot rule, §5.6). **Gates PERF4** (ray reordering needs a wavefront ray buffer). **Incumbent (what ships today):** the fused megakernel-style indirect dispatch (`gi.comp.slang`) — PERF5 was the attempted replacement and is parked. | **parked** — measured Theia stage-1 ~2x GI cost; the PERF4 feasibility spike (2026-11-06, see the PERF4 row) measured the reordering yield at most ~6% with sort cost two orders of magnitude above savings, so the combined recovery arc is measured-uneconomical on this GPU for interactive workloads (revisit triggers in the PERF4 row). **Externally corroborated (2026-11-07, §5.6):** NVIDIA's RTXPT is itself a hybrid per-signal design — raster primary + RT budgeted per signal — not a monolithic wavefront. |
-| PERF4 | **Ray reordering** for faster GPU RT — *On Ray Reordering Techniques* (Meister, BokÅ¡anskÃ½, Guthe, Bittner — 2025, [arXiv:2506.11273](https://arxiv.org/abs/2506.11273); **verified**). The sorting-key method is kernel-agnostic, but the **technique is wavefront-only** — a megakernel traces each ray inline with no ray buffer to sort, so PERF4 cannot ship without PERF5. **Feasibility spike (2026-11-06, `tests/component/test_perf4_reorder_probe.cpp`, RTX 5070 / driver 621.14):** 1 048 576 secondary-style rays against a procedural 256-instance box-field AS — unsorted 0.147 ms/1M rays, direction-key sorted 1.014x, termination-key sorted 1.040x; scaling the AS to 2 048 instances moves the yield to 1.058x/1.037x — and the sort cost (GPU radix ~1 ms/1M rays literature; CPU std::sort proxy ~67 ms/1M) sits **two orders of magnitude above the trace-time savings** in every measured regime. The paper's 1.3-2.0x claims are traversal-bound production scenes; Theia's interactive ray counts are launch-bound (~0.13-0.17 ms/1M rays at probe scale), where reordering yields at most ~6%. **Measured verdict: PERF4 does not recover the PERF5 wavefront tax on this GPU for interactive workloads.** Revisit triggers: a production-scale (multi-million-unique-triangle) scene demonstration, a GPU/driver generation change, or a workload class where trace time exceeds ~1 ms/1M rays with directional divergence dominant. **Implemented hardware alternative:** `VK_EXT_ray_tracing_invocation_reorder` is already probed→enabled (`serSupported`) — the driver-side reordering the RTXPT whitepaper's strategy builds on; PERF4 remains the parked *software*-sorting path. | **measured: does not pay** (revisit triggers recorded). **Externally corroborated (2026-11-07, §5.6):** the RTXPT performance whitepaper never mentions software ray sorting — its entire performance strategy is hardware reordering (SER) + radiance caching. |
+| ~~PERF5~~ | removed 2026-11-15: megakernel->wavefront split - **measured does not serve the real-time purpose** (stage-1 measured ~2x GI cost at 320p and 1080p, record-traffic dominated; the implementation was reverted - only PassTimer instrumentation + the reconstructGiHitFromQuery salvage ship). RTXPT corroborated (2026-11-07 section 5.6: hybrid per-signal, never a monolithic wavefront). Revisit: production multi-million-triangle scenes, a new GPU/driver generation, or trace-bound workloads >1 ms/1M rays. Design history: git (Theia/PLAN.md stage-10a section, v0.8.0-era). | - | **removed (measured does-not-pay)** |
+| ~~PERF4~~ | removed 2026-11-15: software ray reordering - **measured does not serve the real-time purpose** (2026-11-06 spike: <=1.058x yield with sort cost two orders of magnitude above savings; RTXPT strategy is hardware SER only). The probe test + perf4_probe shaders are **kept** - they are the revisit-measurement tool and the trace rig for the PERF3 receipt. Revisit: same triggers as the wavefront. | - | **removed (measured does-not-pay)** |
 | PERF3 | **GPU acceleration-structure pipeline** — AS refit-vs-rebuild + compaction. **Shipped end-to-end (2026-11-09):** Harmonia slice (`TlasBuilder::refitTlas` update-mode build, `TlasBuildOptions`, device-side `compactAccelerationStructure` via `vkCmdCopyAccelerationStructureKHR` — the Khronos deprecation table's replacement; the host copy requires `accelerationStructureHostCommands` + host-visible AS storage + legacy creation, all contrary to MOD5) **plus the shared animated-scene integration** in `harmonia::scene_rt` (`collectTlasInstances` + `updateTlas` refit-vs-rebuild policy with periodic structure refresh, consumed 1:1 by both renderers) and the shared ANI1/ANI2 bridge in `harmonia::scene` (`attachAnimation` + `setAnimationTime` stamping through the loader-recorded sceneInstance→descInstance mapping; `SceneLoader` keeps the parsed `[[animation]]` source in the scene). Receipts: Harmonia `test_tlas_refit.cpp` (refit bit-exact vs rebuild; compaction 2432 → 2176 B preserves hits) + Hyperion `test_scene_anim.cpp` (loader-driven refit keeps handle/address; static-scene mutations rebuild; dirty-gating). **Hyperion consumes it** (`Scene::updateTlas` + deterministic tick clock in `Application::record`, accumulation reset on animated frames). **Open:** importance-driven AS updates (RTXPT whitepaper §5 — GPU hit counters → priority-queued dynamic-BLAS refits); Theia-side consumption of the same seam (ANI track there); Theia integration slot tracked in `Theia/PLAN.md`. | **done** (slice + Hyperion integration) |
-| PERF6 | **RAFI** multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)) — tracked in `Hyperion/PLAN.md` (large-scene/streaming scaling). | backlog |
+| ~~PERF6~~ | removed 2026-11-15: RAFI multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. - 2026, arXiv:2605.30294) - **out of purpose**: both harnesses are single-GPU local (Theia real-time, Hyperion offline) and no multi-node/multi-GPU rendering infrastructure exists or is planned. Paper reference dropped with it. Revisit only if a multi-GPU/node harness is adopted. | - | **removed (out of purpose)** |
 | PERF8 | **Material LOD by ray class** (NVIDIA RTXPT performance whitepaper §7 — [whitepaper](https://github.com/NVIDIA-RTX/Whitepapers/tree/main/pt_performance_whitepaper); 2026-11-07 triage, §5.6) — full material evaluation for primary/near-specular rays, reduced BRDF + conservative MIPs for diffuse-secondary hits, opacity-only evaluation for visibility rays. Theia wire; no material LOD exists today. Real-time tier only (bypassed in reference/accumulation mode → passes the §5.6 convergence litmus; the reduced-BRDF bias is bounded per ray class and artist-tunable). | backlog |
 
 **Scheduling status (2026-11-02):** `Theia/PLAN.md` records the measured, parked
@@ -398,28 +421,14 @@ stage-1 and binding re-entry gates. The following full-split prerequisite is an
 earlier design assessment, not authorization to resume that old milestone chain;
 stage-1 did not require the shared asynchronous-shadow split described below.
 
-**Wavefront (PERF5) implementation finding — the estimator-split prerequisite.** Assessed
-against the live code: the shared `integrateSurface`
-(`path_integrator.slang:410`) traces **shadow rays synchronously and inline** through the
-`ITracer` abstraction at three sites (`:226` sphere NEE, `:329` triangle NEE, `:376` env NEE) —
-`tracer.traceTransmittance(...)` returns the shadow transmittance used *in the same call* to
-decide the contribution. Wavefront requires
-shadow rays to be **asynchronous** (emit → separate trace dispatch → gather), so each NEE
-branch must split into an **emit** half (compute `wi`/`tMax`/`Le`/`pdf`/`bsdfVal`/`cosI`/
-`fTerm`, write a shadow-ray record + a pending contribution) and a **gather** half (after the
-shadow dispatch, commit or discard by the visibility bit). This split must be **identical for
-both renderers** (Harmonia split rule), must preserve the exact **RNG sequence** (else
-`--deterministic-replay` breaks) and keep **MIS numerically identical** (else the parity gate
-breaks). A second phase to split: Hyperion's medium-walk interleaving (`raygen.slang:61–93` —
-surface bounces vs free-flight segments as separate budgets in one `while` loop). Theia is
-harder — `gi.comp.slang` (~1519 lines) fuses ReSTIR PT + medium walk + path trace.
-
-**Consequence:** PERF5 is a *redesign* of the shared estimator's shadow-ray flow, not a
-refactor — and the gate is strict (Hyperion deterministic-replay EXR bit-identical; Theia
-14-scene strict-AND parity). It is milestone-gated work (M2 split → M2 Hyperion
-wire → M3 Theia wire → M4 AABB consumers → M5 PERF4 sort), with **no parallelism across
-milestones** (strict chain). Do not begin shader edits that cannot be brought to a verified,
-compiling state in one go — a half-converted estimator leaves both renderers broken.
+**Wavefront (PERF5) implementation finding - removed with PERF5 (2026-11-15):** the
+estimator-split prerequisite assessment and its M1-M5 milestone chain (M4 AABB
+consumers = BV4, M5 PERF4 sort) were roadmap work for the wavefront redesign - removed
+as measured does-not-serve (see the PERF5 tombstone in this table; the full finding
+survives in git history). The standing warning it established is retained: **never
+half-convert the estimator** - a half-converted shared estimator leaves both renderers
+broken, so any future estimator-structure work converts or reverts in one verified
+change.
 
 *Reference material (consult, never a deliverable — not tracked as items):* NVIDIA Vulkan RT
 Tutorial v2.0 (nvpro, Vulkan 1.4) for canonical `ray_tracing_pipeline` vs `ray_query`, SBT
@@ -1147,7 +1156,7 @@ beyond plain matmul) — strengthens the VK1 basis for a future on-device infere
 
 | ID | Capability (verified present) | Enables | Track | Status |
 |----|------------------------------|---------|-------|--------|
-| VK4 | `VK_KHR_shader_subgroup_rotate` + `VK_KHR_shader_maximal_reconvergence` + `VK_KHR_shader_subgroup_uniform_control_flow` + `VK_KHR_shader_quad_control` (subgroupSize 32; RT + compute stages) | Warp-coherent reductions/rotations for **ReSTIR reservoir merging & compaction** → faster spatial reuse; maximal reconvergence guarantees a converged wavefront for the path integrator. **ADOPTED (2026-11-06):** all four probed→enabled (rotate rides `VkPhysicalDeviceVulkan14Features` — promoted; the standalone KHR struct must not appear next to Vulkan14Features in the device chain, VUID-pNext-10360). Micro-benchmark receipt (`tests/component/test_subgroup_bench.cpp`, 4 194 304 elements / 64 iterations, ~1/3 non-zero): atomic-compaction 1.0235 ms/iter vs subgroup-prefix compaction 0.9874 ms/iter, both arms validated as exact multisets — and the bench documents the 10e design insight: per-workgroup base reservation is scheduling-ordered, so bit-identical compaction needs the device-wide hierarchical scan the PERF5 10e persistent-wavefront structure provides. **Exploitation (ReSTIR merges, 10e live-count dispatch) gates on the PERF5 10c verdict.** Known gap: Slang 2026.17 exposes no rotate intrinsic (only WaveActive/WavePrefix/WaveReadLane families) — rotate-specific exploitation waits for slang support. | GI, PERF | **adopted · exploitation → PERF5 10e** |
+| VK4 | `VK_KHR_shader_subgroup_rotate` + `VK_KHR_shader_maximal_reconvergence` + `VK_KHR_shader_subgroup_uniform_control_flow` + `VK_KHR_shader_quad_control` (subgroupSize 32; RT + compute stages) | Warp-coherent reductions/rotations for **ReSTIR reservoir merging & compaction** → faster spatial reuse; maximal reconvergence guarantees a converged wavefront for the path integrator. **ADOPTED (2026-11-06):** all four probed→enabled (rotate rides `VkPhysicalDeviceVulkan14Features` — promoted; the standalone KHR struct must not appear next to Vulkan14Features in the device chain, VUID-pNext-10360). Micro-benchmark receipt (`tests/component/test_subgroup_bench.cpp`, 4 194 304 elements / 64 iterations, ~1/3 non-zero): atomic-compaction 1.0235 ms/iter vs subgroup-prefix compaction 0.9874 ms/iter, both arms validated as exact multisets — and the bench documents the 10e design insight: per-workgroup base reservation is scheduling-ordered, so bit-identical compaction needs the device-wide hierarchical scan the PERF5 10e persistent-wavefront structure provides. **Exploitation: the 10e live-count consumer was removed with PERF5 (2026-11-15) - subgroup use stays at the shipped reservoir-merge/bench sites.** Known gap: Slang 2026.17 exposes no rotate intrinsic (only WaveActive/WavePrefix/WaveReadLane families) — rotate-specific exploitation waits for slang support. | GI, PERF | **adopted - exploitation dormant (10e consumer removed)** |
 | VK5 | `VK_KHR_pipeline_binary` | Serialized/faster PSO creation — cuts cold start (first cold compile measured **90.745 ms** for one small compute pipeline; **~0.1 ms** from its captured binary) and enables cross-session pipeline reuse. Theia's surface: **9 pipeline-creation sites** (3 graphics in ForwardRendererPipelines — opaque/transparent/sky — plus 6 compute: GiPass, GpuCullPass, LightCuller, Hi-Z, motion vectors, TAA) | PERF, CH | **shipped (opt-in, 2026-11-07)** — the 2026-11-06 "driver defect" verdict was **withdrawn**: its spike code never landed (evidence not reproducible), and a from-scratch spec-faithful probe re-ran both paths clean on the same driver 621.14 (receipts: `tests/component/test_pipeline_binary_probe.cpp` — capture 0.005–0.034 ms/blob, consume dispatch-verified, global key 8 B). **Adoption:** `core::PipelineBinaryCache` (driver-key identity — no app-side hashing; global-key cache validity — **a driver update changes the global key ⇒ every cached blob invalid ⇒ all pipelines re-captured on the new driver's first run**, per spec + Khronos blog), wired through the `DeviceContext::pipelineBinaryCache` hook into the 4 shared-pass creation sites (AccumulationPass, SmsPass, SceneOutputCopyPass, ToneMapper) — 1:1 for both renderers; **default ON** at `<exe-dir>/pipeline-cache` (deterministic across launch CWDs, per-renderer separation for free); `HARMONIA_PIPELINE_BINARY_CACHE` overrides the directory, `off`/`0` disables (v0.7.23 shipped it opt-in; default-on landed on `main` — smoke receipts: warm hits, disable switch, cold re-capture). Receipts: `tests/component/test_pipeline_binary_cache.cpp` (capture → persist → fresh-instance reload → consume → global-key prune, dispatch-verified in every phase); component 58/58 + integration 21/21 with the extension enabled. **Open follow-ups:** Theia's 9 renderer-owned creation sites — **wired** (Theia v0.8.4; gallery receipts there), RT pipeline capture — **spiked + bypassed** (degenerate key + import failure on driver 621.14; guard above; revisit when drivers ship usable RT keys), `.spv` hot-reload acceleration. | ~~blocked~~ **shipped (default-on on `main`) · follow-ups recorded** |
 | VK7 | **`VK_EXT_descriptor_buffer`** (EXT — *never* promoted to KHR/core as of SDK 1.4.357) + Vulkan-1.4 `dynamicRenderingLocalRead` (core feature, no extension name) | Modern bindless descriptor path — write descriptor data to a GPU buffer, bind via `vkCmdBindDescriptorBuffersEXT`. **SHIPPED** (MOD1): all descriptor pools deleted, `DescriptorBufferWriter` shared helper. | PERF, CH | ~~backlog · blocked~~ **shipped** |
 | VK1 | `VK_KHR_cooperative_matrix` — coop-matmul in **compute**, **BF16 + Float8** (`shaderBFloat16`/`shaderFloat8CooperativeMatrix`); stages = compute only | Tensor-class matmul in compute shaders, no CUDA/TensorRT — the on-device matmul path a neural-denoiser/inference consumer would need. The former DN1 candidate (RaNAD) was adjudicated no-go (2026-11-08, M1 spike) and struck from the pipeline (2026-11-09); the slot's current paper-tier candidate does not require it. Dormant until a dense cooperative-matmul consumer appears. | DN | backlog — **no consumer** |
@@ -1235,7 +1244,7 @@ the wavefront rewrite.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| BV4 | **Wavefront ray-gen + NEE consumers** — AABB slab-test cull in the wavefront ray-generation phase (fewer rays to sort/trace) + NEE shadow-ray reject in the shade phase. The data model from BV1–BV3 feeds this directly; no separate AABB buffer needed. | PERF5, BV2 | backlog |
+| ~~BV4~~ | removed 2026-11-15: wavefront ray-gen + NEE consumers existed only as consumers of the PERF5 wavefront, which is removed (measured does-not-pay, implementation reverted) - there is no wavefront left to consume it. Revisit only with a wavefront revival (none planned). | - | **removed (dead dependent)** |
 
 ### 6.4 slang-math migration slice
 
