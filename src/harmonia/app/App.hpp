@@ -168,6 +168,15 @@ class App {
     [[nodiscard]] std::uint32_t tonemapper() const noexcept { return m_tonemapper; }
     [[nodiscard]] std::uint32_t frameIndex() const noexcept { return m_frameIndex; }
 
+    /// ANI7: the logical ANIMATION tick index the renderer's per-frame animation
+    /// update (setAnimationTime = index / animationFps) must use. Sequence render
+    /// (--sequence-frames) pins it to the OUTPUT frame index so every accumulation
+    /// sample of output frame k renders the same scene state; otherwise it is the
+    /// raw per-render-frame index (ANI2's deterministic tick, unchanged).
+    [[nodiscard]] std::uint32_t animationFrameIndex() const noexcept {
+        return m_sequenceActive ? m_sequenceFrame : m_frameIndex;
+    }
+
     /// Resolve + load a scene file (full path or bare name). Reusable at
     /// runtime for scene switching.
     [[nodiscard]] bool loadScene(const std::filesystem::path& sceneFile);
@@ -191,6 +200,10 @@ class App {
     int mainLoop();
     [[nodiscard]] int renderOffscreen(); /// Record + submit the renderer into the HDR image; returns the timeline
     /// value signalled on completion and advances the frame slot.
+    /// ANI7: write the EXR + tone-mapped PNG pair for one captured output frame to
+    /// @p outputFile (the classic single-capture path passes config().outputFile;
+    /// sequence render passes the per-frame path).
+    bool saveOffscreenOutputs(const std::filesystem::path& outputFile);
     std::expected<std::uint64_t, VkResult> renderSceneReferred();
     /// Acquire, tonemap, present the given completed scene-referred frame.
     void presentFrame(std::uint32_t slot, std::uint64_t renderValue);
@@ -266,6 +279,10 @@ class App {
     std::uint64_t m_accumViewEpoch = 0;
     bool m_interactiveAccumulation = false;
     std::uint32_t m_frameIndex = 0;
+    /// ANI7 sequence render state (set by renderOffscreen, read by
+    /// animationFrameIndex): the current OUTPUT frame + active flag.
+    std::uint32_t m_sequenceFrame = 0;
+    bool m_sequenceActive = false;
     /// Interactive flip cadence counter for --frames-per-flip (I6).
     std::uint32_t m_framesSinceFlip = 0;
     /// Pacing diagnostic counters (I6 verification, TASK: pacing oracle): every 300

@@ -152,10 +152,13 @@ run in parallel across repos):
    investigation; solved at the end if required**; PERF3 extension **removed 2026-11-15** —
    premise absent: no dynamic BLAS (ANI4/ANI5 backlog), 1–16 instances, GPU-driven
    contract vs readback priority loop)
-   → step 5's animation chain (ANI3 → ANI7 → ANI6/PAR3).
+   → step 5's animation chain (ANI3 + ANI7 done → ANI6/PAR3).
 5. **Animation chain:** ANI3 (motion vectors) **DONE 2026-11-15** (Theia;61/61 + static
-   bit-identical + animated end-to-end receipts in the Theia row) → ANI7 (Hyperion sequence render) →
-   ANI6 (gated on PAR3 + ANI7); ANI4/ANI5 after their Aether schema lands.
+   bit-identical + animated end-to-end receipts in the Theia row) → ANI7 (sequence render)
+   **DONE 2026-11-15** (shared `--sequence-frames`, pinned output-frame tick, per-frame
+   EXR+PNG; receipts in the Hyperion ANI7 row: frame0 == classic capture bit-identical,
+   determinism, 166/166 + 43/43 + 61/61) → ANI6 (gated on PAR3 + ANI7 → next: PAR3);
+   ANI4/ANI5 after their Aether schema lands.
 6. **Stays open by design:** DN1 (watch, no adoptable candidate), DN8 (watchlist),
    LS1/SAM1/QMC1 (research backlog), VK1/VK9/VK17 (no consumer), watchlists with
    recorded triggers.
@@ -1246,7 +1249,7 @@ the estimator. (The schema slices are tracked in `Aether/PLAN.md`; render-loop w
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| ANI2 | **Per-frame TLAS refit** - when Aether emits world-transform updates (animated scenes), refit/rebuild the TLAS each frame. The update arrives as plain world transforms; refit-vs-rebuild is the renderer's internal optimization choice. **Seam shipped (2026-11-09, with PERF3):** the shared machinery lives in `harmonia::scene_rt::updateTlas` (refit when update-capable, periodic full rebuild) + the loader-recorded sceneInstance->descInstance mapping (`SceneBase::attachAnimation`/`setAnimationTime`). **DONE 2026-11-15 — both consumers:** Hyperion (`Application::record` tick + accumulation reset) and Theia (`finishBuild` with `allowUpdate = hasAnimation()`, `Scene::updateTlas`, per-frame tick + `resetAccumulation()`; receipts `Theia/tests/module/test_scene_anim.cpp`, module suite 60/60). Caveats tracked elsewhere: TAA/motion-vector correctness under animation = ANI3; animated sequence output = ANI7. | ANI1 (Aether evaluation API), PERF3 | **done** |
+| ANI2 | **Per-frame TLAS refit** - when Aether emits world-transform updates (animated scenes), refit/rebuild the TLAS each frame. The update arrives as plain world transforms; refit-vs-rebuild is the renderer's internal optimization choice. **Seam shipped (2026-11-09, with PERF3):** the shared machinery lives in `harmonia::scene_rt::updateTlas` (refit when update-capable, periodic full rebuild) + the loader-recorded sceneInstance->descInstance mapping (`SceneBase::attachAnimation`/`setAnimationTime`). **DONE 2026-11-15 — both consumers:** Hyperion (`Application::record` tick + accumulation reset) and Theia (`finishBuild` with `allowUpdate = hasAnimation()`, `Scene::updateTlas`, per-frame tick + `resetAccumulation()`; receipts `Theia/tests/module/test_scene_anim.cpp`, module suite 60/60). Caveats tracked elsewhere: TAA/motion-vector correctness under animation = ANI3 (done 2026-11-15); animated sequence output = ANI7 (done 2026-11-15). | ANI1 (Aether evaluation API), PERF3 | **done** |
 | ANI4 | **Skinning (LBS/DQS)** — bone hierarchy + per-vertex bone weights; blend-skinning for articulated characters. The data schema and the CPU evaluation reference live in Aether (same directive); the GPU vertex deformation is BLAS-level update (beyond ANI2) and stays renderer-side. | ANI1, ANI2 | backlog |
 | ANI5 | **Morph targets / blendshapes** — interpolate between vertex sets (facial animation, shape keys). Schema + CPU evaluation reference in Aether; GPU deformation renderer-side (BLAS-level update). | ANI2 | backlog |
 | ANI6 | **Animated parity gate** — extend the metric set to sequences. Needs the still-image gate (PAR0) and the video metric (PAR3). | PAR0, PAR3, ANI7 | backlog |

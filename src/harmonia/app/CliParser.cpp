@@ -210,6 +210,19 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         }
         return true;
     }
+    if (arg == "--sequence-frames") {
+        // ANI7: 0 = disabled (classic single capture); N >= 1 renders N animation
+        // frames to disk (per-frame EXR+PNG, tick pinned to the output frame).
+        if (const char* v = next("--sequence-frames")) {
+            std::uint32_t frames = 0U;
+            if (!CliParser::parseUint32(v, frames)) {
+                core::Logger::error("Invalid value for --sequence-frames: {}", v);
+            } else {
+                config.sequenceFrames = frames;
+            }
+        }
+        return true;
+    }
     if (arg == "--frames-per-flip") {
         if (const char* v = next("--frames-per-flip")) {
             std::uint32_t frames = 0U;

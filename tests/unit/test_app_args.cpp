@@ -55,6 +55,60 @@ TEST(AppArgs, ParsesOffscreenFrames) {
     EXPECT_EQ(i, 2);
 }
 
+TEST(AppArgs, SequenceFramesDefaultOff) {
+    // ANI7: 0 = the classic single capture; N >= 1 enables the sequence render.
+    harmonia::app::App::Config config;
+    EXPECT_EQ(config.sequenceFrames, 0U);
+}
+
+TEST(AppArgs, ParsesSequenceFrames) {
+    harmonia::app::App::Config config;
+
+    char arg0[] = "app";
+    char arg1[] = "--sequence-frames";
+    char arg2[] = "12";
+    char* argv[] = {arg0, arg1, arg2};
+    int i = 1;
+
+    EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
+    EXPECT_EQ(config.sequenceFrames, 12U);
+    EXPECT_EQ(i, 2) << "the value token must be consumed";
+}
+
+TEST(AppArgs, SequenceFramesInvalidValueKeepsDefault) {
+    harmonia::app::App::Config config;
+
+    char arg0[] = "app";
+    char arg1[] = "--sequence-frames";
+    char arg2[] = "not-a-number";
+    char* argv[] = {arg0, arg1, arg2};
+    int i = 1;
+
+    EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
+    EXPECT_EQ(config.sequenceFrames, 0U) << "invalid value keeps the disabled default";
+    EXPECT_EQ(i, 2) << "the invalid token is still consumed (never re-parsed as a scene)";
+}
+
+TEST(AppArgs, SequenceFramesIndependentOfOffscreenFrames) {
+    harmonia::app::App::Config config;
+
+    char arg0[] = "app";
+    char arg1[] = "--offscreen-frames";
+    char arg2[] = "8";
+    char arg3[] = "--sequence-frames";
+    char arg4[] = "3";
+    char* argv[] = {arg0, arg1, arg2, arg3, arg4};
+    int argc = 5;
+    // Consume every arg exactly like main()'s applyCommonArg delegation loop.
+    for (int i = 1; i < argc; ++i) {
+        ASSERT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, argc, argv))
+            << "applyCommonArg rejected '" << argv[i] << "'";
+    }
+
+    EXPECT_EQ(config.offscreenFrames, 8U);
+    EXPECT_EQ(config.sequenceFrames, 3U);
+}
+
 TEST(AppArgs, EnablesRngDebugFlag) {
     harmonia::app::App::Config config;
 

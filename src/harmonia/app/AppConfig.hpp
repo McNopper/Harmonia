@@ -50,6 +50,13 @@ struct AppConfig {
     /// Number of scene-referred frames to render before saving in offscreen mode.
     /// For stochastic pipelines, increase this to improve convergence.
     std::uint32_t offscreenFrames = 4;
+    /// ANI7 sequence render: >0 renders that many ANIMATION frames to disk instead of
+    /// one accumulated capture - per output frame k the animation tick is pinned to k
+    /// (t = k / animationFps, box shutter at the frame start; constant across the
+    /// output frame's accumulation samples), accumulation restarts, and EXR+PNG are
+    /// written as `<output-stem>_0000<ext>` ... `<output-stem>_<k><ext>`.
+    /// 0 (default) = the classic single capture. Requires --output.
+    std::uint32_t sequenceFrames = 0;
     /// Interactive window: accumulation frames per swapchain flip (1 = one render per
     /// present, the classic cadence). N > 1 converges the DISPLAYED image faster per
     /// flip on a static/slow camera at the cost of flip rate and input latency;

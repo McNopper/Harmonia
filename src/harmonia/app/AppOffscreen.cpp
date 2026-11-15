@@ -6,6 +6,7 @@
 #include <charconv>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <limits>
@@ -30,6 +31,20 @@
 #include "harmonia/vulkan_init/DeviceFault.hpp"
 
 namespace harmonia::app {
+
+namespace {
+
+/// ANI7: per-frame output naming for sequence renders - `<stem>_0000<ext>`,
+/// `<stem>_0001<ext>`, ... beside the classic single-capture path.
+[[nodiscard]] std::filesystem::path sequenceOutputPath(const std::filesystem::path& base, std::uint32_t frame) {
+    char suffix[16];
+    std::snprintf(suffix, sizeof(suffix), "_%04u", frame);
+    std::filesystem::path out = base;
+    out.replace_filename(base.stem().string() + suffix + base.extension().string());
+    return out;
+}
+
+} // namespace
 
 std::expected<std::uint64_t, VkResult> App::renderSceneReferred() {
     const std::uint32_t slot = m_frameSync.currentSlot();
@@ -223,61 +238,106 @@ int App::renderOffscreen() {
     core::ScopedBackgroundPriority backgroundPriority;
 
     const bool frameTiming = core::getEnvString("HARMONIA_FRAME_TIMING") == std::optional<std::string>{"1"};
-    for (std::uint32_t i = 0; i < frameCount; ++i) {
-        const auto frameStarted = std::chrono::steady_clock::now();
-        const auto rendered = renderSceneReferred();
-        if (!rendered) {
-            core::Logger::error("Offscreen frame failed; no incomplete capture will be exported");
-            // Derived renderer resources are destroyed before App's base
-            // destructor: retire earlier slots before returning to their owner.
-            static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
-            return 1;
-        }
-        if (frameTiming) {
-            // Qualification only: observe this logical frame's complete steady work,
-            // excluding process startup and image encoding. No timing-dependent
-            // sampling, ownership or dispatch decision is made here.
-            if (const auto result =
-                    core::waitTimelineSemaphore(deviceContext().device, m_frameSync.timeline(), *rendered);
-                result != VK_SUCCESS) {
+
+    // One OUTPUT frame: render `count` accumulation frames. Returns 0 = ok, 1 = failed
+    // (already logged + device quiesced).
+    const auto renderBatch = [&](std::uint32_t count) -> int {
+        for (std::uint32_t i = 0; i < count; ++i) {
+            const auto frameStarted = std::chrono::steady_clock::now();
+            const auto rendered = renderSceneReferred();
+            if (!rendered) {
+                core::Logger::error("Offscreen frame failed; aborting the capture (earlier sequence frames, if "
+                                    "any, remain saved)");
+                // Derived renderer resources are destroyed before App's base
+                // destructor: retire earlier slots before returning to their owner.
                 static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
                 return 1;
             }
-            const auto elapsed =
-                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - frameStarted).count();
-            core::Logger::info("frame_timing_ms:{}:{:.6f}", i, elapsed);
+            if (frameTiming) {
+                // Qualification only: observe this logical frame's complete steady work,
+                // excluding process startup and image encoding. No timing-dependent
+                // sampling, ownership or dispatch decision is made here.
+                if (const auto result =
+                        core::waitTimelineSemaphore(deviceContext().device, m_frameSync.timeline(), *rendered);
+                    result != VK_SUCCESS) {
+                    static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+                    return 1;
+                }
+                const auto elapsed =
+                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - frameStarted).count();
+                core::Logger::info("frame_timing_ms:{}:{:.6f}", i, elapsed);
+            }
+            // Courtesy yield between frames, in addition to the priority drop above. It is
+            // NOT sufficient on its own: on Windows this is SwitchToThread(), which per
+            // Microsoft "will not switch execution to another processor, even if that
+            // processor is idle or is running a thread of lower priority", and returns
+            // immediately when no thread is ready -- so a yield-only loop still burns 100%
+            // CPU. Kept because it is free and helps the CPU-bound stretches between frame
+            // slot waits; the priority class is what actually keeps the machine usable.
+            //
+            // NB: neither of these is licence to run two captures at once. One GPU job at a
+            // time -- see AGENTS.md.
+            std::this_thread::yield();
         }
-        // Courtesy yield between frames, in addition to the priority drop above. It is
-        // NOT sufficient on its own: on Windows this is SwitchToThread(), which per
-        // Microsoft "will not switch execution to another processor, even if that
-        // processor is idle or is running a thread of lower priority", and returns
-        // immediately when no thread is ready -- so a yield-only loop still burns 100%
-        // CPU. Kept because it is free and helps the CPU-bound stretches between frame
-        // slot waits; the priority class is what actually keeps the machine usable.
-        //
-        // NB: neither of these is licence to run two captures at once. One GPU job at a
-        // time -- see AGENTS.md.
-        std::this_thread::yield();
+        return 0;
+    };
+
+    // ANI7 sequence render: one INDEPENDENT accumulation per animation frame. The
+    // animation tick is pinned to the OUTPUT frame (animationFrameIndex()), not the
+    // accumulation sample index, so all `frameCount` samples of output frame k render
+    // the same scene state at t = k / animationFps (box shutter at the frame start -
+    // the renderer's setAnimationTime consumes the pinned index). Each output frame
+    // restarts accumulation via resetAccumulation() - static scenes included, the
+    // frames are independent captures.
+    if (m_config.sequenceFrames > 0U) {
+        core::Logger::info("ANI7 sequence: {} animation frame(s) x {} accumulation frame(s) -> '{}_0000{}'",
+                           m_config.sequenceFrames,
+                           frameCount,
+                           m_config.outputFile.stem().string(),
+                           m_config.outputFile.extension().string());
+        m_sequenceActive = true;
+        bool ok = true;
+        for (std::uint32_t k = 0U; k < m_config.sequenceFrames; ++k) {
+            m_sequenceFrame = k;
+            resetAccumulation();
+            if (const int failed = renderBatch(frameCount); failed != 0) {
+                return failed;
+            }
+            if (vkDeviceWaitIdle(m_context.deviceContext().device) != VK_SUCCESS) {
+                static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
+                return 1;
+            }
+            ok = saveOffscreenOutputs(sequenceOutputPath(m_config.outputFile, k)) && ok;
+        }
+        m_sequenceActive = false;
+        return ok ? 0 : 1;
+    }
+
+    if (const int failed = renderBatch(frameCount); failed != 0) {
+        return failed;
     }
     if (vkDeviceWaitIdle(m_context.deviceContext().device) != VK_SUCCESS) {
         static_cast<void>(core::waitDeviceQuiescent(deviceContext().device));
         return 1;
     }
+    return saveOffscreenOutputs(m_config.outputFile) ? 0 : 1;
+}
 
-    const bool isPng = (m_config.outputFile.extension() == ".png");
+bool App::saveOffscreenOutputs(const std::filesystem::path& outputFile) {
+    const bool isPng = (outputFile.extension() == ".png");
     bool ok = true;
 
     // Scene-referred linear EXR (chromaticities-tagged, untonemapped) when not a bare .png.
     if (!isPng) {
         ok = harmonia::presentation::ImageCapture::saveExr(
-            m_context.deviceContext(), m_commandPool, sceneOutputImage(), m_config.outputFile, m_workingColorSpace);
+            m_context.deviceContext(), m_commandPool, sceneOutputImage(), outputFile, m_workingColorSpace);
     }
 
     // Tone-mapped PNG. To match the interactive window, run the SAME tone mapper operator
-    // (m_tonemapper) into a fixed 8-bit sRGB capture image and read that back — instead of a
+    // (m_tonemapper) into a fixed 8-bit sRGB capture image and read that back - instead of a
     // separate, hardcoded CPU tone map. Falls back to the CPU ACES path only when the tone
     // mapper stage is unavailable.
-    std::filesystem::path pngPath = m_config.outputFile;
+    std::filesystem::path pngPath = outputFile;
     if (!isPng) {
         pngPath.replace_extension(".png");
     }
@@ -289,7 +349,7 @@ int App::renderOffscreen() {
                                                                     sceneOutputAccessMask(),
                                                                     m_tonemapper,
                                                                     m_workingColorSpace)) {
-        // Capture image is VK_FORMAT_R8G8B8A8_UNORM (RGBA) — no channel swap needed.
+        // Capture image is VK_FORMAT_R8G8B8A8_UNORM (RGBA) - no channel swap needed.
         ok = harmonia::presentation::ImageCapture::saveSdrPng(
                  m_context.deviceContext(), m_commandPool, m_offscreen.captureImage(), pngPath, /*swapRB=*/false) &&
              ok;
@@ -298,7 +358,7 @@ int App::renderOffscreen() {
                  m_context.deviceContext(), m_commandPool, sceneOutputImage(), pngPath, m_workingColorSpace) &&
              ok;
     }
-    return ok ? 0 : 1;
+    return ok;
 }
 
 bool App::saveExr(const std::filesystem::path& path) {
