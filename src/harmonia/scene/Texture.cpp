@@ -63,6 +63,7 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     texture.m_image = std::move(uploaded->image);
     texture.m_width = width;
     texture.m_height = height;
+    texture.m_mipLevels = texture.m_image.mipLevels(); // PERF8: full chain when blit-capable
     texture.m_sampler = std::move(uploaded->sampler);
 
     if (!name.empty()) {

@@ -34,7 +34,13 @@ struct SamplerSpec {
         .compareEnable = VK_FALSE,
         .compareOp = VK_COMPARE_OP_ALWAYS,
         .minLod = 0.0F,
-        .maxLod = 0.0F,
+        // Full mip range (VK_LOD_CLAMP_NONE): with mips generated at upload
+        // (uploadHostImage), explicit-SampleLevel consumers (PERF8 conservative MIPs)
+        // and the forward pass's implicit LOD must be able to select coarser levels.
+        // A 0 maxLod silently clamps EVERY sample to mip 0 (the pre-mip-era value).
+        // Single-mip images are unaffected (clamped to their only level either way);
+        // explicit SampleLevel(..., 0.0) fetches are unchanged.
+        .maxLod = VK_LOD_CLAMP_NONE,
         .borderColor = spec.borderColor,
         .unnormalizedCoordinates = VK_FALSE,
     };
