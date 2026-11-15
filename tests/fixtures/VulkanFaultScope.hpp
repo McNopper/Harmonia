@@ -6,6 +6,7 @@
 #include <volk/volk.h>
 
 #include <cstdint>
+#include <cstdlib>
 
 class VulkanFaultScope {
   public:
@@ -220,6 +221,33 @@ class VulkanFaultScope {
     PFN_vkDestroyImageView m_destroyView{};
     PFN_vkDestroyPipeline m_destroyPipeline{};
     PFN_vkCreateSwapchainKHR m_createSwapchain{};
+};
+
+// Disables the VK5 pipeline-binary cache for the lifetime of a fault-injection run.
+// The cache's designed best-effort retry ("failed from cached binary ... re-capturing")
+// absorbs a ONE-SHOT vkCreateComputePipelines fault on the binary-import attempt, so the
+// stage-creation contract tests would pass/fail depending on the persisted
+// <exe-dir>/pipeline-cache state. With the cache off, the injected fault lands on the
+// real creation and the abort contract is exercised deterministically.
+// The App reads HARMONIA_PIPELINE_BINARY_CACHE at run start; construct BEFORE app.run().
+class ScopedBinaryCacheOff {
+  public:
+    ScopedBinaryCacheOff() {
+#ifdef _WIN32
+        _putenv_s("HARMONIA_PIPELINE_BINARY_CACHE", "off");
+#else
+        setenv("HARMONIA_PIPELINE_BINARY_CACHE", "off", 1);
+#endif
+    }
+    ScopedBinaryCacheOff(const ScopedBinaryCacheOff&) = delete;
+    ScopedBinaryCacheOff& operator=(const ScopedBinaryCacheOff&) = delete;
+    ~ScopedBinaryCacheOff() {
+#ifdef _WIN32
+        _putenv_s("HARMONIA_PIPELINE_BINARY_CACHE", "");
+#else
+        unsetenv("HARMONIA_PIPELINE_BINARY_CACHE");
+#endif
+    }
 };
 
 #endif // TESTS_FIXTURES_VULKANFAULTSCOPE_HPP

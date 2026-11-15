@@ -166,6 +166,7 @@ struct CaptureFiles {
 } // namespace
 
 TEST(CaptureFailureContract, RequestedAccumulationFailureDoesNotExport) {
+    ScopedBinaryCacheOff noCache; // one-shot create fault must hit the real creation
     CaptureFiles files;
     VulkanFaultScope faults;
     faults.failComputeOnce = true;

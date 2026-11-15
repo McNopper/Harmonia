@@ -315,6 +315,7 @@ TEST(FrameCompletionCapture, FailedProducerWaitRetiresBeforeDestroyingItsSemapho
 }
 
 TEST(FrameCompletionCapture, RequestedAccumulationCreationFailureAbortsCapture) {
+    ScopedBinaryCacheOff noCache; // one-shot create fault must hit the real creation
     CaptureFiles files;
     VulkanFaultScope faults;
     faults.failComputeOnce = true;
@@ -329,6 +330,7 @@ TEST(FrameCompletionCapture, RequestedAccumulationCreationFailureAbortsCapture) 
 }
 
 TEST(FrameCompletionCapture, FatalResizeErrorStaysLatchedAcrossQueuedRebuilds) {
+    ScopedBinaryCacheOff noCache; // one-shot create fault must hit the real rebuild
     CaptureFiles files;
     VulkanFaultScope faults;
     faults.failComputeOnce = true;
