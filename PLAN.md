@@ -262,11 +262,13 @@ pipelines/cull/postfx/gi/depth/camera modules). **Front 1 progress:** AR1 is EXE
 contract edge scene->rt is removed (gate-enforced), and the BLAS/OMM/TLAS builds live in the
 new harmonia/scene_rt module; the renderers implement the createTriangleMesh/finishBuild
 hooks and build their TLAS. Remaining in front 1: BV/NH1/NH2/META1-2 + the Aether hygiene
-items. Still open by front (see categorization v2 below): front 1 opens with AR1 (scene/RT split -
-also the `harmonia/scene` 3356-line size fix) and batches BV/NH1/NH2/META1-2 plus the Aether
-hygiene items; Q1 (coverage) lands before front-2 surgery; front 2 = promote `theia/pipelines`
-to a real class -> Extract the demo ComputeRig -> T-03 barrier helper (clears the last two
-report-only signals: `demo` large + `theia/pipelines` orphan); front 3 = GI-SMS (SM6-*
+items. Still open by front (see categorization v2 below): front 1 = BV/NH1/NH2 plus the Aether hygiene
+items (AR1 executed - the scene/RT split landed with `harmonia/scene_rt`; META1-2 done
+2026-11-15); Q1 (coverage) lands before front-2 surgery; front 2 = **closed by verdict
+(Theia CH-T1, 2026-11-15)**: the demo ComputeRig extraction was **REJECTED**
+(framework-contract inversion), the `theia/pipelines` TU-split was **ACCEPTED**, and
+T-03's barrier helper landed - the two report-only signals (`demo` large +
+`theia/pipelines` orphan) stand as documented per the contract (smells never fail); front 3 = GI-SMS (SM6-*
 waits on slang-math v0.4.0); front 4 = AR2 + the VK queue; front 5 = consider-tier and CI
 hygiene. One technique per commit with render proofs. T-04 is rejected (Theia PLAN) - the uploadBuffer Middle Man is a
 deliberate expected-API -> VkResult adapter at 17 call sites; X-03 is rejected - the tools
