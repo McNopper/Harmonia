@@ -24,6 +24,12 @@ OPTIONS
                            Pass if PSNR >= this value (dB) — opt-in extra metric
     --relative-threshold FLOAT
                            Pass if relative mean error <= this value (percent) — opt-in extra
+    --tonemap {aces,agx}   Operator for the tone-mapped metric layer (PAR1, default aces):
+                           match the scene's declared tonemapper so SSIM and tm_* judge the
+                           image the display pipeline would show.
+    --tm-mean-threshold FLOAT
+                           Pass if tone-mapped mean_diff <= this value (1/255) — opt-in extra
+                           ANDed into 'all' (PAR1's tone-map-aware gate hook).
     --hist-bins INT        Luminance-histogram log-spaced bin count for the positive range,
                            plus one explicit black bin (default: 256)
     --allow-small-ssim     Permit the degraded GLOBAL non-windowed SSIM when the compared
@@ -76,9 +82,15 @@ METRICS
                    the denominator. Approximately (RMS relative error)^2, so the
                    0.01 default corresponds to roughly 10-15% RMS relative error.
   SSIM           : Wang 2004 mean structural similarity on tone-mapped sRGB     (gate: >= ssim-threshold)
-                   (ACES RRT+ODT fit + sRGB OETF, matching Harmonia's PNG capture path).
+                   (under --tonemap: ACES RRT+ODT fit + sRGB OETF by default — matching
+                   Harmonia's PNG capture path — or AgX + sRGB OETF for AgX scenes).
                    Regions smaller than the 11x11 window are an error, not a
                    silent fallback (see --allow-small-ssim).
+  tm_mean_diff    : tone-mapped-domain mean |ref-cand| (luminance, 1/255) under --tonemap
+                   (PAR1; gate: <= tm-mean-threshold when given)
+  tm_PSNR         : tone-mapped-domain PSNR (dB) under --tonemap (PAR1, reported)
+  ictec_dE        : mean/max perceptual-uniformity color distance in BT.2100 ICtCp
+                   over HDR (PAR4; identical pairs are exactly 0; reported)
   lum_hist_corr  : Pearson correlation of log-spaced luminance histograms       (gate: >= lum-hist-threshold)
                    of the scene-referred EXR, with one explicit leading bin
                    counting black / near-zero pixels so that no pixel is discarded.
@@ -197,6 +209,52 @@ def tonemap_aces_srgb(rgb: np.ndarray) -> np.ndarray:
     return np.clip(_srgb_oetf(sdr), 0.0, 1.0)
 
 
+# AgX (tonemap.slang `agxFitted`, PAR1's second gate operator) - matrices and
+# curve coefficients byte-identical to the shader rows (Blender / OCIO AgX
+# config, MIT, Troy Sobotka). Pipeline: Rec.2020 -> Rec.709 (composed through
+# the two matrices above, same chain the shader's rec2020ToRec709 composes),
+# gamut inset, log2 encode, per-channel S-curve, gamut outset, then the sRGB
+# OETF. ACES is the default; `--tonemap agx` evaluates the tone-mapped metric
+# layer under AgX (the scene's declared tonemapper rides this flag).
+
+_AGX_INPUT = np.array([
+    [0.842479, 0.042328, 0.042376],
+    [0.078434, 0.878469, 0.078434],
+    [0.079224, 0.079166, 0.879143],
+], dtype=np.float64)
+
+_AGX_OUTPUT = np.array([
+    [1.196879, -0.052897, -0.052972],
+    [-0.098021, 1.151903, -0.098043],
+    [-0.099030, -0.098961, 1.151074],
+], dtype=np.float64)
+
+
+def _agx_curve(x: np.ndarray) -> np.ndarray:
+    x = np.clip(x, 0.0, 1.0)
+    return (((15.5 * x - 40.14) * x + 31.96) * x - 6.868) * x * x * x \
+        + 0.4298 * x * x + 0.1191 * x - 0.00232
+
+
+def tonemap_agx_srgb(rgb: np.ndarray) -> np.ndarray:
+    """Rec.2020 scene-linear HDR -> tone-mapped sRGB [0,1] (AgX fitted + sRGB OETF).
+
+    Mirrors tonemap.slang `agxFitted` + the caller's OETF; used when the scene
+    declares the AgX tonemapper so the tone-mapped metric layer (PAR1) judges
+    the image the display pipeline would actually show.
+    """
+    f64 = rgb.astype(np.float64, copy=False)
+    r709 = np.clip((f64 @ _REC2020_TO_AP1.T) @ _AP1_TO_REC709.T, 0.0, None)
+    agx = r709 @ _AGX_INPUT.T
+    agx = (np.log2(np.maximum(agx, 2.2e-7)) + 10.0) / 16.5
+    agx = _agx_curve(agx)
+    out = agx @ _AGX_OUTPUT.T
+    return np.clip(_srgb_oetf(out), 0.0, 1.0)
+
+
+_TONEMAPPERS = {"aces": tonemap_aces_srgb, "agx": tonemap_agx_srgb}
+
+
 # ── Declared §10 metrics ─────────────────────────────────────────────────────
 
 # Rel-MSE denominator floor, in squared scene-referred luminance units. sqrt(eps)
@@ -233,6 +291,74 @@ REL_MSE_EPS = 1.0e-2
 # negative luminance (possible in EXRs via denoiser ringing or out-of-gamut
 # Rec.2020 primaries), which has no logarithm and would otherwise vanish.
 BLACK_LUMINANCE_EPS = 1.0e-8
+
+
+# ── PAR4: perceptual-uniformity error over HDR (BT.2100 ICtCp) ─────────────────
+#
+# Complements the HDR-FLIP story: a per-pixel color difference measured in a
+# PERCEPTUALLY UNIFORM HDR space instead of a display-encoded one. Pipeline
+# (ITU-R BT.2100 / SMPTE ST 2084, standard constants): Rec.2020 linear -> XYZ
+# (BT.2087) -> LMS (BT.2100 matrix, /4096) -> PQ encode (ST 2084) -> ICtCp
+# (BT.2100) -> Euclidean per-pixel distance. The scene-linear EXR values map
+# through PQ under a fixed, documented convention: 1.0 scene-linear = 10000
+# nits (the PQ top of scale). The absolute mapping is a declared unit choice —
+# identical pairs are exactly 0 and both images share the mapping, so the metric
+# is a consistent perceptual-uniformity DISTANCE for gate/trend use.
+
+_M_REC2020_TO_XYZ = np.array([
+    [0.6370, 0.1447, 0.1689],
+    [0.2627, 0.6780, 0.0593],
+    [0.0000, 0.0280, 1.0610],
+], dtype=np.float64)
+
+_M_XYZ_TO_LMS = np.array([
+    [1688.0, 2146.0, 262.0],
+    [938.0, 598.0, 242.0],
+    [91.0, 280.0, 262.0],
+], dtype=np.float64) / 4096.0
+
+_M_LMS_TO_ICTC = np.array([
+    [0.5, 0.5, 0.0],
+    [4.615, -2.235, -0.38],
+    [-0.015, 0.012, 0.992],
+], dtype=np.float64)
+
+_PQ_M1 = 2610.0 / 16384.0
+_PQ_M2 = (2523.0 / 4096.0) * 128.0
+_PQ_C1 = 3424.0 / 4096.0
+_PQ_C2 = (2413.0 / 4096.0) * 32.0
+_PQ_C3 = (2392.0 / 4096.0) * 32.0
+
+
+def _pq_encode(x: np.ndarray) -> np.ndarray:
+    """ST 2084 PQ encoding of absolute luminance in nits (0..10000 -> 0..1)."""
+    xn = np.maximum(x, 0.0) / 10000.0
+    xp = np.power(xn, _PQ_M1)
+    return np.power((_PQ_C1 + _PQ_C2 * xp) / (1.0 + _PQ_C3 * xp), _PQ_M2)
+
+
+def compute_ictec_delta_e(ref: np.ndarray, cand: np.ndarray,
+                          mask: np.ndarray | None = None) -> tuple[float, float]:
+    """Mean and max per-pixel Euclidean distance in ICtCp (uniform HDR space).
+
+    Inputs are HxWx3 scene-linear Rec.2020. Returns (mean, max); identical
+    pairs are exactly (0.0, 0.0). See PAR4 in PLAN.md - the HDR
+    perceptual-uniformity metric complementing the HDR-FLIP story.
+    """
+    ref64 = ref.astype(np.float64, copy=False)
+    cand64 = cand.astype(np.float64, copy=False)
+
+    def _ictec(rgb: np.ndarray) -> np.ndarray:
+        xyz = rgb @ _M_REC2020_TO_XYZ.T
+        lms = np.maximum(xyz @ _M_XYZ_TO_LMS.T, 0.0)
+        # Declared convention: 1.0 scene-linear = 10000 nits (PQ top of scale).
+        lms_nits = lms * 10000.0
+        return _pq_encode(lms_nits) @ _M_LMS_TO_ICTC.T
+
+    delta = _ictec(cand64) - _ictec(ref64)
+    de = np.sqrt(np.sum(delta * delta, axis=-1))
+    sel = de if mask is None else de[mask]
+    return float(np.mean(sel)), float(np.max(sel))
 
 
 def _mask_bbox(mask2d: np.ndarray) -> tuple[int, int, int, int]:
@@ -299,12 +425,15 @@ def _conv2d_separable_valid(img: np.ndarray, kernel: np.ndarray) -> np.ndarray:
 
 def compute_ssim(ref_rgb: np.ndarray, cand_rgb: np.ndarray,
                  mask: np.ndarray | None = None, data_range: float = 1.0,
-                 allow_small: bool = False) -> float:
+                 allow_small: bool = False,
+                 tonemap_fn: callable = tonemap_aces_srgb) -> float:
     """Mean structural similarity (Wang et al. 2004) on tone-mapped sRGB.
 
     Per-channel SSIM with an 11x11 Gaussian window (sigma 1.5), averaged across
-    channels and the valid window region. Both images are run through
-    tonemap_aces_srgb first. When a spatial mask is given, both tone-mapped
+    channels and the valid window region. Both images are run through the
+    selected tone mapper first (tonemap_fn: ACES by default, AgX under
+    `--tonemap agx` - the PAR1 tone-map-aware layer). When a spatial mask is
+    given, both tone-mapped
     images are cropped to the mask's tight bounding box first, so SSIM is
     measured only on the region of interest.
 
@@ -314,8 +443,8 @@ def compute_ssim(ref_rgb: np.ndarray, cand_rgb: np.ndarray,
     NON-WINDOWED scalar SSIM instead; it is a different statistic and its value
     is NOT comparable to the windowed one or to the declared SSIM threshold.
     """
-    a = tonemap_aces_srgb(ref_rgb)
-    b = tonemap_aces_srgb(cand_rgb)
+    a = tonemap_fn(ref_rgb)
+    b = tonemap_fn(cand_rgb)
     if mask is not None:
         r0, r1, c0, c1 = _mask_bbox(mask)
         a = a[r0:r1, c0:c1]
@@ -478,10 +607,15 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray,
                     mask: np.ndarray | None = None,
                     rel_mse_eps: float = REL_MSE_EPS,
                     hist_bins: int = 256,
-                    allow_small_ssim: bool = False) -> dict:
+                    allow_small_ssim: bool = False,
+                    tonemap: str = "aces") -> dict:
     # ref/cand are full HxWx3 RGB (scene-referred linear). Channel metrics are
     # computed on the requested channel; Rel-MSE shares that channel, while SSIM
     # and the luminance-histogram correlation need the full RGB pair.
+    # `tonemap` selects the operator for the tone-mapped metric layer (PAR1):
+    # "aces" (default) or "agx" - SSIM + tm_* metrics judge the image the
+    # display pipeline would show under the scene's declared tonemapper.
+    tm_fn = _TONEMAPPERS[tonemap]
     ref_ch = extract_channel(ref, channel)
     cand_ch = extract_channel(cand, channel)
 
@@ -517,12 +651,27 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray,
     # the full RGB pair, with the spatial mask applied inside each helper).
     rel_mse = compute_rel_mse(ref_ch, cand_ch, mask=mask_ch, eps=rel_mse_eps)
     ssim = compute_ssim(ref, cand, mask=mask if mask is not None else None,
-                        allow_small=allow_small_ssim)
+                        allow_small=allow_small_ssim, tonemap_fn=tm_fn)
     lum_hist_corr = compute_lum_histogram_correlation(ref, cand,
                                                       mask=mask if mask is not None else None,
                                                       bins=hist_bins)
     black_ref, black_cand = compute_black_fractions(ref, cand,
                                                     mask=mask if mask is not None else None)
+
+    # PAR1 tone-mapped layer (1/255 + dB, under the selected tonemapper) and
+    # PAR4 perceptual-uniformity error (ICtCp, HDR-safe).
+    tm_ref = tm_fn(ref)
+    tm_cand = tm_fn(cand)
+    tm_lum_diff = np.abs(luminance_rec709(tm_ref) - luminance_rec709(tm_cand))
+    tm_sel = tm_lum_diff if mask is None else tm_lum_diff[mask]
+    tm_mean_diff = float(np.mean(tm_sel) * 255.0)
+    tm_rgb_diff = (tm_ref - tm_cand)
+    if mask is not None:
+        tm_rgb_diff = tm_rgb_diff[mask]
+    tm_mse = float(np.mean(tm_rgb_diff * tm_rgb_diff))
+    tm_psnr = float("inf") if tm_mse == 0.0 else float(10.0 * np.log10(1.0 / tm_mse))
+    ictec_mean, ictec_max = compute_ictec_delta_e(
+        ref, cand, mask=mask if mask is not None else None)
 
     return {
         "mean_diff": mean_d,
@@ -535,6 +684,10 @@ def compute_metrics(ref: np.ndarray, cand: np.ndarray,
         "rel_mse": rel_mse,
         "ssim": ssim,
         "lum_hist_corr": lum_hist_corr,
+        "tm_mean_diff": tm_mean_diff,
+        "tm_psnr": tm_psnr,
+        "ictec_de_mean": ictec_mean,
+        "ictec_de_max": ictec_max,
         "black_frac_ref": black_ref,
         "black_frac_cand": black_cand,
         "signed_mean": signed_mean,
@@ -551,6 +704,10 @@ def evaluate_gate(metrics: dict, args: argparse.Namespace) -> tuple[bool, list[s
     hist_ok = metrics["lum_hist_corr"] >= args.lum_hist_threshold
     psnr_ok = (args.psnr_threshold is not None) and (metrics["psnr"] >= args.psnr_threshold)
     relative_ok = (args.relative_threshold is not None) and (metrics["rel_mean_pct"] <= args.relative_threshold)
+    # PAR1 opt-in: tone-mapped mean-diff under the selected tonemapper, ANDed
+    # into 'all' only when explicitly thresholded (same contract as PSNR).
+    tm_mean_ok = (getattr(args, "tm_mean_threshold", None) is None) or \
+        (metrics["tm_mean_diff"] <= args.tm_mean_threshold)
 
     if args.gate == "all":
         # Strict AND of all declared §7 metrics (PLAN.md §7: "all of them,
@@ -574,6 +731,9 @@ def evaluate_gate(metrics: dict, args: argparse.Namespace) -> tuple[bool, list[s
         if args.relative_threshold is not None:
             checks.append(relative_ok)
             labels.append(f"rel_mean_% <= {args.relative_threshold}%")
+        if getattr(args, "tm_mean_threshold", None) is not None:
+            checks.append(tm_mean_ok)
+            labels.append(f"tm_mean_diff <= {args.tm_mean_threshold} ({args.tonemap})")
         return all(checks), labels
     if args.gate == "mean":
         return mean_ok, [f"mean_diff <= {args.threshold}"]
@@ -680,6 +840,11 @@ def main() -> int:
                         help="Pass/fail luminance-histogram Pearson correlation (default: 0.999)")
     parser.add_argument("--psnr-threshold", type=float, default=None,
                         help="Optional PSNR threshold in dB (ANDed into the 'all' gate when given)")
+    parser.add_argument("--tonemap", choices=("aces", "agx"), default="aces",
+                        help="Tone mapper for the tone-mapped metric layer (PAR1): aces (default) or agx - "
+                             "match the scene's declared tonemapper so SSIM/tm_* judge what the display shows")
+    parser.add_argument("--tm-mean-threshold", type=float, default=None,
+                        help="Optional tone-mapped mean-diff threshold in 1/255 (ANDed into 'all' when given; PAR1)")
     parser.add_argument("--relative-threshold", type=float, default=None,
                         help="Optional relative mean-error threshold in percent (ANDed into 'all' when given)")
     parser.add_argument("--rel-mse-eps", type=float, default=REL_MSE_EPS,
@@ -751,7 +916,8 @@ def main() -> int:
 
     metrics = compute_metrics(ref, cand, channel=args.channel, mask=mask2d,
                               rel_mse_eps=args.rel_mse_eps, hist_bins=args.hist_bins,
-                              allow_small_ssim=args.allow_small_ssim)
+                              allow_small_ssim=args.allow_small_ssim,
+                              tonemap=args.tonemap)
 
     passed, gate_labels = evaluate_gate(metrics, args)
 
@@ -765,7 +931,17 @@ def main() -> int:
     print(f"  rel_mean%    : {metrics['rel_mean_pct']:7.3f} %")
     print(f"  Rel-MSE      : {metrics['rel_mse']:.6f}  (threshold {args.rel_mse_threshold}, "
           f"(ref-cand)^2/(ref^2+{args.rel_mse_eps:g}))")
-    print(f"  SSIM         : {metrics['ssim']:.6f}  (threshold {args.ssim_threshold}, ACES+sRGB)")
+    print(f"  SSIM         : {metrics['ssim']:.6f}  (threshold {args.ssim_threshold}, "
+          f"{args.tonemap}+sRGB)")
+    tm_line = f"  tm_mean_diff : {metrics['tm_mean_diff']:7.3f}  ({args.tonemap}+sRGB, 1/255"
+    if args.tm_mean_threshold is not None:
+        tm_line += f"; threshold {args.tm_mean_threshold:.1f})"
+    else:
+        tm_line += "; reported)"
+    print(tm_line)
+    print(f"  tm_PSNR      : {metrics['tm_psnr']:7.2f} dB  ({args.tonemap}+sRGB)")
+    print(f"  ictec_dE     : mean {metrics['ictec_de_mean']:7.4f}  max {metrics['ictec_de_max']:7.4f}  "
+          f"(perceptual-uniformity HDR distance, BT.2100 ICtCp; PAR4)")
     print(f"  lum_hist_corr: {metrics['lum_hist_corr']:.6f}  (threshold {args.lum_hist_threshold}, "
           f"{args.hist_bins} log-bins + 1 black bin)")
     print(f"  black_frac   : ref {metrics['black_frac_ref'] * 100:6.2f}%  "

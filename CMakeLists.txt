@@ -530,6 +530,12 @@ if(PROJECT_IS_TOP_LEVEL)
                              --family "${CMAKE_SOURCE_DIR}/..")
             set_tests_properties(test_dead PROPERTIES SKIP_RETURN_CODE 77 LABELS analysis RUN_SERIAL TRUE)
         endif()
+        # PAR1/PAR4 metric receipts (CPU-only, no GPU): the tone-mapped metric
+        # layer (ACES/AgX operators + the tm_mean_diff gate hook) and the
+        # BT.2100 ICtCp perceptual-uniformity distance in compare_renders.py.
+        add_test(NAME test_compare_metrics
+                 COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_compare_metrics.py)
+        set_tests_properties(test_compare_metrics PROPERTIES LABELS analysis RUN_SERIAL TRUE)
     endif()
 endif()
 
