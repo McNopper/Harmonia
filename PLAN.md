@@ -32,7 +32,7 @@ observability for Theia's path reservoir, inert for any consumer that leaves `ca
 
 ## 1. Context
 
-**OpenPBR Surface 1.1.1** is the single material standard. The family is **two renderers on
+**OpenPBR Surface 1.1.2** is the single material standard. The family is **two renderers on
 three substrates**: slang-math (math), Aether (scene/asset format), and Harmonia (the shared
 Vulkan library + the OpenPBR BSDF and path estimator — **this repo**).
 
@@ -323,7 +323,7 @@ starts after the architecture track — features land *on* the structure, not al
 > and parameters are mandatory for all BSDF changes. Papers are reference links only
 > (not redistributed — see `papers/README.md`).
 
-> **Editorial rule (v0.7.5):** conformance to OpenPBR 1.1.1 is reached by *implementing
+> **Editorial rule (v0.7.5):** conformance to OpenPBR 1.1.2 is reached by *implementing
 > established algorithms and proven approximations*, not by re-deriving formulas against a
 > reference. **"Verify formula X against MaterialX" is not a work item** — that drift surfaces
 > in the Theia↔Hyperion alignment workflow. Accordingly **C8, C2, C3 are dropped** (pure
@@ -340,7 +340,7 @@ Physical correctness of the rendered result — conformance to OpenPBR (Hyperion
 truth; OpenPBR's reference impls — Adobe's and MaterialX's — are cross-checks) and
 Theia↔Hyperion parity.
 
-### 4.1 Conformance track (C) - OpenPBR 1.1.1 (current), 1.1.2 patch bump (C16), 1.2 switch-over (C15)
+### 4.1 Conformance track (C) - OpenPBR 1.1.2 (current, C16 done), 1.2 switch-over (C15)
 
 **C0 closed at v0.6.19:** the full `bsdf_shared.slang` ↔ MaterialX audit is complete — all
 lobes Correct/Approx, no hacks or spec contradictions remain. (The shipped surface is **8
@@ -361,8 +361,8 @@ tracked.
 | C12 | **Fully-correlated Anisotropic Micrograin BSDF** (Lucas, Ribardière, Pacanowski — TOG 2024, [doi:10.1145/3658224](https://doi.org/10.1145/3658224)) — physically-grounded flake/particle layer; the OpenPBR flake/sparkle lobe. | **next** |
 | C4 | Upgrade specular/coat MS compensation (A2 `1/21` / Kulla-Conty) via **Successive Height Preintegration for a Height-Interdependent Path Formulation of Multiple Bounces in Smith Microfacet BRDFs** (Zhang et al., SIG 2026, [doi:10.1145/3799902.3811194](https://doi.org/10.1145/3799902.3811194)). **Owns the multi-bounce-Smith slot** as the evolutionary upgrade of the in-engine Kulla-Conty/A2 compensation. | backlog |
 | C13 | **Position-Normal Manifold for Glint Rendering** (Wu, Luan, Hasan — SIG 2025, [doi:10.1145/3721238.3730633](https://doi.org/10.1145/3721238.3730633)) — consistent sparkle/glint estimator. | backlog |
-| C15 | **OpenPBR 1.2 switch-over** (on spec release — conformance target: 1.1.1 now, **1.1.2** via the C16 patch bump, then **1.2** here - 1.1.2 (patch) and 1.2 (minor) are separate releases). Delta verified against the ASWF 1.1↔1.2 versioning tool ([PR #307](https://github.com/AcademySoftwareFoundation/OpenPBR/pull/307)): `emission_weight` + `emission_luminance` default 0→1000 (#231); `transmission_scatter` coefficient↔albedo reinterpretation (#286 — **flips the σ_s = transmission_scatter/depth formula in both medium walks**, `transmissionVolumeCoeffs`); `specular_weight` refraction decoupling (#247); `specular_haze`/`specular_haze_spread` dual-lobe NDF (#254) + `specular_retroreflectivity` (#255); class-C formula fixes deferred by policy (coat-darkening #253, F82 clamps #238/#256, input clamps #277). | watchlist (→ 1.2 release) |
-| C16 | **OpenPBR 1.1.2 conformance bump** - a 1.1-line **patch release** (docs/examples/notation fixes), NOT the 1.2 minor spec; do not confuse the two (1.2 scope lives in C15). `dev_1.1.2` state: docs/examples-only so far - #315/#313/#309/#322 merged, #321 thin-walled subsurface color MaterialX-graph fix and #304 T_coat notation still open. On release: re-audit the final release diff, verify the thin-walled subsurface color path against #321 (expected no code change - the shipped path follows the #258 clarification), update the declared target 1.1.1 -> **1.1.2** everywhere (AGENTS.md, README, PLAN headings), and drop older-version support by declaration: spec defaults and conformance tests target 1.1.2 only. | queued |
+| C15 | **OpenPBR 1.2 switch-over** (on spec release — conformance target: **1.1.2** (C16 done), then **1.2** here - 1.1.2 (patch) and 1.2 (minor) are separate releases). Delta verified against the ASWF 1.1↔1.2 versioning tool ([PR #307](https://github.com/AcademySoftwareFoundation/OpenPBR/pull/307)): `emission_weight` + `emission_luminance` default 0→1000 (#231); `transmission_scatter` coefficient↔albedo reinterpretation (#286 — **flips the σ_s = transmission_scatter/depth formula in both medium walks**, `transmissionVolumeCoeffs`); `specular_weight` refraction decoupling (#247); `specular_haze`/`specular_haze_spread` dual-lobe NDF (#254) + `specular_retroreflectivity` (#255); class-C formula fixes deferred by policy (coat-darkening #253, F82 clamps #238/#256, input clamps #277). | watchlist (→ 1.2 release) |
+| C16 | **OpenPBR 1.1.2 conformance bump** — **DONE 2026-11-15** (upstream release 2026-11-05, tag `51b14a8`; a 1.1-line **patch release**, NOT the 1.2 minor — 1.2 scope stays in C15). Final release-diff re-audit vs v1.1.1: **#321 thin-walled subsurface color — code change landed** (the pre-audit's "no code change" expectation was wrong: the shipped reflection sheet applied a `subsurface_radius`-scale tint `1/(1+r·Σscale)` plus a `0.25+0.5·r` roughness floor — **#258 explicitly forbids both inputs** ("in this mode `subsurface_radius`/`subsurface_radius_scale` are ignored — the scattering MFP is infinitesimal") and the spec's reflection lobe is plain `subsurface_color` at `base_diffuse_roughness`; removed — color now applied exactly once, roughness passed through. The ½(1∓g) reflect/transmit weight split and the transmission sheet already conformed, matching the post-#321 MaterialX graph). **#304 coat T² notation** — no code change (spec-index.html only; MaterialX graph untouched; our round-trip `coat_attenuation = mix(1, coat_color, coat_weight)` already equals the corrected **T²_coat = coat_color**). **#284** scatter-anisotropy UI names — no impact (parameter IDs unchanged, no UI layer). **#331** `transmission_depth`/`subsurface_radius` default unit **cm** — declared in the Aether field docs. **#313/#325/#322/#309/#315** docs/examples/notation — n/a to the shipped code (our color inputs stay [0,1]-clamped, matching the example-parameterization fix). Declared target 1.1.1 → **1.1.2** everywhere (PLAN headings, READMEs, AGENTS, shader headers, Aether schema comments); conformance targets 1.1.2 only. | **done** |
 
 *Dropped:* **C8** (Smith G₂ "correctness" — a formula re-check; closed as a verified no-op,
 the height-correlated Smith term is the proven approximation in use), **C2** (verify σ_t/HG-`g`
@@ -969,9 +969,9 @@ topology-change reuse, **GI-BDPT** (duplicate of the GI-SMS caustics slot).
 ### 5.6 Research triage — SIGGRAPH / SIGGRAPH Asia / I3D / HPG / EG 2025–26
 
 **Watchlist scope:** we track *any* paper (not just ReSTIR) that advances the two **active**
-goals — **quality** (OpenPBR 1.1.1 conformance + Theia↔Hyperion parity) and **speed** (RT /
+goals — **quality** (OpenPBR 1.1.2 conformance + Theia↔Hyperion parity) and **speed** (RT /
 sampling / denoising throughput) — across all tracks. Anything **out of that box**
-(alternative APIs, DSLs/codegen, reference archetypes, lobes beyond OpenPBR 1.1.1) is parked
+(alternative APIs, DSLs/codegen, reference archetypes, lobes beyond OpenPBR 1.1.2) is parked
 in **backlog/watchlist**, never "next". Selection criterion is the convergence-to-Hyperion
 litmus below; verification uses Semantic Scholar + ACM DL + arXiv/DBLP (never open-index
 absence alone).
@@ -1334,7 +1334,7 @@ the parity harness (`tools/render_and_validate.py` over `validation_manifest.tom
 
 ### Guardrails
 
-- **OpenPBR 1.1.1** is the standard; Hyperion is unbiased (no clamps/hacks) **in the
+- **OpenPBR 1.1.2** is the standard; Hyperion is unbiased (no clamps/hacks) **in the
   estimator**. Enforced: the render-path firefly clamp is removed (`raygen.slang:86`), BSDF
   shared 1:1 via Harmonia. Carve-out, stated so "no clamps" is not quietly false: a
   neighbourhood soft-clamp exists in the **display path only** (`shaders/tonemap.slang:289/341`)

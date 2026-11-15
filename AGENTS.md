@@ -77,7 +77,10 @@ geometric normal (`HitInfo.geoNormal` / `GiHit.geoNormal`) — never pre-flipped
 ray. Shading flips a local copy by wo; the side bit `dot(wo, geoNormal) < 0` becomes
 `SurfaceHit.backface` → the BSDF `exiting` branch (inverted relative IOR: side-correct
 Fresnel/Snell + genuine TIR on exit). `geometry_thin_walled` is **exempt**: a thin film has
-no bulk interior, so its crossings are side-independent (no eta inversion, never TIR).
+no bulk interior, so its crossings are side-independent (no eta inversion, never TIR). The
+thin-walled **subsurface sheet** follows OpenPBR 1.1.2 (#258/#321): `subsurface_radius` /
+`subsurface_radius_scale` are ignored (infinitesimal MFP), `subsurface_color` applies
+exactly once, split reflect/transmit ½(1∓g) by `subsurface_scatter_anisotropy`.
 Medium walks (Hyperion raygen/miss/closesthit, Theia `runMediumWalk`) apply **exact
 deterministic Beer–Lambert transmittance for pure absorbers** (single-scatter albedo = 0 —
 ratio-tracking degenerate case, zero walk variance); scattering media use the chromatic

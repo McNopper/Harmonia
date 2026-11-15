@@ -67,9 +67,9 @@ stays in the renderer.
 
 ---
 
-## Material model — OpenPBR Surface v1.1.1
+## Material model — OpenPBR Surface v1.1.2
 
-The shared `shaders/bsdf_shared.slang` implements the full OpenPBR 1.1.1 layer stack,
+The shared `shaders/bsdf_shared.slang` implements the full OpenPBR 1.1.2 layer stack,
 used 1:1 by both renderers — this section is the canonical description (the renderer
 READMEs link here).
 
@@ -112,8 +112,13 @@ red-shifted subsurface glow; the single-scatter albedo is `subsurface_color`. A
 **hero-wavelength spectral-MIS estimator** samples one channel's mean-free-path per step
 and reweights the others, and reduces exactly to the achromatic walk when the extinction
 is grey (clear glass stays byte-stable). The walk runs on its own bounce budget (it does
-not starve surface transport). Thin-walled subsurface keeps a diffuse
-reflection/transmission sheet.
+not starve surface transport). Thin-walled subsurface follows **OpenPBR 1.1.2** (#258/#321):
+it degenerates into a diffuse reflection/transmission sheet where `subsurface_color` is
+applied **exactly once** to each lobe (the pre-1.1.2 MaterialX reference squared it via an
+external branch multiplier — the bug #321 removed), `subsurface_radius` /
+`subsurface_radius_scale` are **ignored** (the sheet's scattering mean-free path is
+infinitesimal), and the sheet splits by the phase anisotropy — reflection ½(1−g),
+transmission ½(1+g) — both lobes shaped by `base_diffuse_roughness`.
 
 **Transmission scattering** reuses the same volumetric walk: when `transmission_scatter`
 is set, the smooth dielectric interior becomes a genuine scattering medium (milky/cloudy
@@ -228,7 +233,7 @@ color management, and tonemapping stages are based on:
 ### Material model — OpenPBR Surface
 | Resource | Relevance |
 |----------|-----------|
-| [OpenPBR Surface Specification v1.1.1](https://academysoftwarefoundation.github.io/OpenPBR/) | Authoritative layer stack, parameter names, and closure algebra — the ground-truth `bsdf_shared.slang` targets |
+| [OpenPBR Surface Specification v1.1.2](https://academysoftwarefoundation.github.io/OpenPBR/) | Authoritative layer stack, parameter names, and closure algebra — the ground-truth `bsdf_shared.slang` targets |
 | [MaterialX `open_pbr_surface` / `mx_fresnel_airy`](https://github.com/AcademySoftwareFoundation/MaterialX) | Reference node graph and shader implementations; `mx_*` function/parameter naming is used verbatim (no aliasing) |
 
 ### Surface BSDF closures

@@ -45,8 +45,8 @@ float3 toLocal(float3 v, float3 T, float3 B, float3 N)
 }
 
 // ── Step 3: bulk subsurface — shared volumetric random-walk primitives ──────────────────
-// OpenPBR 1.1.1 models subsurface as light entering through the SAME dielectric interface as
-// OpenPBR 1.1.1 models subsurface as light entering through the SAME dielectric interface as
+// OpenPBR 1.1.2 models subsurface as light entering through the SAME dielectric interface as
+// OpenPBR 1.1.2 models subsurface as light entering through the SAME dielectric interface as
 // specular/transmission, undergoing multiple scattering in a homogeneous medium, then exiting.
 // These are the shared "volume primitives" (per-channel extinction mapping + phase-function
 // sampling) used by the chromatic (hero-wavelength) volumetric random walk (G5/G6). The same
@@ -144,7 +144,7 @@ void computeAlpha(float roughness, float anisotropy, out float alphaX, out float
     alphaY = max(alphaY, 0.001);
 }
 
-// ── OpenPBR 1.1.1 layer algebra (spec nodegraph, open_pbr_surface.mtlx) ──────────────────
+// ── OpenPBR 1.1.2 layer algebra (spec nodegraph, open_pbr_surface.mtlx) ──────────────────
 // Exact ports of the scalar coupling formulas the MaterialX nodegraph applies between layers,
 // replacing earlier approximations. See files/openpbr-1.1.1-gap-audit.md (G1-G4,G7).
 
@@ -200,7 +200,7 @@ float3 openpbrCoatColorAttenuation(float3 coatColor, float coatWeight)
     return lerp(1.0.xxx, saturate3(coatColor), saturate(coatWeight));
 }
 
-// ─── OpenPBR 1.1.1 thin-film iridescence — faithful MaterialX mx_fresnel_airy port ───
+// ─── OpenPBR 1.1.2 thin-film iridescence — faithful MaterialX mx_fresnel_airy port ───
 // Spec model for the OpenPBR `thin_film` lobe (Belcour & Barla 2017), ported 1:1 from
 // MaterialX `mx_fresnel_airy`: a full s/p-polarized Airy summation with the spectral
 // Gaussian sensitivity, supporting BOTH a Schlick (F0/F82) dielectric base AND a
@@ -208,7 +208,7 @@ float3 openpbrCoatColorAttenuation(float3 coatColor, float coatWeight)
 // (mx_fresnel_conductor_phase_polarized); a real-IOR approximation cannot reproduce the
 // vivid anodized-metal colour shift, so (n,k) is recovered from the artist-friendly
 // (reflectivity, edge-tint) parameters via Gulbrandsen 2014 (`mx_artistic_ior`).
-// Refs: Belcour & Barla, ACM TOG 2017; OpenPBR Surface v1.1.1 §thin_film;
+// Refs: Belcour & Barla, ACM TOG 2017; OpenPBR Surface v1.1.2 §thin_film;
 //       MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl.
 
 /// Generalized-Schlick conductor Fresnel with F82-tint (OpenPBR Surface spec).
@@ -738,7 +738,7 @@ float3 evalReflectionMicrofacet(float3 F0, float3 F82, float3 wo, float3 wi, flo
 // the substrate is attenuated by the top layer's view-dependent directional albedo E_top and
 // total energy never exceeds 1. These helpers return that E_top for the coat and specular layers
 // (Fresnel-weighted GGX albedo), so each lower lobe can be scaled by (1 - E_above). Replaces the
-// old crude `rcp(coatEta²)` coat-darkening. Ref: OpenPBR Surface v1.1.1 "Coat"/"layer";
+// old crude `rcp(coatEta²)` coat-darkening. Ref: OpenPBR Surface v1.1.2 "Coat"/"layer";
 // MaterialX libraries/pbrlib/genglsl/lib/mx_microfacet_specular.glsl directional-albedo coupling.
 
 /// Directional albedo (reflectance) of a Fresnel-weighted GGX lobe with normal-incidence
@@ -931,7 +931,7 @@ void computeLobeWeights(
 
 // -----------------------------------------------------------------------------
 // Shadow-terminator handling - integration-level helper, NOT part of the
-// OpenPBR BSDF (OpenPBR 1.1.1 specifies the material model only; terminator
+// OpenPBR BSDF (OpenPBR 1.1.2 specifies the material model only; terminator
 // handling is renderer integration).
 //
 // shadowTerminatorFactor - Chiang, Li & Burley, "Taming the Shadow Terminator",

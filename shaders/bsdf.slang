@@ -1,4 +1,4 @@
-// Shared OpenPBR 1.1.1 BSDF layer assembly — evalBSDF / pdfBSDF / sampleBSDF.
+// Shared OpenPBR 1.1.2 BSDF layer assembly — evalBSDF / pdfBSDF / sampleBSDF.
 // Imported 1:1 by both renderers (Hyperion path tracer and Theia GI stage); the
 // layer primitives live in bsdf_shared.slang. Bulk subsurface is a delta medium-entry
 // sampled here and walked by the renderer's volumetric loop — it deliberately has NO
@@ -114,14 +114,18 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
         }
         if (subsurfaceWeight > 0.0 && mat.opacityFlagsPad.w > 0.5) {
             // Thin-walled subsurface only: a local diffuse reflection approximation (the sheet
-            // has no interior volume to walk). BULK (non-thin-walled) subsurface is handled by
-            // the volumetric random walk on the BSDF-sample side — its entry is a delta
-            // refractive event, so like the transmission lobe it has NO local BRDF value here
-            // and contributes nothing to eval/NEE (evaluating the old tinted-diffuse term for it
-            // would double-count and bias direct lighting against the sampled walk).
-            float ssScale = max(mat.subsurfaceRadiusScale.w, 0.001);
-            float3 ssTint = subsurfaceColor * (1.0 / (1.0 + ssScale * (mat.subsurfaceRadiusScale.x + mat.subsurfaceRadiusScale.y + mat.subsurfaceRadiusScale.z)));
-            result += baseLayerScale * diffuseUnderSpec * subsurfaceWeight * evalDiffuse(ssTint, saturate(0.25 + 0.5 * diffuseRough), woL, wiL);
+            // has no interior volume to walk). OpenPBR 1.1.2 (#258/#321): the color is
+            // subsurface_color applied EXACTLY ONCE (the pre-1.1.2 MaterialX graph squared it
+            // via an external branch multiplier — never repeat that), and subsurface_radius /
+            // subsurface_radius_scale are IGNORED in this mode (the MFP is infinitesimal), so
+            // no radius modulation may tint the sheet. Roughness is base_diffuse_roughness
+            // directly, both lobes (spec thin-walled section). BULK (non-thin-walled)
+            // subsurface is handled by the volumetric random walk on the BSDF-sample side — its
+            // entry is a delta refractive event, so like the transmission lobe it has NO local
+            // BRDF value here and contributes nothing to eval/NEE (evaluating the old
+            // tinted-diffuse term for it would double-count and bias direct lighting against
+            // the sampled walk).
+            result += baseLayerScale * diffuseUnderSpec * subsurfaceWeight * evalDiffuse(subsurfaceColor, diffuseRough, woL, wiL);
         }
         if (specularWeight > 0.0 || metalWeight > 0.0) {
             result += baseLayerScale * (specularWeight + metalWeight) * evalReflectionMicrofacetThinFilm(dielectricF0 * specColor, baseColor, glossyF82, mat.baseMetalnessDiffRough.x, woL, wiL, alphaX, alphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
