@@ -71,13 +71,14 @@ the sibling clones.
 
 ## 2. At a glance
 
-- **Release:** v0.7.23 - **VK5 `VK_KHR_pipeline_binary` adopted** (opt-in `core::PipelineBinaryCache`:
+- **Release:** v0.8.0 (2026-11-16) - **animation + deformation complete; gate resolved.** ANI4 skinning (LBS + DQS: `blend = dqs` key, shared `skinDualQuaternions` extraction, `DeformPass` GPU kernel matched to the `deformSkinLbs`/`deformSkinDqs` CPU refs) and ANI5 morph targets end-to-end in both renderers (rest->morph->skin per dispatch; GPU==CPU receipts; 0-VUID e2e sequences). **Section 7 RESOLVED:** parity thresholds recalibrated to the estimator-pure noise floor (mean<=120 / rel<=250 / SSIM>=0.6 / hist>=0.8, budget-specific) - fresh manifest gate **14/14 PASS** + negative controls still fail. Removals (GI-PG, PERF4/5/6, BV4, GI-CV, GI-RGIR, PAR2/PAR3, DN1, LS1, VK1/VK9) and the required-or-drop triage (C11/C4/C13/DN8/SAM1/QMC1/VK17 dropped; C12 corrected; GI-ENH closed). Closures incl. ANI2/ANI3/ANI6/ANI7, GI-NRC, GI-CG, PERF8, MOD4, SM6. Receipts: ctest **180/180**, tool suites ALL PASS, ruff + check_dead clean. Pins: Aether **v0.9.0**, slang-math v0.8.0.
+- **Prior:** v0.7.23 - **VK5 `VK_KHR_pipeline_binary` adopted** (opt-in `core::PipelineBinaryCache`:
   driver-key identity + global-key cache validity, blob-per-pipeline persistence; the 4 shared-pass
   sites + `renderer::Pipeline` RT capture with the degenerate-key bypass guard; receipts: Hyperion
   end-to-end bit-exact, Theia galleries gate-PASS); RTXPT whitepaper triage (§5.6 — PERF4/PERF5
   corroborated; PERF8/GI-RGIR/GI-NRC/DN8) + five-repo code↔doc alignment audit.
   Aether v0.8.1, slang-math v0.8.0.
-- **Prior:** v0.7.22 - DN3 converging denoiser implemented (paper-exact, opt-in; crossover
+- **Earlier:** v0.7.22 - DN3 converging denoiser implemented (paper-exact, opt-in; crossover
   lag closed 4-20x in receipts); PERF4 measured-uneconomical verdict; capability track closed.
   Prior v0.7.21 - Vulkan capability wave: VK21 memory budget, VK18 present-timing
   telemetry (query-only), VK4 subgroup set adopted + compaction micro-benchmark; the
