@@ -110,6 +110,13 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--frame <N>` | **ANI8 animation seek**: start the animation clock at frame N - sequence output frame k renders tick **N + k** (movie frame generation: one image per run with `--sequence-frames 1 --frame N`), the interactive window starts at N and plays in real time, and a camera bound via `[camera] node` re-places itself from N on. 0 (default) = unchanged behavior. |
 | `--capture-every-ms <f>` | **ANI7 time-based capture** (requires `--sequence-frames`): sample the animation every N milliseconds of ANIMATION TIME instead of the integer tick grid - output frame k renders `start + k * interval` seconds (sub-frame sampling at e.g. 16.67 ms, multi-frame jumps at e.g. 1000 ms); the range is start + count x interval (count = `--sequence-frames`). ONE clock (`App::animationClock` -> seconds + change key) feeds every consumer (scene stamp, deform, TLAS, scripted camera) - they can never disagree. 0/absent (default) = the tick grid, unchanged; rejected without `--sequence-frames`. |
 | `--start-seconds <f>` | Explicit capture start in SECONDS (>= 0) for `--capture-every-ms`; absent = derived from `--frame` / fps. |
+| `--ibl-diffuse-resolution <n>` | IBL diffuse irradiance atlas width (height = width / 2, 2:1 lat-long). Default 256. |
+| `--display-overlay` | Optional post-tonemap, **display-referred** overlay renderer (interactive presentation debug - never scene-referred). |
+| `--deterministic-replay` | Replayable frame/sample RNG sequencing for the stochastic stages: the same stream every run, so captures and A/B diffs are reproducible on top of `--rng-seed`. |
+| `--rng-debug` | Stochastic debug path switch for renderer-side RNG visualization/tests (the base seed itself is `--rng-seed <n>`). |
+| `--offscreen-frames <n>` | Scene-referred frames accumulated before saving in offscreen (headless) mode. Default 4; raise it for stochastic convergence (the ANI7 sequence accumulates this many per output frame). |
+| `--frames-per-flip <n>` | Interactive window: accumulation frames per swapchain flip - 1 = one render per present (default, I6), N > 1 converges the displayed image faster per flip at the cost of flip rate and input latency. |
+| `--denoiser-*` | Presentation-stage (scene-output) denoiser controls: values `--denoiser-strength <f>` (0..1), `--denoiser-iterations <n>` (1..8), `--denoiser-history-blend <f>`, `--denoiser-gradient-alpha <f>`; toggles `--denoiser-no-history` / `--denoiser-history` and `--denoiser-no-gradient` / `--denoiser-gradient`. Forced off for `--output` / `--no-postfx` captures (the two-tier output contract - the denoiser is a presentation stage only). |
 
 ⚠ï¸ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
 
@@ -119,6 +126,18 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 `ssim` (tone-mapped sRGB), luminance-histogram correlation, `psnr`, `mse`, `rel_mean_pct`,
 percentile/max diffs and a signed heatmap (`--signed-heatmap`). `tools/check_consistency.py`
 covers bias/variance (Theia N vs 4N frames).
+
+Three companion harnesses (same tooling contract):
+- `tools/compare_sequences.py <ref-dir> <cand-dir>` - **ANI7 sequence gate**:
+  the strict-AND metric set per frame pair plus the temporal layer (per-metric
+  mean / worst-frame, first->last drift); frame pairing by the trailing
+  `_<index>`, count/index mismatch = error.
+- `tools/check_vulkan_validation.py [--scene <s>...]` - the **zero-warning
+  gate**: renders the manifest (or the named scenes) with validation ON and
+  fails on any validation message or app WARN/ERROR line.
+- `tools/render_and_validate.py <hyperion_exe> <theia_exe> <output_root>` -
+  renders the manifest's Hyperion/Theia pairs and runs `validate_renders.py`
+  over the batch (the parity sweep producer).
 
 Contract (all must hold or the numbers are meaningless):
 - Reference = Hyperion EXR; candidate = Theia EXR. **Pre-tonemap linear EXR**, never PNG.
