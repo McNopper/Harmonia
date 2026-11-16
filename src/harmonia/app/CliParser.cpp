@@ -237,6 +237,41 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         }
         return true;
     }
+    if (arg == "--capture-every-ms") {
+        // ANI7 timing extension: sample the animation every N milliseconds of
+        // animation time (requires --sequence-frames; sub-frame sampling at
+        // e.g. 16.67 ms, or multi-frame jumps at e.g. 1000 ms).
+        if (const char* v = next("--capture-every-ms")) {
+            try {
+                const double ms = std::stod(v);
+                if (ms <= 0.0) {
+                    core::Logger::error("Invalid value for --capture-every-ms (must be > 0): {}", v);
+                } else {
+                    config.captureIntervalMs = ms;
+                }
+            } catch (...) {
+                core::Logger::error("Invalid value for --capture-every-ms: {}", v);
+            }
+        }
+        return true;
+    }
+    if (arg == "--start-seconds") {
+        // ANI7 timing extension: explicit capture start in SECONDS (overrides
+        // the --frame / fps derivation of the interval start).
+        if (const char* v = next("--start-seconds")) {
+            try {
+                const double seconds = std::stod(v);
+                if (seconds < 0.0) {
+                    core::Logger::error("Invalid value for --start-seconds (must be >= 0): {}", v);
+                } else {
+                    config.captureStartSeconds = seconds;
+                }
+            } catch (...) {
+                core::Logger::error("Invalid value for --start-seconds: {}", v);
+            }
+        }
+        return true;
+    }
     if (arg == "--frames-per-flip") {
         if (const char* v = next("--frames-per-flip")) {
             std::uint32_t frames = 0U;

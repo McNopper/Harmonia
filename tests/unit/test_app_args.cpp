@@ -161,3 +161,68 @@ TEST(AppArgs, ParsesDenoiserHistoryOptions) {
     EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 4, argv));
     EXPECT_FALSE(config.denoiser.useHistory);
 }
+
+TEST(AppArgs, ParsesCaptureEveryMs) {
+    // ANI7 timing extension: time-based sequence sampling.
+    harmonia::app::App::Config config;
+
+    char arg0[] = "app";
+    char arg1[] = "--capture-every-ms";
+    char arg2[] = "16.667";
+    char* argv[] = {arg0, arg1, arg2};
+    int i = 1;
+
+    EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
+    EXPECT_DOUBLE_EQ(config.captureIntervalMs, 16.667);
+    EXPECT_EQ(i, 2) << "the value token must be consumed";
+}
+
+TEST(AppArgs, CaptureEveryMsInvalidValueKeepsDefault) {
+    harmonia::app::App::Config config;
+
+    char arg0[] = "app";
+    char arg1[] = "--capture-every-ms";
+    char arg2[] = "-5";
+    char* argv[] = {arg0, arg1, arg2};
+    int i = 1;
+
+    EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
+    EXPECT_DOUBLE_EQ(config.captureIntervalMs, 0.0) << "non-positive interval keeps the tick-grid default";
+    EXPECT_EQ(i, 2);
+
+    i = 1;
+    char arg2b[] = "not-a-number";
+    argv[2] = arg2b;
+    EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
+    EXPECT_DOUBLE_EQ(config.captureIntervalMs, 0.0);
+    EXPECT_EQ(i, 2) << "the invalid token is still consumed";
+}
+
+TEST(AppArgs, ParsesStartSeconds) {
+    harmonia::app::App::Config config;
+    EXPECT_LT(config.captureStartSeconds, 0.0) << "default = derive the start from --frame / fps";
+
+    char arg0[] = "app";
+    char arg1[] = "--start-seconds";
+    char arg2[] = "2.5";
+    char* argv[] = {arg0, arg1, arg2};
+    int i = 1;
+
+    EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
+    EXPECT_DOUBLE_EQ(config.captureStartSeconds, 2.5);
+    EXPECT_EQ(i, 2);
+}
+
+TEST(AppArgs, StartSecondsNegativeKeepsDefault) {
+    harmonia::app::App::Config config;
+
+    char arg0[] = "app";
+    char arg1[] = "--start-seconds";
+    char arg2[] = "-1";
+    char* argv[] = {arg0, arg1, arg2};
+    int i = 1;
+
+    EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
+    EXPECT_LT(config.captureStartSeconds, 0.0) << "negative start keeps the derive-from-frame default";
+    EXPECT_EQ(i, 2);
+}

@@ -108,6 +108,8 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--indirect-ambient <f>` | Presentation-only indirect ambient boost (scene-referred linear units). |
 | `--sequence-frames <N>` | **ANI7 sequence render** (with `--output`): render N ANIMATION frames instead of one capture - the animation tick is pinned to the output-frame index (t = k/fps constant across that frame's accumulation samples), accumulation restarts per frame, and files are written as `<stem>_0000<ext>` ... `<stem>_<k><ext>` (EXR + PNG each). 0 (default) = classic single capture. An animated `--output` without this flag is a single-sample last-tick image (warned once). |
 | `--frame <N>` | **ANI8 animation seek**: start the animation clock at frame N - sequence output frame k renders tick **N + k** (movie frame generation: one image per run with `--sequence-frames 1 --frame N`), the interactive window starts at N and plays in real time, and a camera bound via `[camera] node` re-places itself from N on. 0 (default) = unchanged behavior. |
+| `--capture-every-ms <f>` | **ANI7 time-based capture** (requires `--sequence-frames`): sample the animation every N milliseconds of ANIMATION TIME instead of the integer tick grid - output frame k renders `start + k * interval` seconds (sub-frame sampling at e.g. 16.67 ms, multi-frame jumps at e.g. 1000 ms); the range is start + count x interval (count = `--sequence-frames`). ONE clock (`App::animationClock` -> seconds + change key) feeds every consumer (scene stamp, deform, TLAS, scripted camera) - they can never disagree. 0/absent (default) = the tick grid, unchanged; rejected without `--sequence-frames`. |
+| `--start-seconds <f>` | Explicit capture start in SECONDS (>= 0) for `--capture-every-ms`; absent = derived from `--frame` / fps. |
 
 ⚠ï¸ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
 
@@ -131,7 +133,14 @@ Contract (all must hold or the numbers are meaningless):
   catches gross divergence, not Monte-Carlo noise (method + measurements: PLAN.md §7 and the
   manifest comments). **Budget-specific** - recalibrate if spp/frames/resolution change.
   Known limitation: the metrics are luminance-based, so a luma-preserving channel swap is
-  invisible. `compare_renders.py --gate scale-aware` remains in the tool for ad-hoc HDR
+  invisible. `tools/frames_to_video.py <input_dir> <output.mp4> [--fps N | --interval-ms X] [--crf N]`
+encodes a `--sequence-frames` image sequence into a playable H.264/yuv420p mp4
+(frames ordered NUMERICALLY by their trailing `_<index>`, hard-linked into an
+image2 sequence; ffmpeg required). `--interval-ms` pairs with
+`--capture-every-ms`, so playback duration equals the captured time range
+(verified: 10 frames x 100 ms -> 1.000 s at 10 fps).
+
+`compare_renders.py --gate scale-aware` remains in the tool for ad-hoc HDR
   comparisons; the manifest no longer routes scenes through it (both transmissive fixtures
   pass the plain gate).
 - For IBL references, render Hyperion at high spp (`--spp 256`) — a low-spp reference is

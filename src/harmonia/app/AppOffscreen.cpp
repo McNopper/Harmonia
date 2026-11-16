@@ -197,6 +197,14 @@ std::expected<std::uint64_t, VkResult> App::renderSceneReferred() {
 }
 
 int App::renderOffscreen() {
+    if (m_config.captureIntervalMs > 0.0 && m_config.sequenceFrames == 0U) {
+        // Time-based capture only makes sense as a SEQUENCE of samples (the
+        // classic single capture accumulates one state; the interval would
+        // advance it per accumulation sample - the warned anti-pattern).
+        core::Logger::error(
+            "--capture-every-ms requires --sequence-frames (a time-based capture is a sequence of samples)");
+        return 1;
+    }
     const std::uint32_t frameCount = offscreenFrameCount();
     core::Logger::info("Offscreen render: {} frame(s) -> {}", frameCount, m_config.outputFile.string());
 

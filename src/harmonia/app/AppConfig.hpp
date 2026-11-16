@@ -60,8 +60,19 @@ struct AppConfig {
     /// ANI8 `--frame N`: animation START frame - animationFrameIndex() adds this
     /// offset, so sequence output frame k renders tick N + k, the interactive
     /// window starts at N and runs in real time, and a classic single capture
-    /// starts at N + its raw frame index. 0 (default) = unchanged behavior.
+    /// 0 (default) = unchanged behavior.
     std::uint32_t animationStartFrame = 0;
+    /// ANI7 timing extension: capture every N milliseconds of ANIMATION TIME
+    /// (requires --sequence-frames). Output frame k then samples
+    /// start + k * interval SECONDS instead of the integer tick grid, so
+    /// sub-frame intervals (every 10 ms at 30 fps) and multi-frame intervals
+    /// (every 1000 ms) are both expressible. 0 (default) = the tick grid
+    /// (t = tick / fps), unchanged. The range is start + count * interval;
+    /// count stays --sequence-frames.
+    double captureIntervalMs = 0.0;
+    /// Explicit capture start in SECONDS (>= 0); negative (default) = derive
+    /// it from --frame / fps as before.
+    double captureStartSeconds = -1.0;
     /// Interactive window: accumulation frames per swapchain flip (1 = one render per
     /// present, the classic cadence). N > 1 converges the DISPLAYED image faster per
     /// flip on a static/slow camera at the cost of flip rate and input latency;

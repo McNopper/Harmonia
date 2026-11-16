@@ -180,6 +180,40 @@ class App {
         return m_config.animationStartFrame + (m_sequenceActive ? m_sequenceFrame : m_frameIndex);
     }
 
+    /// THE animation clock (ANI7/ANI8) - the ONE source of animation time for
+    /// EVERY consumer: scene stamping, deformation, TLAS refit and the
+    /// scripted camera. One call derives the time AND its change key together,
+    /// so a key/seconds pair can never disagree - the bug class of parallel
+    /// per-consumer time logic. Two capture modes, one formula each:
+    ///   * interval capture (--capture-every-ms, sequence mode only -
+    ///     renderOffscreen rejects the flag without --sequence-frames):
+    ///     start + outputFrame * interval, start = --start-seconds else
+    ///     --frame / fps - sub-frame and multi-frame sampling alike;
+    ///   * otherwise the tick grid: animationFrameIndex() / fps (ANI2/ANI7/
+    ///     ANI8 semantics unchanged).
+    /// `key` changes iff the sampled time changes (microsecond-quantized in
+    /// interval mode, the tick index otherwise).
+    struct AnimationClock {
+        double seconds = 0.0;  ///< animation time this output frame renders at
+        std::uint64_t key = 0; ///< monotonic change key for the guards
+    };
+
+    [[nodiscard]] AnimationClock animationClock(double fps) const noexcept {
+        const double safeFps = fps > 0.0 ? fps : 30.0;
+        AnimationClock clock;
+        if (m_config.captureIntervalMs > 0.0 && m_sequenceActive) {
+            const double start = m_config.captureStartSeconds >= 0.0
+                                     ? m_config.captureStartSeconds
+                                     : static_cast<double>(m_config.animationStartFrame) / safeFps;
+            clock.seconds = start + static_cast<double>(m_sequenceFrame) * (m_config.captureIntervalMs / 1000.0);
+            clock.key = static_cast<std::uint64_t>(clock.seconds * 1'000'000.0 + 0.5);
+        } else {
+            clock.seconds = static_cast<double>(animationFrameIndex()) / safeFps;
+            clock.key = animationFrameIndex();
+        }
+        return clock;
+    }
+
     /// Resolve + load a scene file (full path or bare name). Reusable at
     /// runtime for scene switching.
     [[nodiscard]] bool loadScene(const std::filesystem::path& sceneFile);

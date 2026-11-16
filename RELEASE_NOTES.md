@@ -68,3 +68,11 @@ PERF3-extension, PAR2/PAR3 (non-AI directive), DN1/LS1 (non-AI), VK1/VK9.
   `App::animationFrameIndex()` offset: sequence output frame k renders tick
   N + k, interactive starts at N), `Camera::setUp`/`setNearFar`. ANI8 PLAN
   row carries the full receipts (render parity PASS, 0 VUID everywhere).
+- **Time-based capture + video tooling (2026-11-16):** `--capture-every-ms` /
+  `--start-seconds` (ANI7 timing extension; ONE `App::animationClock` derives
+  seconds + change key for every consumer - scene, deform, TLAS, camera) and
+  `tools/frames_to_video.py` (sequence -> playable H.264 mp4, numeric frame
+  ordering, `--interval-ms` pairs with the capture). Receipts: AppArgs 15/15,
+  suite 184/184, tick-grid renders bit-identical pre/post unification,
+  interval == tick-grid equivalence 0.000/1.000, 10x100 ms -> 1.000 s video.
+
