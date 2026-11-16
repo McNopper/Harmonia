@@ -10,16 +10,24 @@ USAGE
     candidate  : Theia output     (--output cand.exr)
 
 OPTIONS
-    --threshold FLOAT      Mean-diff threshold for pass/fail (default: 4.0, in 1/255 units)
+    --threshold FLOAT      Mean-diff threshold for pass/fail (default: 120, in 1/255 units)
     --rel-mse-threshold FLOAT
-                           Pass if Rel-MSE <= this value (default: 0.01, scene-referred)
+                           Pass if Rel-MSE <= this value (default: 250, scene-referred;
+                           a loose guard - firefly-dominated on glass at this budget)
     --rel-mse-eps FLOAT    Denominator floor for Rel-MSE (default: 5e-3). sqrt(eps) is the
                            effective black point below which reference pixels are damped.
     --ssim-threshold FLOAT
-                           Pass if SSIM >= this value (default: 0.98, tone-mapped sRGB)
+                           Pass if SSIM >= this value (default: 0.6, tone-mapped sRGB)
     --lum-hist-threshold FLOAT
                            Pass if luminance-histogram Pearson correlation >= this value
-                           (default: 0.999, scene-referred EXR)
+                           (default: 0.8, scene-referred EXR)
+
+    GATE CONTRACT (recalibrated 2026-11-16, owner decision): the defaults sit above
+    the estimator-pure noise floor at the 320x240 / 256-spp / 256-frame budget and
+    below the "completely different" anchors - the gate catches renderings that are
+    completely different from the known-good baseline, not Monte-Carlo noise.
+    Budget-specific: recalibrate when spp/frames/resolution change (see
+    validation_manifest.toml for the measured envelopes).
     --psnr-threshold FLOAT
                            Pass if PSNR >= this value (dB) — opt-in extra metric
     --relative-threshold FLOAT
@@ -836,14 +844,19 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("reference",  type=Path, help="Hyperion EXR (ground truth)")
     parser.add_argument("candidate",  type=Path, help="Theia EXR (under test)")
-    parser.add_argument("--threshold", type=float, default=4.0,
-                        help="Pass/fail mean-diff threshold in 1/255 units (default: 4.0)")
-    parser.add_argument("--rel-mse-threshold", type=float, default=0.01,
-                        help="Pass/fail Rel-MSE threshold (default: 0.01 ~= 10-15%% RMS relative error)")
-    parser.add_argument("--ssim-threshold", type=float, default=0.98,
-                        help="Pass/fail SSIM threshold (default: 0.98, tone-mapped sRGB)")
-    parser.add_argument("--lum-hist-threshold", type=float, default=0.999,
-                        help="Pass/fail luminance-histogram Pearson correlation (default: 0.999)")
+    parser.add_argument("--threshold", type=float, default=120.0,
+                        help="Pass/fail mean-diff threshold in 1/255 units (default: 120 - "
+                             "recalibrated 2026-11-16: above the estimator-pure noise floor, "
+                             "below the completely-different anchors)")
+    parser.add_argument("--rel-mse-threshold", type=float, default=250.0,
+                        help="Pass/fail Rel-MSE threshold (default: 250 - a loose guard at this "
+                             "budget; firefly-dominated on glass)")
+    parser.add_argument("--ssim-threshold", type=float, default=0.6,
+                        help="Pass/fail SSIM threshold (default: 0.6, tone-mapped sRGB; "
+                             "clean floor 0.706, cross-scene anchors <= 0.195)")
+    parser.add_argument("--lum-hist-threshold", type=float, default=0.8,
+                        help="Pass/fail luminance-histogram Pearson correlation (default: 0.8; "
+                             "clean floor 0.869, cross-scene anchors <= 0.117)")
     parser.add_argument("--psnr-threshold", type=float, default=None,
                         help="Optional PSNR threshold in dB (ANDed into the 'all' gate when given)")
     parser.add_argument("--tonemap", choices=("aces", "agx"), default="aces",

@@ -137,7 +137,7 @@ def main() -> int:
     check("sequence gate: all frames pass -> PASS", ok and not failures)
 
     failing = [*frames[:2], _frame(3, {"mean_diff": 9.0, "ssim": 0.9},
-                                   ["mean_diff <= 4.0"])]
+                                   ["mean_diff <= 120.0"])]
     ok2, failures2 = cs.sequence_gate(failing)
     check("sequence gate: one failing frame fails the run",
           not ok2 and len(failures2) == 1 and "frame 0003" in failures2[0],
@@ -145,16 +145,16 @@ def main() -> int:
 
     # ── threshold mirror: compare_renders' documented PLAN §7 defaults ────────
     args = cs.make_gate_args()
-    check("gate defaults: mean<=4.0 rel<=0.01 ssim>=0.98 hist>=0.999",
+    check("gate defaults: mean<=120 rel<=250 ssim>=0.6 hist>=0.8 (2026-11-16 recalibration)",
           (args.threshold, args.rel_mse_threshold, args.ssim_threshold,
-           args.lum_hist_threshold) == (4.0, 0.01, 0.98, 0.999))
+           args.lum_hist_threshold) == (120.0, 250.0, 0.6, 0.8))
     check("gate defaults: gate=all, tonemap=aces, no opt-in thresholds",
           args.gate == "all" and args.tonemap == "aces"
           and args.psnr_threshold is None and args.tm_mean_threshold is None
           and args.relative_threshold is None)
     check("gate defaults: mirror matches compare_renders' documented values",
           (args.threshold, args.rel_mse_threshold, args.ssim_threshold,
-           args.lum_hist_threshold) == (4.0, 0.01, 0.98, 0.999))
+           args.lum_hist_threshold) == (120.0, 250.0, 0.6, 0.8))
     overridden = cs.make_gate_args(threshold=1.0)
     check("make_gate_args: override applies", overridden.threshold == 1.0)
     check("make_gate_args: unknown option rejected",
@@ -167,10 +167,10 @@ def main() -> int:
     passed_ident, _ = cr.evaluate_gate(m_ident, gate_args)
     check("per-frame wiring: identical pair passes the mirrored gate", passed_ident)
 
-    m_shift = cr.compute_metrics(ref, ref + 0.10, channel=gate_args.channel)
+    m_shift = cr.compute_metrics(ref, ref + 0.50, channel=gate_args.channel)
     passed_shift, shift_labels = cr.evaluate_gate(m_shift, gate_args)
-    check("per-frame wiring: +0.10 shift fails (mean_diff 25.5 > 4.0)",
-          not passed_shift and m_shift["mean_diff"] > 25.0,
+    check("per-frame wiring: +0.50 shift fails (mean_diff ~127.5 > 120)",
+          not passed_shift and m_shift["mean_diff"] > 120.0,
           f"mean_diff={m_shift['mean_diff']:.3f}; {', '.join(shift_labels)}")
 
     # ── failed_gate_labels: the FAILING subset only (not every active label) ──
@@ -179,7 +179,7 @@ def main() -> int:
     partial["ssim"] = 0.50
     failed_only = cr.failed_gate_labels(partial, gate_args)
     check("failed_gate_labels: partial failure lists ONLY the failing check",
-          failed_only == ["SSIM >= 0.98"], f"{failed_only}")
+          failed_only == ["SSIM >= 0.6"], f"{failed_only}")
     check("failed_gate_labels: passing metrics -> empty list",
           cr.failed_gate_labels(m_ident, gate_args) == [])
     check("failed_gate_labels: evaluate_gate still returns the full active set",

@@ -121,11 +121,18 @@ Contract (all must hold or the numbers are meaningless):
 - Reference = Hyperion EXR; candidate = Theia EXR. **Pre-tonemap linear EXR**, never PNG.
 - Same resolution, same working color space (same `[render]` preset).
 - Theia's unified accumulation RT path is the only path now.
-- **Gate = strict AND across the metric set** (mean_diff ≤ 4.0 in 1/255 units, SSIM ≥ 0.98,
-  luminance-histogram corr ≥ 0.999, rel-MSE below tolerance) over the **14 scenes** in
-  `tools/validation_manifest.toml` at 320×240 / 256 spp / 256 frames. The
-  `compare_renders.py --gate scale-aware` path (absolute OR relative+PSNR) is the sanctioned
-  looser gate for HDR transmissive fixtures.
+- **Gate = strict AND across the metric set** (mean_diff ≤ 120 in 1/255 units, rel-MSE ≤ 250,
+  SSIM ≥ 0.6, luminance-histogram corr ≥ 0.8) over the **14 scenes** in
+  `tools/validation_manifest.toml` at 320×240 / 256 spp / 256 frames. **Recalibrated
+  2026-11-16 (owner decision):** the old clamp-era numbers (4.0 / 0.01 / 0.98 / 0.999) were
+  unreachable under estimator-pure capture; each threshold now sits strictly between the
+  measured clean noise envelope and the measured *completely-different* anchors - the gate
+  catches gross divergence, not Monte-Carlo noise (method + measurements: PLAN.md §7 and the
+  manifest comments). **Budget-specific** - recalibrate if spp/frames/resolution change.
+  Known limitation: the metrics are luminance-based, so a luma-preserving channel swap is
+  invisible. `compare_renders.py --gate scale-aware` remains in the tool for ad-hoc HDR
+  comparisons; the manifest no longer routes scenes through it (both transmissive fixtures
+  pass the plain gate).
 - For IBL references, render Hyperion at high spp (`--spp 256`) — a low-spp reference is
   noisy and inflates `mean_diff`. See Aether/AGENTS.md "low-spp reference trap".
 

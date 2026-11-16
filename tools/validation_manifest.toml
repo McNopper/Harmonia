@@ -3,11 +3,11 @@
 # Each [[scene]] names an EXR pair (reference_template / candidate_template,
 # default "{scene}.exr") compared by compare_renders.py's metric set. The default
 # gate is "all" (strict AND of mean_diff, Rel-MSE, SSIM, lum-histogram corr. —
-# PLAN.md §7). Scenes listed in `scale_aware` use the looser
-# absolute-OR-(relative+PSNR) gate instead, which Theia/README.md ("Gate policy")
-# sanctions for HDR transmissive fixtures where brightness-dependent absolute false
-# fails are expected. Scale-aware scenes still REPORT the full metric set; they just
-# don't require it.
+# PLAN.md §7) - RECALIBRATED 2026-11-16 (owner decision): the numbers sit above the
+# estimator-pure noise floor at THIS budget and below the "completely different"
+# anchors - the gate catches gross divergence, not Monte-Carlo noise. The former
+# scale-aware routing for HDR fixtures is retired: both transmissive fixtures pass
+# the plain relaxed gate (measured - see the threshold comments below).
 #
 # Scene names mirror the 29-scene gallery in Theia/Hyperion screenshots/ (one EXR
 # per scene from each renderer). Coverage spans the material categories:
@@ -15,39 +15,51 @@
 #
 # Defaults follow the parity contract: 320x240, Hyperion 256 spp reference,
 # Theia 256 accumulated frames (see PLAN.md §7 / Theia AGENTS.md).
+#
+# THRESHOLDS ARE BUDGET-SPECIFIC: this calibration is for exactly this budget.
+# If spp/frames/resolution change, re-measure the clean envelope + the
+# completely-different anchors and recalibrate (PLAN §7 records the method).
 
 [defaults]
 reference_template = "{scene}.exr"
 candidate_template = "{scene}.exr"
-threshold = 4.0
+# ── Recalibration 2026-11-16 (owner decision: "revisit the thresholds, what is
+# doable with the amount of samples... be more relaxed... only important is that
+# the current renderings are not completely different compared to the last pushed
+# version"). Method: the fresh-render CLEAN envelope over all 14 scenes at
+# 256/256 (mean <= 98.8, rel_mse <= 174.9, SSIM >= 0.706, hist >= 0.869) vs the
+# "completely different" anchors measured from known-good receipts: cross-scene
+# pairs (mean >= 240.4, rel >= 27.0, SSIM <= 0.195, hist <= 0.117), an inverted
+# image (240.7 / 37.6 / 0.098 / 0.096) and a 2x-exposure break (133.9). Each
+# threshold sits strictly between the two envelopes. KNOWN LIMITATION: the metric
+# set is luminance-based - a luma-preserving channel swap (mean 4.7, SSIM 0.79)
+# is invisible to every threshold here.
+# mean_diff <= 120: clean max 98.8 (+21%), the 2x-exposure break (133.9) and
+# every cross-scene pair (>= 240.4) fail.
+threshold = 120.0
 # Rel-MSE is the standard asymmetric form mean((ref-cand)^2 / (ref^2 + eps))
 # (Rousselle et al. 2011) — reference-only denominator, never symmetric.
-# 0.01 corresponds to roughly 10-15% RMS relative error against the reference.
-# Measured over this 14-scene set the metric separates cleanly: independently
-# clean scenes land at <= 0.0050 and independently diverged scenes at >= 0.0159.
-# (The previous symmetric form with threshold 0.02 never fired: its worst
-# observed value across all 14 scenes was 0.0101, so it gated nothing.)
-rel_mse_threshold = 0.01
+# rel_mse <= 250: at this budget the metric is firefly-dominated on glass
+# (clean max 174.9), so it is a LOOSE GUARD only - mean/SSIM/hist carry the
+# separation (the old 0.01 was calibrated in the clamp era and is unreachable
+# under estimator-pure capture; the old "clean <= 0.005 / diverged >= 0.0159"
+# separation no longer exists at 256 samples).
+rel_mse_threshold = 250.0
 # Denominator floor, in squared luminance; sqrt(eps) = 0.071 is the black point.
 # Do NOT lower this below ~1e-3: at 1e-4 the score is dominated by
 # sub-1%-luminance pixels and ranks clean scenes worse than broken ones.
 rel_mse_eps = 5e-3
-ssim_threshold = 0.98
+# ssim >= 0.6: clean floor 0.706 (+0.106), cross-scene <= 0.195, inverted 0.098.
+ssim_threshold = 0.6
 # Pearson correlation over 256 log-spaced bins for the positive luminance range
 # PLUS one explicit black/near-zero bin, so no pixel is discarded.
-lum_hist_threshold = 0.999
+# hist >= 0.8: clean floor 0.869 (+0.069), cross-scene <= 0.117, inverted 0.096.
+lum_hist_threshold = 0.8
 channel = "luminance"
 width = 320
 height = 240
 hyperion_spp = 256
 theia_frames = 256
-# HDR transmissive / glass fixtures use the scale-aware gate (opt-in).
-# Listed by scene name; everything else uses the strict "all" gate.
-scale_aware = [
-    "shaderball_transmission",
-    "openpbr_dielectrics",
-]
-
 # ── Diffuse (Cornell box family) ──────────────────────────────────────────────
 
 [[scene]]

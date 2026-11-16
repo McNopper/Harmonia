@@ -84,10 +84,10 @@ def make_gate_args(**overrides) -> argparse.Namespace:
     Kept as a function so the sequence gate and the still gate cannot drift apart:
     change a default in compare_renders' parser and mirror it here."""
     defaults = dict(
-        threshold=4.0,
-        rel_mse_threshold=0.01,
-        ssim_threshold=0.98,
-        lum_hist_threshold=0.999,
+        threshold=120.0,
+        rel_mse_threshold=250.0,
+        ssim_threshold=0.6,
+        lum_hist_threshold=0.8,
         psnr_threshold=None,
         relative_threshold=None,
         tm_mean_threshold=None,
@@ -136,14 +136,14 @@ def main() -> int:
     parser.add_argument("reference_dir", type=Path, help="Hyperion sequence directory (EXR frames)")
     parser.add_argument("candidate_dir", type=Path, help="Theia sequence directory (EXR frames)")
     # Threshold defaults mirror compare_renders.py's parser (PLAN §7 strict AND).
-    parser.add_argument("--threshold", type=float, default=4.0,
-                        help="mean-diff threshold in 1/255 units (default: 4.0)")
-    parser.add_argument("--rel-mse-threshold", type=float, default=0.01,
-                        help="Rel-MSE threshold (default: 0.01)")
-    parser.add_argument("--ssim-threshold", type=float, default=0.98,
-                        help="SSIM threshold (default: 0.98, tone-mapped sRGB)")
-    parser.add_argument("--lum-hist-threshold", type=float, default=0.999,
-                        help="luminance-histogram correlation threshold (default: 0.999)")
+    parser.add_argument("--threshold", type=float, default=120.0,
+                        help="mean-diff threshold in 1/255 units (default: 120)")
+    parser.add_argument("--rel-mse-threshold", type=float, default=250.0,
+                        help="Rel-MSE threshold (default: 250 - loose guard)")
+    parser.add_argument("--ssim-threshold", type=float, default=0.6,
+                        help="SSIM threshold (default: 0.6, tone-mapped sRGB)")
+    parser.add_argument("--lum-hist-threshold", type=float, default=0.8,
+                        help="luminance-histogram correlation threshold (default: 0.8)")
     parser.add_argument("--psnr-threshold", type=float, default=None,
                         help="optional PSNR threshold in dB (ANDed when given)")
     parser.add_argument("--tm-mean-threshold", type=float, default=None,

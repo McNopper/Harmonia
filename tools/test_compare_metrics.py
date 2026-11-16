@@ -105,7 +105,7 @@ def main() -> int:
           float(np.abs(agx - aces).max()) > 1e-3,
           f"max delta {float(np.abs(agx - aces).max()):.4f}")
 
-    # ── Gate integration (PAR1 opt-in AND, defaults unchanged) ────────────────
+    # ── Gate integration (PAR1 opt-in AND; explicit fixture thresholds - live defaults live in compare_renders/validation_manifest) ────────────────
     base_args = dict(gate="all", threshold=4.0, rel_mse_threshold=0.01,
                      ssim_threshold=0.98, lum_hist_threshold=0.999,
                      psnr_threshold=None, relative_threshold=None, tonemap="aces")

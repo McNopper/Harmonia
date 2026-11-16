@@ -156,7 +156,7 @@ def main() -> int:
     parser.add_argument("--rel-mse-threshold", type=float, default=None,
                         help="Rel-MSE threshold (default: 0.01, scene-referred)")
     parser.add_argument("--ssim-threshold", type=float, default=None,
-                        help="SSIM threshold (default: 0.98, tone-mapped sRGB)")
+                        help="SSIM threshold override (defaults to the manifest value)")
     parser.add_argument("--lum-hist-threshold", type=float, default=None,
                         help="Luminance-histogram Pearson correlation (default: 0.999)")
     parser.add_argument("--psnr-threshold", type=float, default=None, help="PSNR threshold for scale-aware gate")
