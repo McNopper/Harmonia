@@ -34,6 +34,11 @@
 // region (one float per target, re-uploaded every tick).
 [[vk::binding(5, 0)]] StructuredBuffer<float4> t_morphDeltas;
 [[vk::binding(6, 0)]] StructuredBuffer<float> t_morphWeights;
+// ANI4-DQS: joint-major dual quaternions - 2 float4 per joint (real, dual),
+// staged each tick from aether::skinDualQuaternions (the SAME shared extraction
+// the CPU reference uses - parity by shared code). Null (unbound) unless some
+// skin declares blend = "dqs"; the useDqs == 0 path never reads it.
+[[vk::binding(7, 0)]] StructuredBuffer<float4> t_skinDqs;
 
 struct DeformPush {
     uint vertexCount;        // vertices of THIS mesh (sub-mesh range)
@@ -45,8 +50,27 @@ struct DeformPush {
     uint morphDeltaStride;   // elements per target (the declared mesh count)
     uint morphTargetCount;   // targets of this job (0 = skin-only job)
     uint morphWeightOffset;  // float offset into the staged weight buffer
+    uint useDqs;             // ANI4-DQS: 1 = dual-quaternion blend (rigid)
 };
 [[vk::push_constant]] DeformPush pc;
+
+// ANI4-DQS helpers - EXACT mirrors of aether::deformSkinDqs's math (the same
+// op order on both sides; hamilton matches slang-math's operator*, and the
+// rotate helper matches Skinning.cpp's rotateByQuaternion).
+float4 dqHamilton(float4 a, float4 b)
+{
+    return float4(a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+                  a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+                  a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+                  a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z);
+}
+
+float3 dqRotate(float4 q, float3 v)
+{
+    const float3 c = q.xyz;
+    const float3 t = 2.0f * cross(c, v);
+    return v + q.w * t + cross(c, t);
+}
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -95,6 +119,72 @@ void main(uint3 tid : SV_DispatchThreadID)
         return;
     }
     const float4 w = raw / wsum;
+
+    if (pc.useDqs != 0)
+    {
+        // ANI4-DQS: dual-quaternion blend (Kavan et al.) over the MORPHED
+        // position - mirrors aether::deformSkinDqs op for op: gather with
+        // sign alignment to the first used influence, normalize real, project
+        // the dual (dual unit constraint), t = 2*vec(dual*conj(real)), rotate.
+        float4 r = (0.0f).xxxx;
+        float4 d = (0.0f).xxxx;
+        float4 anchor = (0.0f).xxxx;
+        bool haveAnchor = false;
+        for (uint k = 0; k < 4; ++k)
+        {
+            if (w[k] == 0.0f || bones[k] >= pc.jointCount)
+            {
+                continue;
+            }
+            float4 jr = t_skinDqs[(pc.matrixOffset + bones[k]) * 2u];
+            float4 jd = t_skinDqs[(pc.matrixOffset + bones[k]) * 2u + 1u];
+            float s = 1.0f;
+            if (!haveAnchor)
+            {
+                anchor = jr;
+                haveAnchor = true;
+            }
+            else if (dot(jr, anchor) < 0.0f)
+            {
+                s = -1.0f; // dq and -dq are the same transform: align hemispheres
+            }
+            r += (w[k] * s) * jr;
+            d += (w[k] * s) * jd;
+        }
+        const float rLen = length(r);
+        if (!haveAnchor || rLen <= 1.0e-8f)
+        {
+            // Degenerate blend: the (morphed) authored vertex, never NaN.
+            GpuVertex outv = src;
+            outv.position = pos;
+            t_sceneVertices[vertexId] = outv;
+            return;
+        }
+        const float4 rh = r / rLen;
+        const float4 dh = (d - dot(d, rh) * rh) / rLen;
+        const float4 translation = dqHamilton(dh, float4(-rh.xyz, rh.w));
+        const float3 T = 2.0f * translation.xyz;
+
+        GpuVertex outv = src;
+        outv.position = dqRotate(rh, pos) + T;
+        const float3 n2 = dqRotate(rh, src.normal);
+        const float nLen = length(n2);
+        if (nLen > 1.0e-8f)
+        {
+            outv.normal = n2 / nLen;
+        }
+        const float3 t2 =
+            dqRotate(rh, float3(src.tangentX, src.tangentY, src.tangentZ));
+        const float tLen = length(t2);
+        if (tLen > 1.0e-8f)
+        {
+            outv.tangentX = t2.x / tLen;
+            outv.tangentY = t2.y / tLen;
+            outv.tangentZ = t2.z / tLen;
+        }
+        t_sceneVertices[vertexId] = outv;
+        return;
+    }
 
     float3 blendedP = (0.0f).xxx;
     float3 blendedN = (0.0f).xxx;

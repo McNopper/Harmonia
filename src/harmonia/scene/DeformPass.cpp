@@ -30,8 +30,9 @@ struct DeformPush {
     std::uint32_t morphDeltaStride = 0;
     std::uint32_t morphTargetCount = 0;
     std::uint32_t morphWeightOffset = 0;
+    std::uint32_t useDqs = 0; // ANI4-DQS: dual-quaternion blend for this job
 };
-static_assert(sizeof(DeformPush) == 36);
+static_assert(sizeof(DeformPush) == 40);
 
 /// vkCmdPipelineBarrier2 over buffer barriers only (the pass's barriers are
 /// all buffer-scope: transfer/compute/as-build/shader on vertex + staging data).
@@ -100,12 +101,14 @@ std::expected<DeformPass, VkResult> DeformPass::create(const DeviceContext& ctx,
     // job carrying a skin needs its rows (all validated/built by build()).
     bool anyMorph = false;
     bool anySkin = false;
+    bool anyDqs = false;
     for (const DeformJob& job : scene.deformJobs()) {
         anyMorph = anyMorph || job.morphTargetCount > 0;
         anySkin = anySkin || job.jointCount > 0;
+        anyDqs = anyDqs || job.useDqs != 0;
     }
     if ((anyMorph && (!scene.morphDeltaBuffer().isValid() || !scene.morphWeightBuffer().isValid())) ||
-        (anySkin && !scene.skinIndexBuffer().isValid())) {
+        (anySkin && !scene.skinIndexBuffer().isValid()) || (anyDqs && !scene.skinDqBuffer().isValid())) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
@@ -113,8 +116,10 @@ std::expected<DeformPass, VkResult> DeformPass::create(const DeviceContext& ctx,
     // nullDescriptor binds them safely and the kernel never reads them at
     // jointCount == 0); 3: immutable rest-pose vertices (read source); 4:
     // active scene-global vertices (deformed write target); 5: morph deltas;
-    // 6: staged morph weights (re-uploaded each tick).
-    std::array<VkDescriptorSetLayoutBinding, 7> bindings{};
+    // 6: staged morph weights (re-uploaded each tick); 7: ANI4-DQS joint dual
+    // quaternions (staged each tick when any job uses blend = dqs; null
+    // otherwise - the useDqs == 0 path never reads it).
+    std::array<VkDescriptorSetLayoutBinding, 8> bindings{};
     for (std::uint32_t b = 0; b < bindings.size(); ++b) {
         bindings[b] = VkDescriptorSetLayoutBinding{
             .binding = b,
@@ -194,7 +199,7 @@ std::expected<DeformPass, VkResult> DeformPass::create(const DeviceContext& ctx,
     // One descriptor set, written once: build-time buffers are never replaced.
     // Raw-handle writes: VK_NULL_HANDLE becomes a null descriptor (the
     // morph-only skin buffers / skin-only morph buffers never bind garbage).
-    if (!pass.m_writer.init(ctx, pass.m_setLayout.get(), 7, "harmonia.deform.descriptors")) {
+    if (!pass.m_writer.init(ctx, pass.m_setLayout.get(), 8, "harmonia.deform.descriptors")) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
     pass.m_writer.writeStorageBufferHandle(ctx, 0, scene.skinIndexBuffer().handle(), scene.skinIndexBuffer().size());
@@ -205,6 +210,7 @@ std::expected<DeformPass, VkResult> DeformPass::create(const DeviceContext& ctx,
     pass.m_writer.writeStorageBufferHandle(ctx, 5, scene.morphDeltaBuffer().handle(), scene.morphDeltaBuffer().size());
     pass.m_writer.writeStorageBufferHandle(
         ctx, 6, scene.morphWeightBuffer().handle(), scene.morphWeightBuffer().size());
+    pass.m_writer.writeStorageBufferHandle(ctx, 7, scene.skinDqBuffer().handle(), scene.skinDqBuffer().size());
 
     ctx.setDebugName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, pass.m_setLayout.get(), "harmonia.deform.setLayout");
     ctx.setDebugName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, pass.m_pipelineLayout.get(), "harmonia.deform.pipelineLayout");
@@ -258,6 +264,17 @@ VkResult DeformPass::execute(const DeviceContext& ctx,
                                           VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                           VK_ACCESS_2_SHADER_READ_BIT));
     }
+    const std::span<const std::byte> dqScratch = scene.skinDqScratch();
+    if (!dqScratch.empty()) {
+        // ANI4-DQS: staged alongside the matrices (both extracted from the
+        // same evaluated poses by SceneBase::stageSkinMatrices).
+        updateBufferChunked(cmd, scene.skinDqBuffer().handle(), dqScratch);
+        stageBarriers.push_back(bufferBar(scene.skinDqBuffer().handle(),
+                                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                          VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                          VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                          VK_ACCESS_2_SHADER_READ_BIT));
+    }
     const std::span<const std::byte> morphScratch = scene.morphWeightScratch();
     if (!morphScratch.empty()) {
         updateBufferChunked(cmd, scene.morphWeightBuffer().handle(), morphScratch);
@@ -290,10 +307,12 @@ VkResult DeformPass::execute(const DeviceContext& ctx,
         const VkDeviceSize deltaEnd = static_cast<VkDeviceSize>(job.morphDeltaOffset) +
                                       static_cast<VkDeviceSize>(job.morphTargetCount - 1) * job.morphDeltaStride +
                                       job.vertexCount; // last target's base + its rows
+        const VkDeviceSize dqEnd = (static_cast<VkDeviceSize>(job.matrixOffset) + job.jointCount) * 8 * sizeof(float);
         if (sceneBytes > sceneVertices.size() || sceneBytes > restVertices.size() ||
             (job.morphTargetCount > 0 && (deltaEnd * kDeltaElements > scene.morphDeltaBuffer().size() ||
                                           static_cast<VkDeviceSize>(job.morphWeightOffset) + job.morphTargetCount >
-                                              scene.morphWeightScratch().size() / sizeof(float)))) {
+                                              scene.morphWeightScratch().size() / sizeof(float))) ||
+            (job.useDqs != 0 && dqEnd > scene.skinDqBuffer().size())) {
             harmonia::core::Logger::error("DeformPass: job range exceeds its buffer (mesh {})", job.meshIndex);
             return VK_ERROR_INITIALIZATION_FAILED;
         }
@@ -307,6 +326,7 @@ VkResult DeformPass::execute(const DeviceContext& ctx,
             .morphDeltaStride = job.morphDeltaStride,
             .morphTargetCount = job.morphTargetCount,
             .morphWeightOffset = job.morphWeightOffset,
+            .useDqs = job.useDqs,
         };
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(DeformPush), &push);
         vkCmdDispatch(cmd, (job.vertexCount + 63U) / 64U, 1, 1);

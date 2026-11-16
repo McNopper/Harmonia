@@ -49,6 +49,9 @@ struct DeformJob {
     std::uint32_t weightRow = 0;    ///< absolute row into the skin index/weight buffers
     std::uint32_t matrixOffset = 0; ///< this skin's first matrix, in float4x4 elements
     std::uint32_t jointCount = 0;   ///< matrices of this skin (0 = morph-only job)
+    std::uint32_t useDqs = 0;       ///< 1 = dual-quaternion blend (SkinDesc::Blend::Dqs;
+                                    ///< rigid - drops scale; shares matrixOffset as the
+                                    ///< joint base into the DQ buffer)
     // ANI5 morph half
     std::uint32_t morphDeltaOffset = 0;  ///< element offset of target-0 row 0
     std::uint32_t morphDeltaStride = 0;  ///< elements per target (declared mesh count)
@@ -192,6 +195,12 @@ class SceneBase : public ISceneBuilder {
     /// stageMorphWeights' scratch (one float per target of the mesh).
     [[nodiscard]] const core::Buffer& morphWeightBuffer() const noexcept { return m_morphWeightBuffer; }
     [[nodiscard]] std::span<const std::byte> morphWeightScratch() const noexcept { return m_morphWeightScratch; }
+    /// ANI4-DQS: per-joint dual quaternions (8 floats per joint - real xyzw,
+    /// dual xyzw), joint-parallel to the matrix buffer (the SAME joint base via
+    /// matrixOffset). Allocated + staged only when some skin declares
+    /// blend = "dqs" (null otherwise - the pass binds a null descriptor).
+    [[nodiscard]] const core::Buffer& skinDqBuffer() const noexcept { return m_skinDqBuffer; }
+    [[nodiscard]] std::span<const std::byte> skinDqScratch() const noexcept { return m_skinDqScratch; }
     /// The attached scene source (test/tooling seam: re-deriving the same
     /// SkinDesc/deformSkinLbs and MorphTarget/deformMorphs references).
     [[nodiscard]] const aether::SceneDesc* attachedScene() const noexcept {
@@ -315,6 +324,11 @@ class SceneBase : public ISceneBuilder {
     core::Buffer m_morphWeightBuffer{}; ///< one float per target per region, TRANSFER_DST
     /// Host staging for the current frame's morph weights.
     std::vector<std::byte> m_morphWeightScratch;
+    /// ANI4-DQS: joint-major dual quaternions (2 float4 per joint) - build-time
+    /// zero-filled, re-staged from the evaluated poses each tick when any skin
+    /// declares blend = "dqs".
+    core::Buffer m_skinDqBuffer{};
+    std::vector<std::byte> m_skinDqScratch;
 };
 
 } // namespace harmonia::scene

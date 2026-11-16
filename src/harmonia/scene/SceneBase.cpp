@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "aether/format/SceneAnimator.hpp"
+#include "aether/format/Skinning.hpp"
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/SceneLoader.hpp"
@@ -139,6 +140,7 @@ VkResult SceneBase::buildDeformBuffers(const DeviceContext& ctx, const core::Com
         job.weightRow = baseRow[skinIndex] + rowOffset;
         job.matrixOffset = baseElts[skinIndex];
         job.jointCount = static_cast<std::uint32_t>(skins[skinIndex].joints.size());
+        job.useDqs = skins[skinIndex].blend == aether::SkinDesc::Blend::Dqs ? 1U : 0U;
     }
     for (const PendingMorphBinding& pending : m_pendingMorphBindings) {
         const auto baseIt = regionBase.find(pending.meshName);
@@ -217,6 +219,34 @@ VkResult SceneBase::buildDeformBuffers(const DeviceContext& ctx, const core::Com
         m_skinMatrixScratch.clear();
     }
 
+    // ANI4-DQS: the joint-major dual-quaternion buffer is allocated ONLY when
+    // some skin declares blend = "dqs" (joint-parallel to the matrices - the
+    // job's matrixOffset doubles as the DQ joint base; zero-filled until the
+    // first stageSkinMatrices, which also extracts the DQs). DQS-only scenes
+    // keep the LBS buffers too (staged but unread - the pass binds both).
+    {
+        bool anyDqs = false;
+        for (const aether::SkinDesc& skin : skins) {
+            if (skin.blend == aether::SkinDesc::Blend::Dqs) {
+                anyDqs = true;
+                break;
+            }
+        }
+        if (anyDqs && eltAcc > 0) {
+            const VkDeviceSize dqBytes = static_cast<VkDeviceSize>(eltAcc) * 8 * sizeof(float);
+            std::vector<std::byte> zeroDq(static_cast<std::size_t>(dqBytes), std::byte{0});
+            auto dqBuf =
+                uploadStorageBuffer(ctx, pool, std::span<const std::byte>(zeroDq), "scene.skinDqs", kDeformBuf);
+            if (!dqBuf) {
+                return dqBuf.error();
+            }
+            m_skinDqBuffer = std::move(*dqBuf);
+            m_skinDqScratch = std::move(zeroDq);
+        } else {
+            m_skinDqScratch.clear();
+        }
+    }
+
     // ANI5: pad-w delta rows (Vec3 -> float4 for the 16-byte structured
     // stride), per declared-mesh region in first-appearance order.
     if (hasMorphs()) {
@@ -268,6 +298,8 @@ VkResult SceneBase::stageSkinMatrices(const std::vector<aether::SkinPose>& poses
     }
 
     std::size_t offset = 0;
+    std::size_t dqOffset = 0;
+    const bool stageDq = !m_skinDqScratch.empty();
     for (std::size_t i = 0; i < skins.size(); ++i) {
         const aether::SkinDesc& skin = skins[i];
         const std::size_t bytes = skin.joints.size() * sizeof(aether::Mat4);
@@ -282,8 +314,21 @@ VkResult SceneBase::stageSkinMatrices(const std::vector<aether::SkinPose>& poses
         }
         std::memcpy(m_skinMatrixScratch.data() + offset, poseIt->skinMatrices.data(), bytes);
         offset += bytes;
+        if (stageDq) {
+            // ANI4-DQS: extract the joint dual quaternions from the SAME pose
+            // (shared aether::skinDualQuaternions - CPU reference and staging
+            // are one code path, so the GPU blends identical values).
+            const auto dqs = aether::skinDualQuaternions(poseIt->skinMatrices);
+            const std::size_t dqBytes = skin.joints.size() * 8 * sizeof(float);
+            if (!dqs || dqs->size() != skin.joints.size() * 8 || dqOffset + dqBytes > m_skinDqScratch.size()) {
+                harmonia::core::Logger::error("SceneBase: DQS extraction failed for skin '{}'", skin.nodeId);
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
+            std::memcpy(m_skinDqScratch.data() + dqOffset, dqs->data(), dqBytes);
+            dqOffset += dqBytes;
+        }
     }
-    if (offset != m_skinMatrixScratch.size()) {
+    if (offset != m_skinMatrixScratch.size() || (stageDq && dqOffset != m_skinDqScratch.size())) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
     return VK_SUCCESS;

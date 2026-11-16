@@ -435,3 +435,144 @@ TEST_F(VulkanFixture, GpuMorphOnlyMatchesCpuWithoutSkinBuffers) {
         }
     }
 }
+
+// ── ANI4-DQS: the blend mode reaches the GPU ────────────────────────────────
+
+/// Static two-joint scene (no tracks - the parse-time pose IS the pose): joint
+/// `tip` is a child of `root` rotated -80 degrees about Z, so the skin
+/// matrices are {I, Rz(-80)} and the 0.5/0.5 blend differs measurably between
+/// LBS (matrix average - collapses) and DQS (rotation average - rigid).
+std::string dqsSceneToml(std::size_t vertexCount) {
+    std::ostringstream os;
+    os << "[[mesh]]\n"
+          "name = \"q\"\n"
+          "path = \"q.obj\"\n"
+          "\n"
+          "[[node]]\n"
+          "id = \"root\"\n"
+          "\n"
+          "[[node]]\n"
+          "id = \"tip\"\n"
+          "parent = \"root\"\n"
+          "rotate = [0, 0, -0.64279, 0.76604]\n"
+          "\n"
+          "[[node]]\n"
+          "id = \"part\"\n"
+          "mesh = \"q\"\n"
+          "\n"
+          "[[skin]]\n"
+          "node = \"part\"\n"
+          "joints = [\"root\", \"tip\"]\n"
+          "blend = \"dqs\"\n"
+          "inverse_bind = [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], "
+          "[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]]\n"
+          "bone_indices = [";
+    for (std::size_t v = 0; v < vertexCount; ++v) {
+        os << (v == 0 ? "\n  " : ",\n  ") << "[0, 1, 0, 0]";
+    }
+    os << "\n]\nbone_weights = [";
+    for (std::size_t v = 0; v < vertexCount; ++v) {
+        os << (v == 0 ? "\n  " : ",\n  ") << "[0.5, 0.5, 0, 0]";
+    }
+    os << "\n]\n";
+    return os.str();
+}
+
+TEST_F(VulkanFixture, GpuDqsMatchesCpuReferenceAndDiffersFromLbs) {
+    QuadSceneFixture fx("dqs", dqsSceneToml(0));
+    ASSERT_GT(fx.vertexCount, 0U);
+    {
+        std::ofstream scn(fx.scenePath());
+        scn << dqsSceneToml(fx.vertexCount);
+    }
+
+    StubScene scene;
+    const auto cfg = harmonia::scene::SceneLoader::load(fx.scenePath(), fx.dir, scene, deviceCtx(), commandPool());
+    ASSERT_TRUE(cfg.has_value());
+    ASSERT_EQ(scene.build(deviceCtx(), commandPool()), VK_SUCCESS);
+
+    // Job routing: the blend mode rides the skin binding into the job.
+    ASSERT_EQ(scene.deformJobs().size(), 1U);
+    EXPECT_EQ(scene.deformJobs()[0].jointCount, 2U);
+    EXPECT_EQ(scene.deformJobs()[0].useDqs, 1U);
+    EXPECT_EQ(scene.deformJobs()[0].morphTargetCount, 0U);
+    EXPECT_TRUE(scene.skinDqBuffer().isValid()) << "DQS skin allocates the DQ buffer";
+
+    const aether::SceneDesc* source = scene.attachedScene();
+    ASSERT_NE(source, nullptr);
+    ASSERT_EQ(source->skins.size(), 1U);
+    ASSERT_EQ(source->skins[0].blend, aether::SkinDesc::Blend::Dqs);
+
+    const auto groups = aether::ObjImporter::parse(fx.dir / "q.obj");
+    ASSERT_TRUE(groups.has_value());
+    const aether::MeshData& rest = (*groups)[0].mesh;
+    const auto poses = aether::SceneAnimator::evaluateSkins(*source, 0.5F);
+    ASSERT_EQ(poses.size(), 1U);
+    ASSERT_EQ(poses[0].skinMatrices.size(), 2U);
+    const auto cpuDqs = aether::deformSkinDqs(rest, source->skins[0], poses[0].skinMatrices);
+    ASSERT_TRUE(cpuDqs.has_value());
+    const auto cpuLbs = aether::deformSkinLbs(rest, source->skins[0], poses[0].skinMatrices);
+    ASSERT_TRUE(cpuLbs.has_value());
+
+    auto pass = harmonia::scene::DeformPass::create(deviceCtx(),
+                                                    scene,
+                                                    scene.vertexRestBuffer(),
+                                                    scene.sceneVertices(),
+                                                    std::filesystem::path(HARMONIA_SHADER_DIR) / "deform.comp.spv");
+    ASSERT_TRUE(pass.has_value()) << static_cast<int>(pass.error());
+
+    const auto* mesh = dynamic_cast<const harmonia::scene_rt::TriangleMesh*>(scene.meshes()[0].get());
+    ASSERT_NE(mesh, nullptr);
+    const VkDeviceSize vertexBytes = fx.vertexCount * sizeof(harmonia::GpuVertex);
+
+    ASSERT_EQ(pass->execute(deviceCtx(),
+                            commandPool(),
+                            scene,
+                            0.5F,
+                            scene.vertexRestBuffer(),
+                            scene.sceneVertices(),
+                            scene.meshSceneVertexOffsets()),
+              VK_SUCCESS);
+    const auto local = readbackRange(deviceCtx(), commandPool(), mesh->vertexBuffer(), 0, vertexBytes);
+    ASSERT_EQ(local.size(), static_cast<std::size_t>(vertexBytes));
+
+    // The staged DQ data is the shared extraction (uploaded inside execute):
+    // joint 0 is identity (real w = 1, dual = 0), joint 1 encodes Rz(-80).
+    const auto dqBytes = readbackRange(deviceCtx(), commandPool(), scene.skinDqBuffer(), 0, 2 * 8 * sizeof(float));
+    ASSERT_EQ(dqBytes.size(), 2U * 8U * sizeof(float));
+    const auto* dqJoint0 = reinterpret_cast<const float*>(dqBytes.data());
+    EXPECT_NEAR(dqJoint0[0], 0.0F, 1.0e-5F);
+    EXPECT_NEAR(dqJoint0[3], 1.0F, 1.0e-5F) << "identity joint: real part (0,0,0,1)";
+    EXPECT_NEAR(dqJoint0[4], 0.0F, 1.0e-6F) << "identity joint: zero dual part";
+
+    // GPU == the DQS CPU reference ...
+    float maxLbsDelta = 0.0F;
+    for (std::size_t v = 0; v < fx.vertexCount; ++v) {
+        const auto* gpu = reinterpret_cast<const harmonia::GpuVertex*>(local.data() + v * sizeof(harmonia::GpuVertex));
+        EXPECT_NEAR(gpu->position.x, cpuDqs->positions[v].x, 1.0e-4F) << "v=" << v;
+        EXPECT_NEAR(gpu->position.y, cpuDqs->positions[v].y, 1.0e-4F) << "v=" << v;
+        EXPECT_NEAR(gpu->position.z, cpuDqs->positions[v].z, 1.0e-4F) << "v=" << v;
+        EXPECT_NEAR(gpu->normal.x, cpuDqs->normals[v].x, 1.0e-4F) << "v=" << v;
+        EXPECT_NEAR(gpu->normal.y, cpuDqs->normals[v].y, 1.0e-4F) << "v=" << v;
+        EXPECT_NEAR(gpu->normal.z, cpuDqs->normals[v].z, 1.0e-4F) << "v=" << v;
+        // ... and NOT the LBS output (the routing proof: useDqs reaches the kernel).
+        const float dx = gpu->position.x - cpuLbs->positions[v].x;
+        const float dy = gpu->position.y - cpuLbs->positions[v].y;
+        const float dz = gpu->position.z - cpuLbs->positions[v].z;
+        maxLbsDelta = std::max(maxLbsDelta, std::sqrt(dx * dx + dy * dy + dz * dz));
+    }
+    EXPECT_GT(maxLbsDelta, 1.0e-3F) << "the DQS job must not produce the LBS blend";
+
+    // Idempotency: a second execute re-stages the same static pose and yields
+    // byte-identical vertices (the rest->active design, DQS path).
+    ASSERT_EQ(pass->execute(deviceCtx(),
+                            commandPool(),
+                            scene,
+                            0.5F,
+                            scene.vertexRestBuffer(),
+                            scene.sceneVertices(),
+                            scene.meshSceneVertexOffsets()),
+              VK_SUCCESS);
+    const auto local2 = readbackRange(deviceCtx(), commandPool(), mesh->vertexBuffer(), 0, vertexBytes);
+    EXPECT_EQ(local, local2) << "re-running at the same time must replace, not compose";
+}
