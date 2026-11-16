@@ -71,6 +71,12 @@ class Geometry {
     void setDynamic(bool dynamic) noexcept { m_dynamic = dynamic; }
     [[nodiscard]] bool isDynamic() const noexcept { return m_dynamic; }
 
+    /// ANI4: the STORAGE buffer holding this mesh's own `GpuVertex` array (the
+    /// BLAS build input the deformation pass copies into after skinning), or
+    /// nullptr for geometry without one (analytic spheres - which cannot be
+    /// skinned; the loader rejects that combination).
+    [[nodiscard]] virtual const core::Buffer* storageVertexBuffer() const noexcept { return nullptr; }
+
     [[nodiscard]] virtual VkAccelerationStructureInstanceKHR
     makeInstance(std::uint32_t instanceCustomIndex, const Transform& transform) const noexcept = 0;
 

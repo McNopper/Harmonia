@@ -86,6 +86,22 @@ class ISceneBuilder {
     /// The loader calls this for every mesh a `[[skin]]` binding covers.
     /// Default no-op: builders that don't track BLASes ignore it.
     virtual void markMeshDynamic(std::uint32_t meshIndex) { static_cast<void>(meshIndex); }
+
+    /// ANI4 seam: binds mesh @p meshIndex to `skins[skinIndex]`'s per-vertex
+    /// weight rows. @p weightRowOffset is the row offset WITHIN that skin (one
+    /// declared mesh can split into sub-meshes; the skin's rows span the
+    /// concatenation in import order) and @p vertexCount is the sub-mesh's
+    /// imported vertex total. SceneBase materializes the absolute GPU jobs at
+    /// build; the default no-op matches the other defaulted seams.
+    virtual void bindSkinMesh(std::uint32_t meshIndex,
+                              std::uint32_t skinIndex,
+                              std::uint32_t weightRowOffset,
+                              std::uint32_t vertexCount) {
+        static_cast<void>(meshIndex);
+        static_cast<void>(skinIndex);
+        static_cast<void>(weightRowOffset);
+        static_cast<void>(vertexCount);
+    }
 };
 
 } // namespace harmonia::scene

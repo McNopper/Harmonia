@@ -266,6 +266,7 @@ set(HARMONIA_ENTRY_SHADERS
     subgroup_bench_atomic.comp.slang
     subgroup_bench_scan.comp.slang
     pipeline_binary_probe.comp.slang
+    skin_deform.comp.slang
     perf4_probe.rgen.slang
     perf4_probe.rchit.slang
     perf4_probe.rmiss.slang
@@ -313,6 +314,7 @@ set(HARMONIA_scene_SOURCES
     src/harmonia/scene/ProceduralGeometry.cpp
     src/harmonia/scene/SceneBase.cpp
     src/harmonia/scene/SceneLoader.cpp
+    src/harmonia/scene/SkinDeformPass.cpp
     src/harmonia/scene/Texture.cpp
 )
 set(HARMONIA_scene_rt_SOURCES

@@ -587,7 +587,8 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
         for (std::size_t i = 0; i < desc->nodes.size(); ++i) {
             nodeIndexById.emplace(desc->nodes[i].id, i);
         }
-        for (const aether::SkinDesc& skin : desc->skins) {
+        for (std::size_t skinIdx = 0; skinIdx < desc->skins.size(); ++skinIdx) {
+            const aether::SkinDesc& skin = desc->skins[skinIdx];
             const auto nodeIt = nodeIndexById.find(skin.nodeId);
             if (nodeIt == nodeIndexById.end()) {
                 continue; // parser-validated; defensive
@@ -596,8 +597,16 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
             if (subIt == c.meshSubmeshes.end()) {
                 continue;
             }
+            // The skin's rows span the covered sub-meshes in import order -
+            // accumulate the within-skin row offset as the binding is recorded.
+            std::uint32_t rowOffset = 0;
             for (const LoadedSubmesh& sub : subIt->second) {
                 scene.markMeshDynamic(sub.meshIndex);
+                scene.bindSkinMesh(sub.meshIndex,
+                                   static_cast<std::uint32_t>(skinIdx),
+                                   rowOffset,
+                                   static_cast<std::uint32_t>(sub.vertexCount));
+                rowOffset += static_cast<std::uint32_t>(sub.vertexCount);
             }
         }
     }

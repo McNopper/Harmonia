@@ -8,158 +8,24 @@
 //     validation-clean under the fixture's always-on layers.
 // (3) A skin-free scene's refit is a success no-op.
 //
-// The GPU deformation kernels + renderer integration are the renderer halves
-// (pending); this file covers the shared seams they will consume.
+// The GPU deformation kernel receipt (GPU vs the deformSkinLbs CPU reference)
+// lives in test_skin_deform_gpu.cpp; this file covers the shared seams.
 
 #include <volk/volk.h>
 
-#include <cstdint>
-#include <filesystem>
+#include <cstddef>
 #include <fstream>
 #include <gtest/gtest.h>
-#include <limits>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <utility>
-#include <vector>
+#include <string_view>
 
-#include "aether/format/ObjImporter.hpp"
+#include "fixtures/SkinTestSupport.hpp"
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/scene/SceneLoader.hpp"
-#include "harmonia/scene_rt/SceneRt.hpp"
-#include "harmonia/scene_rt/TriangleMesh.hpp"
 
 namespace {
 
-using harmonia::scene::Geometry;
-using harmonia::scene::MeshData;
-using harmonia::scene::MeshOpacity;
-using harmonia::scene::SceneBase;
-using harmonia::scene_rt::TriangleMesh;
-
-/// Minimal concrete SceneBase for the shared seams (the renderers' Scenes live
-/// downstream; the substrate must not depend on them).
-class StubScene final : public SceneBase {
-  public:
-    std::uint32_t addSphereMesh(const harmonia::DeviceContext&,
-                                const harmonia::core::CommandPool&,
-                                float,
-                                std::string_view) override {
-        return std::numeric_limits<std::uint32_t>::max(); // fixtures never place spheres
-    }
-
-  private:
-    VkResult buildSceneBuffers(const harmonia::DeviceContext&, const harmonia::core::CommandPool&) override {
-        return VK_SUCCESS; // the substrate tests never draw
-    }
-    std::unique_ptr<Geometry> createTriangleMesh(const harmonia::DeviceContext& ctx,
-                                                 const harmonia::core::CommandPool& pool,
-                                                 MeshData&& data,
-                                                 const MeshOpacity& opacity,
-                                                 std::string_view name) override {
-        auto mesh = TriangleMesh::create(ctx, pool, std::move(data), opacity, name);
-        if (!mesh) {
-            return nullptr;
-        }
-        return std::move(*mesh);
-    }
-    VkResult finishBuild(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) override {
-        return harmonia::scene_rt::buildTlas(*this, ctx, pool, m_tlas, m_tlasAddress);
-    }
-
-    harmonia::rt::AccelerationStructure m_tlas{};
-    VkDeviceAddress m_tlasAddress = 0;
-};
-
-// Mini OBJ: a unit quad (2 triangles, full v/vt/vn face refs) - 4 deduplicated
-// vertices, the count a [[skin]]'s per-vertex arrays must match.
-void writeQuadObj(const std::filesystem::path& path) {
-    std::ofstream out(path);
-    out << "v 0 0 0\n"
-           "v 1 0 0\n"
-           "v 1 1 0\n"
-           "v 0 1 0\n"
-           "vt 0 0\n"
-           "vt 1 0\n"
-           "vt 1 1\n"
-           "vt 0 1\n"
-           "vn 0 0 1\n"
-           "f 1/1/1 2/2/1 3/3/1\n"
-           "f 1/1/1 3/3/1 4/4/1\n";
-}
-
-std::size_t quadVertexCount(const std::filesystem::path& path) {
-    const auto groups = aether::ObjImporter::parse(path);
-    if (!groups) {
-        return 0;
-    }
-    std::size_t total = 0;
-    for (const aether::MeshGroup& g : *groups) {
-        total += g.mesh.vertices.size();
-    }
-    return total;
-}
-
-/// Skin scene over the quad: one root joint + the meshed part node. When
-/// @p animate, an [[animation]] track drives the joint's translation (the
-/// poses must then follow the tick clock).
-std::string skinSceneToml(std::size_t vertexCount, bool animate) {
-    std::ostringstream os;
-    if (animate) {
-        os << "[animation_clock]\nfps = 30\n\n";
-    }
-    os << "[[mesh]]\n"
-          "name = \"q\"\n"
-          "path = \"q.obj\"\n"
-          "\n"
-          "[[node]]\n"
-          "id = \"root\"\n"
-          "\n"
-          "[[node]]\n"
-          "id = \"part\"\n"
-          "mesh = \"q\"\n"
-          "\n"
-          "[[skin]]\n"
-          "node = \"part\"\n"
-          "joints = [\"root\"]\n"
-          "inverse_bind = [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]]\n"
-          "bone_indices = [";
-    for (std::size_t v = 0; v < vertexCount; ++v) {
-        os << (v == 0 ? "\n  " : ",\n  ") << "[0, 0, 0, 0]";
-    }
-    os << "\n]\nbone_weights = [";
-    for (std::size_t v = 0; v < vertexCount; ++v) {
-        os << (v == 0 ? "\n  " : ",\n  ") << "[1, 0, 0, 0]";
-    }
-    os << "\n]\n";
-    if (animate) {
-        os << "\n[[animation]]\n"
-              "target = \"nodes/root/translation\"\n"
-              "interpolation = \"linear\"\n"
-              "times = [0.0, 1.0]\n"
-              "values = [0, 0, 0, 3, 0, 0]\n";
-    }
-    return os.str();
-}
-
-struct SkinFixture {
-    std::filesystem::path dir;
-    std::size_t vertexCount = 0;
-
-    SkinFixture(std::string_view name, bool animate) {
-        namespace fs = std::filesystem;
-        dir = fs::temp_directory_path() / ("harmonia_skin_rt_" + std::string{name});
-        fs::create_directories(dir);
-        writeQuadObj(dir / "q.obj");
-        vertexCount = quadVertexCount(dir / "q.obj");
-        std::ofstream scn(dir / "s.scene.toml");
-        scn << skinSceneToml(vertexCount, animate);
-    }
-    ~SkinFixture() { std::filesystem::remove_all(dir); }
-
-    [[nodiscard]] std::filesystem::path scenePath() const { return dir / "s.scene.toml"; }
-};
+using harmonia::test::SkinFixture;
+using harmonia::test::StubScene;
 
 } // namespace
 

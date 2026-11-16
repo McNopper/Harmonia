@@ -41,6 +41,7 @@ add_executable(harmonia_component_tests
     component/test_pipeline_binary_cache.cpp
     component/test_tlas_refit.cpp
     component/test_skin_runtime.cpp
+    component/test_skin_deform_gpu.cpp
     component/test_commandpool.cpp
     component/test_sms.cpp
     component/test_sms_queue.cpp
@@ -75,6 +76,9 @@ unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_SHADER_ROOT)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 add_dependencies(harmonia_component_tests harmonia_test_shaders)
+# skin_deform.comp.spv is a harmonia_shaders entry (the shared pass loads it
+# from HARMONIA_SHADER_DIR) - make the test target build it explicitly.
+add_dependencies(harmonia_component_tests harmonia_shaders)
 target_compile_definitions(harmonia_component_tests PRIVATE
     HARMONIA_TEST_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
 )

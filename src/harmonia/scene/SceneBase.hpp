@@ -3,6 +3,7 @@
 
 #include <volk/volk.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -29,6 +30,18 @@
 #include "harmonia/scene/Texture.hpp"
 
 namespace harmonia::scene {
+
+/// ANI4: one GPU skinning job - the deformation pass dispatches once per job.
+/// The absolute row/element offsets are materialized by SceneBase::build from
+/// the loader's per-skin `bindSkinMesh` bindings (a skin's weight rows span the
+/// covered sub-meshes in import order; the matrices are shared per skin).
+struct SkinJob {
+    std::uint32_t meshIndex = 0;    ///< scene mesh (Geometry) index
+    std::uint32_t vertexCount = 0;  ///< mesh-local vertices = rows this job consumes
+    std::uint32_t weightRow = 0;    ///< absolute row into the skin index/weight buffers
+    std::uint32_t matrixOffset = 0; ///< this skin's first matrix, in float4x4 elements
+    std::uint32_t jointCount = 0;   ///< matrices of this skin
+};
 
 /// Non-renderer-specific base for both Hyperion::Scene and Theia::Scene.
 ///
@@ -125,6 +138,30 @@ class SceneBase : public ISceneBuilder {
     /// valid across the refit.
     [[nodiscard]] VkResult refitDynamicBlases(const DeviceContext& ctx, const core::CommandPool& pool);
 
+    /// ANI4: copy @p poses' skin matrices into the staging scratch (one region
+    /// per declared skin, in declaration order; a pose missing for a declared
+    /// skin is a hand-built-scene contract break and fails the call). Called by
+    /// SkinDeformPass::execute before it records the vkCmdUpdateBuffer upload.
+    [[nodiscard]] VkResult stageSkinMatrices(const std::vector<aether::SkinPose>& poses);
+
+    // ── ANI4 skinning buffers/jobs (read by SkinDeformPass) ─────────────────
+
+    [[nodiscard]] const std::vector<SkinJob>& skinJobs() const noexcept { return m_skinJobs; }
+    /// Concatenated per-vertex joint indices (uint4 rows) + weights (float4
+    /// rows) over the declared skins, in declaration order. Valid once build()
+    /// ran on a skin-carrying scene.
+    [[nodiscard]] const core::Buffer& skinIndexBuffer() const noexcept { return m_skinIndexBuffer; }
+    [[nodiscard]] const core::Buffer& skinWeightBuffer() const noexcept { return m_skinWeightBuffer; }
+    /// Per-frame skin matrices (row-major float4x4), uploaded through
+    /// stageSkinMatrices' scratch by the deformation pass each tick.
+    [[nodiscard]] const core::Buffer& skinMatrixBuffer() const noexcept { return m_skinMatrixBuffer; }
+    [[nodiscard]] std::span<const std::byte> skinMatrixScratch() const noexcept { return m_skinMatrixScratch; }
+    /// The attached scene source (test/tooling seam: re-deriving the same
+    /// SkinDesc/deformSkinLbs reference from the source file).
+    [[nodiscard]] const aether::SceneDesc* attachedScene() const noexcept {
+        return m_animation ? &*m_animation : nullptr;
+    }
+
     /// Direct instance-transform mutation for non-desc-driven updates
     /// (renderers/tests stamping world transforms themselves). Marks the
     /// instances dirty.
@@ -174,6 +211,19 @@ class SceneBase : public ISceneBuilder {
     /// mesh, before SceneBase::build constructs the BLASes).
     void markMeshDynamic(std::uint32_t meshIndex) override;
 
+    /// ANI4 seam (ISceneBuilder): records the loader's skin binding (sub-mesh
+    /// vertex total + within-skin weight row); SceneBase::build materializes
+    /// the absolute GPU jobs from these.
+    void bindSkinMesh(std::uint32_t meshIndex,
+                      std::uint32_t skinIndex,
+                      std::uint32_t weightRowOffset,
+                      std::uint32_t vertexCount) override;
+
+    /// ANI4 (called by build): concatenates the declared skins' index/weight
+    /// rows into the GPU buffers and turns the pending bindings into absolute
+    /// `SkinJob`s + the per-skin matrix staging scratch. No-op without bindings.
+    [[nodiscard]] VkResult buildSkinBuffers(const DeviceContext& ctx, const core::CommandPool& pool);
+
     [[nodiscard]] static std::expected<core::Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
                                                                                    const core::CommandPool& pool,
                                                                                    std::span<const std::byte> data,
@@ -195,6 +245,16 @@ class SceneBase : public ISceneBuilder {
     std::vector<std::uint32_t> m_instanceToDesc;
     /// Set by any instance-transform mutation; the TLAS update path consumes it.
     bool m_instancesDirty = false;
+
+    /// ANI4: pending loader bindings (mesh, skin, within-skin row, count) →
+    /// absolute SkinJobs at build. Raw tuples keep SceneBase free of another type.
+    std::vector<std::array<std::uint32_t, 4>> m_pendingSkinBindings;
+    std::vector<SkinJob> m_skinJobs;   ///< absolute jobs (buildSkinBuffers)
+    core::Buffer m_skinIndexBuffer{};  ///< uint4 rows, STORAGE
+    core::Buffer m_skinWeightBuffer{}; ///< float4 rows, STORAGE
+    core::Buffer m_skinMatrixBuffer{}; ///< float4x4 rows, STORAGE + TRANSFER_DST
+    /// Host staging for the current frame's matrices (byte size = matrix buffer).
+    std::vector<std::byte> m_skinMatrixScratch;
 };
 
 } // namespace harmonia::scene

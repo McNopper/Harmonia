@@ -44,6 +44,9 @@ class TriangleMesh final : public harmonia::scene::Geometry {
 
     [[nodiscard]] const core::Buffer& vertexBuffer() const noexcept;
     [[nodiscard]] const core::Buffer& indexBuffer() const noexcept;
+    /// ANI4: the mesh-local vertex STORAGE buffer - the BLAS input the skinning
+    /// pass refreshes through Geometry::storageVertexBuffer.
+    [[nodiscard]] const core::Buffer* storageVertexBuffer() const noexcept override { return &m_mesh.vertexBuffer(); }
     [[nodiscard]] std::uint32_t vertexCount() const noexcept;
     [[nodiscard]] std::uint32_t indexCount() const noexcept;
     [[nodiscard]] const harmonia::scene::MeshData& data() const noexcept;
