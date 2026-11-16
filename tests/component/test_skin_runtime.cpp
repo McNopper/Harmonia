@@ -8,8 +8,9 @@
 //     validation-clean under the fixture's always-on layers.
 // (3) A skin-free scene's refit is a success no-op.
 //
-// The GPU deformation kernel receipt (GPU vs the deformSkinLbs CPU reference)
-// lives in test_skin_deform_gpu.cpp; this file covers the shared seams.
+// The GPU deformation kernel receipt (GPU vs the deformMorphs +
+// deformSkinLbs CPU references) lives in test_deform_gpu.cpp; this file covers
+// the shared seams.
 
 #include <volk/volk.h>
 

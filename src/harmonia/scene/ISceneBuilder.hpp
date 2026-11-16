@@ -102,6 +102,21 @@ class ISceneBuilder {
         static_cast<void>(weightRowOffset);
         static_cast<void>(vertexCount);
     }
+
+    /// ANI5 seam: binds sub-mesh [subVertexOffset, +subVertexCount) of the
+    /// declared mesh @p meshName to its morph targets (the name groups the
+    /// `[[morph]]` entries; one call per covered sub-mesh, in import order).
+    /// SceneBase materializes the absolute delta/weight job fields at build;
+    /// the default no-op matches the other defaulted seams.
+    virtual void bindMorphMesh(std::uint32_t meshIndex,
+                               std::string_view meshName,
+                               std::uint32_t subVertexOffset,
+                               std::uint32_t subVertexCount) {
+        static_cast<void>(meshIndex);
+        static_cast<void>(meshName);
+        static_cast<void>(subVertexOffset);
+        static_cast<void>(subVertexCount);
+    }
 };
 
 } // namespace harmonia::scene

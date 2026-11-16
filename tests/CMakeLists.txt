@@ -41,7 +41,7 @@ add_executable(harmonia_component_tests
     component/test_pipeline_binary_cache.cpp
     component/test_tlas_refit.cpp
     component/test_skin_runtime.cpp
-    component/test_skin_deform_gpu.cpp
+    component/test_deform_gpu.cpp
     component/test_commandpool.cpp
     component/test_sms.cpp
     component/test_sms_queue.cpp

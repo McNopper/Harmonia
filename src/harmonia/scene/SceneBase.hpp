@@ -31,16 +31,29 @@
 
 namespace harmonia::scene {
 
-/// ANI4: one GPU skinning job - the deformation pass dispatches once per job.
-/// The absolute row/element offsets are materialized by SceneBase::build from
-/// the loader's per-skin `bindSkinMesh` bindings (a skin's weight rows span the
-/// covered sub-meshes in import order; the matrices are shared per skin).
-struct SkinJob {
-    std::uint32_t meshIndex = 0;    ///< scene mesh (Geometry) index
-    std::uint32_t vertexCount = 0;  ///< mesh-local vertices = rows this job consumes
+/// ANI4+ANI5: one GPU vertex-deformation job - the deformation pass dispatches
+/// once per job, over ONE sub-mesh range. Both halves are optional and merge
+/// onto the same job when a mesh is skinned AND morped (glTF order: the kernel
+/// applies the morph deltas first, then skins the morphed position):
+///   * skin  (ANI4): weightRow/matrixOffset/jointCount (jointCount 0 = none);
+///   * morph (ANI5): morphDeltaOffset/Stride/TargetCount + the staged
+///     morphWeightOffset (morphTargetCount 0 = none).
+/// The absolute offsets are materialized by SceneBase::build from the loader's
+/// `bindSkinMesh` / `bindMorphMesh` bindings (a skin's weight rows span the
+/// covered sub-meshes in import order; morph regions are per declared mesh,
+/// targets contiguous; both are shared by every job they drive).
+struct DeformJob {
+    std::uint32_t meshIndex = 0;   ///< scene mesh (Geometry) index
+    std::uint32_t vertexCount = 0; ///< sub-mesh vertices this job deforms
+    // ANI4 skin half
     std::uint32_t weightRow = 0;    ///< absolute row into the skin index/weight buffers
     std::uint32_t matrixOffset = 0; ///< this skin's first matrix, in float4x4 elements
-    std::uint32_t jointCount = 0;   ///< matrices of this skin
+    std::uint32_t jointCount = 0;   ///< matrices of this skin (0 = morph-only job)
+    // ANI5 morph half
+    std::uint32_t morphDeltaOffset = 0;  ///< element offset of target-0 row 0
+    std::uint32_t morphDeltaStride = 0;  ///< elements per target (declared mesh count)
+    std::uint32_t morphTargetCount = 0;  ///< targets of this job (0 = skin-only job)
+    std::uint32_t morphWeightOffset = 0; ///< float offset into the staged weight buffer
 };
 
 /// Non-renderer-specific base for both Hyperion::Scene and Theia::Scene.
@@ -141,23 +154,46 @@ class SceneBase : public ISceneBuilder {
     /// ANI4: copy @p poses' skin matrices into the staging scratch (one region
     /// per declared skin, in declaration order; a pose missing for a declared
     /// skin is a hand-built-scene contract break and fails the call). Called by
-    /// SkinDeformPass::execute before it records the vkCmdUpdateBuffer upload.
+    /// DeformPass::execute before it records the vkCmdUpdateBuffer upload.
+    /// Success no-op on morph-only scenes (no matrices to stage).
     [[nodiscard]] VkResult stageSkinMatrices(const std::vector<aether::SkinPose>& poses);
 
-    // ── ANI4 skinning buffers/jobs (read by SkinDeformPass) ─────────────────
+    /// ANI5: true when the attached source declares `[[morph]]` targets (a
+    /// morph-only scene attaches its source too - see SceneLoader).
+    [[nodiscard]] bool hasMorphs() const noexcept { return m_animation.has_value() && !m_animation->morphs.empty(); }
 
-    [[nodiscard]] const std::vector<SkinJob>& skinJobs() const noexcept { return m_skinJobs; }
+    /// ANI5: evaluate the morph-weight tracks at @p seconds - the live weights
+    /// parallel to the attached `morphs` (authored initials without tracks).
+    /// Empty without attached morphs; deterministic per time. Pair with
+    /// `DeformPass::execute`, which stages them each tick.
+    [[nodiscard]] std::vector<float> evaluateMorphWeights(float seconds) const;
+
+    /// ANI5: copy @p weights (parallel to the attached morphs) into the
+    /// per-mesh staged-weight scratch. Called by DeformPass::execute. Success
+    /// no-op on skin-only scenes.
+    [[nodiscard]] VkResult stageMorphWeights(const std::vector<float>& weights);
+
+    // ── ANI4+ANI5 deformation buffers/jobs (read by DeformPass) ─────────────
+
+    [[nodiscard]] const std::vector<DeformJob>& deformJobs() const noexcept { return m_deformJobs; }
     /// Concatenated per-vertex joint indices (uint4 rows) + weights (float4
     /// rows) over the declared skins, in declaration order. Valid once build()
-    /// ran on a skin-carrying scene.
+    /// ran on a skin-carrying scene (invalid - null-descriptor - otherwise).
     [[nodiscard]] const core::Buffer& skinIndexBuffer() const noexcept { return m_skinIndexBuffer; }
     [[nodiscard]] const core::Buffer& skinWeightBuffer() const noexcept { return m_skinWeightBuffer; }
     /// Per-frame skin matrices (row-major float4x4), uploaded through
     /// stageSkinMatrices' scratch by the deformation pass each tick.
     [[nodiscard]] const core::Buffer& skinMatrixBuffer() const noexcept { return m_skinMatrixBuffer; }
     [[nodiscard]] std::span<const std::byte> skinMatrixScratch() const noexcept { return m_skinMatrixScratch; }
+    /// ANI5: pad-w position deltas, per declared mesh region (targets
+    /// contiguous, per-mesh grouping in declaration order) - build-time static.
+    [[nodiscard]] const core::Buffer& morphDeltaBuffer() const noexcept { return m_morphDeltaBuffer; }
+    /// ANI5: per-mesh weight region, re-uploaded each tick through
+    /// stageMorphWeights' scratch (one float per target of the mesh).
+    [[nodiscard]] const core::Buffer& morphWeightBuffer() const noexcept { return m_morphWeightBuffer; }
+    [[nodiscard]] std::span<const std::byte> morphWeightScratch() const noexcept { return m_morphWeightScratch; }
     /// The attached scene source (test/tooling seam: re-deriving the same
-    /// SkinDesc/deformSkinLbs reference from the source file).
+    /// SkinDesc/deformSkinLbs and MorphTarget/deformMorphs references).
     [[nodiscard]] const aether::SceneDesc* attachedScene() const noexcept {
         return m_animation ? &*m_animation : nullptr;
     }
@@ -213,16 +249,25 @@ class SceneBase : public ISceneBuilder {
 
     /// ANI4 seam (ISceneBuilder): records the loader's skin binding (sub-mesh
     /// vertex total + within-skin weight row); SceneBase::build materializes
-    /// the absolute GPU jobs from these.
+    /// the absolute job fields from these.
     void bindSkinMesh(std::uint32_t meshIndex,
                       std::uint32_t skinIndex,
                       std::uint32_t weightRowOffset,
                       std::uint32_t vertexCount) override;
 
-    /// ANI4 (called by build): concatenates the declared skins' index/weight
-    /// rows into the GPU buffers and turns the pending bindings into absolute
-    /// `SkinJob`s + the per-skin matrix staging scratch. No-op without bindings.
-    [[nodiscard]] VkResult buildSkinBuffers(const DeviceContext& ctx, const core::CommandPool& pool);
+    /// ANI5 seam (ISceneBuilder): records the loader's morph binding (sub-mesh
+    /// range within the declared mesh's vertex span); SceneBase::build groups
+    /// the declared morph targets per mesh name and materializes the absolute
+    /// delta/weight offsets.
+    void bindMorphMesh(std::uint32_t meshIndex,
+                       std::string_view meshName,
+                       std::uint32_t subVertexOffset,
+                       std::uint32_t subVertexCount) override;
+
+    /// ANI4+ANI5 (called by build): materializes the merged DeformJobs from the
+    /// pending loader bindings and uploads the skin index/weight/matrix +
+    /// morph delta/weight buffers. No-op when nothing binds.
+    [[nodiscard]] VkResult buildDeformBuffers(const DeviceContext& ctx, const core::CommandPool& pool);
 
     [[nodiscard]] static std::expected<core::Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
                                                                                    const core::CommandPool& pool,
@@ -246,15 +291,30 @@ class SceneBase : public ISceneBuilder {
     /// Set by any instance-transform mutation; the TLAS update path consumes it.
     bool m_instancesDirty = false;
 
-    /// ANI4: pending loader bindings (mesh, skin, within-skin row, count) →
-    /// absolute SkinJobs at build. Raw tuples keep SceneBase free of another type.
+    /// ANI4: pending loader skin bindings (mesh, skin, within-skin row, count).
     std::vector<std::array<std::uint32_t, 4>> m_pendingSkinBindings;
-    std::vector<SkinJob> m_skinJobs;   ///< absolute jobs (buildSkinBuffers)
-    core::Buffer m_skinIndexBuffer{};  ///< uint4 rows, STORAGE
-    core::Buffer m_skinWeightBuffer{}; ///< float4 rows, STORAGE
+    /// ANI5: pending loader morph bindings (sub-mesh range within the named
+    /// declared mesh - the name groups the morph targets and their regions).
+    struct PendingMorphBinding {
+        std::uint32_t meshIndex = 0;
+        std::string meshName;
+        std::uint32_t subVertexOffset = 0;
+        std::uint32_t subVertexCount = 0;
+    };
+    std::vector<PendingMorphBinding> m_pendingMorphBindings;
+    std::vector<DeformJob> m_deformJobs; ///< merged absolute jobs (buildDeformBuffers)
+    /// ANI5: per weight-region target indices (into the attached morphs), in
+    /// staged order - stageMorphWeights copies through these each tick.
+    std::vector<std::vector<std::uint32_t>> m_morphWeightGroups;
+    core::Buffer m_skinIndexBuffer{};  ///< uint4 rows, STORAGE (null when skin-free)
+    core::Buffer m_skinWeightBuffer{}; ///< float4 rows, STORAGE (null when skin-free)
     core::Buffer m_skinMatrixBuffer{}; ///< float4x4 rows, STORAGE + TRANSFER_DST
     /// Host staging for the current frame's matrices (byte size = matrix buffer).
     std::vector<std::byte> m_skinMatrixScratch;
+    core::Buffer m_morphDeltaBuffer{};  ///< pad-w float4 rows, STORAGE (build-static)
+    core::Buffer m_morphWeightBuffer{}; ///< one float per target per region, TRANSFER_DST
+    /// Host staging for the current frame's morph weights.
+    std::vector<std::byte> m_morphWeightScratch;
 };
 
 } // namespace harmonia::scene

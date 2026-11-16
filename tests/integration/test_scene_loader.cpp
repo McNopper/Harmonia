@@ -332,4 +332,72 @@ TEST(SkinLoader, RejectsProceduralSphereSkin) {
     fs::remove_all(dir);
 }
 
+// ── ANI5: morph coverage binding (the row COUNT binds to the import) ────────
+
+/// Morph scene over the quad (no nodes needed - [[morph]] references the mesh);
+/// @p rowDelta skews the authored rows away from the exact vertex count.
+std::string morphSceneToml(std::size_t vertexCount, std::ptrdiff_t rowDelta) {
+    const std::size_t rows = static_cast<std::size_t>(static_cast<std::ptrdiff_t>(vertexCount) + rowDelta);
+    std::ostringstream os;
+    os << "[[mesh]]\n"
+          "name = \"q\"\n"
+          "path = \"q.obj\"\n"
+          "\n"
+          "[[instance]]\n"
+          "mesh = \"q\"\n"
+          "\n"
+          "[[morph]]\n"
+          "mesh = \"q\"\n"
+          "name = \"bulge\"\n"
+          "deltas = [";
+    for (std::size_t v = 0; v < rows; ++v) {
+        os << (v == 0 ? "\n  " : ",\n  ") << "[0, 0, 1]";
+    }
+    os << "\n]\n";
+    return os.str();
+}
+
+TEST(MorphLoader, AcceptsExactVertexCoverage) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "harmonia_morph_cover_ok";
+    fs::create_directories(dir);
+    writeQuadObj(dir / "q.obj");
+    const std::size_t count = quadVertexCount(dir / "q.obj");
+    ASSERT_GT(count, 0U);
+    {
+        std::ofstream scn(dir / "s.scene.toml");
+        scn << morphSceneToml(count, 0);
+    }
+
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    const auto cfg = harmonia::scene::SceneLoader::load(dir / "s.scene.toml", dir, scene, dummyCtx, dummyPool);
+
+    EXPECT_TRUE(cfg.has_value());
+    EXPECT_EQ(scene.meshCount, 1U);
+    fs::remove_all(dir);
+}
+
+TEST(MorphLoader, RejectsVertexCoverageMismatch) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "harmonia_morph_cover_bad";
+    fs::create_directories(dir);
+    writeQuadObj(dir / "q.obj");
+    const std::size_t count = quadVertexCount(dir / "q.obj");
+    ASSERT_GT(count, 0U);
+    {
+        std::ofstream scn(dir / "s.scene.toml");
+        scn << morphSceneToml(count, +1); // one vertex too many
+    }
+
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    const auto cfg = harmonia::scene::SceneLoader::load(dir / "s.scene.toml", dir, scene, dummyCtx, dummyPool);
+
+    EXPECT_FALSE(cfg.has_value()) << "morph row count must bind to the imported vertex count";
+    fs::remove_all(dir);
+}
+
 } // namespace

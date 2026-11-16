@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "aether/format/Morphing.hpp"
 #include "aether/format/ObjImporter.hpp"
 #include "aether/format/OmmImporter.hpp"
 #include "aether/format/SceneParser.hpp"
@@ -611,18 +612,52 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
         }
     }
 
+    // ANI5: bind morph coverage to what was actually imported - the parser
+    // validated everything except the vertex COUNTS, which only the import
+    // knows (sphere meshes were already rejected at parse). Covered meshes are
+    // marked dynamic BEFORE build() constructs their BLASes (ALLOW_UPDATE).
+    if (!desc->morphs.empty()) {
+        std::string morphError;
+        if (!aether::validateMorphVertexCounts(*desc, meshVertexCounts, &morphError)) {
+            core::Logger::error("SceneLoader: {}", morphError);
+            return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+        }
+        // One pass over the declared meshes that carry morphs (first-appearance
+        // order over desc.morphs); SceneBase groups the targets the same way.
+        std::unordered_map<std::string, bool> seenMorphMesh;
+        seenMorphMesh.reserve(desc->morphs.size());
+        for (const aether::MorphTarget& morph : desc->morphs) {
+            if (!seenMorphMesh.emplace(morph.meshName, true).second) {
+                continue; // already bound this declared mesh
+            }
+            const auto subIt = c.meshSubmeshes.find(morph.meshName);
+            if (subIt == c.meshSubmeshes.end()) {
+                continue; // validator failed unimported meshes above
+            }
+            // The target deltas span the declared mesh's sub-mesh concatenation
+            // in import order - accumulate the within-mesh vertex offset.
+            std::uint32_t vertexOffset = 0;
+            for (const LoadedSubmesh& sub : subIt->second) {
+                scene.markMeshDynamic(sub.meshIndex);
+                scene.bindMorphMesh(
+                    sub.meshIndex, morph.meshName, vertexOffset, static_cast<std::uint32_t>(sub.vertexCount));
+                vertexOffset += static_cast<std::uint32_t>(sub.vertexCount);
+            }
+        }
+    }
+
     if (auto placed = placeInstances(c, *desc); !placed) {
         return std::unexpected(placed.error());
     }
 
-    // ANI2 seam: animated OR skinned scenes keep their parsed source in the
-    // scene, so the consumer can evaluate tracks per frame
+    // ANI2 seam: animated, skinned OR morphed scenes keep their parsed source
+    // in the scene, so the consumer can evaluate tracks per frame
     // (SceneBase::setAnimationTime) and stamp the resolved TRS back onto the
-    // scene instances via the recorded sceneInstance → descInstance mapping;
-    // ANI4 adds the skin poses (SceneBase::evaluateSkins - a [[skin]] binding
-    // needs the source even without [[animation]] tracks, so its joints'
-    // static world transforms stay addressable). Animation/skin-free: nothing held.
-    if (!desc->animations.empty() || !desc->skins.empty()) {
+    // scene instances via the recorded sceneInstance -> descInstance mapping;
+    // ANI4 adds the skin poses (SceneBase::evaluateSkins) and ANI5 the morph
+    // weights (SceneBase::evaluateMorphWeights) - both bindings need the source
+    // even without [[animation]] tracks. Animation/skin/morph-free: nothing held.
+    if (!desc->animations.empty() || !desc->skins.empty() || !desc->morphs.empty()) {
         scene.attachAnimation(std::move(*desc), std::move(c.instanceMapping));
     }
 

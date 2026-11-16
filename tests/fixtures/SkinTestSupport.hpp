@@ -74,7 +74,7 @@ class StubScene final : public scene::SceneBase {
         m_sceneVertices = std::move(*buf);
         // ANI4: skinned scenes also keep an immutable rest copy (the kernel's
         // read source; the active buffer holds the previous frame's pose).
-        if (hasSkins()) {
+        if (hasSkins() || hasMorphs()) {
             auto rest = uploadStorageBuffer(ctx,
                                             pool,
                                             std::as_bytes(std::span<const GpuVertex>(vertices.data(), vertices.size())),
