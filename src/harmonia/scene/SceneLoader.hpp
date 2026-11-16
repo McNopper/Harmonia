@@ -54,6 +54,10 @@ class SceneLoader {
         std::optional<sm::float3> cameraUp;
         std::optional<float> cameraVfov;
         std::optional<float> cameraEv100; ///< physical camera EV100 override
+        /// ANI8 camera-from-node: `[camera] node = "<id>"` - the camera is
+        /// re-placed from this node's evaluated world every animation tick
+        /// (the static pos/at/up above stay the load-time fallback/preview).
+        std::optional<std::string> cameraNodeId;
         std::optional<std::uint32_t> spp;
         std::optional<std::uint32_t> maxDepth;
         std::optional<float> envUnitNits;                ///< cd/m² per unit EXR value (physical unit multiplier)

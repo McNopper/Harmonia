@@ -173,8 +173,11 @@ class App {
     /// (--sequence-frames) pins it to the OUTPUT frame index so every accumulation
     /// sample of output frame k renders the same scene state; otherwise it is the
     /// raw per-render-frame index (ANI2's deterministic tick, unchanged).
+    /// ANI8 `--frame N`: the whole clock is offset by config.animationStartFrame,
+    /// so output frame k renders tick N + k (movie frame generation) and the
+    /// interactive window starts at N.
     [[nodiscard]] std::uint32_t animationFrameIndex() const noexcept {
-        return m_sequenceActive ? m_sequenceFrame : m_frameIndex;
+        return m_config.animationStartFrame + (m_sequenceActive ? m_sequenceFrame : m_frameIndex);
     }
 
     /// Resolve + load a scene file (full path or bare name). Reusable at

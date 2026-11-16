@@ -107,6 +107,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 | `--no-postfx` | Force off every post-processing stage (A-SVGF denoiser + TAA) — the interactive-window identity that `--output` enforces for offscreen capture. |
 | `--indirect-ambient <f>` | Presentation-only indirect ambient boost (scene-referred linear units). |
 | `--sequence-frames <N>` | **ANI7 sequence render** (with `--output`): render N ANIMATION frames instead of one capture - the animation tick is pinned to the output-frame index (t = k/fps constant across that frame's accumulation samples), accumulation restarts per frame, and files are written as `<stem>_0000<ext>` ... `<stem>_<k><ext>` (EXR + PNG each). 0 (default) = classic single capture. An animated `--output` without this flag is a single-sample last-tick image (warned once). |
+| `--frame <N>` | **ANI8 animation seek**: start the animation clock at frame N - sequence output frame k renders tick **N + k** (movie frame generation: one image per run with `--sequence-frames 1 --frame N`), the interactive window starts at N and plays in real time, and a camera bound via `[camera] node` re-places itself from N on. 0 (default) = unchanged behavior. |
 
 ⚠ï¸ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
 

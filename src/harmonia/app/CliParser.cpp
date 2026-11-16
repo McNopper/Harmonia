@@ -223,6 +223,20 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         }
         return true;
     }
+    if (arg == "--frame") {
+        // ANI8: seek the animation start frame N (movie frame generation:
+        // one run per frame with `--sequence-frames 1 --frame N`; the
+        // interactive window starts at N and plays in real time).
+        if (const char* v = next("--frame")) {
+            std::uint32_t frame = 0U;
+            if (!CliParser::parseUint32(v, frame)) {
+                core::Logger::error("Invalid value for --frame: {}", v);
+            } else {
+                config.animationStartFrame = frame;
+            }
+        }
+        return true;
+    }
     if (arg == "--frames-per-flip") {
         if (const char* v = next("--frames-per-flip")) {
             std::uint32_t frames = 0U;

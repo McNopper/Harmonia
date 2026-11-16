@@ -58,6 +58,12 @@ class Camera {
     void setAspect(float aspect) noexcept;
     void setPosition(sm::float3 pos) noexcept;
     void setTarget(sm::float3 target) noexcept;
+    /// ANI8 camera-from-node: world up of the placed camera (mirrors
+    /// setPosition/setTarget for the animated-placement path).
+    void setUp(sm::float3 up) noexcept;
+    /// ANI8 camera-from-node: scene-scale-aware clip planes recomputed from the
+    /// placed camera-to-target distance (nearFarFromDistance).
+    void setNearFar(float nearPlane, float farPlane) noexcept;
     void setPhysicalCamera(const PhysicalCamera& physical) noexcept;
 
     [[nodiscard]] const PhysicalCamera& physicalCamera() const noexcept { return m_params.physical; }

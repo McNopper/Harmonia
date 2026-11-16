@@ -48,6 +48,15 @@ void Camera::setTarget(sm::float3 target) noexcept {
     }
 }
 
+void Camera::setUp(sm::float3 up) noexcept {
+    m_params.up = up;
+}
+
+void Camera::setNearFar(float nearPlane, float farPlane) noexcept {
+    m_params.nearPlane = nearPlane;
+    m_params.farPlane = farPlane;
+}
+
 void Camera::setPhysicalCamera(const PhysicalCamera& physical) noexcept {
     m_params.physical = physical;
 }

@@ -57,6 +57,11 @@ struct AppConfig {
     /// written as `<output-stem>_0000<ext>` ... `<output-stem>_<k><ext>`.
     /// 0 (default) = the classic single capture. Requires --output.
     std::uint32_t sequenceFrames = 0;
+    /// ANI8 `--frame N`: animation START frame - animationFrameIndex() adds this
+    /// offset, so sequence output frame k renders tick N + k, the interactive
+    /// window starts at N and runs in real time, and a classic single capture
+    /// starts at N + its raw frame index. 0 (default) = unchanged behavior.
+    std::uint32_t animationStartFrame = 0;
     /// Interactive window: accumulation frames per swapchain flip (1 = one render per
     /// present, the classic cadence). N > 1 converges the DISPLAYED image faster per
     /// flip on a static/slow camera at the cost of flip rate and input latency;

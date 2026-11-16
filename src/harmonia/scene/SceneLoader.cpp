@@ -234,6 +234,10 @@ void applyCamera(const aether::CameraDesc& cam, SceneConfig& cfg) {
         cfg.cameraAt = pos + (rot * sm::float3{0.0f, 0.0f, -1.0f});
         cfg.cameraUp = rot * sm::float3{0.0f, 1.0f, 0.0f};
     }
+    // ANI8 camera-from-node: the id rides along; the applications re-place the
+    // camera from the evaluated node world every animation tick.
+    if (cam.nodeId)
+        cfg.cameraNodeId = *cam.nodeId;
     if (cam.vfov)
         cfg.cameraVfov = *cam.vfov;
     if (cam.ev100)
