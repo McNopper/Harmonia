@@ -79,6 +79,13 @@ class ISceneBuilder {
         static_cast<void>(desc);
         static_cast<void>(instanceToDesc);
     }
+
+    /// ANI4 seam: marks mesh @p meshIndex as per-frame DEFORMED (its vertices
+    /// are rewritten by the skinning pass, so its BLAS must be built with
+    /// ALLOW_UPDATE and is refit in place each frame - `refitDynamicBlases`).
+    /// The loader calls this for every mesh a `[[skin]]` binding covers.
+    /// Default no-op: builders that don't track BLASes ignore it.
+    virtual void markMeshDynamic(std::uint32_t meshIndex) { static_cast<void>(meshIndex); }
 };
 
 } // namespace harmonia::scene

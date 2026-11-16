@@ -5,11 +5,13 @@
 #include <gtest/gtest.h>
 #include <limits>
 #include <slang-math/slang-math.hpp>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "aether/format/ObjImporter.hpp"
 #include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/scene/SceneLoader.hpp"
 
@@ -186,6 +188,148 @@ TEST(SceneLoader, ParsesStageTogglesFromRenderPresetAndInlineOverride) {
     EXPECT_FALSE(*cfg->tonemapperStageEnabled);
 
     std::filesystem::remove_all(dir);
+}
+
+// ── ANI4: skin coverage binding (parser validates all but the vertex count,
+// which only the import knows - these run against the recording builder, no GPU).
+
+// Mini OBJ: unit quad, full v/vt/vn face refs -> 4 deduplicated vertices.
+void writeQuadObj(const std::filesystem::path& path) {
+    std::ofstream out(path);
+    out << "v 0 0 0\n"
+           "v 1 0 0\n"
+           "v 1 1 0\n"
+           "v 0 1 0\n"
+           "vt 0 0\n"
+           "vt 1 0\n"
+           "vt 1 1\n"
+           "vt 0 1\n"
+           "vn 0 0 1\n"
+           "f 1/1/1 2/2/1 3/3/1\n"
+           "f 1/1/1 3/3/1 4/4/1\n";
+}
+
+std::size_t quadVertexCount(const std::filesystem::path& path) {
+    const auto groups = aether::ObjImporter::parse(path);
+    if (!groups) {
+        return 0;
+    }
+    std::size_t total = 0;
+    for (const aether::MeshGroup& g : *groups) {
+        total += g.mesh.vertices.size();
+    }
+    return total;
+}
+
+/// Skin scene over the quad; @p rows extra bone rows override the exact count
+/// (0 = exact coverage) so the mismatch path can be driven deliberately.
+std::string skinSceneToml(std::size_t vertexCount, std::ptrdiff_t rowDelta) {
+    const std::size_t rows = static_cast<std::size_t>(static_cast<std::ptrdiff_t>(vertexCount) + rowDelta);
+    std::ostringstream os;
+    os << "[[mesh]]\n"
+          "name = \"q\"\n"
+          "path = \"q.obj\"\n"
+          "\n"
+          "[[node]]\n"
+          "id = \"root\"\n"
+          "\n"
+          "[[node]]\n"
+          "id = \"part\"\n"
+          "mesh = \"q\"\n"
+          "\n"
+          "[[skin]]\n"
+          "node = \"part\"\n"
+          "joints = [\"root\"]\n"
+          "inverse_bind = [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]]\n"
+          "bone_indices = [";
+    for (std::size_t v = 0; v < rows; ++v) {
+        os << (v == 0 ? "\n  " : ",\n  ") << "[0, 0, 0, 0]";
+    }
+    os << "\n]\nbone_weights = [";
+    for (std::size_t v = 0; v < rows; ++v) {
+        os << (v == 0 ? "\n  " : ",\n  ") << "[1, 0, 0, 0]";
+    }
+    os << "\n]\n";
+    return os.str();
+}
+
+TEST(SkinLoader, AcceptsExactVertexCoverage) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "harmonia_skin_cover_ok";
+    fs::create_directories(dir);
+    writeQuadObj(dir / "q.obj");
+    const std::size_t count = quadVertexCount(dir / "q.obj");
+    ASSERT_GT(count, 0U);
+    {
+        std::ofstream scn(dir / "s.scene.toml");
+        scn << skinSceneToml(count, 0);
+    }
+
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    const auto cfg = harmonia::scene::SceneLoader::load(dir / "s.scene.toml", dir, scene, dummyCtx, dummyPool);
+
+    EXPECT_TRUE(cfg.has_value());
+    EXPECT_EQ(scene.meshCount, 1U);
+    EXPECT_EQ(scene.instanceCount, 1U);
+    fs::remove_all(dir);
+}
+
+TEST(SkinLoader, RejectsVertexCoverageMismatch) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "harmonia_skin_cover_bad";
+    fs::create_directories(dir);
+    writeQuadObj(dir / "q.obj");
+    const std::size_t count = quadVertexCount(dir / "q.obj");
+    ASSERT_GT(count, 0U);
+    {
+        std::ofstream scn(dir / "s.scene.toml");
+        scn << skinSceneToml(count, +1); // one vertex too many
+    }
+
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    const auto cfg = harmonia::scene::SceneLoader::load(dir / "s.scene.toml", dir, scene, dummyCtx, dummyPool);
+
+    EXPECT_FALSE(cfg.has_value()) << "coverage mismatch must fail the load";
+    fs::remove_all(dir);
+}
+
+TEST(SkinLoader, RejectsProceduralSphereSkin) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "harmonia_skin_sphere";
+    fs::create_directories(dir);
+    {
+        std::ofstream scn(dir / "s.scene.toml");
+        scn << "[[mesh]]\n"
+               "name = \"ball\"\n"
+               "type = \"sphere\"\n"
+               "radius = 0.5\n"
+               "\n"
+               "[[node]]\n"
+               "id = \"root\"\n"
+               "\n"
+               "[[node]]\n"
+               "id = \"part\"\n"
+               "mesh = \"ball\"\n"
+               "\n"
+               "[[skin]]\n"
+               "node = \"part\"\n"
+               "joints = [\"root\"]\n"
+               "inverse_bind = [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]]\n"
+               "bone_indices = [[0, 0, 0, 0]]\n"
+               "bone_weights = [[1, 0, 0, 0]]\n";
+    }
+
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    const auto cfg = harmonia::scene::SceneLoader::load(dir / "s.scene.toml", dir, scene, dummyCtx, dummyPool);
+
+    EXPECT_FALSE(cfg.has_value()) << "procedural sphere meshes carry no stable count - rejected";
+    fs::remove_all(dir);
 }
 
 } // namespace

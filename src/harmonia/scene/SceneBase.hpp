@@ -15,6 +15,7 @@
 #include <string_view>
 #include <vector>
 
+#include "aether/format/SceneAnimator.hpp"
 #include "aether/types/OpacityMicromap.hpp"
 #include "aether/types/SceneDesc.hpp"
 #include "harmonia/DeviceContext.hpp"
@@ -88,9 +89,13 @@ class SceneBase : public ISceneBuilder {
 
     // ── Animation (ANI1/ANI2 bridge — shared Aether consumption) ─────────────
 
-    /// True when an animated-scene source was attached (SceneLoader does this
-    /// whenever the parsed scene declares [[animation]] tracks).
-    [[nodiscard]] bool hasAnimation() const noexcept { return m_animation.has_value(); }
+    /// True when an animated-scene source with TRACKS was attached (SceneLoader
+    /// attaches the source for `[[skin]]`-only scenes too - ANI4 - so "animated"
+    /// means the source actually declares `[[animation]]` tracks; skin-only
+    /// sources never tick the animation path).
+    [[nodiscard]] bool hasAnimation() const noexcept {
+        return m_animation.has_value() && !m_animation->animations.empty();
+    }
 
     /// The attached scene's animation clock rate (ticks per second, Aether
     /// ANI2). Meaningful only when hasAnimation().
@@ -102,6 +107,23 @@ class SceneBase : public ISceneBuilder {
     /// (the TLAS update path consumes the flag). No-op without an attached
     /// source. Deterministic: the same time always stamps the same transforms.
     void setAnimationTime(float seconds);
+
+    /// ANI4: true when the attached source declares `[[skin]]` bindings (a
+    /// skin-only scene attaches its source too - see SceneLoader).
+    [[nodiscard]] bool hasSkins() const noexcept { return m_animation.has_value() && !m_animation->skins.empty(); }
+
+    /// ANI4: evaluate the attached skin poses at @p seconds - the LOCAL-space
+    /// skin matrices (Aether: `inverse(nodeWorld) * jointWorld * inverseBind`,
+    /// one per joint in declaration order; see `aether::SkinPose`) that the
+    /// deformation pass feeds to the BLAS refit. Empty without attached skins;
+    /// deterministic (the same time always yields the same matrices).
+    [[nodiscard]] std::vector<aether::SkinPose> evaluateSkins(float seconds) const;
+
+    /// ANI4: refit every dynamic (skinned) mesh's BLAS in place - call AFTER the
+    /// deformation pass rewrote its vertex buffer and BEFORE the TLAS update
+    /// (`updateTlas`). No-op when no mesh is dynamic. Handle/device address stay
+    /// valid across the refit.
+    [[nodiscard]] VkResult refitDynamicBlases(const DeviceContext& ctx, const core::CommandPool& pool);
 
     /// Direct instance-transform mutation for non-desc-driven updates
     /// (renderers/tests stamping world transforms themselves). Marks the
@@ -146,6 +168,11 @@ class SceneBase : public ISceneBuilder {
 
     /// ANI2 seam (ISceneBuilder): stores the parsed animated-scene source.
     void attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint32_t> instanceToDesc) override;
+
+    /// ANI4 seam (ISceneBuilder): marks mesh @p meshIndex per-frame deformed so
+    /// its BLAS builds with ALLOW_UPDATE (the loader calls this per covered
+    /// mesh, before SceneBase::build constructs the BLASes).
+    void markMeshDynamic(std::uint32_t meshIndex) override;
 
     [[nodiscard]] static std::expected<core::Buffer, VkResult> uploadStorageBuffer(const DeviceContext& ctx,
                                                                                    const core::CommandPool& pool,

@@ -15,6 +15,7 @@
 #include "aether/format/ObjImporter.hpp"
 #include "aether/format/OmmImporter.hpp"
 #include "aether/format/SceneParser.hpp"
+#include "aether/format/Skinning.hpp"
 #include "aether/types/MeshData.hpp"
 #include "aether/types/OpacityMicromap.hpp"
 #include "harmonia/core/Logger.hpp"
@@ -120,6 +121,11 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
 struct LoadedSubmesh {
     std::uint32_t meshIndex{};
     std::string groupName;
+    /// ANI4: vertices contributed to the mesh name's TOTAL (summed by the
+    /// skin-coverage validation - one declared mesh can split into sub-meshes,
+    /// and a [[skin]]'s per-vertex weights span the concatenation in import
+    /// order).
+    std::size_t vertexCount{};
 };
 
 } // namespace
@@ -379,7 +385,7 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
             core::Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
             return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
         }
-        subs.push_back({idx, g.name});
+        subs.push_back({idx, g.name, g.mesh.vertices.size()});
     }
     return subs;
 }
@@ -391,13 +397,14 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
         return std::nullopt;
     }
     MeshData mesh = harmonia::scene::ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
+    const std::size_t vertexCount = mesh.vertices.size();
     const std::uint32_t idx = c.scene.addMesh(
         c.ctx, c.pool, std::move(mesh), MeshOpacity{.alphaTested = isAlphaTested(c, m.name, "")}, m.name);
     if (idx == std::numeric_limits<std::uint32_t>::max()) {
         core::Logger::error("SceneLoader: failed to upload box '{}'", m.name);
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
-    subs.push_back({idx, ""});
+    subs.push_back({idx, "", vertexCount});
     return subs;
 }
 
@@ -413,7 +420,10 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
         core::Logger::error("SceneLoader: failed to upload sphere '{}'", m.name);
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
-    subs.push_back({idx, ""});
+    // Procedural tessellation counts are renderer-side (Hyperion: analytic AABB
+    // BLAS, Theia: tessellated) - they carry NO coverage entry, so a [[skin]]
+    // over a sphere kind is rejected below with an explicit message.
+    subs.push_back({idx, "", 0});
     return subs;
 }
 
@@ -523,6 +533,10 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
     applyCamera(desc->camera, cfg);
     computeAlphaTested(c, *desc);
 
+    // Per-declared-mesh imported vertex totals (ANI4): a [[skin]]'s per-vertex
+    // weights span the mesh's sub-mesh concatenation in import order.
+    std::unordered_map<std::string, std::size_t> meshVertexCounts;
+    meshVertexCounts.reserve(desc->meshes.size());
     for (const aether::MeshDesc& m : desc->meshes) {
         auto subs = importMesh(c, m);
         if (!subs) {
@@ -531,18 +545,75 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
         if (!*subs || (*subs)->empty()) {
             continue; // importMesh already warned
         }
+        std::size_t total = 0;
+        for (const LoadedSubmesh& sub : **subs) {
+            total += sub.vertexCount;
+        }
+        meshVertexCounts.emplace(m.name, total);
         c.meshSubmeshes.emplace(m.name, std::move(**subs));
+    }
+
+    // ANI4: bind skin coverage to what was actually imported - the parser
+    // validated everything except the vertex counts, which only the import
+    // knows. Procedural sphere meshes carry no stable count (renderer-defined
+    // tessellation) and are rejected explicitly.
+    if (!desc->skins.empty()) {
+        std::unordered_map<std::string, aether::MeshDesc::Kind> kinds;
+        kinds.reserve(desc->meshes.size());
+        for (const aether::MeshDesc& m : desc->meshes) {
+            kinds.emplace(m.name, m.kind);
+        }
+        for (const aether::SkinDesc& skin : desc->skins) {
+            for (const aether::NodeDesc& node : desc->nodes) {
+                if (node.id == skin.nodeId && kinds.contains(node.meshName) &&
+                    kinds.at(node.meshName) == aether::MeshDesc::Kind::Sphere) {
+                    core::Logger::error("SceneLoader: skin '{}' references procedural sphere mesh '{}' - "
+                                        "unsupported (skin object/box meshes)",
+                                        skin.nodeId,
+                                        node.meshName);
+                    return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+                }
+            }
+        }
+        std::string skinError;
+        if (!aether::validateSkinVertexCounts(*desc, meshVertexCounts, &skinError)) {
+            core::Logger::error("SceneLoader: {}", skinError);
+            return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+        }
+        // Mark the covered meshes dynamic BEFORE build() constructs their BLASes
+        // (SceneBase::build runs after load) so they build with ALLOW_UPDATE.
+        std::unordered_map<std::string, std::size_t> nodeIndexById;
+        nodeIndexById.reserve(desc->nodes.size());
+        for (std::size_t i = 0; i < desc->nodes.size(); ++i) {
+            nodeIndexById.emplace(desc->nodes[i].id, i);
+        }
+        for (const aether::SkinDesc& skin : desc->skins) {
+            const auto nodeIt = nodeIndexById.find(skin.nodeId);
+            if (nodeIt == nodeIndexById.end()) {
+                continue; // parser-validated; defensive
+            }
+            const auto subIt = c.meshSubmeshes.find(desc->nodes[nodeIt->second].meshName);
+            if (subIt == c.meshSubmeshes.end()) {
+                continue;
+            }
+            for (const LoadedSubmesh& sub : subIt->second) {
+                scene.markMeshDynamic(sub.meshIndex);
+            }
+        }
     }
 
     if (auto placed = placeInstances(c, *desc); !placed) {
         return std::unexpected(placed.error());
     }
 
-    // ANI2 seam: animated scenes keep their parsed source in the scene, so the
-    // consumer can evaluate tracks per frame (SceneBase::setAnimationTime) and
-    // stamp the resolved TRS back onto the scene instances via the recorded
-    // sceneInstance → descInstance mapping. Animation-free scenes: nothing held.
-    if (!desc->animations.empty()) {
+    // ANI2 seam: animated OR skinned scenes keep their parsed source in the
+    // scene, so the consumer can evaluate tracks per frame
+    // (SceneBase::setAnimationTime) and stamp the resolved TRS back onto the
+    // scene instances via the recorded sceneInstance → descInstance mapping;
+    // ANI4 adds the skin poses (SceneBase::evaluateSkins - a [[skin]] binding
+    // needs the source even without [[animation]] tracks, so its joints'
+    // static world transforms stay addressable). Animation/skin-free: nothing held.
+    if (!desc->animations.empty() || !desc->skins.empty()) {
         scene.attachAnimation(std::move(*desc), std::move(c.instanceMapping));
     }
 

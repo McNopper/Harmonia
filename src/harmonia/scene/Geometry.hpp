@@ -54,6 +54,23 @@ class Geometry {
     virtual ~Geometry() = default;
 
     virtual VkResult buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
+
+    /// ANI4: in-place REFIT of a dynamic mesh's BLAS after its vertex buffer was
+    /// rewritten (skinning). Requires the BLAS to have been built with
+    /// ALLOW_UPDATE (`setDynamic(true)` before `buildBlas`); the handle and
+    /// device address stay valid. Default: success no-op (static geometry -
+    /// spheres and unmarked meshes never deform).
+    [[nodiscard]] virtual VkResult refitBlas(const DeviceContext& ctx, const core::CommandPool& pool) {
+        static_cast<void>(ctx);
+        static_cast<void>(pool);
+        return VK_SUCCESS;
+    }
+
+    /// ANI4: mark this geometry as per-frame deformed (skinning). Must be set
+    /// BEFORE `buildBlas` so the build carries ALLOW_UPDATE.
+    void setDynamic(bool dynamic) noexcept { m_dynamic = dynamic; }
+    [[nodiscard]] bool isDynamic() const noexcept { return m_dynamic; }
+
     [[nodiscard]] virtual VkAccelerationStructureInstanceKHR
     makeInstance(std::uint32_t instanceCustomIndex, const Transform& transform) const noexcept = 0;
 
@@ -68,6 +85,8 @@ class Geometry {
 
   protected:
     VkAccelerationStructureKHR m_blas = VK_NULL_HANDLE;
+    /// ANI4: per-frame deformed (skinning) - drives ALLOW_UPDATE at build.
+    bool m_dynamic = false;
 };
 
 /// Transform an object-space AABB to world space under @p transform. Applies the

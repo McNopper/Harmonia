@@ -27,7 +27,8 @@ using namespace harmonia::scene; // the moved definitions speak scene vocabulary
                                        VkAccelerationStructureGeometryKHR& geometry,
                                        VkAccelerationStructureBuildRangeInfoKHR& rangeInfo,
                                        rt::AccelerationStructure& outBlas,
-                                       VkAccelerationStructureKHR& outHandle) {
+                                       VkAccelerationStructureKHR& outHandle,
+                                       bool allowUpdate = false) {
     if (outBlas.handle() != VK_NULL_HANDLE) {
         outHandle = outBlas.handle();
         return VK_SUCCESS;
@@ -35,6 +36,10 @@ using namespace harmonia::scene; // the moved definitions speak scene vocabulary
 
     const std::uint32_t primitiveCount = rangeInfo.primitiveCount;
     VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    if (allowUpdate) {
+        // ANI4: skinned meshes refit in place after their vertices are rewritten.
+        flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+    }
     if (ctx.positionFetchSupported) {
         flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR;
     }
@@ -116,7 +121,6 @@ std::expected<std::unique_ptr<TriangleMesh>, VkResult> TriangleMesh::create(cons
 
 VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPool& pool) {
     const std::uint32_t primitiveCount = m_mesh.indexCount() / 3;
-    const std::uint32_t maxVertex = m_mesh.vertexCount() == 0 ? 0U : m_mesh.vertexCount() - 1U;
 
     // Bake the opacity micromap (if authored) before building the BLAS — the OMM
     // handle + index buffer chain into the triangles descriptor.
@@ -142,7 +146,24 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
         m_micromap = std::move(*built);
     }
 
-    // OMM linkage (lives through the synchronous one-shot build below).
+    // ANI4: the geometry description is shared by the initial build and the
+    // per-frame refit (both read the same vertex/index addresses - the
+    // deformation pass rewrites the vertex buffer IN PLACE).
+    VkAccelerationStructureGeometryKHR geometry{};
+    VkAccelerationStructureBuildRangeInfoKHR rangeInfo{};
+    makeBlasGeometry(geometry, rangeInfo);
+
+    // Dynamic (skinned) meshes build with ALLOW_UPDATE so their BLAS can be
+    // refit in place after the deformation pass rewrites the vertex buffer.
+    return buildSingleBlas(ctx, pool, m_debugName, geometry, rangeInfo, m_accelerationStructure, m_blas, m_dynamic);
+}
+
+void TriangleMesh::makeBlasGeometry(VkAccelerationStructureGeometryKHR& geometry,
+                                    VkAccelerationStructureBuildRangeInfoKHR& rangeInfo) const {
+    const std::uint32_t primitiveCount = m_mesh.indexCount() / 3;
+    const std::uint32_t maxVertex = m_mesh.vertexCount() == 0 ? 0U : m_mesh.vertexCount() - 1U;
+
+    // OMM linkage (present when the bake in buildBlas attached it).
     VkAccelerationStructureTrianglesOpacityMicromapKHR ommLink{};
     VkAccelerationStructureGeometryTrianglesDataKHR triangles{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
@@ -172,7 +193,7 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
         geometryFlags = 0;
     }
 
-    VkAccelerationStructureGeometryKHR geometry{
+    geometry = VkAccelerationStructureGeometryKHR{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
         .pNext = nullptr,
         .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
@@ -180,14 +201,71 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
         .flags = geometryFlags,
     };
 
-    VkAccelerationStructureBuildRangeInfoKHR rangeInfo{
+    rangeInfo = VkAccelerationStructureBuildRangeInfoKHR{
         .primitiveCount = primitiveCount,
         .primitiveOffset = 0,
         .firstVertex = 0,
         .transformOffset = 0,
     };
+}
 
-    return buildSingleBlas(ctx, pool, m_debugName, geometry, rangeInfo, m_accelerationStructure, m_blas);
+VkResult TriangleMesh::refitBlas(const DeviceContext& ctx, const core::CommandPool& pool) {
+    if (!m_dynamic || m_blas == VK_NULL_HANDLE) {
+        return VK_SUCCESS; // static geometry never deforms: success no-op
+    }
+
+    VkAccelerationStructureGeometryKHR geometry{};
+    VkAccelerationStructureBuildRangeInfoKHR rangeInfo{};
+    makeBlasGeometry(geometry, rangeInfo);
+
+    VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+    if (ctx.positionFetchSupported) {
+        flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR;
+    }
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        .pNext = nullptr,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        .flags = flags,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR,
+        .srcAccelerationStructure = m_blas,
+        .dstAccelerationStructure = m_blas,
+        .geometryCount = 1,
+        .pGeometries = &geometry,
+        .ppGeometries = nullptr,
+        .scratchData = VkDeviceOrHostAddressKHR{},
+    };
+
+    const std::uint32_t primitiveCount = rangeInfo.primitiveCount;
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
+    sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+    vkGetAccelerationStructureBuildSizesKHR(
+        ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, &primitiveCount, &sizeInfo);
+
+    // ANI4: the refit scratch is allocated ONCE per mesh (update scratch never
+    // exceeds the build size it was queried with), so the per-frame path
+    // allocates nothing - the deformation pass's write -> this copy must be
+    // barrier-ordered by the CALLER (the renderer half records that barrier).
+    if (!m_refitScratch.has_value()) {
+        auto scratch = rt::createAccelerationStructureScratch(ctx, sizeInfo, m_debugName + ".refitScratch");
+        if (!scratch) {
+            core::Logger::error("TriangleMesh '{}': refit scratch failed (VkResult {})",
+                                m_debugName,
+                                static_cast<int>(scratch.error()));
+            return scratch.error();
+        }
+        m_refitScratch = std::move(*scratch);
+    }
+    buildInfo.scratchData.deviceAddress = m_refitScratch->alignedAddress;
+
+    const VkAccelerationStructureBuildRangeInfoKHR* rangeInfoPtr = &rangeInfo;
+    auto cmd = pool.beginOneShot();
+    if (!cmd) {
+        return cmd.error();
+    }
+    vkCmdBuildAccelerationStructuresKHR(*cmd, 1, &buildInfo, &rangeInfoPtr);
+    return pool.endOneShot(*cmd);
 }
 
 VkAccelerationStructureInstanceKHR TriangleMesh::makeInstance(std::uint32_t instanceCustomIndex,

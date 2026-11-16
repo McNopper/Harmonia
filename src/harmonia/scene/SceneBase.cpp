@@ -33,6 +33,30 @@ void SceneBase::attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint3
     m_instanceToDesc = std::move(instanceToDesc);
 }
 
+void SceneBase::markMeshDynamic(std::uint32_t meshIndex) {
+    if (meshIndex < m_meshes.size()) {
+        m_meshes[meshIndex]->setDynamic(true);
+    }
+}
+
+VkResult SceneBase::refitDynamicBlases(const DeviceContext& ctx, const core::CommandPool& pool) {
+    for (const std::unique_ptr<Geometry>& mesh : m_meshes) {
+        if (mesh != nullptr && mesh->isDynamic()) {
+            if (const VkResult r = mesh->refitBlas(ctx, pool); r != VK_SUCCESS) {
+                return r;
+            }
+        }
+    }
+    return VK_SUCCESS;
+}
+
+std::vector<aether::SkinPose> SceneBase::evaluateSkins(float seconds) const {
+    if (!hasSkins()) {
+        return {};
+    }
+    return aether::SceneAnimator::evaluateSkins(*m_animation, seconds);
+}
+
 void SceneBase::setAnimationTime(float seconds) {
     if (!m_animation) {
         return;
