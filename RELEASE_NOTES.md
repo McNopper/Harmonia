@@ -1,8 +1,8 @@
-# Harmonia v0.8.0 (2026-11-16) - minor release
+# Harmonia v0.9.0 (2026-11-16) - minor release
 
 The shared Vulkan pipeline library release for the *animation + deformation* wave and the
 section-7 parity-gate resolution. Coordinates with **Aether v0.9.0, Theia v0.9.0, Hyperion
-v0.8.0** (each repo carries its own RELEASE_NOTES.md).
+v0.9.0** (each repo carries its own RELEASE_NOTES.md).
 
 ## Shipped
 
@@ -57,7 +57,7 @@ PERF3-extension, PAR2/PAR3 (non-AI directive), DN1/LS1 (non-AI), VK1/VK9.
   scenes with `[[skin]]`/`[[morph]]` attach their source and deform per tick.
 
 ## Release mechanics
-- Local commits only so far: **tag `v0.8.0` and push the commits + tag together** (the
+- Local commits only so far: **tag `v0.9.0` and push the commits + tag together** (the
   consumer pins reference the new tags; local builds are unaffected via
   `FETCHCONTENT_SOURCE_DIR_*` overrides).
 
