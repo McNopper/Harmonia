@@ -60,3 +60,11 @@ PERF3-extension, PAR2/PAR3 (non-AI directive), DN1/LS1 (non-AI), VK1/VK9.
 - Local commits only so far: **tag `v0.8.0` and push the commits + tag together** (the
   consumer pins reference the new tags; local builds are unaffected via
   `FETCHCONTENT_SOURCE_DIR_*` overrides).
+
+## Also in this release (added after the notes assembly)
+
+- **ANI8 animated camera + frame seek** (commit c07a78b): `SceneConfig::
+  cameraNodeId`, shared `--frame N` (`AppConfig::animationStartFrame` ->
+  `App::animationFrameIndex()` offset: sequence output frame k renders tick
+  N + k, interactive starts at N), `Camera::setUp`/`setNearFar`. ANI8 PLAN
+  row carries the full receipts (render parity PASS, 0 VUID everywhere).
