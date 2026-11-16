@@ -54,8 +54,15 @@ class TriangleMesh final : public harmonia::scene::Geometry {
   private:
     /// Shared geometry description for buildBlas and the ANI4 refitBlas (same
     /// vertex/index addresses - the deformation pass rewrites vertices in place).
+    /// @p ommLink is CALLER-OWNED storage: `triangles.pNext` points into it, so
+    /// it must outlive every use of @p geometry (the size query + the build) -
+    /// keeping it local to this function would dangle the moment it returns
+    /// (regression f9b597c: the shared-helper extraction orphaned the old
+    /// local - garbage sType in the pNext chain, validation errors in Hyperion,
+    /// crash loading the OMM scene in Theia).
     void makeBlasGeometry(VkAccelerationStructureGeometryKHR& geometry,
-                          VkAccelerationStructureBuildRangeInfoKHR& rangeInfo) const;
+                          VkAccelerationStructureBuildRangeInfoKHR& rangeInfo,
+                          VkAccelerationStructureTrianglesOpacityMicromapKHR& ommLink) const;
 
     harmonia::scene::MeshData m_data{};
     harmonia::scene::Mesh m_mesh{};

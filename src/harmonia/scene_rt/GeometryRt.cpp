@@ -151,7 +151,10 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
     // deformation pass rewrites the vertex buffer IN PLACE).
     VkAccelerationStructureGeometryKHR geometry{};
     VkAccelerationStructureBuildRangeInfoKHR rangeInfo{};
-    makeBlasGeometry(geometry, rangeInfo);
+    // Caller-owned OMM link: triangles.pNext points here and must stay valid
+    // through the size query + build below (see the makeBlasGeometry contract).
+    VkAccelerationStructureTrianglesOpacityMicromapKHR ommLink{};
+    makeBlasGeometry(geometry, rangeInfo, ommLink);
 
     // Dynamic (skinned) meshes build with ALLOW_UPDATE so their BLAS can be
     // refit in place after the deformation pass rewrites the vertex buffer.
@@ -159,12 +162,14 @@ VkResult TriangleMesh::buildBlas(const DeviceContext& ctx, const core::CommandPo
 }
 
 void TriangleMesh::makeBlasGeometry(VkAccelerationStructureGeometryKHR& geometry,
-                                    VkAccelerationStructureBuildRangeInfoKHR& rangeInfo) const {
+                                    VkAccelerationStructureBuildRangeInfoKHR& rangeInfo,
+                                    VkAccelerationStructureTrianglesOpacityMicromapKHR& ommLink) const {
     const std::uint32_t primitiveCount = m_mesh.indexCount() / 3;
     const std::uint32_t maxVertex = m_mesh.vertexCount() == 0 ? 0U : m_mesh.vertexCount() - 1U;
 
-    // OMM linkage (present when the bake in buildBlas attached it).
-    VkAccelerationStructureTrianglesOpacityMicromapKHR ommLink{};
+    // OMM linkage (present when the bake in buildBlas attached it): written
+    // into the CALLER's ommLink - triangles.pNext must outlive this function
+    // (a local here dangles the moment it returns; see the header contract).
     VkAccelerationStructureGeometryTrianglesDataKHR triangles{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
         .pNext = nullptr,
@@ -216,7 +221,10 @@ VkResult TriangleMesh::refitBlas(const DeviceContext& ctx, const core::CommandPo
 
     VkAccelerationStructureGeometryKHR geometry{};
     VkAccelerationStructureBuildRangeInfoKHR rangeInfo{};
-    makeBlasGeometry(geometry, rangeInfo);
+    // Caller-owned OMM link: triangles.pNext points here and must stay valid
+    // through the size query + build below (see the makeBlasGeometry contract).
+    VkAccelerationStructureTrianglesOpacityMicromapKHR ommLink{};
+    makeBlasGeometry(geometry, rangeInfo, ommLink);
 
     VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
     flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
