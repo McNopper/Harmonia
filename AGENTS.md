@@ -2,6 +2,15 @@
 
 Quick-start context for AI agents so basic facts don't have to be rediscovered from scratch.
 
+> **Mission (owner directive, 2026-11-17): we are doing a real-time path tracer.**
+> Everything below serves that: **Theia** is the real-time path tracer (ReSTIR PT + SMS
+> sampling, path-traced GI under an engagement-first, measured-value discipline), **Hyperion**
+> is the offline path-tracer twin that acts as the unbiased ground truth for the parity gates,
+> and **Harmonia** (this repo) is the shared Vulkan/estimator layer both consume. Design
+> trades answer to the mission: real-time = measured frame-time value or it does not ship;
+> ground truth = never biased; the strict-AND parity gate is what keeps the two the same
+> renderer.
+
 **Outstanding work, governance (definition of done + guardrails) and release history: see
 [`PLAN.md`](PLAN.md).**
 
@@ -120,6 +129,12 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 
 ⚠ï¸ There is **no `--offscreen` flag**. Headless is triggered by `--output` being set.
 
+**Qualification environment toggles:** `HARMONIA_FRAME_TIMING=1` (offscreen) logs each output
+frame's complete steady-work time as `frame_timing_ms:<index>:<ms>` - process startup and image
+encoding excluded; qualification only, no timing-dependent decision reads it. Present-timing
+telemetry (`HARMONIA_PRESENT_TIMING=1`) and the pipeline-binary cache overrides are documented
+with their extensions in the table below.
+
 ## Parity comparison tools
 
 `tools/compare_renders.py <reference.exr> <candidate.exr>` computes `mean_diff`, `rel_mse`,
@@ -127,7 +142,7 @@ These work for **both** Hyperion and Theia (Hyperion adds `--spp`, `--depth`):
 percentile/max diffs and a signed heatmap (`--signed-heatmap`). `tools/check_consistency.py`
 covers bias/variance (Theia N vs 4N frames).
 
-Three companion harnesses (same tooling contract):
+Four companion harnesses (same tooling contract):
 - `tools/compare_sequences.py <ref-dir> <cand-dir>` - **ANI7 sequence gate**:
   the strict-AND metric set per frame pair plus the temporal layer (per-metric
   mean / worst-frame, first->last drift); frame pairing by the trailing
@@ -138,6 +153,10 @@ Three companion harnesses (same tooling contract):
 - `tools/render_and_validate.py <hyperion_exe> <theia_exe> <output_root>` -
   renders the manifest's Hyperion/Theia pairs and runs `validate_renders.py`
   over the batch (the parity sweep producer).
+- `tools/sms_curved_oracle.py` - independent double-precision NumPy oracle for
+  the SMS curved-glass chain (receiver -> two sphere interfaces -> light,
+  solid-angle Jacobian by finite differences) - qualification receipts, not
+  production code.
 
 Contract (all must hold or the numbers are meaningless):
 - Reference = Hyperion EXR; candidate = Theia EXR. **Pre-tonemap linear EXR**, never PNG.
@@ -241,7 +260,7 @@ same commands from the repo root before pushing a lint-affecting change.
 are report-only). Also registered as ctest `test_tidy` (label `analysis`; the fast test loop is `ctest -LE analysis`; skips when
 clang-tidy, Python3 or the database is missing).
 
-**Dead-code gate:** `python tools/check_dead.py` - orphan headers, never-compiled sources (absent from `compile_commands.json` AND unreferenced by any CMake file), and FetchContent declare/consume mismatches. Also registered as ctest `test_dead` (label `analysis`; local only - registration is gated on the per-user check-dead skill install, so CI runners skip it). Justified findings go into `tools/check_dead.exceptions` with a reason; real dead code is deleted in a fix commit.
+**Dead-code gate:** `python tools/check_dead.py` - orphan headers, never-compiled sources (absent from `build/compile_commands.json` AND unreferenced by any CMake file), and FetchContent declare/consume mismatches. Also registered as ctest `test_dead` (label `analysis`; local only - registration is gated on the per-user check-dead skill install, so CI runners skip it). Justified findings go into `tools/check_dead.exceptions` with a reason; real dead code is deleted in a fix commit.
 
 Sanitizer lane (Clang/GCC configures only):
 `-DHARMONIA_SANITIZER=address|undefined|thread`. Host-side FP is deterministic
@@ -277,7 +296,7 @@ The CPU records commands only; it never reads back GPU-side state to determine c
 **Always-required Vulkan 1.4 features (enabled in Context.cpp):**
 - `maintenance4` (Vulkan 1.3), `maintenance5` (Vulkan 1.4) — both required.
 - `shaderDemoteToHelperInvocation` (Vulkan 1.3) — required: the C14 `geometry_opacity` cutout
-  path uses Slang `discard` (Theia `forward_render.frag.slang`), so the emitted SPIR-V
+  path uses Slang `discard` (`Theia/shaders/forward_render.frag.slang`), so the emitted SPIR-V
   declares the `DemoteToHelperInvocation` capability (VUID-08740).
 - `deviceAddressCommands` (`VK_KHR_device_address_commands`, MOD5) — required: all AS creation
   goes through `vkCreateAccelerationStructure2KHR` (device-address-only); the legacy
