@@ -147,8 +147,9 @@ run in parallel across repos):
    only: engagement gate PASS 0.945/0.983369 + stability bit-identical + 60/60)
    → next (GI-PG **removed 2026-11-15** — bias root-caused + fixed + strict-gate A/B
     PASS, but engagement measured flat/negative on both test scenes — tombstone in
-    §5.5; open: the section 7 fresh-render SSIM variance finding (GI-ENH variance
-    work, never threshold tuning)**; PERF3 extension **removed 2026-11-15** —
+    §5.5; §7 fresh-render gate RESOLVED 2026-11-16 (owner decision: thresholds
+    recalibrated to the estimator-pure noise floor — the GI-ENH variance path was
+    closed by measurement, Theia is already the quieter side); PERF3 extension **removed 2026-11-15** —
    premise absent: no dynamic BLAS (ANI4/ANI5 backlog), 1–16 instances, GPU-driven
    contract vs readback priority loop)
    → step 5's animation chain (ANI3 + ANI7 + ANI6 done; PAR3 removed - non-AI).
@@ -163,8 +164,10 @@ run in parallel across repos):
    in BOTH renderers - receipts in the ANI4 row) → DQS (row scope) and/or
    ANI5 **DONE 2026-11-16** (Aether slice + renderer halves - receipts in both
    PLAN rows) - **the animation chain (ANI1-ANI7, ANI4 LBS+DQS, ANI5) is
-   COMPLETE**; the only open family item is the section 7 fresh-render gate
-   finding (owner methodology decision).
+   COMPLETE**; no open family item remains — the section 7 fresh-render gate
+   finding, the last one, is RESOLVED (owner methodology decision 2026-11-16:
+   thresholds recalibrated to the estimator-pure noise floor, fresh manifest gate
+   14/14 PASS with negative controls still failing).
 6. **Stays open by design:** C15 (watchlist - external OpenPBR 1.2 spec release),
    watchlists with recorded triggers. **Triage 2026-11-16 (owner: required-or-drop): dropped C11/C4/C13/DN8/SAM1/QMC1/VK17 as not required** (rows carry the reasons); C12 status corrected to shipped (v0.7.9); GI-ENH closed.
 
