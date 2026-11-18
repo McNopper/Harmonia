@@ -914,7 +914,7 @@ Slang warnings; no renderer source was changed in this checkpoint.
 | 2b.4 | Closed glass slab: two refractive interfaces, no roughness, dispersion, normal maps or scattering. Start with depth-zero tint, then pure absorption as a separate change. | Independent Snell/Fresnel/measure calculation agrees, exit/TIR controls pass, and Beer attenuation scales with actual interior distance. Same material semantics as the existing renderer. |
 | 2c.1 | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; the prior follow-up **landed** (`sms_prior.slang`, Hong Section 4 Eqs. 7-9, `SmsPriorMixture...` test) - receipt below. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
 | 2d.1 | Theia local SMS candidates, **before** spatial reuse. Shared mathematics lives in Harmonia; closest-hit/geometry adapters stay renderer-specific. | Matches the independently validated Hyperion estimator under statistical convergence checks; non-caustic regression scenes pass. |
-| 2d.2 | Spatial SMS reuse with manifold forward/inverse shifts and explicit GRIS support/MIS accounting. Raw local candidates are the starting inputs. | Identity/no-reuse controls and failed-inverse cases pass; energy does not drift under reuse; no naive recursive temporal merge. |
+| 2d.2 | Spatial SMS reuse with manifold forward/inverse shifts and explicit GRIS support/MIS accounting. Raw local candidates are the starting inputs. **Controls executed 2026-11-18 (receipt below).** | Identity/no-reuse controls and failed-inverse cases pass; energy does not drift under reuse; no naive recursive temporal merge. |
 | 2e | Equal-time quality/performance comparison, complex dragon/teapot integration and owner review. | Report variance, energy, tail/runtime behavior and temporal stability, then both renderer galleries before release approval. |
 
 First solver fixtures are mathematical/kernel tests, not a special material model
@@ -981,6 +981,49 @@ calibrated same-renderer-noise envelope. The row's prior follow-up was already l
 baseline (`shaders/sms_prior.slang`, Hong Section 4 Eqs. 7-9;
 `SmsPriorMixtureAndConditionalDensityMatchFiniteDomain`; `sms_queue_prior_test.slang`).
 **2c.1: COMPLETE (both clauses evidenced).**
+
+**2d.2 verification plan (recorded BEFORE edits, Theia `a8c07b9`, 2026-11-18):** the row's
+two un-evidenced controls get exact oracles. (a) *Identity/no-reuse:* new mode 8 in
+`Theia/tests/shaders/sms_resampling_test.slang` drives `smsPairwiseMis`/`smsResampling*` through
+four fp-exact clauses - zero neighbors must refuse (no-reuse gate: false, both parts 0), an
+identity neighbor (target == source, N=1) must split exactly 1/2-1/2, an unsupported
+neighbor must yield neighbor weight 0 and canonical part 1, and a chain neighbor added with
+`mis == 0` must leave the RIS estimate bit-identical to the canonical-only state; new
+`SmsResamplingFixture.SmsIdentityNoReuseAndUnsupportedNeighborSplitControls` asserts all
+four outputs are exactly 1 (no tolerances). (b) *Failed inverse:* new
+`Theia/tests/shaders/sms_shift_test.slang` + `SmsShiftFixture` drive `smsInverseRootMatches` /
+`smsShiftTopology` (the pure inverse-check contract of `Theia/shaders/sms_shift.slang`: "failed maps
+define zero MIS support") through: exact inverse (accept), direction perturbation beyond
+`kSmsRootDirectionTolerance` (reject, with the measured direction difference asserted >
+tolerance), perturbation within tolerance (accept, difference <= tolerance), and
+objectKey/event/eta/count mismatches (reject). Commands: `cmake --build build`,
+`build/tests/theia_module_tests.exe --gtest_filter=SmsResampling*:SmsShift*`. Negative
+control: make `smsInverseRootMatches` return true unconditionally - the rejected case must
+FAIL; restore byte-exact (`git diff --exit-code -- shaders/sms_shift.slang`), rebuild,
+green. Rendered energy-under-reuse is already evidenced (C-track C1/C2/C3 receipts,
+Theia v0.8.2, + `SpatialMirrorPreservesEnergyAndImprovesSameBudgetError`); "no naive
+recursive temporal merge" is the standing Governance rule (path-reservoir no-temporal-merge;
+SMS temporal is the published method). GPU serial; no tolerances loosened.
+
+**2d.2 executed receipt (2026-11-18, Theia from `a8c07b9`):** (a) identity/no-reuse controls
+PASS fp-exact (`SmsIdentityNoReuseAndUnsupportedNeighborSplitControls`: the zero-neighbor gate
+refuses with both parts 0, an identity neighbor splits exactly 1/2-1/2, an unsupported
+neighbor yields weight 0 / canonical part 1, and a chain neighbor added with `mis == 0`
+leaves the RIS estimate bit-identical to the canonical-only state). (b) failed-inverse
+controls PASS (`SmsInverseMatchAcceptsExactAndWithinToleranceRejectsBeyond`: exact inverse
+accepted with measured difference 0, beyond-tolerance rejected with difference > 1e-4,
+within-tolerance accepted <= 1e-4; `SmsInverseMatchAndTopologyRejectIdentityFieldMismatches`:
+objectKey/event/eta/count mismatches rejected by BOTH checks) driven through
+`smsInverseRootMatches` - the shift chain's own entry point, not a re-implementation.
+**Negative control:** the `smsInverseRootMatches -> true` mutant made BOTH tests fail (every
+rejected case wrongly accepted), byte-exact restore (`git diff --exit-code -- Theia/shaders/sms_shift.slang`), rebuild green. Full Theia module suite **64/64 PASS** (61 prior + 3 new);
+clang-format 22.1.3 clean. Backend note for the record: GLSL `Length()` lowers with
+per-call-site precision divergence on this driver (two `Length` calls on identical vectors
+differed by ~2 ulps, polluting an exact-zero oracle), so the test uses ONE shared length -
+`sameSmsRoot`'s own 1e-4 tolerance absorbs the divergence. Energy-under-reuse stays covered
+by the C-track C1/C2/C3 receipts (Theia v0.8.2) + `SpatialMirrorPreservesEnergyAndImproves-
+SameBudgetError`; no-naive-temporal-merge is the standing Governance rule.
+**2d.2: COMPLETE.**
 
 **2a verification receipt:** tracked-source search and consumer inspection at the
 three SHAs above; paper/reference-code inspection at the cited sections/commits;
