@@ -1006,6 +1006,32 @@ Theia v0.8.2, + `SpatialMirrorPreservesEnergyAndImprovesSameBudgetError`); "no n
 recursive temporal merge" is the standing Governance rule (path-reservoir no-temporal-merge;
 SMS temporal is the published method). GPU serial; no tolerances loosened.
 
+**2e complex-scene divergence - verification plan (recorded BEFORE edits, Theia
+HEAD pending the fix, 2026-11-18):** the C4 integration exposed a real cross-renderer
+divergence: Theia-vs-Hyperion on the complex scene = **~48x** energy in the ROI (Hyperion
+reference mean 0.0147 vs Theia 0.458; edge-structure layout agrees - same camera/scene -
+so it is a light-handling divergence, not a camera/geometry one). Root cause (traced):
+every fixture/gallery emitter is a closed box -> `planarity < 0.5` -> Theia's
+`synthesizeEmissiveLights` emits a **point** at the centroid (`intensity = L*pi*r^2`,
+r = vertex-radius) while Hyperion lights from the true emissive triangles; a point is a
+delta source, so near-field specular content (the C4 gem/ceramic ROI) blows out while
+C1-C3's diffuse-only ROIs certified it at 1.16. The forward shader already documents the
+failure mode ("A single point approximation produces a hard 1/dist^2 hotspot; integrating
+over the extended source ... matches Hyperion's emissive-mesh result") and provides
+`shadeRectLight` (NxN area integration, intensity = radiance W/sr/m2, one-sided cos_l,
+area = 4*halfW*halfH). Fix: in `synthesizeEmissiveLights` synthesize the two dominant
+faces of FLAT-THIN emissive shapes (min AABB extent <= 0.25 * second extent) as
+**RectLights** (both faces, like Hyperion's bidirectional triangles; point kept only for
+blobby shapes; rotated-thin shapes conservatively stay point). Ownership check recorded:
+rects hand off to ReSTIR-DI under `skipRectLights` (DI's triangle set includes
+flag-true materials), forward owns them otherwise; the triangle set and GI paths are
+untouched. Acceptance (all must pass): (1) C4 strict-AND parity gate PASS (mean <= 120,
+rel <= 250, SSIM >= 0.6, hist >= 0.8) via `tools/compare_renders.py`; (2) C1-C3
+correctness stages still pass their 2% bias gates after re-render (point->rect changes
+their lighting too - all three emitters are thin boxes); (3) the 14-scene manifest gate
+14/14 via `tools/render_and_validate.py`; (4) Theia module suite green; clang-format
+22.1.3 clean. GPU serial.
+
 **2d.2 executed receipt (2026-11-18, Theia from `a8c07b9`):** (a) identity/no-reuse controls
 PASS fp-exact (`SmsIdentityNoReuseAndUnsupportedNeighborSplitControls`: the zero-neighbor gate
 refuses with both parts 0, an identity neighbor splits exactly 1/2-1/2, an unsupported
