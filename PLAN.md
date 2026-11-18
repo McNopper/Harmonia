@@ -912,7 +912,7 @@ Slang warnings; no renderer source was changed in this checkpoint.
 | 2b.2 | Reciprocal estimator and trial-stream tests against a finite categorical distribution with known root/failure probabilities. Define root equivalence, independence, exact trial counting and resource policy before shader wiring. | Known $1/p_k$ moments and failure behavior pass; capped/truncated and correlated-stream controls are rejected. No claim that QMC marginals alone prove the geometric stopping-time law. |
 | 2b.3 | Hyperion: one camera-visible diffuse receiver → one smooth mirror → finite emissive area light. Validate solver reprojection, full contribution and path ownership. | Independent virtual-emitter integration agrees in linear radiance; missing/doubled contributions fail; ordinary PT controls remain correct. No new BSDF approximation. |
 | 2b.4 | Closed glass slab: two refractive interfaces, no roughness, dispersion, normal maps or scattering. Start with depth-zero tint, then pure absorption as a separate change. | Independent Snell/Fresnel/measure calculation agrees, exit/TIR controls pass, and Beer attenuation scales with actual interior distance. Same material semantics as the existing renderer. |
-| 2c.1 | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; prior distribution is a separate follow-up. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
+| 2c.1 | Hong trust-region partitioning and conditional reciprocal weights, initially without a prior; the prior follow-up **landed** (`sms_prior.slang`, Hong Section 4 Eqs. 7-9, `SmsPriorMixture...` test) - receipt below. | Known finite-domain conditional-probability tests pass, and rendered means agree with the unpartitioned estimator. Missing-region-factor control fails. |
 | 2d.1 | Theia local SMS candidates, **before** spatial reuse. Shared mathematics lives in Harmonia; closest-hit/geometry adapters stay renderer-specific. | Matches the independently validated Hyperion estimator under statistical convergence checks; non-caustic regression scenes pass. |
 | 2d.2 | Spatial SMS reuse with manifold forward/inverse shifts and explicit GRIS support/MIS accounting. Raw local candidates are the starting inputs. | Identity/no-reuse controls and failed-inverse cases pass; energy does not drift under reuse; no naive recursive temporal merge. |
 | 2e | Equal-time quality/performance comparison, complex dragon/teapot integration and owner review. | Report variance, energy, tail/runtime behavior and temporal stability, then both renderer galleries before release approval. |
@@ -940,6 +940,47 @@ reference; or impractical cost after the verified simple case. Keep the last
 verified local commit, record evidence, and present the blocker. Do not respond by
 adding clamps, changing the BSDF, loosening tolerances, starting ReSTIR anyway or
 reviving wavefront to hide the failure. No push, tags or release without explicit OK.
+
+**2c.1 closure verification plan (recorded BEFORE edits, baseline: Harmonia
+`3698519`, Theia `6e85894`, 2026-11-18):** the row's two unrecorded clauses get exact
+evidence here. (a) *Missing-region-factor control:* in `shaders/sms_partition.slang`
+temporarily change `smsConditionalWeight` to return `trials` (drop the
+`/regionProbability` factor), `cmake --build build`, and require
+`build/tests/harmonia_component_tests.exe --gtest_filter=SmsFixture.SmsPartition*`
+to FAIL (oracle: the mode-2 `1/P(C)` and exact region-mass assertions in
+`SmsPartitionConditionalSeedsAndReciprocalNormalization`); then restore the file
+byte-exact (`git diff --exit-code -- shaders/sms_partition.slang`), rebuild, and
+require the same filter green (baseline recorded green: 4/4 including
+`SmsPriorMixtureAndConditionalDensityMatchFiniteDomain`). No tolerance edits.
+(b) *Rendered means vs the unpartitioned estimator:* add the ablation knob
+`THEIA_SMS_PARTITION=<1..32>` (1 = full-domain/unpartitioned; default 16) at the
+`GiPass::Config` construction site, then render Theia `c1_curved_glass` twice - same
+fixed seed `--rng-seed 17`, 320x240, 256 frames, estimator-pure `--output`,
+partition 16 vs 1 - and require the pair to pass the strict-AND parity gate
+(mean <= 120, rel <= 250, SSIM >= 0.6, hist >= 0.8: the calibrated same-renderer
+noise envelope) via `tools/compare_renders.py`. GPU jobs serial; no thresholds
+loosened. The row's prior follow-up is verified landed by baseline inspection
+(`shaders/sms_prior.slang`, Hong et al. Section 4 Eqs. 7-9;
+`SmsPriorMixtureAndConditionalDensityMatchFiniteDomain`;
+`sms_queue_prior_test.slang`).
+
+**2c.1 executed receipt (2026-11-18):** both clauses executed as planned at baseline
+Harmonia `3698519` / Theia `6e85894`. (a) Region-factor mutant (`smsConditionalWeight`
+-> `trials`): `SmsPartitionConditionalSeedsAndReciprocalNormalization` and
+`SmsPartitionNumericRootAcrossTileBoundaryKeepsUnitEnergy` FAILED (2 of 3 `SmsPartition*`,
+exit 1; the cover-only test stayed green) - exactly the `1/P(C)` and exact region-mass
+oracles; `git diff --exit-code -- shaders/sms_partition.slang` confirmed byte-exact
+restoration, rebuild green (4/4 with `SmsPriorMixture...`, no MUTANT text remains).
+(b) Ablation renders (Theia `c1_curved_glass`, `--rng-seed 17`, 320x240, 256 frames,
+estimator-pure `--output <name>.exr`, `--validation`: 0 VUID / 0 errors): partitioned
+`THEIA_SMS_PARTITION=16` (production default) vs unpartitioned `=1` (new ablation knob,
+documented in Theia AGENTS) -> mean_diff 16.111 <= 120, rel-MSE 65.833 <= 250,
+SSIM 0.982 >= 0.6, lum-hist 0.9998 >= 0.8 - **strict-AND PASS** (`compare_renders.py`,
+exit 0): the trust region changes sampling efficiency, not the rendered mean, at the
+calibrated same-renderer-noise envelope. The row's prior follow-up was already landed at
+baseline (`shaders/sms_prior.slang`, Hong Section 4 Eqs. 7-9;
+`SmsPriorMixtureAndConditionalDensityMatchFiniteDomain`; `sms_queue_prior_test.slang`).
+**2c.1: COMPLETE (both clauses evidenced).**
 
 **2a verification receipt:** tracked-source search and consumer inspection at the
 three SHAs above; paper/reference-code inspection at the cited sections/commits;
