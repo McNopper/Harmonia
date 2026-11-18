@@ -1032,6 +1032,32 @@ their lighting too - all three emitters are thin boxes); (3) the 14-scene manife
 14/14 via `tools/render_and_validate.py`; (4) Theia module suite green; clang-format
 22.1.3 clean. GPU serial.
 
+**2e interim receipt (2026-11-18) - battery green, C4 residual root-caused by
+elimination:** *Battery (post rect-fix):* C1-C3 re-certification chain exit 0 (references
+re-accepted at 4096 spp, uncertainty 0.0043/0.0039/0.00047; bias gates at 8192f: C1
+1.0040/1.0036, C2 0.9911/0.9910, C3 1.0015 - all within 2%); 14-scene manifest gate
+**14/14 PASS, 0 VUID** (`render_and_validate.py`, incl. the emissive `shaderball_emission`);
+Theia module suite **64/64**; clang-format 22.1.3 clean. *C4 gate still FAIL* (mean
+119.45/120, rel-MSE 471.3/250, SSIM 0.573/0.6, hist 0.994/0.8) - investigation trail,
+each step a single-variable ablation (owner law: no hacks, parameter-driven): (1) SMS off
+moves rel-MSE 471->296 (SMS is a minority contributor); (2) DI off changes nothing
+(identical gate metrics) - bit1 (`DI/PT owns emissive direct`, ForwardRenderer.hpp) stays
+set via ReSTIR-PT, so the forward skips its analytic proxies in ALL configurations and
+**all lighting came from the GI stack**; (3) both reservoirs off: ratio 2.173 -> 2.101
+(the ReSTIR DI/PT reservoir machinery contributes ~3% - exonerated); (4) size-only probe
+(c1 cloned, emitter 1x1->3x3, same position): Hyperion scales 5.95x (physical A/d^2
+prediction 5.5x - physically correct), Theia scales 11.12x (ratio 1.163 -> 2.173 - the
+over-light grows with emitter extent, physics-defying); (5) forward-rect contribution
+measured ≈ 0 (DI/PT-off run 13.37 vs DI/PT-on 13.83 - forward adds nothing measurable).
+*Conclusion:* the ~2.1x over-light (and C4's 8-45x on specular content) lives **inside the
+GI stack's own emissive candidate/MIS mirror** (`gi.comp sampleEmissiveCandidate`/
+`estimateGiSample` and their `evalEmissiveTriangleNEE`/`evalEmissiveSphereNEE` mirrors)
+against the shared path_integrator Hyperion uses - not the reservoirs, not the synthesis,
+not SMS alone. *Next roadmap unit:* audit the gi.comp emissive-candidate/MIS mirrors
+against the shared integrator (parameter-driven fix through the existing ownership/MIS
+parameters); the C4 strict-AND gate stays the acceptance. DN3-M4 and the hybrid-shift
+gaps follow in order.
+
 **2d.2 executed receipt (2026-11-18, Theia from `a8c07b9`):** (a) identity/no-reuse controls
 PASS fp-exact (`SmsIdentityNoReuseAndUnsupportedNeighborSplitControls`: the zero-neighbor gate
 refuses with both parts 0, an identity neighbor splits exactly 1/2-1/2, an unsupported
