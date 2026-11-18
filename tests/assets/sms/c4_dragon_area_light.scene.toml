@@ -1,0 +1,71 @@
+# C4 - complex-scene SMS integration (2e): the dragon_teapot content with a
+# finite area emitter overhead. usesSms requires emitterCount != 0, so the
+# IBL-only Aether asset can never engage SMS (it runs plain PT - recorded in
+# the 2e receipts); this fixture gives the manifold a finite target while
+# keeping the glazed teapot + gem dragon geometry (coat, transmission with
+# Beer-Lambert absorption) as the complex content. Black environment (preview
+# preset, no IBL) follows the C1-C3 fixture convention: SMS targets the finite
+# emitter. Receiver-inclusive depth: camera -> pedestal/objects receiver ->
+# specular/transmission events -> emitter requires max_depth >= 5.
+
+material_libraries = ["sms_qualification.materials.toml", "dragon_teapot.materials.toml"]
+
+[render]
+reference = "presets/preview.render.toml"
+samples_per_pixel = 64
+max_depth = 6
+
+[camera]
+reference = "presets/openpbr_studio_near.camera.toml"
+translate = [0.5, 3.2, -9.5]
+rotate_x = -14.7241
+rotate_y = 176.9872
+
+[tonemap]
+reference = "presets/aces.tonemap.toml"
+
+# Studio pedestal (top face at y = 0) + the dragon_teapot meshes, verbatim
+# from Aether/assets/dragon_teapot.scene.toml so both renderers trace the
+# same geometry the parity gallery uses.
+
+[[mesh]]
+name = "box"
+type = "box"
+half_extents = [6.0, 0.1, 3.0]
+
+[[mesh]]
+name = "teapot"
+path = "teapot.obj"
+
+[[mesh]]
+name = "dragon"
+path = "dragon.obj"
+
+# Finite area emitter (C1 pattern): overhead box, SMS target.
+[[mesh]]
+name = "emitter"
+type = "box"
+half_extents = [1.5, 0.01, 1.5]
+
+[[instance]]
+mesh = "box"
+material = "Floor"
+translate = [0.0, -0.1, 0.0]
+
+[[instance]]
+mesh = "teapot"
+material = "Ceramic"
+translate = [-2.2, 0.0, 0.0]
+scale = [0.5, 0.5, 0.5]
+
+[[instance]]
+mesh = "dragon"
+material = "Gem"
+translate = [1.8, 0.166, 0.0]
+rotate_y = 35
+scale = [2.0, 2.0, 2.0]
+
+[[instance]]
+mesh = "emitter"
+material = "Emitter"
+translate = [0.5, 3.2, 0.0]
