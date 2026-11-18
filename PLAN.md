@@ -150,7 +150,7 @@ run in parallel across repos):
     §5.5; §7 fresh-render gate RESOLVED 2026-11-16 (owner decision: thresholds
     recalibrated to the estimator-pure noise floor — the GI-ENH variance path was
     closed by measurement, Theia is already the quieter side); PERF3 extension **removed 2026-11-15** —
-   premise absent: no dynamic BLAS (ANI4/ANI5 backlog), 1–16 instances, GPU-driven
+   premise absent: no dynamic BLAS (ANI4/ANI5 were backlog at removal time — both shipped 2026-11-16 with refit, still no dynamic BLAS), 1–16 instances, GPU-driven
    contract vs readback priority loop)
    → step 5's animation chain (ANI3 + ANI7 + ANI6 done; PAR3 removed - non-AI).
 5. **Animation chain:** ANI3 (motion vectors) **DONE 2026-11-15** (Theia;61/61 + static
