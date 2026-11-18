@@ -537,6 +537,38 @@ Verified: `SceneOutputCopyPass_DN3M2PaperBlendClosesCrossoverLag` - the constant
 lag is CLOSED (error 0.0034 -> 0.0008 at M = 256 and 0.0036 -> 0.0002 at M = 4096, monotone,
 validation-clean); DEN2 offscreen identity unaffected.
 
+- **DN3-M4 - production-scene convergence receipts - VERIFICATION PLAN (recorded
+  2026-11-19, before any harness code):** *Harness (chosen from the row's two options):*
+  a new Harmonia component test in `tests/component/test_scene_output_copy_pass*.cpp`
+  style (`VulkanFixture`, reusing the exact DN3-M2 driver: `SceneOutputCopyPass::create`
+  two-arm construction, HDR upload with `alpha = M`, constant-W arm = one `record` per M,
+  converging arm = 3 chained frames M-2/M-1/M with `useGradient = true, convergingMode =
+  true, historyBlend` per the M2/M3 contract, `readRgbaImage` read-back), extended with
+  an OIIO EXR read of real rendered content (OIIO already linked; `IblProbe::readEXR` is
+  the read precedent) and OIIO EXR write of the mode outputs; plus a small tools script
+  that turns the written EXRs into the receipt artifacts (per-spp rel-MSE curves vs the
+  reference + difference crops, using `tools/compare_renders.py::load_exr`).
+  *Inputs:* ladder EXRs rendered by Theia `--output` (two-tier contract = raw
+  accumulation, denoiser forced off) at spp 16/64/256/1024/4096 for **dragon_teapot**
+  (glass/transmission bias-floor regime) and **cornell_classic** (diffuse-light control);
+  reference = the raw-4096 EXR of the same scene ("matching high-spp identity
+  reference"; its own curve point is 0 by construction). Alpha carries M by filename
+  contract (known per render; the upload sets `float4(rgb, M)` like the M2/M3 test).
+  *Guides:* flat gNormal/gDepth exactly as DN3-M2's test (documented contract: the
+  receipt measures the MODE difference under identical guides; a real-guide dump stays a
+  follow-up if boundary crops need edge-stopping). *Modes:* (1) raw = the ladder EXR
+  itself, (2) shipped constant-W = pass settings with `convergingMode = false` (app
+  defaults: strength/iterations/useHistory/useGradient mirrored from App.cpp:373),
+  (3) converging = `convergingMode = true`. *Acceptance (all must hold per scene):*
+  raw rel-MSE falls ~1/spp (log-log slope -0.5 +/- 0.15 over 16..4096, monotone);
+  constant-W plateaus in the documented ~0.0035 bias floor band (plateau value within
+  [0.002, 0.006] once spp >= 256); converging keeps descending past the plateau
+  (converging@4096 < 0.5 x plateau, mirroring M2/M3's 0.0008 vs 0.0034); difference
+  crops exist for both regimes (transmission-heavy dragon_teapot, diffuse control) and
+  show constant-W high-frequency dulling recovered by converging. *Artifacts:* CSV/MD
+  curves + crop PNGs under the ignored receipt dir (paths recorded in the executed
+  receipt), GPU jobs serial with the qualification battery.
+
 - **DN3-M4 - production-scene convergence receipts (backlog):** the visible demonstration of
   the crossover fix on real content - drive dragon_teapot (glass/transmission, the bias-floor
   regime) plus one diffuse-light control through the real window pass chain at
