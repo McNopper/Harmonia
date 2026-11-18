@@ -10,6 +10,13 @@ Quick-start context for AI agents so basic facts don't have to be rediscovered f
 > trades answer to the mission: real-time = measured frame-time value or it does not ship;
 > ground truth = never biased; the strict-AND parity gate is what keeps the two the same
 > renderer.
+>
+> **Engineering law (owner directives):** (1) **No hacks** — defects are root-caused and fixed
+> in the code that owns them; never paper over a failure with loosened tolerances, special
+> cases, clamps or scene-specific behavior. (2) **All is parameter driven** — behavior flows
+> through the parameter surfaces (feature/ownership bits, light and material parameters,
+> config structs, `THEIA_*`/`HARMONIA_*` environment toggles, CLI flags); fixes extend those
+> parameters instead of hard-coding paths, and every knob is documented where it lives.
 
 **Outstanding work, governance (definition of done + guardrails) and release history: see
 [`PLAN.md`](PLAN.md).**
