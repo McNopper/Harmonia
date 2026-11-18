@@ -287,8 +287,9 @@ new harmonia/scene_rt module; the renderers implement the createTriangleMesh/fin
 hooks and build their TLAS. Front 1 moved since this section was written (AR1 executed -
 the scene/RT split landed with `harmonia/scene_rt`; META1-2 done 2026-11-15; NH1 landed, NH2
 dropped, BV foundation shipped per §6.3). Still open by front (see categorization v2 below):
-front 1 = the Aether hygiene items (no completion record) + BV's path-tracing consumer (lands
-with the wavefront rewrite); Q1 (coverage) landed before the front-2 surgery; front 2 = **closed by verdict
+front 1 = CLOSED except BV's path-tracing consumer (lands only with a wavefront
+rewrite - the carrier wave was reverted, BV4 tombstone; the Aether hygiene items all landed:
+A-01 v0.7.7, A-02/A-03/A-05 v0.7.8 in Aether PLAN); Q1 (coverage) landed before the front-2 surgery; front 2 = **closed by verdict
 (Theia CH-T1, 2026-11-15)**: the demo ComputeRig extraction was **REJECTED**
 (framework-contract inversion), the `Theia/src/theia/pipelines` TU-split was **ACCEPTED**, and
 T-03's barrier helper landed - the two report-only signals (`demo` large +
