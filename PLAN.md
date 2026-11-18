@@ -1032,6 +1032,33 @@ their lighting too - all three emitters are thin boxes); (3) the 14-scene manife
 14/14 via `tools/render_and_validate.py`; (4) Theia module suite green; clang-format
 22.1.3 clean. GPU serial.
 
+**2e C4 residual - VERIFICATION PLAN (2026-11-18, recorded before the fix edit):**
+*Root cause (self-calibrating unit-banner probes, E=1-per-walk invariant):* on scenes
+whose `[camera] reference = "presets/..."` fails to resolve (staged/probe scenes have no
+`presets/` beside them - including the qualification's own staged C4 fixture), the two
+applications fall back to DIFFERENT physical-camera defaults: Theia
+`Application.cpp:373` does `cameraEv100.value_or(7.0f)` -> `fromEv100(7)` -> exposure
+6.51073e-3 (banner-measured EXACT); Hyperion `buildCamera` keeps the default
+`PhysicalCamera{}` (aperture 8, shutter 100, iso 100) -> EV100 = log2(6400) = 12.64 ->
+exposure 1.302e-4 (banner-increment 0.1335/1000 = 1.335e-4 measured) = **50x systematic
+brightness divergence**. C1-C3/C5 carry inline `ev100 = 7` (both engines identical), so
+only the C4 fixture (preset-reference camera, staged without presets/) hits the split -
+matching every measured ratio (gate mean 0.476/0.0147 ~ 32-50x diluted; probe trail
+30-65x = 50x exposure x ~1.3x structural). Single-variable ablations already proved the
+light transport itself healthy (walk parity C1 1.002 / C5 0.997 at equal exposure;
+pass-rates and per-event medians equal across engines; Hyperion converged 64~2048spp).
+*Fix (parameter-driven, no hacks):* make Theia's fallback mirror Hyperion's - apply
+`fromEv100` ONLY when `sceneConfig.cameraEv100` is present, else keep the shared
+`PhysicalCamera{}` struct default (identical knob semantics in both apps; scenes with an
+explicit ev100 or resolvable preset are unaffected). *Acceptance:* (1) C4 strict-AND
+gate (mean<=120, rel<=250, SSIM>=0.6, hist>=0.8) on the qualify correctness config
+re-render vs the stored `ref_C4_final_4096` (Hyperion, ev12.64); (2) exposure-parity
+probe: equal unit-banner EXR values across engines on the staged C4 scene; (3) C1-C3
+re-cert chain exit 0 (inline-ev scenes, must stay green); (4) 14/14 manifest gate;
+(5) Theia module suite 64/64. Note (found along the way, separate follow-up): the
+forward analytic RectLight direct path measures ~0 (ownership bit1 skips it whenever
+ReSTIR DI/PT is on, so the qualification configs are unaffected).
+
 **2e interim receipt (2026-11-18) - battery green, C4 residual root-caused by
 elimination:** *Battery (post rect-fix):* C1-C3 re-certification chain exit 0 (references
 re-accepted at 4096 spp, uncertainty 0.0043/0.0039/0.00047; bias gates at 8192f: C1
