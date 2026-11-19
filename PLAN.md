@@ -1019,6 +1019,54 @@ manifolds, arbitrary chain lengths, scattering, dispersion and temporal reuse ar
 **not** silently included in the first milestone. Unsupported paths keep their
 existing PT contribution. The final arc is not complete at the mirror checkpoint.
 
+**2e REPORT - measurement half (2026-11-19).** Row 2e requires "variance, energy,
+tail/runtime behavior and temporal stability, then both renderer galleries". The four
+CPU-computable sections below are measured from artifacts already on disk (no renders);
+the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
+`e2_report_metrics.py` (session tool), ROI = the C4 qualification window.
+
+- **Variance (across seeds, ROI energy):** 512f - 4 seeds, mean 0.041534,
+  std 0.000521, **relative spread 1.255%**; 8192f - 3 seeds, mean 0.041990,
+  std 0.000617, **relative spread 1.470%**. Caveat: these are PRE-vfov-fix candidates,
+  so the ROI sits on the misaligned projection; the window is not comparable to a
+  post-fix spread (which needs another seed sweep - GPU).
+- **Energy (ROI ratio vs the Hyperion 4096spp reference):**
+
+  | candidate | ROI energy | ratio |
+  |---|---|---|
+  | pre-fix 512f | 0.042243 | 0.9077 |
+  | pre-fix 8192f | 0.041938 | **0.9012** |
+  | **post-vfov-fix 512f** | 0.046367 | **0.9963** |
+  | reference | 0.046537 | 1.0000 |
+
+  The camera fix moved ROI agreement from **0.9012 -> 0.9963** (0.4% residual), which
+  is the quantitative form of the perceptual PASS recorded in Theia's plan.
+- **Tail (luminance):** reference p99 0.1497 / p99.9 0.8392 / max **0.846**;
+  pre-fix 8192f p99 0.1345 / p99.9 0.6755 / max **3.363**; post-fix 512f
+  p99 0.1554 / p99.9 0.8418 / max **3.068**. The candidate carries a **~4x brighter
+  extreme tail than the 4096spp reference** (fewer samples per pixel leave brighter
+  outliers), while the bulk (p99/p99.9) tracks the reference within 4%.
+  *Metric caveat recorded honestly:* the ">10x median" column is meaningless here -
+  the scene is a black environment, so p50 = 0 and the threshold collapses to 1e-6
+  (32-39% of pixels are simply background). Tail claims rest on p99/p99.9/max only.
+- **Runtime (frame_timing_ms, qualification logs):**
+
+  | run | n | mean ms | median | p95 | max |
+  |---|---|---|---|---|---|
+  | C4 local 512f seed17 | 512 | 482.42 | 233.49 | 1521.84 | 12276.06 |
+  | C4 local 2048f seed17 | 2048 | 492.13 | 254.34 | 1543.77 | 13026.02 |
+  | C4 local 8192f seed17 | 8192 | 607.85 | 260.86 | 1686.40 | **240777.66** |
+  | C4 local 8192f seed91 | 8192 | 569.91 | 260.23 | 1611.83 | 92919.68 |
+
+  **The tail IS the story:** median ~260 ms but mean ~600 ms (2.3x), p95 ~1.6 s, and a
+  worst frame of **240.8 s** (4 minutes) mid-run - i.e. wall-clock cost is dominated by
+  rare stalled frames (contention), not by the typical frame. This is also why
+  frame-count estimates under-predict wall time in this session's renders.
+- **OUTSTANDING (GPU, in dependency order):** temporal stability (needs a sequence
+  capture), the equal-time quality/performance comparison (matched-time renders),
+  and **both renderer galleries** (row 2e's release-approval gate).
+
+
 **Verification plan for later code.** At the start of each row, record baseline
 SHA, exact build/test/render commands, numeric tolerances, fixed seeds and selected
 scope in this plan **before editing**. Use kernel tests for solver arithmetic,
