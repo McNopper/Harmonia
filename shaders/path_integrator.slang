@@ -73,6 +73,15 @@ struct SurfaceHit {
 /// the caller's gate and integrateSurface's deferred hybrid decision). captureTarget + 1
 /// then wraps to 0xFFFFFFFF, which can never equal surfaceCount (>= 1 inside
 /// integrateSurface), so nothing is captured and the path falls back to replay.
+// Gap A (plan ae00516): maximum hybrid k the CAPTURE may select (k = captureTarget + 2)
+// and the hop-array capacity that follows from it (hops = k - 2). Default 3 = today's
+// behaviour, so the array holds exactly the one hop the named fields used to. The knob
+// is only raised together with the N-hop capture/replay (stage 2); until then a kLevel
+// the shift does not know degrades to the UNBIASED replay fallback, never to a
+// mislabelled reconnection edge.
+static const uint kMaxHybridK = 3u;
+static const uint kHopCapacity = kMaxHybridK - 2u;
+
 static const uint kCaptureNone = 0xFFFFFFFEu;
 
 struct PathState {
@@ -160,16 +169,19 @@ struct ReconnectionCapture {
     // For k=2 the existing fields above ARE the reconnection edge (x_1→x_k). For k=3
     // they store the HOP (x_1→x_2) and these new fields store the reconnection edge
     // (x_2→x_k). `kLevel` selects which path to try first.
-    float3 omegaHop1;      ///< ω_1: direction x_1 → x_2 (replay direction for k=3)
-    float3 omegaInK;       ///< ω_2: direction x_2 → x_k (reconnection edge for k=3)
+    // Gap A: bounded hop array, sized kHopCapacity = kMaxHybridK - 2 (1 at the default
+    // k=3, i.e. exactly the single hop the record used to store as four named fields).
+    // hop[j] is the j-th replayed segment x_{j+1} -> x_{j+2} (source side).
+    float3 hopDir[kHopCapacity];    ///< omega_j: replay direction of hop j
+    float  hopDist2[kHopCapacity];  ///< |hop j|^2 source side
+    float  hopGSource[kHopCapacity];///< G(hop j) source side - hop Jacobian
+    float  hopGReverse[kHopCapacity];///< G(reverse hop j) - Eq.5 inverse footprint
+    float3 omegaInK;       ///< ω_2: direction x_2 → x_k (reconnection edge for k≥3)
     float  pdfInK;         ///< p^x_2(omegaInK): reconnection-edge BSDF pdf for k=3
     float  dist2InK;       ///< |x_2 - x_k|^2 source side (k=3 reconnection edge)
     float  geomGInKSource; ///< G(x_2 → x_k) source side — k=3 Jacobian
     float  geomGInKReverse;///< G(x_k → x_2) source side — k=3 Eq. 5 inverse footprint
-    float  dist2Hop1;      ///< |x_1 - x_2|^2 source side (k=3 hop geometry)
-    float  geomGHop1Source;///< G(x_1 → x_2) source side — k=3 hop Jacobian
-    float  geomGHop1Reverse;///< G(x_2 → x_1) source side — k=3 hop inverse footprint
-    uint   kLevel;         ///< 0 = no record; 1 = k=2 only; 2 = k=3 available (try k=2 first)
+    uint   kLevel;         ///< 0 = no record; 1 = k=2 only; 2 = k=3 available; ≥3 = higher k
 };
 
 /// Zero-init helper — every capture record starts fully defined (uninitialized struct
@@ -201,15 +213,17 @@ ReconnectionCapture makeEmptyReconnectionCapture() {
     rc.env.valid = 0u;
     rc.flags = 0u;
     // GI-ENH k≥3 fields.
-    rc.omegaHop1 = 0.0.xxx;
+    for (uint j = 0u; j < kHopCapacity; ++j) {
+        rc.hopDir[j] = 0.0.xxx;
+        rc.hopDist2[j] = 0.0;
+        rc.hopGSource[j] = 0.0;
+        rc.hopGReverse[j] = 0.0;
+    }
     rc.omegaInK = 0.0.xxx;
     rc.pdfInK = 0.0;
     rc.dist2InK = 0.0;
     rc.geomGInKSource = 0.0;
     rc.geomGInKReverse = 0.0;
-    rc.dist2Hop1 = 0.0;
-    rc.geomGHop1Source = 0.0;
-    rc.geomGHop1Reverse = 0.0;
     rc.kLevel = 0u;
     return rc;
 }
@@ -635,7 +649,7 @@ void integrateSurface<T : ITracer>(
     // (site map: Theia/PLAN.md b4fd92a). Reconnection mode never enters here.
     if (state.captureRe != 0u && state.captureHybridMode != 0u &&
         state.reCaptured == 0u && state.captureTarget == kCaptureNone &&
-        state.surfaceCount < 3u) {
+        state.surfaceCount < kMaxHybridK) {
         const float kAlphaMin = 0.2F; // DQLin/ReSTIR_PT Params.slang specularRoughnessThreshold
         const float kDMin = 0.1F;     // DQLin/ReSTIR_PT Params.slang nearFieldDistance
         const bool pairRough = min(state.sampledAlphaPrev, bsdfSample.lobeAlpha) >= kAlphaMin;
