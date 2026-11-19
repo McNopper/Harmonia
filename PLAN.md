@@ -592,6 +592,42 @@ validation-clean); DEN2 offscreen identity unaffected.
   test, so the temporal-variance input of the Eq. 7/SURE weight is 0 and the weight
   selects raw) - a distinct-state chain (previous-rung frame first, matching the real
   window accumulation history) is queued as the next single-GPU serial experiment to
+
+- **DN3-M4 distinct-state chain - RUN + receipt PASS (2026-11-19 16:36), and the
+  queued experiment's question is ANSWERED: the low-M denoise benefit ACTIVATES.**
+  - *Run:* `ctest -R DN3M4` -> `VulkanFixture.
+    SceneOutputCopyPass_DN3M4ProductionSceneConvergence` **PASSED** (0.87s;
+    gtest `[ OK ] ... (298 ms)` / `[ PASSED ] 1 test` - verified NOT skipped: all
+    20 mode EXRs written 16:36:12), with `HARMONIA_DN3M4_DIR=build/dn3m4`.
+  - *Receipt:* `tools/dn3m4_receipt.py --dir build/dn3m4` -> **PASS, exit 0**:
+    dragon raw slope **-1.024**, cw crossover **1.443**, cw floor 2.15114e-4 vs cv
+    **2.4927e-6** (86x); cornell raw slope **-1.057**,
+    cw crossover **1.374**, cw floor 6.2031e-5 vs cv **2.0664e-7**
+    (300x). No threshold was touched by this run - the
+    2026-11-19 recalibration above stands as recorded.
+  - *Purpose of the queued experiment (L593) answered* - converging vs raw per rung:
+
+    | scene | 16 | 64 | 256 | 1024 |
+    |---|---|---|---|---|
+| dragon_teapot | 1.000  (= raw) | 0.934  (-6.6%) | 0.924  (-7.6%) | 0.949  (-5.1%) |
+| cornell_classic | 1.000  (= raw) | 0.955  (-4.5%) | 0.962  (-3.8%) | 0.965  (-3.5%) |
+
+    Converging is now **strictly below raw at every rung from 64 to 1024**
+    (-3.5% to -7.6% rel-MSE), where it previously "equals raw to 7 digits at
+    every rung". At spp 16 it still equals raw **by construction**: there is no
+    previous rung, so the chain carries identical frames, the Eq. 7/SURE weight
+    sees zero temporal variance and selects raw - now an explained first-rung
+    behaviour rather than an unexplained null.
+  - *Resolves the archived "converging-inertness" null:* the inertness was a
+    HARNESS artifact (identical chained frames per rung), **not** a property of
+    the shipped `convergingMode` knob. With distinct states the knob measurably
+    helps on real content while still satisfying acceptance (3): max cv/raw stays
+    <= 1.1 at every rung and cv@4096 stays 86x/300x
+    below the constant-W floor. The "dulled high frequencies" NULL stays archived
+    exactly as recorded (artifact-only, not gated).
+  - Receipt artifacts: `build/dn3m4/out/*_curves.csv`, signed heatmaps and crops
+    (ignored dir - not committed).
+
   check whether the low-M denoise benefit activates on real content; the no-bias
   property demonstrated here is exactly the crossover fix's guarantee, and the blend
   mechanics themselves are already covered by the DN3-M2 unit test.
