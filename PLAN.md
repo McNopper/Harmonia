@@ -1091,6 +1091,37 @@ their lighting too - all three emitters are thin boxes); (3) the 14-scene manife
 14/14 via `tools/render_and_validate.py`; (4) Theia module suite green; clang-format
 22.1.3 clean. GPU serial.
 
+**2e C4 residual #3 - camera VFOV fallback divergence - VERIFICATION PLAN
+(2026-11-19, recorded before the fix edit):** *Failure:* the staged C4 fixture's
+`[camera] reference = "presets/openpbr_studio_near.camera.toml"` cannot resolve
+(staged dirs ship without `presets/` - Aether `resolveSection` falls back silently to
+inline keys), so the two applications take their DIVERGENT vfov fallbacks: Theia
+`Application.cpp` `cam.vfov.value_or(45.0f)` vs Hyperion `Application.cpp`
+`value_or(kCornellVfovDeg)` = **39.1f** -> a 5.9-degree projection mismatch on every
+preset-less scene; the C4 parity gate therefore compared MISALIGNED projections.
+*Evidence (post camera-ev fix, projection untouched):* reference emitter pixels row
+mode y=31 vs candidate y=43 (x-span 39-222 vs 59-248); the earlier content-alignment
+probe measured horizontal dx=0 corr 0.885 but vertical dy=-32 corr 0.366 - a vertical
+parallax signature consistent with wrong vfov, not transport. C1-C3 carry inline
+`vertical_field_of_view = 43` (no fallback) and the 14 manifest scenes resolve
+`assets/presets/` next to their scenes - both classes are immune. *Consequence for the
+in-flight battery:* the C4 correctness verdict was MOOT (projection-mismatched
+comparison regardless of pass/fail) - the C4 stage was stopped after seed 17/91/1234
+partials (local @512 pooled [0.985, 0.978, 0.979], @2048 [0.982, 0.970, 0.975],
+CORRECTNESS_EXIT=-1 recorded); manifest + suite continue because they are independent
+of this defect. *Fix (same family as the camera-ev parity fix, parameter-driven):*
+mirror Hyperion's fallback exactly - apply `sceneConfig.cameraVfov.value_or(39.1f)`
+with a comment citing Hyperion `kCornellVfovDeg` (Application.cpp:19/248), so any
+scene without a resolvable camera preset renders through the SAME lens in both
+engines. Alternative recorded but not chosen (heavier): stage `presets/` copies in
+`qualify_sms.py` so the authored 50-degree value applies to both - needs cross-repo
+staging changes and does not fix hand-made probe scenes. *Acceptance:* build green,
+suite 64/64, reference stage re-run (provenance), C4 correctness full ladder green
+(energy band +-2%) + strict-AND gates PASS, emitter row-mode aligned between engines,
+C1-C3 re-cert unchanged (inline vfov -> byte-identical), manifest 14/14 still green;
+GPU strictly serial (Theia rebuild only after the running manifest stage releases the
+executable); commits only, no push.
+
 **2e C4 residual #2 - energy-bias gate - VERIFICATION PLAN (2026-11-19, recorded
 before the fix edit):** *Failure:* post camera-fix correctness stage: C4 local@8192f
 pooled ROI-energy ratios [0.969, 0.931, 0.960] vs the Hyperion reference (tolerance
