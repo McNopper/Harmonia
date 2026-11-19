@@ -268,6 +268,10 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     sample.weight = 0.0.xxx;
     sample.pdf = 0.0;
     sample.isDelta = false;
+    // Gap B: default = today's material proxy (BSDFSample.lobeAlpha). The lobe
+    // actually selected below overwrites it, and delta interfaces zero it, so any
+    // path that reaches an early return without touching it keeps prior behaviour.
+    sample.lobeAlpha = saturate(mat.specularRoughAnisoIor.x);
     sample.entersMedium = false;
     sample.mediumSigmaT = 0.0.xxx;
     sample.mediumAlbedo = 0.0.xxx;
@@ -315,6 +319,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         sample.weight = saturate3(mat.baseColorWeight.xyz + mat.specularColorWeight.xyz);
         sample.pdf = 1.0;
         sample.isDelta = true;
+        sample.lobeAlpha = 0.0;
         return sample;
     }
 
@@ -336,6 +341,16 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     if (xi >= accum) { accum += coatWeight; lobe = 4u; }
     if (xi >= accum) { accum += fuzzWeight; lobe = 5u; }
     if (xi >= accum) { lobe = 6u; }
+
+    // Gap B: alpha of the SELECTED lobe (Foundations 7.6). Linear roughness, so the
+    // units match the existing kAlphaMin = 0.2 gate exactly - no threshold change.
+    if (lobe == 2u || lobe == 3u) {
+        sample.lobeAlpha = saturate(effSpecRough); // base specular / rough transmission
+    } else if (lobe == 4u) {
+        sample.lobeAlpha = saturate(coatRough);    // coat GGX, its own roughness
+    } else {
+        sample.lobeAlpha = 1.0;                    // diffuse, subsurface, sheen, diffuse-trans
+    }
 
     float3 wiLocal = 0.0.xxx;
     bool haveCoatDir = false;
@@ -368,6 +383,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.weight = invPLobeSS.xxx;
                 sample.pdf = 1.0;
                 sample.isDelta = true;
+                sample.lobeAlpha = 0.0;
                 return sample;
             }
             float etaRatioSS = 1.0 / eta; // frames face wo; side handled by eta (C7)
@@ -381,12 +397,14 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.weight = invPLobeSS.xxx;
                 sample.pdf = 1.0;
                 sample.isDelta = true;
+                sample.lobeAlpha = 0.0;
                 return sample;
             }
             sample.direction = normalize(toWorld(wiEnter, Ts, Bs, Ns));
             sample.weight = invPLobeSS.xxx;
             sample.pdf = 1.0;
             sample.isDelta = true;
+            sample.lobeAlpha = 0.0;
             sample.entersMedium = true;
             float radius = max(mat.subsurfaceRadiusScale.w, 1.0e-4);
             sample.mediumSigmaT = sssExtinction(radius, saturate3(mat.subsurfaceRadiusScale.xyz));
@@ -436,6 +454,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             sample.weight = invPLobe.xxx;
             sample.pdf = 1.0;
             sample.isDelta = true;
+            sample.lobeAlpha = 0.0;
             return sample;
         }
 
@@ -450,6 +469,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             sample.weight = saturate3(mat.transmissionColorWeight.xyz) * invPLobe;
             sample.pdf = 1.0;
             sample.isDelta = true;
+            sample.lobeAlpha = 0.0;
             return sample;
         }
 
@@ -477,6 +497,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             float3 channelMask = (ch == 0u) ? float3(3.0, 0.0, 0.0) : ((ch == 1u) ? float3(0.0, 3.0, 0.0) : float3(0.0, 0.0, 3.0));
             sample.pdf = 1.0;
             sample.isDelta = true;
+            sample.lobeAlpha = 0.0;
             // C5: TIR never crosses the interface — no transmission tint at all. A crossing
             // with depth>0 enters the interior VDF medium (untinted interface, color realized
             // by the walk's Beer-Lambert over the actual path); depth==0 tints per crossing.
@@ -517,11 +538,13 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.weight = invPLobe.xxx;
                 sample.pdf = 1.0;
                 sample.isDelta = true;
+                sample.lobeAlpha = 0.0;
                 return sample;
             }
             sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
             sample.pdf = 1.0;
             sample.isDelta = true;
+            sample.lobeAlpha = 0.0;
             // C5/G6: transmission_depth > 0 → the interior is a REAL medium per the spec
             // `dielectric_volume` VDF (σ_t = -ln(transmission_color)/depth,
             // σ_s = transmission_scatter/depth). The interface BTDF is untinted (white);
@@ -557,6 +580,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         if (all(abs(wiLocal) < 1.0e-6.xxx)) {
             wiLocal = reflect(-woL, m);
             sample.isDelta = true;
+            sample.lobeAlpha = 0.0;
         } else if (mat.transmissionParams.x > 1.0e-4) {
             // C5: a rough refraction crossing into a depth>0 interior enters the same
             // `dielectric_volume` VDF medium as the smooth path; the microfacet BTDF used for

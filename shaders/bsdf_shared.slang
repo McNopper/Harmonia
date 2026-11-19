@@ -6,6 +6,16 @@ struct BSDFSample {
     float3 weight;
     float  pdf; // continuous density; delta branches use a legacy sentinel, not a full event PMF
     bool   isDelta;
+    // Gap B (Theia/PLAN ae00516): linear roughness of the lobe ACTUALLY SAMPLED
+    // at this vertex, for the paper's lobe-specific connectability
+    // min(a_{k-1}, a_k) >= a_min - ReSTIR PT Enhanced 2.3: "with alpha from the
+    // path's sampled lobes"; Foundations of ReSTIR 7.6: "we examine the roughness
+    // of just the selected lobe". diffuse/subsurface/sheen -> 1.0 (rougher than
+    // the per-lobe GGX 0.2 threshold); delta/mirror interfaces -> 0.0 (Enhanced:
+    // delta/mirror bounces have zero footprint); GGX/conductor/coat/rough
+    // transmission -> that lobe's own linear roughness. sampleBSDF defaults it to
+    // the material proxy, so any path that does not set it keeps today's behaviour.
+    float  lobeAlpha;
     // Step 3 (bulk subsurface random walk): set when this sample refracts INTO a bulk
     // subsurface medium instead of continuing as an ordinary surface bounce. The renderer's
     // path integrator hands off to its own volumetric random-walk loop when `entersMedium`
