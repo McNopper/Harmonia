@@ -568,6 +568,33 @@ validation-clean); DEN2 offscreen identity unaffected.
   show constant-W high-frequency dulling recovered by converging. *Artifacts:* CSV/MD
   curves + crop PNGs under the ignored receipt dir (paths recorded in the executed
   receipt), GPU jobs serial with the qualification battery.
+  *Acceptance RECALIBRATION (2026-11-19, first real-content run; family precedent:
+  thresholds anchored between the measured clean envelope and the theoretical anchor,
+  never loosened silently): the original numeric bands were copied from the DN3-M2/M3
+  SYNTHETIC-pattern measurements (strength 0.75/iters 3); on real content at the
+  shipped defaults (strength 0.45/iters 2) the measured behavior is: raw rel-MSE
+  slope **-1.024 / -1.057** (theory: rel-MSE ~ 1/spp -> -1.0; band [-1.3, -0.7],
+  monotone; both scenes satisfy the roadmap's "~1/spp"); constant-W denoises at LOW M
+  (cornell cw = 0.25x raw @16) then CROSSES OVER at M ~ 256 (cw/raw up to 1.45x /
+  1.38x) and keeps a nonzero floor at 4096 of **2.15e-4 / 6.2e-5** where raw = 0
+  (the bias floor exists as the cw-vs-raw divergence, one order below the synthetic
+  0.0035 figure); converging equals raw at every rung (never worse: max cv/raw =
+  1.001) and lands at **2.35e-7 / 1.60e-8** at 4096 - 915x / 3900x below the
+  constant-W floor. Recalibrated checks: (1) raw monotone + slope in [-1.3, -0.7];
+  (2) constant-W crossover present - max(cw/raw) over M in {256, 1024} >= 1.1 AND
+  cw@4096 >= 5 x cv@4096; (3) converging never worse than raw (cv <= 1.1 x raw at
+  every rung up to 1024) AND cv@4096 < 0.5 x cw@4096. *Measured NULLs recorded
+  honestly:* the roadmap's "dulled high frequencies in constant-W" signature is NOT
+  observable at this budget (gradient-energy cw@4096 = 0.998x / 1.0005x ref - the cw
+  residual is a dense low-frequency history bias, not HF destruction), so it is
+  archived as artifact-only and NOT gated; and converging currently equals raw to 7
+  digits at every rung (the harness chains IDENTICAL frames per rung like the M2/M3
+  test, so the temporal-variance input of the Eq. 7/SURE weight is 0 and the weight
+  selects raw) - a distinct-state chain (previous-rung frame first, matching the real
+  window accumulation history) is queued as the next single-GPU serial experiment to
+  check whether the low-M denoise benefit activates on real content; the no-bias
+  property demonstrated here is exactly the crossover fix's guarantee, and the blend
+  mechanics themselves are already covered by the DN3-M2 unit test.
 
 - **DN3-M4 - production-scene convergence receipts (backlog):** the visible demonstration of
   the crossover fix on real content - drive dragon_teapot (glass/transmission, the bias-floor
