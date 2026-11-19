@@ -31,7 +31,14 @@ vertical_field_of_view = 45.0
 ev100 = 7.0
 translate = [0.0, 1.6, 2.4]
 rotate_x = -32.0
-rotate_y = 180.0
+# NB rotate_y 0 (NOT 180): the camera sits at z = +2.4 and SceneLoader L234 gives
+# forward = rot * (0,0,-1), so rotate_y 180 pointed it at +z - away from every
+# object, with its floor hit landing at z 4.96 beyond the floor's z <= 3 edge.
+# Both renderers then produced an all-black frame (retracted vacuous PASS, Theia
+# PLAN "Gap C observation run 2026-11-19"). At 0 the forward vector is
+# (0, -0.53, -0.85): the primary ray reaches the plate's top centre (t 2.83, z 0),
+# then wall -> floor -> emitter, the chain documented above for max_depth 6.
+rotate_y = 0.0
 
 [tonemap]
 reference = "presets/aces.tonemap.toml"
