@@ -31,6 +31,7 @@
 #include <volk/volk.h>
 
 #include <OpenImageIO/imageio.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -387,10 +388,29 @@ TEST_F(VulkanFixture, SceneOutputCopyPass_DN3M4ProductionSceneConvergence) {
                 ASSERT_TRUE(writeModeExr(outPath, extent.width, extent.height, pixels)) << outPath.string();
             }
 
-            // Converging arm: 3 chained frames (M-2, M-1, M) for the Eq. 7 curve points.
+            // Converging arm: DISTINCT-STATE chain (real accumulation history).
+            // Frame 0 carries the PREVIOUS ladder rung (its own image + alpha = its
+            // sample count), frames 1-2 the current rung - so the Eq. 7/SURE weight
+            // sees genuine temporal variance. With identical frames the weight sees
+            // zero variance and selects raw at every rung (recorded in PLAN).
+            LadderFrame prevFrame;
+            bool hasPrev = false;
+            const auto sIt = std::find(kDn3m4Spp.begin(), kDn3m4Spp.end(), sampleCount);
+            if (sIt != kDn3m4Spp.end() && sIt != kDn3m4Spp.begin()) {
+                const std::uint32_t prevSpp = *(sIt - 1);
+                const std::filesystem::path prevPath =
+                    dir / (std::string(scene) + "_raw_" + std::to_string(prevSpp) + ".exr");
+                hasPrev = readLadderExr(prevPath, prevSpp, prevFrame);
+                ASSERT_TRUE(hasPrev) << "missing previous rung " << prevPath.string();
+            }
             {
                 std::vector<sm::float4> pixels;
+                const std::vector<sm::float4>& currentPixels = frame.pixels; // outer LadderFrame
                 for (std::uint32_t frame = 0U; frame < 3U; ++frame) {
+                    uploadRgbaImage(deviceCtx(),
+                                    commandPool(),
+                                    *hdrCV,
+                                    (frame == 0U && hasPrev) ? prevFrame.pixels : currentPixels);
                     auto cmd = commandPool().beginOneShot();
                     ASSERT_TRUE(cmd.has_value());
                     const harmonia::pipeline::PassContext ctx{
