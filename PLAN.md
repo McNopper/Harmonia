@@ -1064,6 +1064,37 @@ their lighting too - all three emitters are thin boxes); (3) the 14-scene manife
 14/14 via `tools/render_and_validate.py`; (4) Theia module suite green; clang-format
 22.1.3 clean. GPU serial.
 
+**2e C4 residual #2 - energy-bias gate - VERIFICATION PLAN (2026-11-19, recorded
+before the fix edit):** *Failure:* post camera-fix correctness stage: C4 local@8192f
+pooled ROI-energy ratios [0.969, 0.931, 0.960] vs the Hyperion reference (tolerance
++-2%, pooled SE 0.0057 - genuine converged bias); C1-C3 exit 0. *Decomposition
+(single-variable ablations, all post-fix at equal exposure):* direct term
+(ReSTIR primary, Theia d1 DI/PT-on vs Hyperion d1) = [0.999, 0.998, 0.993] PASS; the
+GI-walk term = [0.821, 0.721, 0.808] FAIL (green worst); no-SMS+DI/PT reproduces the
+same deficit (SMS innocent), SMS+no-DI/PT collapses to 0.14 (forward analytic direct
+measured ~0 again - recorded follow-up); component split: teapot-only walk 1.20x
+(over), dragon-only walk 0.627/0.602/0.648 (under); depth ladder (dragon-only):
+the gap OPENS AT max_depth=2 (D2 ratio 0.287/0.258/0.319, ~78% of the whole gap),
+D3-D6 ~0.86; D2 gap hot pixels lie ON THE DRAGON SILHOUETTE (hyp 0.5-0.8, Theia exactly
+0) = camera->dragon(delta)->emitter specular reflections of the emitter that Hyperion
+counts as depth-1 post-specular emission. *Root cause:* the walk's UNCONDITIONAL
+bounce-0 emitter guard (gi.comp "Prevent primary direct-light double count") drops
+camera->primary->emissive whenever the primary path reaches the emitter at bounce 0 -
+correct only while the FORWARD pass owns that term (bit1 clear), but with ReSTIR
+DI/PT active the forward pass skips its emissive proxies (setRestirDiActive), and a
+single-light-sample reservoir cannot represent delta reflections - the term vanishes
+between owners. *Fix (parameter-driven):* gate the guard on the same ownership knob
+the forward skip uses (gi push `restirDiEnabled`): guard keeps today's break when the
+forward owns direct; when DI/PT owns direct the walk instead adds the term through the
+SHARED `evalEmissionGuarded` at bounce+primaryCharge depth (specular -> adds, exactly
+Hyperion's depth-1 rule; non-specular -> 0 + terminate, the existing emission guard,
+so no double count with the non-delta reservoir). *Acceptance:* correctness C1-C4 all
+exit 0 (C4 local+reuse @8192f within +-2% per channel), C4 strict-AND gates still PASS
+(pure + correctness configs), module suite 64/64, C1-C3 re-cert unchanged-green; then
+re-measure the two recorded open residuals (teapot-only walk ~1.20x, D3-D6 ~0.86) and
+either clear them or open the next unit. Forward analytic direct ~0 stays a recorded
+follow-up (qualification configs are DI/PT-owned).
+
 **2e C4 residual - VERIFICATION PLAN (2026-11-18, recorded before the fix edit):**
 *Root cause (self-calibrating unit-banner probes, E=1-per-walk invariant):* on scenes
 whose `[camera] reference = "presets/..."` fails to resolve (staged/probe scenes have no
