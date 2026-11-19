@@ -1,0 +1,15 @@
+# hybrid_k3 fixture materials (Gap C). The ONLY new material is PolishedMetal: the
+# near-specular primary whose material roughness (0.05) is below the hybrid capture's
+# alpha_min (0.2), so pair 1 can never qualify and the capture must advance to pair 2
+# (k = 3). Everything else comes from sms_qualification.materials.toml.
+#
+# OpenPBR Surface TOML, colorspace lin_rec709_scene (consumer converts).
+
+model = "openpbr"
+colorspace = "lin_rec709_scene"
+
+[PolishedMetal]
+base_color = [0.900, 0.900, 0.930]
+base_metalness = 1.0
+specular_roughness = 0.05
+specular_ior = 1.45

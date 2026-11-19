@@ -1,0 +1,82 @@
+# hybrid_k3 - k=3-exercising fixture (Theia/PLAN.md "Hybrid shift, remaining" Gap C,
+# verification plan recorded 2026-11-19 in the ae00516 commit).
+#
+# Purpose: make the HYBRID reconnection-shift capture pick captureTarget = 1 (kLevel 2,
+# the k=3 body) instead of the first pair. The capture gates (gi.comp pair selection)
+# require BOTH vertices of a pair to have material roughness >= alpha_min (0.2) and the
+# base edge >= d_min (0.1):
+#   pair 1 = (primary, wall): the primary is the POLISHED METAL plate
+#            (specular_roughness 0.05 < 0.2)  -> pair 1 FAILS by construction;
+#   pair 2 = (wall, floor):   both rough (1.0 / 1.0) and the edge is far-field
+#            (wall -> floor >= 0.1 m)          -> pair 2 QUALIFIES -> captureTarget = 1.
+# Under the CURRENT cap (`state.surfaceCount < 2u`) captureTarget = 1 is reachable, so
+# this fixture measures the k=3 body BEFORE any Gap-A uncap; the THEIA_SHIFT_MASK
+# differential (bit0 k2 / bit1 k>=3) is the observation instrument.
+#
+# C-track fixture conventions: inline ev100 (no camera preset - the staged copies ship
+# without presets/ and would hit the ev100 fallback divergence), relative library refs
+# (the qualifier stages absolute copies), finite area emitter overhead (usesSms gate),
+# black environment, receiver-inclusive depth for the full chain
+# camera -> plate -> wall -> floor -> emitter  (max_depth 6).
+
+material_libraries = ["sms_qualification.materials.toml", "hybrid_k3.materials.toml"]
+
+[render]
+reference = "presets/preview.render.toml"
+samples_per_pixel = 64
+max_depth = 6
+
+[camera]
+vertical_field_of_view = 45.0
+ev100 = 7.0
+translate = [0.0, 1.6, 2.4]
+rotate_x = -32.0
+rotate_y = 180.0
+
+[tonemap]
+reference = "presets/aces.tonemap.toml"
+
+# Studio floor (top face at y = 0).
+[[mesh]]
+name = "floor"
+type = "box"
+half_extents = [6.0, 0.1, 3.0]
+
+# Polished metal plate: the near-specular PRIMARY (alpha 0.05 < alpha_min 0.2).
+[[mesh]]
+name = "plate"
+type = "box"
+half_extents = [2.0, 0.05, 2.0]
+
+# Diffuse wall standing beyond the plate: pair-1 partner (rejected by the primary's
+# alpha) and pair-2 predecessor (wall -> floor qualifies).
+[[mesh]]
+name = "wall"
+type = "box"
+half_extents = [2.5, 1.2, 0.1]
+
+# Finite area emitter overhead (C1 pattern): SMS target + scene light.
+[[mesh]]
+name = "emitter"
+type = "box"
+half_extents = [1.5, 0.01, 1.5]
+
+[[instance]]
+mesh = "floor"
+material = "DiffuseFloor"
+translate = [0.0, -0.1, 0.0]
+
+[[instance]]
+mesh = "plate"
+material = "PolishedMetal"
+translate = [0.0, 0.05, 0.0]
+
+[[instance]]
+mesh = "wall"
+material = "Wall"
+translate = [0.0, 1.2, -2.4]
+
+[[instance]]
+mesh = "emitter"
+material = "Emitter"
+translate = [0.0, 3.0, 0.0]
