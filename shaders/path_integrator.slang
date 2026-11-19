@@ -69,6 +69,12 @@ struct SurfaceHit {
 
 /// Mutable path-walk state. `nextOrigin`/`nextDirection` are written by
 /// integrateSurface and read back by the caller to spawn the continuation ray.
+/// Gap B: "no qualifying pair yet" sentinel for PathState.captureTarget (shared by
+/// the caller's gate and integrateSurface's deferred hybrid decision). captureTarget + 1
+/// then wraps to 0xFFFFFFFF, which can never equal surfaceCount (>= 1 inside
+/// integrateSurface), so nothing is captured and the path falls back to replay.
+static const uint kCaptureNone = 0xFFFFFFFEu;
+
 struct PathState {
     float3  radiance;
     float3  throughput;
@@ -106,6 +112,9 @@ struct PathState {
     uint    surfaceCount;   ///< GI-ENH k≥3: how many surfaces integrateSurface has visited
     uint    captureTarget;  ///< GI-ENH k≥3: 0 = capture at first surface (k=2), 1 = second (k=3)
     uint    disableRR;      ///< GI-ENH §6.2.4: 1 = skip Russian roulette (replay path — avoid killing valid paths)
+    uint    captureHybridMode; ///< Gap B: 1 = mask bit1 -> hybrid pair criteria pick captureTarget
+    float   sampledAlphaPrev;  ///< Gap B: SAMPLED-lobe alpha at x_{k-1} (BSDFSample.lobeAlpha)
+    float   arrivalDist;       ///< Gap B: ||x_k - x_{k-1}|| of the vertex being shaded
     ReconnectionCapture rec;
 };
 
@@ -594,7 +603,7 @@ void integrateSurface<T : ITracer>(
     // observability, no RNG added or reordered. GI-ENH k≥3: captureTarget selects which
     // surface to capture (0 = first, 1 = second) for the hybrid reconnection shift.
     ++state.surfaceCount;
-    const bool captureHere = (state.captureRe != 0u) && (state.reCaptured == 0u) &&
+    bool captureHere = (state.captureRe != 0u) && (state.reCaptured == 0u) &&
                              (state.surfaceCount == state.captureTarget + 1u);
     NeeEventCapture capTri;
     state.radiance += state.throughput * evalEmissiveTriangleNEE(
@@ -605,11 +614,6 @@ void integrateSurface<T : ITracer>(
     state.radiance += state.throughput * evalEnvNEE(
         tracer, surf, marginalCdf, conditionalCdf, envW, envH, hasEnvMap, envLuminanceScale,
         envMap, envSampler, state.seed, capEnv);
-    if (captureHere) {
-        state.rec.tri = capTri;
-        state.rec.env = capEnv;
-        state.rec.opacityXk = saturate(surf.mat.opacityFlagsPad.x);
-    }
 
     // 5) BSDF continuation sample.
     BSDFSample bsdfSample = sampleBSDF(surf.mat, surf.wo,
@@ -620,6 +624,35 @@ void integrateSurface<T : ITracer>(
         state.terminated = true;
         return;
     }
+
+    // Gap B: the HYBRID pair decision is made HERE, immediately after this vertex's
+    // lobe is sampled, because the paper's criterion is PAIRWISE over the SAMPLED
+    // lobes - min(alpha_{x_{k-1}}, alpha_{x_k}) >= alpha_min (ReSTIR PT Enhanced 2.3
+    // "with alpha from the path's sampled lobes"; Foundations 7.6 "we examine the
+    // roughness of just the selected lobe"). At the caller's arrival point alpha_{x_k}
+    // does not exist yet - the sampleBSDF above produces it - and captureHere must be
+    // settled before the NEE capture below, so the test cannot run at arrival
+    // (site map: Theia/PLAN.md b4fd92a). Reconnection mode never enters here.
+    if (state.captureRe != 0u && state.captureHybridMode != 0u &&
+        state.reCaptured == 0u && state.captureTarget == kCaptureNone &&
+        state.surfaceCount < 3u) {
+        const float kAlphaMin = 0.2F; // DQLin/ReSTIR_PT Params.slang specularRoughnessThreshold
+        const float kDMin = 0.1F;     // DQLin/ReSTIR_PT Params.slang nearFieldDistance
+        const bool pairRough = min(state.sampledAlphaPrev, bsdfSample.lobeAlpha) >= kAlphaMin;
+        if (pairRough && state.arrivalDist >= kDMin) {
+            // surfaceCount was already incremented above, so the capture index is
+            // surfaceCount - 1 (identical to the caller's pre-increment assignment).
+            state.captureTarget = state.surfaceCount - 1u;
+            captureHere = (state.surfaceCount == state.captureTarget + 1u);
+        }
+    }
+    if (captureHere) {
+        state.rec.tri = capTri;
+        state.rec.env = capEnv;
+        state.rec.opacityXk = saturate(surf.mat.opacityFlagsPad.x);
+    }
+    // Gap B: remember THIS vertex's sampled-lobe alpha for the next pair test.
+    state.sampledAlphaPrev = bsdfSample.lobeAlpha;
 
     // 6) Advance throughput and spawn the continuation ray, offset along the geometric
     //    normal toward the side the new ray travels.
