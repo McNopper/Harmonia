@@ -93,7 +93,8 @@ TEST_F(VulkanFixture, SkinFreeSceneRefitIsSuccessNoop) {
     SkinFixture fx("static", /*animate=*/false);
     // Second mesh WITHOUT a skin: load a skin-free scene by writing one.
     std::ofstream scn(fx.dir / "plain.scene.toml");
-    scn << "[[mesh]]\nname = \"q2\"\npath = \"q.obj\"\n\n[[instance]]\nmesh = \"q2\"\n";
+    scn << "[[mesh]]\nname = \"q2\"\npath = \"q.obj\"\n\n[[instance]]\nmesh = \"q2\"\n"
+           "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\nrotate_y = 0.0\n";
     scn.close();
 
     StubScene scene;

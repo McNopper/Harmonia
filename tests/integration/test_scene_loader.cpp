@@ -109,6 +109,10 @@ TEST(SceneLoader, UnknownTonemapperStillFallsBackToDefault) {
         std::ofstream out(scenePath);
         out << "[tonemap]\n";
         out << "tonemapper = \"unknown_tonemap\"\n";
+        // Camera-presence contract (owner 2026-11-20): every loadable scene carries
+        // a placement; this test's subject is the tonemapper fallback, so the scene
+        // must otherwise be valid.
+        out << "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\nrotate_y = 0.0\n";
     }
 
     RecordingSceneBuilder scene;
@@ -120,6 +124,37 @@ TEST(SceneLoader, UnknownTonemapperStillFallsBackToDefault) {
     ASSERT_TRUE(cfg.has_value());
     EXPECT_FALSE(cfg->tonemapper.has_value());
 
+    std::filesystem::remove_all(dir);
+}
+
+// Camera-presence contract (owner ruling 2026-11-20, Theia/PLAN "CAMERA PRESENCE
+// CONTRACT"): a scene without a camera placement must fail the shared load - the
+// private per-renderer fallbacks (Hyperion's Cornell constants, Theia's
+// keep-internal-defaults path) were the bug this replaces. The scene below is
+// otherwise valid (box mesh + instance), so the missing camera is the only reason
+// the load fails.
+TEST(SceneLoader, RejectsSceneWithoutCamera) {
+    const std::filesystem::path dir = std::filesystem::temp_directory_path() / "harmonia_scene_loader_no_camera";
+    std::filesystem::create_directories(dir);
+    const std::filesystem::path scenePath = dir / "no_camera.scene.toml";
+    {
+        std::ofstream out(scenePath);
+        out << "[[mesh]]\n"
+               "name = \"box\"\n"
+               "type = \"box\"\n"
+               "half_extents = [1.0, 1.0, 1.0]\n"
+               "\n"
+               "[[instance]]\n"
+               "mesh = \"box\"\n";
+    }
+
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+
+    const auto cfg = harmonia::scene::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+
+    EXPECT_FALSE(cfg.has_value()) << "a scene without a camera placement must fail the load";
     std::filesystem::remove_all(dir);
 }
 
@@ -171,6 +206,9 @@ TEST(SceneLoader, ParsesStageTogglesFromRenderPresetAndInlineOverride) {
         out << "reference = \"presets/render_stage_preset.toml\"\n";
         out << "enable_denoiser_stage = true\n";
         out << "stages.tonemapper = false\n";
+        // Camera-presence contract (owner 2026-11-20): the test's subject is the
+        // stage toggles, so the scene is otherwise made valid.
+        out << "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\nrotate_y = 0.0\n";
     }
 
     RecordingSceneBuilder scene;
@@ -226,7 +264,15 @@ std::size_t quadVertexCount(const std::filesystem::path& path) {
 std::string skinSceneToml(std::size_t vertexCount, std::ptrdiff_t rowDelta) {
     const std::size_t rows = static_cast<std::size_t>(static_cast<std::ptrdiff_t>(vertexCount) + rowDelta);
     std::ostringstream os;
-    os << "[[mesh]]\n"
+    // Camera-presence contract (owner 2026-11-20): fixtures that must LOAD carry a
+    // placement, so the tests keep judging their own subjects (vertex coverage) -
+    // the contract does not bend for fixtures, fixtures adapt to the contract.
+    os << "[camera]\n"
+          "translate = [0.0, 1.0, 4.0]\n"
+          "rotate_x = -10.0\n"
+          "rotate_y = 0.0\n"
+          "\n"
+          "[[mesh]]\n"
           "name = \"q\"\n"
           "path = \"q.obj\"\n"
           "\n"
@@ -320,7 +366,15 @@ TEST(SkinLoader, RejectsProceduralSphereSkin) {
                "joints = [\"root\"]\n"
                "inverse_bind = [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]]\n"
                "bone_indices = [[0, 0, 0, 0]]\n"
-               "bone_weights = [[1, 0, 0, 0]]\n";
+               "bone_weights = [[1, 0, 0, 0]]\n"
+               "\n"
+               // Camera-presence contract (owner 2026-11-20): the scene must be valid
+               // apart from its subject, so the sphere-skin rejection stays the
+               // reason this load fails (camera check runs before import).
+               "[camera]\n"
+               "translate = [0.0, 1.0, 4.0]\n"
+               "rotate_x = -10.0\n"
+               "rotate_y = 0.0\n";
     }
 
     RecordingSceneBuilder scene;
@@ -339,7 +393,14 @@ TEST(SkinLoader, RejectsProceduralSphereSkin) {
 std::string morphSceneToml(std::size_t vertexCount, std::ptrdiff_t rowDelta) {
     const std::size_t rows = static_cast<std::size_t>(static_cast<std::ptrdiff_t>(vertexCount) + rowDelta);
     std::ostringstream os;
-    os << "[[mesh]]\n"
+    // Camera-presence contract (owner 2026-11-20): same rationale as skinSceneToml -
+    // the loadable shape carries a placement so the morph tests judge row counts.
+    os << "[camera]\n"
+          "translate = [0.0, 1.0, 4.0]\n"
+          "rotate_x = -10.0\n"
+          "rotate_y = 0.0\n"
+          "\n"
+          "[[mesh]]\n"
           "name = \"q\"\n"
           "path = \"q.obj\"\n"
           "\n"

@@ -226,7 +226,8 @@ class CaptureFiles {
         output = root / "capture.exr";
         std::ofstream file(scene);
         file << "[render]\nworking_color_space = \"lin_rec2020_scene\"\n"
-                "enable_denoiser_stage = false\nenable_tonemapper_stage = false\n";
+                "enable_denoiser_stage = false\nenable_tonemapper_stage = false\n"
+                "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\nrotate_y = 0.0\n";
     }
     ~CaptureFiles() {
         std::error_code ec;

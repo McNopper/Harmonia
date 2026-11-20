@@ -56,7 +56,9 @@ class SceneLoader {
         std::optional<float> cameraEv100; ///< physical camera EV100 override
         /// ANI8 camera-from-node: `[camera] node = "<id>"` - the camera is
         /// re-placed from this node's evaluated world every animation tick
-        /// (the static pos/at/up above stay the load-time fallback/preview).
+        /// (the static pos/at/up above are the REQUIRED load-time preview every
+        /// consumer builds from - SceneLoader::load enforces their presence,
+        /// camera-presence contract, owner ruling 2026-11-20).
         std::optional<std::string> cameraNodeId;
         std::optional<std::uint32_t> spp;
         std::optional<std::uint32_t> maxDepth;

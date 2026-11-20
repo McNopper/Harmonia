@@ -111,6 +111,11 @@ std::string weightRows(std::size_t vertexCount) {
 std::string composedSceneToml(std::size_t vertexCount, bool withSkin) {
     std::ostringstream os;
     os << "[animation_clock]\nfps = 30\n\n"
+          "[camera]\n"
+          "translate = [0.0, 1.0, 4.0]\n"
+          "rotate_x = -10.0\n"
+          "rotate_y = 0.0\n"
+          "\n"
           "[[mesh]]\n"
           "name = \"q\"\n"
           "path = \"q.obj\"\n"
@@ -444,7 +449,14 @@ TEST_F(VulkanFixture, GpuMorphOnlyMatchesCpuWithoutSkinBuffers) {
 /// LBS (matrix average - collapses) and DQS (rotation average - rigid).
 std::string dqsSceneToml(std::size_t vertexCount) {
     std::ostringstream os;
-    os << "[[mesh]]\n"
+    // Camera-presence contract (owner 2026-11-20): loadable fixtures carry a
+    // placement (SceneLoader rejects camera-less scenes).
+    os << "[camera]\n"
+          "translate = [0.0, 1.0, 4.0]\n"
+          "rotate_x = -10.0\n"
+          "rotate_y = 0.0\n"
+          "\n"
+          "[[mesh]]\n"
           "name = \"q\"\n"
           "path = \"q.obj\"\n"
           "\n"

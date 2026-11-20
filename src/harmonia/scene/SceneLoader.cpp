@@ -536,6 +536,23 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
     loadMaterialLibraries(*desc, assetsDir, cfg, c.lib);
     applyRenderSettings(*desc, cfg);
     applyCamera(desc->camera, cfg);
+    // Camera-presence contract (owner ruling 2026-11-20, Theia/PLAN "CAMERA
+    // PRESENCE CONTRACT"): a scene without a camera placement is INVALID - it is
+    // engine behaviour, decided ONCE here for both renderers, because Hyperion's
+    // private Cornell fallback and Theia's keep-internal-defaults path were exactly
+    // the class of silent divergence the cross-renderer audit keeps finding. The
+    // Aether FORMAT stays permissive (camera-less fixtures remain valid for its
+    // parser/tests); the loader refuses to hand a camera-less scene to a renderer.
+    // Static pos AND at are required: SceneConfig documents them as the load-time
+    // preview every consumer builds from (node cameras re-place on top of it), and
+    // both renderers' camera assembly dereferences them. Mirrors the H-05 guard:
+    // precise diagnostic, then abort - never a default view.
+    if (!(cfg.cameraPos && cfg.cameraAt)) {
+        core::Logger::error("SceneLoader: '{}' has no camera placement - [camera] needs translate AND "
+                            "rotation (inline, or via a resolvable preset reference)",
+                            sceneFile.string());
+        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+    }
     computeAlphaTested(c, *desc);
 
     // Per-declared-mesh imported vertex totals (ANI4): a [[skin]]'s per-vertex

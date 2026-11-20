@@ -146,7 +146,15 @@ inline std::string skinSceneToml(std::size_t vertexCount, bool animate) {
     if (animate) {
         os << "[animation_clock]\nfps = 30\n\n";
     }
-    os << "[[mesh]]\n"
+    // Camera-presence contract (owner 2026-11-20): every loadable fixture carries a
+    // placement - SceneLoader rejects camera-less scenes, and these GPU fixtures
+    // must load so their own subjects (skinning/deform) stay what the tests judge.
+    os << "[camera]\n"
+          "translate = [0.0, 1.0, 4.0]\n"
+          "rotate_x = -10.0\n"
+          "rotate_y = 0.0\n"
+          "\n"
+          "[[mesh]]\n"
           "name = \"q\"\n"
           "path = \"q.obj\"\n"
           "\n"

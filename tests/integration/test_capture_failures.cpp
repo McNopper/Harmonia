@@ -138,7 +138,9 @@ struct CaptureFiles {
         ("harmonia_failure_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     CaptureFiles() {
         std::filesystem::create_directory(root);
-        std::ofstream(root / "empty.scene.toml") << "[render]\nmax_depth = 2\n";
+        std::ofstream(root / "empty.scene.toml")
+            << "[render]\nmax_depth = 2\n"
+               "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\nrotate_y = 0.0\n";
     }
     ~CaptureFiles() {
         std::error_code ec;
@@ -245,7 +247,9 @@ TEST(CaptureFailureContract, ResizeRetiresBeforeResetAndResourceReplacement) {
 
 TEST(CaptureFailureContract, SceneDisabledAccumulationDoesNotCreateAnUnusedStage) {
     CaptureFiles files;
-    std::ofstream(files.root / "empty.scene.toml") << "[render]\nenable_accumulation_stage = false\n";
+    std::ofstream(files.root / "empty.scene.toml")
+        << "[render]\nenable_accumulation_stage = false\n"
+           "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\nrotate_y = 0.0\n";
     VulkanFaultScope faults;
     faults.failComputeOnce = true;
     FailureApp app;
