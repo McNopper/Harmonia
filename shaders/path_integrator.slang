@@ -74,12 +74,12 @@ struct SurfaceHit {
 /// then wraps to 0xFFFFFFFF, which can never equal surfaceCount (>= 1 inside
 /// integrateSurface), so nothing is captured and the path falls back to replay.
 // Gap A (plan ae00516): maximum hybrid k the CAPTURE may select (k = captureTarget + 2)
-// and the hop-array capacity that follows from it (hops = k - 2). Default 3 = today's
-// behaviour, so the array holds exactly the one hop the named fields used to. The knob
-// is only raised together with the N-hop capture/replay (stage 2); until then a kLevel
-// the shift does not know degrades to the UNBIASED replay fallback, never to a
-// mislabelled reconnection edge.
-static const uint kMaxHybridK = 3u;
+// and the hop-array capacity that follows from it (hops = k - 2). RAISED 3 -> 4 only
+// after the N-hop replay, the weight/Jacobian/footprint products and THEIA_SHIFT_MASK
+// bit2 all landed (stage 2b), per the recorded ordering rule. With bit2 CLEAR a k=4
+// record falls back to the UNBIASED replay - never a reconnection computed against a
+// mislabelled edge - so raising the cap cannot bias anything by itself.
+static const uint kMaxHybridK = 4u;
 static const uint kHopCapacity = kMaxHybridK - 2u;
 
 static const uint kCaptureNone = 0xFFFFFFFEu;
