@@ -1126,6 +1126,76 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
     runtime section); seeds 91/1234/2026 ran 327-378s each.
   - Sections T-a/T-b/E/G remain (this plan's items 2-5).
 
+  **2e REPORT - GPU-half COMPLETE (2026-11-20) - sections T-a/T-b/E/G run, all
+  numbers below; row 2e's report obligation is now fulfilled end-to-end
+  (V variance/energy/tail/runtime + this block). Owner review / release approval
+  remains the owner's call, as section 6 of the plan states.**
+  - ***T-a temporal stability*** (`qualify_sms --stage stability --case C4`,
+    **TA_EXIT=0**): prerequisite reference re-recorded after the qualify_sms
+    HYBRID edit (provenance tracks runner+HEADs+diffs+exe+shader hashes - it was
+    invalidated twice today: by the tool edit, then by the check_arch bump);
+    split-seed uncertainty **0.00139** (<= 0.005), reference ROI energy
+    **0.046537 = the recorded baseline exactly** (ground truth continuity across
+    the camera change). Result: same-seed captures **pixel-identical
+    (deterministic)**, per-seed ROI energy spread **0.02002** at the 64f-reuse
+    budget (manifest entry: accepted).
+  - ***T-b sequence flicker capture*** (16 frames x 64f, 320x240, seed 17, both
+    modes; LOCAL_EXIT=0, REUSE_EXIT=0, 32 EXRs):
+
+    | metric | local | reuse |
+    |---|---|---|
+    | ROI energy mean / rel spread | 0.045933 / **1.8852%** | 0.045934 / **1.8844%** |
+    | first->last (endpoints) | -3.2446% | -3.2392% |
+    | flicker mean&#124;d&#124; / max&#124;d&#124; (consecutive) | 0.003327 / 0.004546 | 0.003328 / 0.004547 |
+    | worst-pair pixel max&#124;d&#124; | 183.6231 | 183.6230 |
+
+    Reading: no popping (worst consecutive pair = 1.4x the mean pair), no
+    systematic ramp (the endpoint -3.2% is 1.2 sigma of one pair; the series
+    revisits both levels in both halves), and **the two modes' stability metrics
+    are identical to 4 significant digits**. Cross-mode: mean&#124;d&#124; **0.000001**
+    (max 0.000005) but pixel-level **16/16 frames differ, 9 318/3 686 400
+    channel-samples (0.253%), peak pixel 0.2993**, reuse log line verified -
+    i.e. reuse genuinely engages, yet its per-frame effect sits **~3000x below
+    the estimator's own temporal noise** at 64f (cross/within ratio 0.0003x).
+    Runtime note: one **114-minute stalled window** between local frames 3->4
+    (desktop GPU contention - the recorded runtime-tail pathology's third
+    sighting after 240.8s and 7210s); frame 4's CONTENT sits inside the band,
+    so no metric is affected. No threshold applied (numbers are the report).
+  - ***E equal-time comparison*** (`--stage performance --case C4`; pilots:
+    off 0.117 s/f, local 0.751 s/f, reuse 0.747 s/f):
+
+    | wall target | off (plain PT) | local | reuse |
+    |---|---|---|---|
+    | 2.0s | 0.0001131 +- 8.3e-6 (1092f) | 0.0029627 +- 0.00147 (5f) | **0.0029626** +- 0.00147 (5f) |
+    | 8.0s | 0.0001280 +- 1.7e-5 (4368f) | **0.0018012** +- 0.00072 (10f) | 0.0018061 +- 0.000718 (10f) |
+
+    Verdict per the recorded quality-first acceptance (the stage exit is decided
+    by the quality numbers alone): reuse edges local at 2.0s (by 4e-8) but is
+    higher at 8.0s by 4.9e-6 = **0.27% = 0.007 standard errors -> statistical
+    TIE**; the tool records **`no-benefit`** + exit 1 - the same PARITY outcome
+    already recorded for C1/C3 (no-benefit = parity, never dressed up). Honest
+    context: `off` posts 26x lower MSE at 2s - SMS's 6.4x per-frame cost buys
+    nothing on C4's content at these budgets (C4 was never a claimed SMS-win
+    case; the recorded wins are absorption-prefix chains, C2). Desktop
+    contention also contaminated some seeds' wall times (local@8s: 3.70s and
+    12.64s vs 8s targets) - timing flags recorded in the manifest results.
+  - ***G both galleries + regression*** (recorded commands, sequential, zero
+    warnings): Theia `generate_gallery.ps1` **30/30** (256f, 1280x720 ->
+    build/gallery-current), Hyperion **30/30** (64spp). Regression vs the
+    committed baselines (gallery_regression.py, report-only): Theia **12/30
+    byte-identical, 18 differ - every mean <= 0.0222/255, below the recorded
+    merge-era precedent (<= 0.07/255)**, differences concentrated on
+    specular/transmission/glass scenes = exactly the convention's expected
+    noise-realization shift after estimator-affecting changes shipped; **Hyperion
+    30/30 BYTE-IDENTICAL** (copy changed nothing) - gallery-scale proof that the
+    camera contract is behavior-neutral. This executes the recorded follow-up
+    "README gallery convention refresh whenever estimator-affecting changes
+    ship". README screenshots regenerated + committed (Theia `98db26d`).
+  - ***Row 2e status: REPORT COMPLETE.*** variance/energy/tail/runtime (section
+    V, 906375e), temporal stability (T-a/T-b), equal-time (E, parity), both
+    galleries (G). Nothing in the row's "Report..." clause remains unrun;
+    release approval = owner review, not assumed.
+
      assumed.
 
 
