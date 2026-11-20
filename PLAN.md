@@ -1066,6 +1066,46 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
   capture), the equal-time quality/performance comparison (matched-time renders),
   and **both renderer galleries** (row 2e's release-approval gate).
 
+  **2e REPORT - GPU-half plan (recorded BEFORE running, 2026-11-20).** Baseline:
+  Theia `5f87de5`, Harmonia `6597af0`, Hyperion `5efe43f`; builds green; no GPU job
+  running; both trees clean. The Hyperion 4096spp reference (`ref_C4_final_4096.exr`)
+  stays VALID for all sections (the vfov fix was Theia-side; Hyperion always had 39.1).
+  Existing artifacts are NOT overwritten (fresh sections write new file prefixes; the
+  galleries render to build dirs, leaving the tracked `screenshots/` untouched until
+  the owner decides). One GPU app at a time, sections in dependency order:
+  1. **V - variance/energy/tail re-sweep on the CURRENT build** (closes the
+     measurement half's caveat that its candidates were pre-vfov-fix): Theia C4
+     local, 512f, seeds 17/91/1234/2026, 320x240, `--validation`, prefix
+     `cur_C4_local_512_*`; then CPU-recompute the three sections and report them
+     next to the recorded pre-fix numbers (no threshold: report deltas).
+  2. **T-a - temporal stability, same instrument as C1-C3:**
+     `python tools/qualify_sms.py --stage stability --case C4` (same-seed
+     determinism = pixel-identical, 4-seed ROI energy spread reported; 64f reuse).
+  3. **T-b - sequence flicker capture the measurement half named:** Theia C4,
+     `--sequence-frames 16 --offscreen-frames 64`, 320x240, seed 17, BOTH modes
+     (local + reuse) -> 16 EXRs each; report per-frame ROI energy (mean/std/rel),
+     consecutive-frame pixel deltas (mean/max = flicker), first->last drift, and
+     the local-vs-reuse comparison. NO invented threshold - numbers + the recorded
+     across-seed spread (1.255% @512f) as context. Question answered: does SMS
+     reuse flicker or drift across time?
+  4. **E - equal-time:** `python tools/qualify_sms.py --stage performance --case
+     C4` (existing acceptance verbatim: reuse must reduce ROI-MSE vs local at
+     2.0s AND 8.0s wall time, +-5% timing tolerance, 4 seeds, refinement per seed;
+     DRAGON excluded with reason: IBL-only -> no emitter -> SMS never engages ->
+     modes identical by construction, C4 IS the dragon/teapot+emitter case).
+     Outcome either `accepted` (reuse wins) or `no-benefit` (parity - the recorded
+     C1/C3 outcome, reported as such, never dressed up).
+  5. **G - both galleries (release-approval gate):** Theia
+     `tools/generate_gallery.ps1 -OutputDir build/gallery-current` (256f) and
+     Hyperion `tools/generate_gallery.ps1 -OutputDir ../Hyperion/build/gallery-current`
+     (64 spp), 30 scenes each 1280x720, ABeautifulGame included (this IS the final
+     deliverable batch), GPU-serial; then a regression report new-vs-committed
+     (byte-identical / pixel-identical / speckle-classified, means per the merge
+     precedent <=0.07/255) - tracked screenshots stay UNCOMMITTED (owner rule).
+  6. **Final receipts** in this plan: all sections + their exit codes; row 2e then
+     reads complete -> owner review / release approval is the owner's call, not
+     assumed.
+
 
 **Verification plan for later code.** At the start of each row, record baseline
 SHA, exact build/test/render commands, numeric tolerances, fixed seeds and selected
