@@ -28,6 +28,13 @@ struct AppConfig {
     std::string title = "Harmonia";
     std::uint32_t width = 1920;
     std::uint32_t height = 1080;
+    /// Demo window size used by BOTH renderer mains (Theia and Hyperion).
+    /// Hoisted by the cross-renderer audit decision (2026-11-19): the literal pair
+    /// 1024x768 was written into two separate main.cpp files - two copies that could
+    /// drift exactly the way the camera fallbacks did. Values unchanged; only the
+    /// second copy is gone. The struct's generic default above stays 1920x1080.
+    static constexpr std::uint32_t kDemoWidth = 1024;
+    static constexpr std::uint32_t kDemoHeight = 768;
     /// Vulkan validation layers: ALWAYS ENABLED BY DEFAULT (family contract, 2026-11-15).
     /// Context creation hard-fails without VK_LAYER_KHRONOS_validation, the test
     /// fixtures all set enableValidation = true, and no family tool passes

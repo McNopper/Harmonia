@@ -10,6 +10,14 @@
 
 namespace harmonia::renderer {
 
+/// Vertical FOV used when a scene carries neither an inline `vertical_field_of_view`
+/// nor a resolvable `[camera] reference` preset (staged qualification fixtures ship
+/// without presets/). Hoisted by the cross-renderer audit decision (2026-11-19): Theia
+/// had `value_or(39.1f)` and Hyperion `value_or(kCornellVfovDeg = 39.1f)` as two
+/// private copies - the same class as the ev100/vfov parity defects of 2026-11-19,
+/// which no shared-estimator test could see. The value is unchanged; the copy is gone.
+inline constexpr float kDefaultVfovDeg = 39.1f;
+
 class Camera {
   public:
     /// Physical camera properties (Unity HDRP / UE5 convention).
