@@ -1,0 +1,109 @@
+# hybrid_k4 - k=4-exercising fixture (Theia/PLAN.md "Hybrid shift, remaining" Gap A,
+# verification plan recorded 2026-11-19; this fixture is the observation requirement
+# listed in the stage-2b receipt: "a fixture where two pairs fail so k=4 is actually
+# reached" - hybrid_k3 stops at k=3 by design).
+#
+# Purpose: make the HYBRID capture select captureTarget = 2 (kLevel 3 => k = 4), which
+# needs TWO failing pairs before a qualifying one. With Gap B's sampled-lobe alphas the
+# three pairs evaluate as:
+#
+#   pair 1 = (plate, slab):  the plate is POLISHED METAL (specular_roughness 0.05) so its
+#             SAMPLED lobe alpha is 0.05 < alpha_min 0.2            -> FAILS
+#   pair 2 = (slab, wall):   the slab is GLASSDELTA (transmission 1.0, roughness 0.0), so
+#             its sampled lobe is a DELTA transmission -> alpha 0.0 < 0.2 -> FAILS
+#   pair 3 = (wall, floor):  both diffuse (1.0 / 1.0) and far-field (>= 0.1 m) -> QUALIFIES
+#
+#   => captureTarget = 2 => kLevel = 3 => k = 4, which only exists because the stage-2b
+#      knob raised kMaxHybridK to 4. The mask differential then observes it:
+#      THEIA_SHIFT_MASK bit2 (4) gates the k=4 shift body; clear it and k=4 falls back to
+#      the unbiased replay.
+#
+# Optical chain (derived, not guessed - same camera convention as hybrid_k3):
+#   camera (0,1.6,2.4), rotate_x -32, rotate_y 0  => forward (0,-0.53,-0.85)
+#   -> plate top centre (0,0.1,0)                 (t = 2.83, exactly on the plate)
+#   -> mirror reflection (0,+0.53,-0.85)
+#   -> glass slab at (0,0.72,-1.0): enters the +z face and exits the -z face, which are
+#      PARALLEL, so a dielectric slab deviates the ray by ZERO - it keeps travelling on
+#      the same line, which is what makes the next hop predictable
+#   -> wall at z=-2.4, reached at y ~ 1.59 (inside the wall's y range [0,2.4])
+#   -> diffuse wall sample downwards -> floor (rough) -> emitter (SMS target)
+#
+# C-track fixture conventions: inline ev100 (no camera preset - staged copies ship
+# without presets/ and would hit the recorded ev100/vfov fallback divergences), inline
+# vfov, relative library refs (the qualifier stages absolute copies), finite area emitter
+# overhead (usesSms requires emitterCount != 0), black environment, receiver-inclusive
+# depth for the full chain camera -> plate -> slab -> wall -> floor -> emitter (max_depth 6).
+
+material_libraries = ["sms_qualification.materials.toml", "hybrid_k3.materials.toml"]
+
+[render]
+reference = "presets/preview.render.toml"
+samples_per_pixel = 64
+max_depth = 6
+
+[camera]
+vertical_field_of_view = 45.0
+ev100 = 7.0
+translate = [0.0, 1.6, 2.4]
+rotate_x = -32.0
+rotate_y = 0.0
+
+[tonemap]
+reference = "presets/aces.tonemap.toml"
+
+# Studio floor (top face at y = 0).
+[[mesh]]
+name = "floor"
+type = "box"
+half_extents = [6.0, 0.1, 3.0]
+
+# Polished metal plate: the near-specular PRIMARY (alpha 0.05 < alpha_min 0.2).
+[[mesh]]
+name = "plate"
+type = "box"
+half_extents = [2.0, 0.05, 2.0]
+
+# Dielectric slab on the reflected ray: the SECOND smooth vertex. Its sampled lobe is a
+# DELTA transmission (alpha 0.0), which fails pair 2 - the extra failing pair hybrid_k3
+# does not have. Parallel faces => zero net refraction, so the chain stays predictable.
+[[mesh]]
+name = "slab"
+type = "box"
+half_extents = [0.4, 0.4, 0.4]
+
+# Diffuse wall: the first ROUGH vertex - pair 3's predecessor.
+[[mesh]]
+name = "wall"
+type = "box"
+half_extents = [2.5, 1.2, 0.1]
+
+# Finite area emitter overhead (C1 pattern): SMS target + scene light.
+[[mesh]]
+name = "emitter"
+type = "box"
+half_extents = [1.5, 0.01, 1.5]
+
+[[instance]]
+mesh = "floor"
+material = "DiffuseFloor"
+translate = [0.0, -0.1, 0.0]
+
+[[instance]]
+mesh = "plate"
+material = "PolishedMetal"
+translate = [0.0, 0.05, 0.0]
+
+[[instance]]
+mesh = "slab"
+material = "GlassDelta"
+translate = [0.0, 0.72, -1.0]
+
+[[instance]]
+mesh = "wall"
+material = "Wall"
+translate = [0.0, 1.2, -2.4]
+
+[[instance]]
+mesh = "emitter"
+material = "Emitter"
+translate = [0.0, 3.0, 0.0]
