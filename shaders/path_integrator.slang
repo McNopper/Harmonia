@@ -124,6 +124,8 @@ struct PathState {
     uint    captureHybridMode; ///< Gap B: 1 = mask bit1 -> hybrid pair criteria pick captureTarget
     float   sampledAlphaPrev;  ///< Gap B: SAMPLED-lobe alpha at x_{k-1} (BSDFSample.lobeAlpha)
     float   arrivalDist;       ///< Gap B: ||x_k - x_{k-1}|| of the vertex being shaded
+    float3  prevPosition;      ///< Gap A: origin vertex of the hop / predecessor of the edge
+    float3  prevNormal;        ///< (shading normal of that origin vertex)
     ReconnectionCapture rec;
 };
 
@@ -176,6 +178,7 @@ struct ReconnectionCapture {
     float  hopDist2[kHopCapacity];  ///< |hop j|^2 source side
     float  hopGSource[kHopCapacity];///< G(hop j) source side - hop Jacobian
     float  hopGReverse[kHopCapacity];///< G(reverse hop j) - Eq.5 inverse footprint
+    float  hopPdf[kHopCapacity];    ///< p_j(omega_{j+1}) source pdf of hop j (jacEndDenom)
     float3 omegaInK;       ///< ω_2: direction x_2 → x_k (reconnection edge for k≥3)
     float  pdfInK;         ///< p^x_2(omegaInK): reconnection-edge BSDF pdf for k=3
     float  dist2InK;       ///< |x_2 - x_k|^2 source side (k=3 reconnection edge)
@@ -218,6 +221,7 @@ ReconnectionCapture makeEmptyReconnectionCapture() {
         rc.hopDist2[j] = 0.0;
         rc.hopGSource[j] = 0.0;
         rc.hopGReverse[j] = 0.0;
+        rc.hopPdf[j] = 0.0;
     }
     rc.omegaInK = 0.0.xxx;
     rc.pdfInK = 0.0;
@@ -657,6 +661,14 @@ void integrateSurface<T : ITracer>(
             // surfaceCount was already incremented above, so the capture index is
             // surfaceCount - 1 (identical to the caller's pre-increment assignment).
             state.captureTarget = state.surfaceCount - 1u;
+            if (state.captureTarget != 0u) {
+                // Gap A stage 2: the reconnection EDGE is captured where captureTarget
+                // is decided, so it is always x_{k-1} -> x_k for ANY k (the old code
+                // hard-wired the bounce-0 vertex, correct only for k=3). These two still
+                // hold x_{k-1}'s sample here - this runs before they are overwritten below.
+                state.rec.omegaInK = normalize(state.nextDirection);
+                state.rec.pdfInK = state.lastBsdfPdf;
+            }
             captureHere = (state.surfaceCount == state.captureTarget + 1u);
         }
     }
