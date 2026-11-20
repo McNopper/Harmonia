@@ -1104,6 +1104,28 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
      precedent <=0.07/255) - tracked screenshots stay UNCOMMITTED (owner rule).
   6. **Final receipts** in this plan: all sections + their exit codes; row 2e then
      reads complete -> owner review / release approval is the owner's call, not
+
+  **2e section V COMPLETE (2026-11-20) - variance/energy/tail re-sweep on the
+  CURRENT build; the measurement half's pre-vfov-fix caveat is closed.
+  `e2_section_v.py`, `cur_C4_local_512_*` prefix (recorded cand_* untouched),
+  V_EXIT=0, 4 seeds sequential.**
+  | metric | recorded pre-fix 512f | CURRENT build 512f (4 seeds) |
+  |---|---|---|
+  | variance (ROI energy, rel spread) | 1.255% | **0.4114%** (mean 0.046134, std 0.000190) |
+  | energy ratio vs Hyperion 4096spp | 0.9077 | **0.9865-0.9964** (mean 0.9913) |
+  | tail p99 / p99.9 | 0.1554 / 0.8418 | 0.1541-0.1554 / **0.8418** (ref 0.1497/0.8392) |
+  | tail max (firefly) | 3.068 | 1.419-5.298 (ref 0.846) |
+  - The pre-fix candidates sat on the misaligned projection (caveat recorded in
+    the measurement half); the current build's spread is 3x tighter and every
+    seed's energy lands within 1.4% of the reference (seed17 0.9964 reproduces
+    the recorded post-vfov-fix 0.9963 point). Tail bulk tracks the reference
+    within 0.3% (p99.9); the extreme max stays firefly-class as recorded.
+  - *Runtime note (the measurement half's tail finding, reproduced):* seed 17's
+    capture took 7210s wall vs ~330-380s for the other seeds - the rare stalled
+    frame materialized in the wild again (mean-vs-median story recorded in the
+    runtime section); seeds 91/1234/2026 ran 327-378s each.
+  - Sections T-a/T-b/E/G remain (this plan's items 2-5).
+
      assumed.
 
 
