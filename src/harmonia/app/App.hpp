@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -206,7 +207,7 @@ class App {
                                      ? m_config.captureStartSeconds
                                      : static_cast<double>(m_config.animationStartFrame) / safeFps;
             clock.seconds = start + static_cast<double>(m_sequenceFrame) * (m_config.captureIntervalMs / 1000.0);
-            clock.key = static_cast<std::uint64_t>(clock.seconds * 1'000'000.0 + 0.5);
+            clock.key = static_cast<std::uint64_t>(std::llround(clock.seconds * 1'000'000.0));
         } else {
             clock.seconds = static_cast<double>(animationFrameIndex()) / safeFps;
             clock.key = animationFrameIndex();
@@ -259,12 +260,6 @@ class App {
     void logGpuMemoryBudget() noexcept;
 
     // VK18 (VK_EXT_present_timing) rolling cadence statistics — telemetry only.
-    bool m_presentTimingLog = false;
-    std::uint64_t m_presentTimingSamples = 0;
-    std::uint64_t m_presentTimingIntervalSumNs = 0;
-    std::uint64_t m_presentTimingIntervalMaxNs = 0;
-    std::uint64_t m_presentTimingIncomplete = 0;
-    std::uint64_t m_presentTimingLastNs = 0;
     [[nodiscard]] bool rebuildStagePipeline();
     /// Applies the scene's stage toggles on top of the CLI defaults; enforces
     /// the two-tier output contract (no denoiser for --output / --no-postfx).
@@ -284,51 +279,63 @@ class App {
     /// separate accumulationResetToken which does change on camera movement.
     [[nodiscard]] std::uint64_t denoiserResetToken() const noexcept;
 
-    Config m_config{};
-    Config::StagePipeline m_defaultStages{};
+    // VK18 (VK_EXT_present_timing) rolling cadence statistics — telemetry only.
+    std::uint64_t m_presentTimingSamples = 0;
+    std::uint64_t m_presentTimingIntervalSumNs = 0;
+    std::uint64_t m_presentTimingIntervalMaxNs = 0;
+    std::uint64_t m_presentTimingIncomplete = 0;
+    std::uint64_t m_presentTimingLastNs = 0;
+
+    // Field order follows the analyzer's alignment-pack suggestion, with ONE
+    // semantic exception kept: m_context stays immediately before
+    // m_pipelineBinaryCache so the cache outlives the DeviceContext whose
+    // non-owning pointer the pipeline-creation sites dispatch through (same
+    // lifetime contract as before; reordering the other fields is layout-only).
     SDL_Window* m_window{};
-    vulkan_init::Context m_context{};
-    // VK5: opt-in explicit pipeline-binary cache (HARMONIA_PIPELINE_BINARY_CACHE=<dir>).
-    // Declared after m_context so it outlives it; the DeviceContext carries the
-    // non-owning pointer the pipeline-creation sites dispatch through.
-    std::optional<core::PipelineBinaryCache> m_pipelineBinaryCache;
-    core::CommandPool m_commandPool{};
-    presentation::Swapchain m_swapchain{};
-    renderer::Descriptors m_descriptors{};
-    presentation::ToneMapper m_toneMapper{};
-    OffscreenCapture m_offscreen; // offscreen-only: SDR capture (presentation::ToneMapper + 8-bit image)
-    core::Image m_hdrImage{};
-    core::Image m_denoisedImage{};
-    std::vector<std::unique_ptr<pipeline::IRenderPass>> m_sceneStages;
-    std::vector<std::unique_ptr<pipeline::IRenderPass>> m_displayStages;
-    bool m_sceneOutputUsesDenoised = false;
-    bool m_stagePipelineFailed = false;
-    GreenScreenRenderer m_displayRenderer{};
-    std::optional<scene::IblProbe> m_iblProbe;
-
-    utils::ColorSpace::WorkingColorSpace m_workingColorSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020;
-    std::uint32_t m_tonemapper = 0;
-
-    FrameSync m_frameSync;
     std::uint64_t m_sceneEpoch = 1;
     std::uint64_t m_extentEpoch = 1;
     std::uint64_t m_stageEpoch = 1;
     std::uint64_t m_accumViewEpoch = 0;
-    bool m_interactiveAccumulation = false;
-    std::uint32_t m_frameIndex = 0;
-    /// ANI7 sequence render state (set by renderOffscreen, read by
-    /// animationFrameIndex): the current OUTPUT frame + active flag.
-    std::uint32_t m_sequenceFrame = 0;
-    bool m_sequenceActive = false;
-    /// Interactive flip cadence counter for --frames-per-flip (I6).
-    std::uint32_t m_framesSinceFlip = 0;
     /// Pacing diagnostic counters (I6 verification, TASK: pacing oracle): every 300
     /// rendered frames mainLoop() logs the rendered/flips ratio — the measurable
     /// frames-per-flip contract check (N=1 → R≈F, N=4 → F≈R/4).
     std::uint64_t m_pacingRenderedFrames = 0;
     std::uint64_t m_pacingFlippedFrames = 0;
+    std::vector<std::unique_ptr<pipeline::IRenderPass>> m_sceneStages;
+    std::vector<std::unique_ptr<pipeline::IRenderPass>> m_displayStages;
+    GreenScreenRenderer m_displayRenderer{};
+    core::CommandPool m_commandPool{};
+    vulkan_init::Context m_context{};
+    // VK5: opt-in explicit pipeline-binary cache (HARMONIA_PIPELINE_BINARY_CACHE=<dir>).
+    // Kept immediately after m_context for the lifetime contract above.
+    std::optional<core::PipelineBinaryCache> m_pipelineBinaryCache;
+    presentation::ToneMapper m_toneMapper{};
+    core::Image m_hdrImage{};
+    core::Image m_denoisedImage{};
+    OffscreenCapture m_offscreen; // offscreen-only: SDR capture (presentation::ToneMapper + 8-bit image)
+    FrameSync m_frameSync;
+    presentation::Swapchain m_swapchain{};
+    Config m_config{};
+    std::optional<scene::IblProbe> m_iblProbe;
+    renderer::Descriptors m_descriptors{};
+
+    utils::ColorSpace::WorkingColorSpace m_workingColorSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020;
+    std::uint32_t m_tonemapper = 0;
+
+    std::uint32_t m_frameIndex = 0;
+    /// ANI7 sequence render state (set by renderOffscreen, read by
+    /// animationFrameIndex): the current OUTPUT frame + active flag.
+    std::uint32_t m_sequenceFrame = 0;
+    /// Interactive flip cadence counter for --frames-per-flip (I6).
+    std::uint32_t m_framesSinceFlip = 0;
+    bool m_presentTimingLog = false;
+    bool m_sceneOutputUsesDenoised = false;
+    bool m_stagePipelineFailed = false;
+    bool m_interactiveAccumulation = false;
+    bool m_sequenceActive = false;
     bool m_displayOverlayLogged = false;
     bool m_running = false;
+    Config::StagePipeline m_defaultStages{};
 };
 
 } // namespace harmonia::app

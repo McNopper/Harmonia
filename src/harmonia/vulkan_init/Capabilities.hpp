@@ -85,10 +85,10 @@ struct CapabilityFlags {
 // extension-only probes (pageable memory, calibrated timestamps). Feature fields
 // are VkBool32 throughout and probed via type-erased pointers uniformly.
 struct CapabilityProbe {
-    std::array<const char*, 2> extensions; ///< Extension names enabled on pass; unused slots are null.
-    const VkBool32* featureBit;            ///< Supported-chain feature bit; null = extension-only probe.
-    const bool* infoFlag;                  ///< PhysicalDeviceInfo presence flag; null = feature-only probe.
-    bool CapabilityFlags::* flag;          ///< Capability flag recorded on pass.
+    std::array<const char*, 2> extensions;  ///< Extension names enabled on pass; unused slots are null.
+    const VkBool32* featureBit = nullptr;   ///< Supported-chain feature bit; null = extension-only probe.
+    const bool* infoFlag = nullptr;         ///< PhysicalDeviceInfo presence flag; null = feature-only probe.
+    bool CapabilityFlags::* flag = nullptr; ///< Capability flag recorded on pass.
 };
 
 struct EnabledFeatures {

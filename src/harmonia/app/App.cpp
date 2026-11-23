@@ -267,7 +267,7 @@ void App::logGpuMemoryBudget() noexcept {
     memProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
     memProps2.pNext = &budgetProps;
     vkGetPhysicalDeviceMemoryProperties2(ctx.physicalDevice, &memProps2);
-    constexpr std::uint64_t kMiB = 1024U * 1024U;
+    constexpr std::uint64_t kMiB = 1024ULL * 1024ULL;
     for (std::uint32_t heap = 0; heap < memProps2.memoryProperties.memoryHeapCount; ++heap) {
         const VkMemoryHeap& heapProps = memProps2.memoryProperties.memoryHeaps[heap];
         const std::uint64_t budgetMiB = budgetProps.heapBudget[heap] / kMiB;

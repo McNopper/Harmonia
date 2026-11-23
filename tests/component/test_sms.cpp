@@ -891,8 +891,8 @@ TEST_F(SmsFixture, SmsPartitionConditionalSeedsAndReciprocalNormalization) {
             EXPECT_EQ(output.z, mass);
             if (mode == 1) {
                 EXPECT_EQ(output.w, 1.0F);
-                const auto x = std::min(std::uint32_t(output.x * n), n - 1);
-                const auto y = std::min(std::uint32_t(output.y * n), n - 1);
+                const auto x = std::min(static_cast<std::uint32_t>(output.x * static_cast<float>(n)), n - 1);
+                const auto y = std::min(static_cast<std::uint32_t>(output.y * static_cast<float>(n)), n - 1);
                 const auto dx = (x + n - inputs[i].grid.y) % n, dy = (y + n - inputs[i].grid.z) % n;
                 EXPECT_TRUE(n <= 3 || ((dx <= 1 || dx >= n - 1) && (dy <= 1 || dy >= n - 1)));
             } else if (n == 1 || n == 2 || n == 4 || n == 16 || n == 32) {

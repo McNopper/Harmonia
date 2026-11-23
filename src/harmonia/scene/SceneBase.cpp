@@ -68,6 +68,9 @@ VkResult SceneBase::buildDeformBuffers(const DeviceContext& ctx, const core::Com
     if ((!m_pendingSkinBindings.empty() && !hasSkins()) || (!m_pendingMorphBindings.empty() && !hasMorphs())) {
         return VK_ERROR_INITIALIZATION_FAILED; // bindings without source: loader contract break
     }
+    if (!m_animation.has_value()) {
+        return VK_ERROR_INITIALIZATION_FAILED; // animation is optional, but this build needs it
+    }
     const std::vector<aether::SkinDesc>& skins = m_animation->skins;
 
     // ANI4: per-skin base tables (declaration order) - a skin's weight rows
@@ -289,10 +292,10 @@ VkResult SceneBase::buildDeformBuffers(const DeviceContext& ctx, const core::Com
 }
 
 VkResult SceneBase::stageSkinMatrices(const std::vector<aether::SkinPose>& poses) {
-    if (!hasSkins()) {
+    if (!m_animation.has_value() || m_animation->skins.empty()) {
         return VK_SUCCESS;
     }
-    const std::vector<aether::SkinDesc>& skins = m_animation->skins;
+    const std::vector<aether::SkinDesc>& skins = m_animation.value().skins;
     if (m_skinMatrixScratch.empty()) {
         return VK_ERROR_INITIALIZATION_FAILED; // build() ran no buildSkinBuffers
     }
@@ -335,14 +338,14 @@ VkResult SceneBase::stageSkinMatrices(const std::vector<aether::SkinPose>& poses
 }
 
 std::vector<float> SceneBase::evaluateMorphWeights(float seconds) const {
-    if (!hasMorphs()) {
+    if (!m_animation.has_value() || m_animation->morphs.empty()) {
         return {};
     }
-    return aether::SceneAnimator::evaluateMorphWeights(*m_animation, seconds);
+    return aether::SceneAnimator::evaluateMorphWeights(m_animation.value(), seconds);
 }
 
 VkResult SceneBase::stageMorphWeights(const std::vector<float>& weights) {
-    if (!hasMorphs()) {
+    if (!m_animation.has_value() || m_animation->morphs.empty()) {
         return VK_SUCCESS;
     }
     if (m_morphWeightScratch.empty() || weights.size() != m_animation->morphs.size()) {

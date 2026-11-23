@@ -320,14 +320,14 @@ createRig(const harmonia::DeviceContext& ctx, std::uint32_t handleSize, const st
         return std::unexpected("sbt buffer");
     }
     rig.sbt = std::move(*sbt);
-    std::array<std::uint8_t, 3U * 2U * 64U> handles{};
+    std::array<std::uint8_t, 3ULL * 2ULL * 64ULL> handles{};
     if (vkGetRayTracingShaderGroupHandlesKHR(ctx.device, rig.pipeline, 0, 3, handles.size(), handles.data()) !=
         VK_SUCCESS) {
         return std::unexpected("shader group handles");
     }
     auto* sbtBytesPtr = static_cast<std::uint8_t*>(rig.sbt.mappedData());
     std::memcpy(sbtBytesPtr + raygenOffset, handles.data(), handleSize);
-    std::memcpy(sbtBytesPtr + missOffset, handles.data() + 2U * handleSize, handleSize);
+    std::memcpy(sbtBytesPtr + missOffset, handles.data() + static_cast<std::size_t>(2) * handleSize, handleSize);
     std::memcpy(sbtBytesPtr + hitOffset, handles.data() + handleSize, handleSize);
     const VkDeviceAddress sbtAddress = rig.sbt.deviceAddress();
     rig.raygenRegion = {.deviceAddress = sbtAddress + raygenOffset, .stride = rig.raygenSize, .size = rig.raygenSize};

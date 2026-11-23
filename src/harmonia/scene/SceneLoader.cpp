@@ -142,7 +142,7 @@ using SceneConfig = SceneLoader::SceneConfig;
 /// Everything the scene-load phases share (Extract Class): the resource handles,
 /// the material library, and the cross-phase caches.
 struct SceneLoadContext {
-    const std::filesystem::path& assetsDir;
+    const std::filesystem::path& assetsDir = std::filesystem::path{};
     const DeviceContext& ctx;
     const core::CommandPool& pool;
     ISceneBuilder& scene;

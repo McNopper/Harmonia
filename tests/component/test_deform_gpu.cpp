@@ -550,8 +550,9 @@ TEST_F(VulkanFixture, GpuDqsMatchesCpuReferenceAndDiffersFromLbs) {
 
     // The staged DQ data is the shared extraction (uploaded inside execute):
     // joint 0 is identity (real w = 1, dual = 0), joint 1 encodes Rz(-80).
-    const auto dqBytes = readbackRange(deviceCtx(), commandPool(), scene.skinDqBuffer(), 0, 2 * 8 * sizeof(float));
-    ASSERT_EQ(dqBytes.size(), 2U * 8U * sizeof(float));
+    const auto dqBytes =
+        readbackRange(deviceCtx(), commandPool(), scene.skinDqBuffer(), 0, 2ULL * 8ULL * sizeof(float));
+    ASSERT_EQ(dqBytes.size(), 2ULL * 8ULL * sizeof(float));
     const auto* dqJoint0 = reinterpret_cast<const float*>(dqBytes.data());
     EXPECT_NEAR(dqJoint0[0], 0.0F, 1.0e-5F);
     EXPECT_NEAR(dqJoint0[3], 1.0F, 1.0e-5F) << "identity joint: real part (0,0,0,1)";

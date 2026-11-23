@@ -11,7 +11,7 @@ namespace harmonia::pipeline {
 namespace {
 struct SmsQueuePush {
     VkDeviceAddress work, inputIndices, outputIndices, inputHeader, outputHeader;
-    std::uint32_t capacity, operation, trialBudget, userFlags;
+    std::uint32_t capacity = 0, operation = 0, trialBudget = 0, userFlags = 0;
     VkDeviceAddress userData;
 };
 static_assert(sizeof(SmsQueuePush) == SmsPass::kPushSize);
