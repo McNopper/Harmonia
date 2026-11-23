@@ -59,10 +59,11 @@ genuinely diverge.
 | **Hyperion** | Vulkan 1.4 KHR RT pipeline | Unidir. path trace, NEE+MIS, env-CDF, full random walk | Full, unbiased | Offline reference / convergence target | *is* the reference |
 | **Theia** | Vulkan 1.4 mesh-shader + RT-GI (`ray_query`) | Accumulation path trace (shared `path_integrator`) + ReSTIR PT (unified reservoir — absorbs DI) + A-SVGF (interactive only; identity in offscreen capture) | Converges to Hyperion | Interactive / real-time / games | convergence gate |
 
-**Parity goal:** Theia converges to Hyperion. The gate is a small **metric set** (§7), not a
-single number — PSNR / mean-diff alone is misleading for HDR/scene-referred rendering
-(dominated by bright pixels, blind to structure). Cornell scenes PASS (`mean_diff ≤ 4.0`);
-the `shaderball_*` eye-parity gaps are closed.
+**Parity goal:** Theia converges to Hyperion. The gate is the strict-AND **metric set** (§7),
+not a single number — PSNR / mean-diff alone is misleading for HDR/scene-referred rendering.
+At the manifest budget (320×240, 256 spp / 256 frames), all 14 scenes must satisfy
+`mean_diff ≤ 120`, `rel_mse ≤ 250`, `SSIM ≥ 0.6`, and luminance-histogram correlation `≥ 0.8`.
+These thresholds are budget-specific and calibrated to the estimator-pure noise floor.
 
 Sibling plans: `slang-math/PLAN.md`, `Aether/PLAN.md`, `Hyperion/PLAN.md`, `Theia/PLAN.md` in
 the sibling clones.
@@ -71,6 +72,7 @@ the sibling clones.
 
 ## 2. At a glance
 
+- **Minor release:** v0.11.0 (2026-11-23) - documentation/roadmap aligned with the shipped code; verified App layout/rounding, explicit arithmetic, optional guards, capability/push-context initialization and const-reference animation mapping (`71d1df0`, `9b79f49`); project version and Aether/slang-math pins 0.11.0. Release evidence: `verify-full` 186/186, parity 14/14, full-gallery Vulkan validation 60/60 clean. No open implementation roadmap item.
 - **Release:** v0.10.0 (2026-11-20) - 2e report row COMPLETE (section V variance/energy/tail/runtime re-sweep, T-a stability, T-b sequence flicker, E equal-time parity, G both galleries + regression), camera-presence contract enforced once in SceneLoader (owner ruling, 2026-11-20), SMS qualification receipts, vendored check_arch 1.5.1; project 0.10.0, pins aether + slang-math v0.10.0.
   - **Release verification (2026-11-23):** `verify-full` exit 0 (186/186 tests) after the static-analysis/layout repairs and const-reference animation-mapping cleanup (`71d1df0`, `9b79f49`). Fresh parity harness exit 0: **14/14 PASS** at the manifest budget. Full-gallery Vulkan gate exit 0: **60/60 runs clean** across all 30 scenes in both renderers, zero validation or application warnings/errors.
 - **Release:** v0.9.0 (2026-11-16) - **animation + deformation complete; gate resolved.** ANI4 skinning (LBS + DQS: `blend = dqs` key, shared `skinDualQuaternions` extraction, `DeformPass` GPU kernel matched to the `deformSkinLbs`/`deformSkinDqs` CPU refs) and ANI5 morph targets end-to-end in both renderers (rest->morph->skin per dispatch; GPU==CPU receipts; 0-VUID e2e sequences). **Section 7 RESOLVED:** parity thresholds recalibrated to the estimator-pure noise floor (mean<=120 / rel<=250 / SSIM>=0.6 / hist>=0.8, budget-specific) - fresh manifest gate **14/14 PASS** + negative controls still fail. Removals (GI-PG, PERF4/5/6, BV4, GI-CV, GI-RGIR, PAR2/PAR3, DN1, LS1, VK1/VK9) and the required-or-drop triage (C11/C4/C13/DN8/SAM1/QMC1/VK17 dropped; C12 corrected; GI-ENH closed). Closures incl. ANI2/ANI3/ANI6/ANI7, GI-NRC, GI-CG, PERF8, MOD4, SM6. Receipts: ctest **180/180**, tool suites ALL PASS, ruff + check_dead clean. Pins: Aether **v0.9.0**, slang-math v0.8.0.
@@ -94,17 +96,13 @@ the sibling clones.
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
   suite needs a GPU).
-- **Next:** the capability track and the SMS item are closed (see section 3 and
-  §5.8); **PERF4/PERF5/PERF6/BV4 removed from the roadmap 2026-11-15** (measured does-not-pay / out-of-purpose - tombstones in section 5.1; probe kept as the revisit tool; the measurement itself was externally
-  corroborated 2026-11-07 — §5.1/§5.6). **Adjudications 2026-11-08:** the guiding
-  slot → GI-PG (adjudicated over LS4 - §5.4/§5.6; **GI-PG itself removed
-  2026-11-15**, engagement flat/negative - its row); **PERF3 is `next`** (ANI1 done
-  upstream in Aether — it gates ANI2 → ANI4/ANI5); **PERF3 integrated into
-  Hyperion (2026-11-09 — §5.1/§5.2)**. Remaining backlog: none in the performance track (PERF8
-  closed 2026-11-15). Vulkan capability
-  queue: drained —
-  VK19 stay-verdict, VK20/VK22 verified, VK5 shipped (default-on), VK23
-  rejected (§5.8).
+- **Next:** no approved implementation item remains. The SMS, animation and
+  performance tracks are closed; PERF4/PERF5/PERF6/BV4 were removed by measurement
+  or purpose review. The Vulkan capability queue is drained: VK5 is shipped and
+  default-on for supported pipelines, with only Hyperion's degenerate-key RT-binary
+  bypass remaining as a driver-specific guard; VK19 is a stay verdict, VK20/VK22
+  have recorded revisit triggers, and VK23 is rejected by the cross-vendor policy.
+  C15 remains an external OpenPBR-1.2-release watchlist item, not current work.
 - **Newly available (dev driver/SDK upgrade; extension surface unchanged vs driver 617.14):** the Vulkan 1.4
   capability set is verified on the dev GPU (**RTX 5070, driver 621.24 / SDK 1.4.363**, 295
   device extensions, slang 2026.17; the 621.24 re-audit of 2026-11-17
@@ -198,15 +196,14 @@ relaxations stay rejected; the equal-time measurement policy (timing-inconclusiv
 labeling, the 5% budget) carries over to any new qualification run; new
 estimator-affecting changes trigger the README gallery refresh convention.
 
-**Family next-up (details in the pillar sections):** the Vulkan capability track
-rests at externals-only (VK21/VK18 shipped, VK4 adopted with a compaction
-micro-benchmark, VK5 blocked-by-driver-defect with a recorded revival protocol,
-VK19 verdict: stay-on-descriptor-buffer, VK20 verified with revisit triggers,
-VK22 verified: no Slang surface — probe committed; VK23 rejected under the
-vendor guardrail); the performance
-line has no `next` item — the non-serving performance items are removed (PERF4/PERF5/PERF6/BV4, 2026-11-15; tombstones + the measurements in §5.1, corroborated §5.6),
-the track's live rows are backlog (none - the PERF3 importance-driven extension was removed 2026-11-15);
-the DN track is non-neural only (owner decision 2026-11-15).
+**Family next-up:** no approved implementation item. Vulkan follow-ups are external
+watchlists or recorded trigger-based verdicts; VK5 compute/general pipeline caching
+is shipped, while Hyperion's RT pipeline deliberately bypasses only the driver's
+degenerate binary key. The performance line has no `next` item, and the DN track is
+non-neural only (owner decision 2026-11-15). C15 waits on the external OpenPBR 1.2
+specification release. Optional RTXDI completion and camera-assembly deduplication
+are unchartered Theia follow-ups, not committed roadmap rows; the owner-waived C4
+2% gate and the environment-gated DN3M4 output test are not open blockers.
 
 ### Architecture lens - layer assignment
 
