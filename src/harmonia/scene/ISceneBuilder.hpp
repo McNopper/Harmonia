@@ -75,10 +75,7 @@ class ISceneBuilder {
     /// (SceneBase::setAnimationTime) and stamps the resolved TRS back onto the
     /// scene instances. Default no-op: builders that don't support animation
     /// ignore the attachment (the scene then reports hasAnimation() == false).
-    virtual void attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint32_t> instanceToDesc) {
-        static_cast<void>(desc);
-        static_cast<void>(instanceToDesc);
-    }
+    virtual void attachAnimation(aether::SceneDesc&&, const std::vector<std::uint32_t>&) {}
 
     /// ANI4 seam: marks mesh @p meshIndex as per-frame DEFORMED (its vertices
     /// are rewritten by the skinning pass, so its BLAS must be built with

@@ -679,7 +679,7 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
     // weights (SceneBase::evaluateMorphWeights) - both bindings need the source
     // even without [[animation]] tracks. Animation/skin/morph-free: nothing held.
     if (!desc->animations.empty() || !desc->skins.empty() || !desc->morphs.empty()) {
-        scene.attachAnimation(std::move(*desc), std::move(c.instanceMapping));
+        scene.attachAnimation(std::move(*desc), c.instanceMapping);
     }
 
     core::Logger::info("SceneLoader: loaded '{}'", sceneFile.filename().string());

@@ -35,9 +35,9 @@ std::uint32_t SceneBase::addInstance(std::uint32_t meshIndex, const Transform& t
     return idx;
 }
 
-void SceneBase::attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint32_t> instanceToDesc) {
+void SceneBase::attachAnimation(aether::SceneDesc&& desc, const std::vector<std::uint32_t>& instanceToDesc) {
     m_animation = std::move(desc);
-    m_instanceToDesc = std::move(instanceToDesc);
+    m_instanceToDesc = instanceToDesc;
 }
 
 void SceneBase::markMeshDynamic(std::uint32_t meshIndex) {

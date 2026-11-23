@@ -249,7 +249,7 @@ class SceneBase : public ISceneBuilder {
     virtual VkResult finishBuild(const DeviceContext& ctx, const core::CommandPool& pool) = 0;
 
     /// ANI2 seam (ISceneBuilder): stores the parsed animated-scene source.
-    void attachAnimation(aether::SceneDesc&& desc, std::vector<std::uint32_t> instanceToDesc) override;
+    void attachAnimation(aether::SceneDesc&& desc, const std::vector<std::uint32_t>& instanceToDesc) override;
 
     /// ANI4 seam (ISceneBuilder): marks mesh @p meshIndex per-frame deformed so
     /// its BLAS builds with ALLOW_UPDATE (the loader calls this per covered
