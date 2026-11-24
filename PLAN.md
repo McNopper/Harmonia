@@ -96,13 +96,14 @@ the sibling clones.
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
   suite needs a GPU).
-- **Next:** no approved implementation item remains. The SMS, animation and
-  performance tracks are closed; PERF4/PERF5/PERF6/BV4 were removed by measurement
-  or purpose review. The Vulkan capability queue is drained: VK5 is shipped and
-  default-on for supported pipelines, with only Hyperion's degenerate-key RT-binary
-  bypass remaining as a driver-specific guard; VK19 is a stay verdict, VK20/VK22
-  have recorded revisit triggers, and VK23 is rejected by the cross-vendor policy.
-  C15 remains an external OpenPBR-1.2-release watchlist item, not current work.
+- **Next:** **CAM-1 camera-assembly deduplication** (chartered in §3) is the next
+  implementation item. Otherwise no approved implementation item remains. The SMS,
+  animation and performance tracks are closed; PERF4/PERF5/PERF6/BV4 were removed by
+  measurement or purpose review. The Vulkan capability queue is drained: VK5 is shipped
+  and default-on for supported pipelines, with only Hyperion's degenerate-key RT-binary
+  bypass remaining as a driver-specific guard; VK19 is a stay verdict, VK20/VK22 have
+  recorded revisit triggers, and VK23 is rejected by the cross-vendor policy. C15 remains
+  an external OpenPBR-1.2-release watchlist item, not current work.
 - **Newly available (dev driver/SDK upgrade; extension surface unchanged vs driver 617.14):** the Vulkan 1.4
   capability set is verified on the dev GPU (**RTX 5070, driver 621.24 / SDK 1.4.363**, 295
   device extensions, slang 2026.17; the 621.24 re-audit of 2026-11-17
@@ -119,6 +120,55 @@ the sibling clones.
 ---
 
 ## 3. How to continue
+
+### Camera-assembly deduplication charter (CAM-1, next implementation item)
+
+The cross-renderer audit found one remaining duplicated-and-untested seam: **scene-camera
+assembly**. Parsing is shared in `harmonia::scene::SceneLoader`, but Theia
+(`ApplicationCompute::applySceneCamera`) and Hyperion (`Application::buildCamera`) each
+interpret the resulting `SceneConfig`, and both duplicate the animated camera-node
+placement math (`placeBoundCamera`). The two measured parity defects—EV100 fallback drift
+(50× exposure) and vfov fallback drift (5.9° projection)—both lived in this seam. The
+shared `kDefaultVfovDeg` constant removed one duplicated value, not the duplicated
+interpretation.
+
+**In scope (bounded, behavior-neutral):**
+
+1. Add one shared camera-assembly entry point in Harmonia (renderer layer) that consumes
+   `harmonia::scene::SceneLoader::SceneConfig` and returns the shared
+   `harmonia::renderer::Camera::Params` semantics:
+   - required `cameraPos`/`cameraAt` presence contract;
+   - `cameraUp` default `(0, 1, 0)`;
+   - `cameraVfov` fallback `harmonia::renderer::kDefaultVfovDeg`;
+   - `PhysicalCamera::fromEv100(cameraEv100)` only when explicitly present, otherwise the
+     shared default `PhysicalCamera`;
+   - scene-scale near/far from `Camera::nearFarFromDistance(targetDistance)`;
+   - renderer-neutral lens/focus defaults, with caller-supplied aspect.
+2. Add one shared animated-placement helper for the evaluated camera pose:
+   position, target `position + rotation * (0,0,-1)`, up `rotation * (0,1,0)`, and
+   near/far from the placed target distance.
+3. Make Theia and Hyperion call those helpers. Their renderer-specific camera controllers,
+   jitter policy, accumulation/view gates, and present behavior remain unchanged.
+
+**Out of scope:** CameraController navigation, TAA/jitter policy, exposure UI controls,
+scene loading, and any estimator/material change.
+
+**Acceptance:**
+
+- No renderer-private camera fallback (`value_or`) remains for pose/up/vfov/ev100/near/far.
+- Shared unit tests cover explicit camera fields, missing vfov, missing ev100, and the
+  camera-presence rejection path.
+- A cross-renderer assembly test proves identical `Camera::Params` from identical
+  `SceneConfig` input (including the missing-vfov/missing-ev100 cases).
+- Existing `cornell_classic` and qualification-scene captures remain bit-identical before
+  and after the refactor; the 14-scene parity gate and full-gallery Vulkan gate stay green.
+- `check_arch`, `verify-full`, and both renderer suites remain green.
+- A negative control (one fallback deliberately changed in one renderer) fails the new
+  cross-renderer assembly test.
+
+**Sequencing:** CAM-1 runs before any optional RTXDI BASIC/`piSum` or source-side
+RAY_TRACED work, because camera-assembly drift can invalidate every downstream
+qualification result.
 
 ### Roadmap execution order (dependency-reviewed 2026-11-15)
 
@@ -196,13 +246,14 @@ relaxations stay rejected; the equal-time measurement policy (timing-inconclusiv
 labeling, the 5% budget) carries over to any new qualification run; new
 estimator-affecting changes trigger the README gallery refresh convention.
 
-**Family next-up:** no approved implementation item. Vulkan follow-ups are external
+**Family next-up:** **CAM-1 camera-assembly deduplication** (chartered in §3) is the next
+implementation item. Vulkan follow-ups are external
 watchlists or recorded trigger-based verdicts; VK5 compute/general pipeline caching
 is shipped, while Hyperion's RT pipeline deliberately bypasses only the driver's
 degenerate binary key. The performance line has no `next` item, and the DN track is
 non-neural only (owner decision 2026-11-15). C15 waits on the external OpenPBR 1.2
-specification release. Optional RTXDI completion and camera-assembly deduplication
-are unchartered Theia follow-ups, not committed roadmap rows; the owner-waived C4
+specification release. Optional RTXDI BASIC/`piSum` and source-side RAY_TRACED work are
+unchartered estimator follow-ups, not committed roadmap rows; the owner-waived C4
 2% gate and the environment-gated DN3M4 output test are not open blockers.
 
 ### Architecture lens - layer assignment
