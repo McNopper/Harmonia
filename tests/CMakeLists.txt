@@ -14,6 +14,7 @@ add_executable(harmonia_unit_tests
     unit/test_procedural_geometry.cpp
     unit/test_emissive.cpp
     unit/test_device_fault.cpp
+    unit/test_camera_assembly.cpp
 )
 
 target_link_libraries(harmonia_unit_tests

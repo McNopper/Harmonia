@@ -75,6 +75,7 @@ class Camera {
     void setPhysicalCamera(const PhysicalCamera& physical) noexcept;
 
     [[nodiscard]] const PhysicalCamera& physicalCamera() const noexcept { return m_params.physical; }
+    [[nodiscard]] const Params& params() const noexcept { return m_params; }
     [[nodiscard]] CameraData getCameraData(std::uint32_t frameIndex, std::uint32_t maxDepth) const noexcept;
 
   private:

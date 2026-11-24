@@ -328,6 +328,7 @@ set(HARMONIA_scene_rt_SOURCES
 )
 set(HARMONIA_passes_SOURCES
     src/harmonia/renderer/Camera.cpp
+    src/harmonia/renderer/CameraAssembly.cpp
     src/harmonia/renderer/Descriptors.cpp
     src/harmonia/renderer/Pipeline.cpp
     src/harmonia/pipeline/AccumulationPass.cpp

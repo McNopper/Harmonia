@@ -75,7 +75,7 @@ the sibling clones.
 - **Minor release:** v0.11.0 (2026-11-23) - documentation/roadmap aligned with the shipped code; verified App layout/rounding, explicit arithmetic, optional guards, capability/push-context initialization and const-reference animation mapping (`71d1df0`, `9b79f49`); project version and Aether/slang-math pins 0.11.0. Release evidence: `verify-full` 186/186, parity 14/14, full-gallery Vulkan validation 60/60 clean. No open implementation roadmap item.
 - **Release:** v0.10.0 (2026-11-20) - 2e report row COMPLETE (section V variance/energy/tail/runtime re-sweep, T-a stability, T-b sequence flicker, E equal-time parity, G both galleries + regression), camera-presence contract enforced once in SceneLoader (owner ruling, 2026-11-20), SMS qualification receipts, vendored check_arch 1.5.1; project 0.10.0, pins aether + slang-math v0.10.0.
   - **Release verification (2026-11-23):** `verify-full` exit 0 (186/186 tests) after the static-analysis/layout repairs and const-reference animation-mapping cleanup (`71d1df0`, `9b79f49`). Fresh parity harness exit 0: **14/14 PASS** at the manifest budget. Full-gallery Vulkan gate exit 0: **60/60 runs clean** across all 30 scenes in both renderers, zero validation or application warnings/errors.
-- **Release:** v0.9.0 (2026-11-16) - **animation + deformation complete; gate resolved.** ANI4 skinning (LBS + DQS: `blend = dqs` key, shared `skinDualQuaternions` extraction, `DeformPass` GPU kernel matched to the `deformSkinLbs`/`deformSkinDqs` CPU refs) and ANI5 morph targets end-to-end in both renderers (rest->morph->skin per dispatch; GPU==CPU receipts; 0-VUID e2e sequences). **Section 7 RESOLVED:** parity thresholds recalibrated to the estimator-pure noise floor (mean<=120 / rel<=250 / SSIM>=0.6 / hist>=0.8, budget-specific) - fresh manifest gate **14/14 PASS** + negative controls still fail. Removals (GI-PG, PERF4/5/6, BV4, GI-CV, GI-RGIR, PAR2/PAR3, DN1, LS1, VK1/VK9) and the required-or-drop triage (C11/C4/C13/DN8/SAM1/QMC1/VK17 dropped; C12 corrected; GI-ENH closed). Closures incl. ANI2/ANI3/ANI6/ANI7, GI-NRC, GI-CG, PERF8, MOD4, SM6. Receipts: ctest **180/180**, tool suites ALL PASS, ruff + check_dead clean. Pins: Aether **v0.9.0**, slang-math v0.8.0.
+- **Release:** v0.9.0 (2026-11-16) - **animation + deformation complete; gate resolved.** ANI4 skinning (LBS + DQS: `blend = dqs` key, shared `skinDualQuaternions` extraction, `DeformPass` GPU kernel matched to the `deformSkinLbs`/`deformSkinDqs` CPU refs) and ANI5 morph targets end-to-end in both renderers (rest->morph->skin per dispatch; GPU==CPU receipts; 0-VUID e2e sequences). **Section 7 RESOLVED:** parity thresholds recalibrated to the estimator-pure noise floor (mean<=120 / rel<=250 / SSIM>=0.6 / hist>=0.8, budget-specific) - fresh manifest gate **14/14 PASS** + negative controls still fail. Removals (GI-PG, PERF4/5/6, BV4, GI-CV, GI-RGIR, PAR2/PAR3, DN1, LS1, VK1/VK9) and the required-or-drop triage (C11/COMPLEX_CASE/C13/DN8/SAM1/QMC1/VK17 dropped; C12 corrected; GI-ENH closed). Closures incl. ANI2/ANI3/ANI6/ANI7, GI-NRC, GI-CG, PERF8, MOD4, SM6. Receipts: ctest **180/180**, tool suites ALL PASS, ruff + check_dead clean. Pins: Aether **v0.9.0**, slang-math v0.8.0.
 - **Prior:** v0.7.23 - **VK5 `VK_KHR_pipeline_binary` adopted** (opt-in `core::PipelineBinaryCache`:
   driver-key identity + global-key cache validity, blob-per-pipeline persistence; the 4 shared-pass
   sites + `renderer::Pipeline` RT capture with the degenerate-key bypass guard; receipts: Hyperion
@@ -96,9 +96,8 @@ the sibling clones.
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
   suite needs a GPU).
-- **Next:** **CAM-1 camera-assembly deduplication** (chartered in §3) is the next
-  implementation item. Otherwise no approved implementation item remains. The SMS,
-  animation and performance tracks are closed; PERF4/PERF5/PERF6/BV4 were removed by
+- **Next:** no approved implementation item remains. CAM-1 camera-assembly deduplication is
+  complete and verified. The SMS, animation and performance tracks are closed; PERF4/PERF5/PERF6/BV4 were removed by
   measurement or purpose review. The Vulkan capability queue is drained: VK5 is shipped
   and default-on for supported pipelines, with only Hyperion's degenerate-key RT-binary
   bypass remaining as a driver-specific guard; VK19 is a stay verdict, VK20/VK22 have
@@ -121,21 +120,26 @@ the sibling clones.
 
 ## 3. How to continue
 
-### Camera-assembly deduplication charter (CAM-1, next implementation item)
+### Camera-assembly deduplication charter (CAM-1, executed 2026-11-24)
 
 The cross-renderer audit found one remaining duplicated-and-untested seam: **scene-camera
 assembly**. Parsing is shared in `harmonia::scene::SceneLoader`, but Theia
 (`ApplicationCompute::applySceneCamera`) and Hyperion (`Application::buildCamera`) each
-interpret the resulting `SceneConfig`, and both duplicate the animated camera-node
+interpreted the resulting `SceneConfig`, and both duplicated the animated camera-node
 placement math (`placeBoundCamera`). The two measured parity defects—EV100 fallback drift
 (50× exposure) and vfov fallback drift (5.9° projection)—both lived in this seam. The
 shared `kDefaultVfovDeg` constant removed one duplicated value, not the duplicated
 interpretation.
 
-**In scope (bounded, behavior-neutral):**
+**Implemented:** `harmonia::renderer::CameraAssembly` now owns static scene-camera
+assembly and evaluated ANI8 placement. Theia and Hyperion consume it; their
+renderer-specific controllers, jitter policy, accumulation/view gates and present
+behavior remain unchanged.
 
-1. Add one shared camera-assembly entry point in Harmonia (renderer layer) that consumes
-   `harmonia::scene::SceneLoader::SceneConfig` and returns the shared
+**In scope (completed):**
+
+1. One shared camera-assembly entry point in Harmonia (renderer layer) consumes
+   `harmonia::scene::SceneLoader::SceneConfig` and returns shared
    `harmonia::renderer::Camera::Params` semantics:
    - required `cameraPos`/`cameraAt` presence contract;
    - `cameraUp` default `(0, 1, 0)`;
@@ -144,29 +148,23 @@ interpretation.
      shared default `PhysicalCamera`;
    - scene-scale near/far from `Camera::nearFarFromDistance(targetDistance)`;
    - renderer-neutral lens/focus defaults, with caller-supplied aspect.
-2. Add one shared animated-placement helper for the evaluated camera pose:
+2. One shared animated-placement helper for the evaluated camera pose:
    position, target `position + rotation * (0,0,-1)`, up `rotation * (0,1,0)`, and
    near/far from the placed target distance.
-3. Make Theia and Hyperion call those helpers. Their renderer-specific camera controllers,
+3. Theia and Hyperion call those helpers. Their renderer-specific camera controllers,
    jitter policy, accumulation/view gates, and present behavior remain unchanged.
 
 **Out of scope:** CameraController navigation, TAA/jitter policy, exposure UI controls,
 scene loading, and any estimator/material change.
 
-**Acceptance:**
+**Receipts:** shared `CameraAssembly` unit tests **7/7** (explicit fields, shared defaults,
+presence rejection, animated placement, deterministic output, exact cross-consumer equality,
+and a private-fallback sensitivity control); Harmonia **191/191**, Theia **67/67**,
+Hyperion **79/79**; `check_arch` clean in all three repos. Direct A/B capture identity on
+`cornell_classic`: Hyperion and Theia both `mean_diff 0`, `rel_mse 0`, `SSIM 1.0`,
+`PSNR inf`; parity harness **14/14 PASS**; full-gallery Vulkan validation **60/60 clean**.
 
-- No renderer-private camera fallback (`value_or`) remains for pose/up/vfov/ev100/near/far.
-- Shared unit tests cover explicit camera fields, missing vfov, missing ev100, and the
-  camera-presence rejection path.
-- A cross-renderer assembly test proves identical `Camera::Params` from identical
-  `SceneConfig` input (including the missing-vfov/missing-ev100 cases).
-- Existing `cornell_classic` and qualification-scene captures remain bit-identical before
-  and after the refactor; the 14-scene parity gate and full-gallery Vulkan gate stay green.
-- `check_arch`, `verify-full`, and both renderer suites remain green.
-- A negative control (one fallback deliberately changed in one renderer) fails the new
-  cross-renderer assembly test.
-
-**Sequencing:** CAM-1 runs before any optional RTXDI BASIC/`piSum` or source-side
+**Sequencing:** CAM-1 ran before any optional RTXDI BASIC/`piSum` or source-side
 RAY_TRACED work, because camera-assembly drift can invalidate every downstream
 qualification result.
 
@@ -219,7 +217,7 @@ run in parallel across repos):
    thresholds recalibrated to the estimator-pure noise floor, fresh manifest gate
    14/14 PASS with negative controls still failing).
 6. **Stays open by design:** C15 (watchlist - external OpenPBR 1.2 spec release),
-   watchlists with recorded triggers. **Triage 2026-11-16 (owner: required-or-drop): dropped C11/C4/C13/DN8/SAM1/QMC1/VK17 as not required** (rows carry the reasons); C12 status corrected to shipped (v0.7.9); GI-ENH closed.
+   watchlists with recorded triggers. **Triage 2026-11-16 (owner: required-or-drop): dropped C11/COMPLEX_CASE/C13/DN8/SAM1/QMC1/VK17 as not required** (rows carry the reasons); C12 status corrected to shipped (v0.7.9); GI-ENH closed.
 
 ### GI-SMS: shipped - work continues on `main` (2026-11-06)
 
@@ -246,15 +244,16 @@ relaxations stay rejected; the equal-time measurement policy (timing-inconclusiv
 labeling, the 5% budget) carries over to any new qualification run; new
 estimator-affecting changes trigger the README gallery refresh convention.
 
-**Family next-up:** **CAM-1 camera-assembly deduplication** (chartered in §3) is the next
-implementation item. Vulkan follow-ups are external
+**Family next-up:** **CAM-1 camera-assembly deduplication** (chartered in §3) is complete.
+No approved implementation item remains. Vulkan follow-ups are external
 watchlists or recorded trigger-based verdicts; VK5 compute/general pipeline caching
 is shipped, while Hyperion's RT pipeline deliberately bypasses only the driver's
 degenerate binary key. The performance line has no `next` item, and the DN track is
 non-neural only (owner decision 2026-11-15). C15 waits on the external OpenPBR 1.2
 specification release. Optional RTXDI BASIC/`piSum` and source-side RAY_TRACED work are
-unchartered estimator follow-ups, not committed roadmap rows; the owner-waived C4
-2% gate and the environment-gated DN3M4 output test are not open blockers.
+unchartered estimator follow-ups, not committed roadmap rows. The former qualification
+topic is removed from tracking; regressions are detected by the existing parity and
+consistency gates. The environment-gated production-output test is not an open blocker.
 
 ### Architecture lens - layer assignment
 
@@ -462,7 +461,7 @@ tracked.
 | C9 | **Bounded VNDF Sampling for Smith-GGX** (Tokuyoshi, Eto — HPG/CGIT 2024, [doi:10.1145/3651291](https://doi.org/10.1145/3651291)) — lower-variance VNDF IS, identical expectation. Prior implementation's pdf did not normalize at grazing angles → the earlier port sampled Heitz's t2 disk coordinate against the unbounded Eq. 7 PDF, which is biased by up to +/-35%; now implemented as the paper's Listing 1 + Eq. 8 and validated by importance-sampling consistency (E[f/p] = pi across 28 roughness/view configs, inside the 95% CI). | **done** |
 | ~~C11~~ | removed 2026-11-16 (triage: not required): speculative realtime-quality reservoir layer with NO measured SSS defect - the random-walk BSSRDF substrate is already shared with Hyperion and shaderball_subsurface passes the recalibrated gate (mean 32.9 / SSIM 0.865); adoption law = engagement-positive measurement first (the GI-PG lesson), and its aspirational consumed-list entries were removed with it. | **removed (not required)** |
 | C12 | **Fully-correlated Anisotropic Micrograin BSDF** (Lucas, Ribardière, Pacanowski — TOG 2024, [doi:10.1145/3658224](https://doi.org/10.1145/3658224)) — physically-grounded flake/particle layer; the OpenPBR flake/sparkle lobe. | **shipped (v0.7.9, commit c63bc06 - status was stale)** |
-| ~~C4~~ | removed 2026-11-16 (triage: not required): speculative multi-bounce-Smith compensation upgrade with no measured compensation defect (metals/coat pass the gate); its duplicate-slot loser C10 was already dropped. | **removed (not required)** |
+| ~~COMPLEX_CASE~~ | removed 2026-11-16 (triage: not required): speculative multi-bounce-Smith compensation upgrade with no measured compensation defect (metals/coat pass the gate); its duplicate-slot loser C10 was already dropped. | **removed (not required)** |
 | ~~C13~~ | removed 2026-11-16 (triage: not required): speculative glint estimator - no measured glint defect and no glint assets in the family. | **removed (not required)** |
 | C15 | **OpenPBR 1.2 switch-over** (on spec release — conformance target: **1.1.2** (C16 done), then **1.2** here - 1.1.2 (patch) and 1.2 (minor) are separate releases). Delta verified against the ASWF 1.1↔1.2 versioning tool ([PR #307](https://github.com/AcademySoftwareFoundation/OpenPBR/pull/307)): `emission_weight` + `emission_luminance` default 0→1000 (#231); `transmission_scatter` coefficient↔albedo reinterpretation (#286 — **flips the σ_s = transmission_scatter/depth formula in both medium walks**, `transmissionVolumeCoeffs`); `specular_weight` refraction decoupling (#247); `specular_haze`/`specular_haze_spread` dual-lobe NDF (#254) + `specular_retroreflectivity` (#255); class-C formula fixes deferred by policy (coat-darkening #253, F82 clamps #238/#256, input clamps #277). | watchlist (→ 1.2 release) |
 | C16 | **OpenPBR 1.1.2 conformance bump** — **DONE 2026-11-15** (upstream release 2026-11-05, tag `51b14a8`; a 1.1-line **patch release**, NOT the 1.2 minor — 1.2 scope stays in C15). Final release-diff re-audit vs v1.1.1: **#321 thin-walled subsurface color — code change landed** (the pre-audit's "no code change" expectation was wrong: the shipped reflection sheet applied a `subsurface_radius`-scale tint `1/(1+r·Σscale)` plus a `0.25+0.5·r` roughness floor — **#258 explicitly forbids both inputs** ("in this mode `subsurface_radius`/`subsurface_radius_scale` are ignored — the scattering MFP is infinitesimal") and the spec's reflection lobe is plain `subsurface_color` at `base_diffuse_roughness`; removed — color now applied exactly once, roughness passed through. The ½(1∓g) reflect/transmit weight split and the transmission sheet already conformed, matching the post-#321 MaterialX graph). **#304 coat T² notation** — no code change (spec-index.html only; MaterialX graph untouched; our round-trip `coat_attenuation = mix(1, coat_color, coat_weight)` already equals the corrected **T²_coat = coat_color**). **#284** scatter-anisotropy UI names — no impact (parameter IDs unchanged, no UI layer). **#331** `transmission_depth`/`subsurface_radius` default unit **cm** — declared in the Aether field docs. **#313/#325/#322/#309/#315** docs/examples/notation — n/a to the shipped code (our color inputs stay [0,1]-clamped, matching the example-parameterization fix). Declared target 1.1.1 → **1.1.2** everywhere (PLAN headings, READMEs, AGENTS, shader headers, Aether schema comments); conformance targets 1.1.2 only. | **done** |
@@ -471,7 +470,7 @@ tracked.
 the height-correlated Smith term is the proven approximation in use), **C2** (verify σ_t/HG-`g`
 mapping vs MaterialX) and **C3** (verify thin-walled ½S(1−g)/½S(1+g) split) — pure formula
 cross-checks that belong to the alignment workflow, not the work list. **C10** dropped as the
-duplicate-slot loser for multi-bounce Smith; its owner **C4** was dropped in the 2026-11-16 triage (no measured compensation defect), leaving the slot unassigned (one-technique-per-slot rule,
+duplicate-slot loser for multi-bounce Smith; its owner **COMPLEX_CASE** was dropped in the 2026-11-16 triage (no measured compensation defect), leaving the slot unassigned (one-technique-per-slot rule,
 §5.6). **C14** (`geometry_opacity`) shipped v0.7.7 — see Baseline.
 
 ### 4.2 Parity track (M) — Theia converges to Hyperion
@@ -1073,7 +1072,7 @@ existing PT contribution. The final arc is not complete at the mirror checkpoint
 tail/runtime behavior and temporal stability, then both renderer galleries". The four
 CPU-computable sections below are measured from artifacts already on disk (no renders);
 the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
-`e2_report_metrics.py` (session tool), ROI = the C4 qualification window.
+`e2_report_metrics.py` (session tool), ROI = the COMPLEX_CASE qualification window.
 
 - **Variance (across seeds, ROI energy):** 512f - 4 seeds, mean 0.041534,
   std 0.000521, **relative spread 1.255%**; 8192f - 3 seeds, mean 0.041990,
@@ -1103,10 +1102,10 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
 
   | run | n | mean ms | median | p95 | max |
   |---|---|---|---|---|---|
-  | C4 local 512f seed17 | 512 | 482.42 | 233.49 | 1521.84 | 12276.06 |
-  | C4 local 2048f seed17 | 2048 | 492.13 | 254.34 | 1543.77 | 13026.02 |
-  | C4 local 8192f seed17 | 8192 | 607.85 | 260.86 | 1686.40 | **240777.66** |
-  | C4 local 8192f seed91 | 8192 | 569.91 | 260.23 | 1611.83 | 92919.68 |
+  | COMPLEX_CASE local 512f seed17 | 512 | 482.42 | 233.49 | 1521.84 | 12276.06 |
+  | COMPLEX_CASE local 2048f seed17 | 2048 | 492.13 | 254.34 | 1543.77 | 13026.02 |
+  | COMPLEX_CASE local 8192f seed17 | 8192 | 607.85 | 260.86 | 1686.40 | **240777.66** |
+  | COMPLEX_CASE local 8192f seed91 | 8192 | 569.91 | 260.23 | 1611.83 | 92919.68 |
 
   **The tail IS the story:** median ~260 ms but mean ~600 ms (2.3x), p95 ~1.6 s, and a
   worst frame of **240.8 s** (4 minutes) mid-run - i.e. wall-clock cost is dominated by
@@ -1118,20 +1117,20 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
 
   **2e REPORT - GPU-half plan (recorded BEFORE running, 2026-11-20).** Baseline:
   Theia `5f87de5`, Harmonia `6597af0`, Hyperion `5efe43f`; builds green; no GPU job
-  running; both trees clean. The Hyperion 4096spp reference (`ref_C4_final_4096.exr`)
+  running; both trees clean. The Hyperion 4096spp reference (`ref_COMPLEX_CASE_final_4096.exr`)
   stays VALID for all sections (the vfov fix was Theia-side; Hyperion always had 39.1).
   Existing artifacts are NOT overwritten (fresh sections write new file prefixes; the
   galleries render to build dirs, leaving the tracked `screenshots/` untouched until
   the owner decides). One GPU app at a time, sections in dependency order:
   1. **V - variance/energy/tail re-sweep on the CURRENT build** (closes the
-     measurement half's caveat that its candidates were pre-vfov-fix): Theia C4
+     measurement half's caveat that its candidates were pre-vfov-fix): Theia COMPLEX_CASE
      local, 512f, seeds 17/91/1234/2026, 320x240, `--validation`, prefix
-     `cur_C4_local_512_*`; then CPU-recompute the three sections and report them
+     `cur_COMPLEX_CASE_local_512_*`; then CPU-recompute the three sections and report them
      next to the recorded pre-fix numbers (no threshold: report deltas).
   2. **T-a - temporal stability, same instrument as C1-C3:**
-     `python tools/qualify_sms.py --stage stability --case C4` (same-seed
+     `python tools/qualify_sms.py --stage stability --case COMPLEX_CASE` (same-seed
      determinism = pixel-identical, 4-seed ROI energy spread reported; 64f reuse).
-  3. **T-b - sequence flicker capture the measurement half named:** Theia C4,
+  3. **T-b - sequence flicker capture the measurement half named:** Theia COMPLEX_CASE,
      `--sequence-frames 16 --offscreen-frames 64`, 320x240, seed 17, BOTH modes
      (local + reuse) -> 16 EXRs each; report per-frame ROI energy (mean/std/rel),
      consecutive-frame pixel deltas (mean/max = flicker), first->last drift, and
@@ -1139,10 +1138,10 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
      across-seed spread (1.255% @512f) as context. Question answered: does SMS
      reuse flicker or drift across time?
   4. **E - equal-time:** `python tools/qualify_sms.py --stage performance --case
-     C4` (existing acceptance verbatim: reuse must reduce ROI-MSE vs local at
+     COMPLEX_CASE` (existing acceptance verbatim: reuse must reduce ROI-MSE vs local at
      2.0s AND 8.0s wall time, +-5% timing tolerance, 4 seeds, refinement per seed;
      DRAGON excluded with reason: IBL-only -> no emitter -> SMS never engages ->
-     modes identical by construction, C4 IS the dragon/teapot+emitter case).
+     modes identical by construction, COMPLEX_CASE IS the dragon/teapot+emitter case).
      Outcome either `accepted` (reuse wins) or `no-benefit` (parity - the recorded
      C1/C3 outcome, reported as such, never dressed up).
   5. **G - both galleries (release-approval gate):** Theia
@@ -1157,7 +1156,7 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
 
   **2e section V COMPLETE (2026-11-20) - variance/energy/tail re-sweep on the
   CURRENT build; the measurement half's pre-vfov-fix caveat is closed.
-  `e2_section_v.py`, `cur_C4_local_512_*` prefix (recorded cand_* untouched),
+  `e2_section_v.py`, `cur_COMPLEX_CASE_local_512_*` prefix (recorded cand_* untouched),
   V_EXIT=0, 4 seeds sequential.**
   | metric | recorded pre-fix 512f | CURRENT build 512f (4 seeds) |
   |---|---|---|
@@ -1180,7 +1179,7 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
   numbers below; row 2e's report obligation is now fulfilled end-to-end
   (V variance/energy/tail/runtime + this block). Owner review / release approval
   remains the owner's call, as section 6 of the plan states.**
-  - ***T-a temporal stability*** (`qualify_sms --stage stability --case C4`,
+  - ***T-a temporal stability*** (`qualify_sms --stage stability --case COMPLEX_CASE`,
     **TA_EXIT=0**): prerequisite reference re-recorded after the qualify_sms
     HYBRID edit (provenance tracks runner+HEADs+diffs+exe+shader hashes - it was
     invalidated twice today: by the tool edit, then by the check_arch bump);
@@ -1211,7 +1210,7 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
     (desktop GPU contention - the recorded runtime-tail pathology's third
     sighting after 240.8s and 7210s); frame 4's CONTENT sits inside the band,
     so no metric is affected. No threshold applied (numbers are the report).
-  - ***E equal-time comparison*** (`--stage performance --case C4`; pilots:
+  - ***E equal-time comparison*** (`--stage performance --case COMPLEX_CASE`; pilots:
     off 0.117 s/f, local 0.751 s/f, reuse 0.747 s/f):
 
     | wall target | off (plain PT) | local | reuse |
@@ -1225,7 +1224,7 @@ the two GPU sections are listed as OUTSTANDING rather than invented. Instrument:
     TIE**; the tool records **`no-benefit`** + exit 1 - the same PARITY outcome
     already recorded for C1/C3 (no-benefit = parity, never dressed up). Honest
     context: `off` posts 26x lower MSE at 2s - SMS's 6.4x per-frame cost buys
-    nothing on C4's content at these budgets (C4 was never a claimed SMS-win
+    nothing on COMPLEX_CASE's content at these budgets (COMPLEX_CASE was never a claimed SMS-win
     case; the recorded wins are absorption-prefix chains, C2). Desktop
     contention also contaminated some seeds' wall times (local@8s: 3.70s and
     12.64s vs 8s targets) - timing flags recorded in the manifest results.
@@ -1332,14 +1331,14 @@ recursive temporal merge" is the standing Governance rule (path-reservoir no-tem
 SMS temporal is the published method). GPU serial; no tolerances loosened.
 
 **2e complex-scene divergence - verification plan (recorded BEFORE edits, Theia
-HEAD pending the fix, 2026-11-18):** the C4 integration exposed a real cross-renderer
+HEAD pending the fix, 2026-11-18):** the COMPLEX_CASE integration exposed a real cross-renderer
 divergence: Theia-vs-Hyperion on the complex scene = **~48x** energy in the ROI (Hyperion
 reference mean 0.0147 vs Theia 0.458; edge-structure layout agrees - same camera/scene -
 so it is a light-handling divergence, not a camera/geometry one). Root cause (traced):
 every fixture/gallery emitter is a closed box -> `planarity < 0.5` -> Theia's
 `synthesizeEmissiveLights` emits a **point** at the centroid (`intensity = L*pi*r^2`,
 r = vertex-radius) while Hyperion lights from the true emissive triangles; a point is a
-delta source, so near-field specular content (the C4 gem/ceramic ROI) blows out while
+delta source, so near-field specular content (the COMPLEX_CASE gem/ceramic ROI) blows out while
 C1-C3's diffuse-only ROIs certified it at 1.16. The forward shader already documents the
 failure mode ("A single point approximation produces a hard 1/dist^2 hotspot; integrating
 over the extended source ... matches Hyperion's emissive-mesh result") and provides
@@ -1350,29 +1349,29 @@ faces of FLAT-THIN emissive shapes (min AABB extent <= 0.25 * second extent) as
 blobby shapes; rotated-thin shapes conservatively stay point). Ownership check recorded:
 rects hand off to ReSTIR-DI under `skipRectLights` (DI's triangle set includes
 flag-true materials), forward owns them otherwise; the triangle set and GI paths are
-untouched. Acceptance (all must pass): (1) C4 strict-AND parity gate PASS (mean <= 120,
+untouched. Acceptance (all must pass): (1) COMPLEX_CASE strict-AND parity gate PASS (mean <= 120,
 rel <= 250, SSIM >= 0.6, hist >= 0.8) via `tools/compare_renders.py`; (2) C1-C3
 correctness stages still pass their 2% bias gates after re-render (point->rect changes
 their lighting too - all three emitters are thin boxes); (3) the 14-scene manifest gate
 14/14 via `tools/render_and_validate.py`; (4) Theia module suite green; clang-format
 22.1.3 clean. GPU serial.
 
-**2e C4 residual #3 - camera VFOV fallback divergence - VERIFICATION PLAN
-(2026-11-19, recorded before the fix edit):** *Failure:* the staged C4 fixture's
+**2e COMPLEX_CASE residual #3 - camera VFOV fallback divergence - VERIFICATION PLAN
+(2026-11-19, recorded before the fix edit):** *Failure:* the staged COMPLEX_CASE fixture's
 `[camera] reference = "presets/openpbr_studio_near.camera.toml"` cannot resolve
 (staged dirs ship without `presets/` - Aether `resolveSection` falls back silently to
 inline keys), so the two applications take their DIVERGENT vfov fallbacks: Theia
 `Application.cpp` `cam.vfov.value_or(45.0f)` vs Hyperion `Application.cpp`
 `value_or(kCornellVfovDeg)` = **39.1f** -> a 5.9-degree projection mismatch on every
-preset-less scene; the C4 parity gate therefore compared MISALIGNED projections.
+preset-less scene; the COMPLEX_CASE parity gate therefore compared MISALIGNED projections.
 *Evidence (post camera-ev fix, projection untouched):* reference emitter pixels row
 mode y=31 vs candidate y=43 (x-span 39-222 vs 59-248); the earlier content-alignment
 probe measured horizontal dx=0 corr 0.885 but vertical dy=-32 corr 0.366 - a vertical
 parallax signature consistent with wrong vfov, not transport. C1-C3 carry inline
 `vertical_field_of_view = 43` (no fallback) and the 14 manifest scenes resolve
 `assets/presets/` next to their scenes - both classes are immune. *Consequence for the
-in-flight battery:* the C4 correctness verdict was MOOT (projection-mismatched
-comparison regardless of pass/fail) - the C4 stage was stopped after seed 17/91/1234
+in-flight battery:* the COMPLEX_CASE correctness verdict was MOOT (projection-mismatched
+comparison regardless of pass/fail) - the COMPLEX_CASE stage was stopped after seed 17/91/1234
 partials (local @512 pooled [0.985, 0.978, 0.979], @2048 [0.982, 0.970, 0.975],
 CORRECTNESS_EXIT=-1 recorded); manifest + suite continue because they are independent
 of this defect. *Fix (same family as the camera-ev parity fix, parameter-driven):*
@@ -1382,14 +1381,14 @@ scene without a resolvable camera preset renders through the SAME lens in both
 engines. Alternative recorded but not chosen (heavier): stage `presets/` copies in
 `qualify_sms.py` so the authored 50-degree value applies to both - needs cross-repo
 staging changes and does not fix hand-made probe scenes. *Acceptance:* build green,
-suite 64/64, reference stage re-run (provenance), C4 correctness full ladder green
+suite 64/64, reference stage re-run (provenance), COMPLEX_CASE correctness full ladder green
 (energy band +-2%) + strict-AND gates PASS, emitter row-mode aligned between engines,
 C1-C3 re-cert unchanged (inline vfov -> byte-identical), manifest 14/14 still green;
 GPU strictly serial (Theia rebuild only after the running manifest stage releases the
 executable); commits only, no push.
 
-**2e C4 residual #2 - energy-bias gate - VERIFICATION PLAN (2026-11-19, recorded
-before the fix edit):** *Failure:* post camera-fix correctness stage: C4 local@8192f
+**2e COMPLEX_CASE residual #2 - energy-bias gate - VERIFICATION PLAN (2026-11-19, recorded
+before the fix edit):** *Failure:* post camera-fix correctness stage: COMPLEX_CASE local@8192f
 pooled ROI-energy ratios [0.969, 0.931, 0.960] vs the Hyperion reference (tolerance
 +-2%, pooled SE 0.0057 - genuine converged bias); C1-C3 exit 0. *Decomposition
 (single-variable ablations, all post-fix at equal exposure):* direct term
@@ -1412,24 +1411,24 @@ the forward skip uses (gi push `restirDiEnabled`): guard keeps today's break whe
 forward owns direct; when DI/PT owns direct the walk instead adds the term through the
 SHARED `evalEmissionGuarded` at bounce+primaryCharge depth (specular -> adds, exactly
 Hyperion's depth-1 rule; non-specular -> 0 + terminate, the existing emission guard,
-so no double count with the non-delta reservoir). *Acceptance:* correctness C1-C4 all
-exit 0 (C4 local+reuse @8192f within +-2% per channel), C4 strict-AND gates still PASS
+so no double count with the non-delta reservoir). *Acceptance:* correctness C1-COMPLEX_CASE all
+exit 0 (COMPLEX_CASE local+reuse @8192f within +-2% per channel), COMPLEX_CASE strict-AND gates still PASS
 (pure + correctness configs), module suite 64/64, C1-C3 re-cert unchanged-green; then
 re-measure the two recorded open residuals (teapot-only walk ~1.20x, D3-D6 ~0.86) and
 either clear them or open the next unit. Forward analytic direct ~0 stays a recorded
 follow-up (qualification configs are DI/PT-owned).
 
-**2e C4 residual - VERIFICATION PLAN (2026-11-18, recorded before the fix edit):**
+**2e COMPLEX_CASE residual - VERIFICATION PLAN (2026-11-18, recorded before the fix edit):**
 *Root cause (self-calibrating unit-banner probes, E=1-per-walk invariant):* on scenes
 whose `[camera] reference = "presets/..."` fails to resolve (staged/probe scenes have no
-`presets/` beside them - including the qualification's own staged C4 fixture), the two
+`presets/` beside them - including the qualification's own staged COMPLEX_CASE fixture), the two
 applications fall back to DIFFERENT physical-camera defaults: Theia
 `Application.cpp:373` does `cameraEv100.value_or(7.0f)` -> `fromEv100(7)` -> exposure
 6.51073e-3 (banner-measured EXACT); Hyperion `buildCamera` keeps the default
 `PhysicalCamera{}` (aperture 8, shutter 100, iso 100) -> EV100 = log2(6400) = 12.64 ->
 exposure 1.302e-4 (banner-increment 0.1335/1000 = 1.335e-4 measured) = **50x systematic
 brightness divergence**. C1-C3/C5 carry inline `ev100 = 7` (both engines identical), so
-only the C4 fixture (preset-reference camera, staged without presets/) hits the split -
+only the COMPLEX_CASE fixture (preset-reference camera, staged without presets/) hits the split -
 matching every measured ratio (gate mean 0.476/0.0147 ~ 32-50x diluted; probe trail
 30-65x = 50x exposure x ~1.3x structural). Single-variable ablations already proved the
 light transport itself healthy (walk parity C1 1.002 / C5 0.997 at equal exposure;
@@ -1437,21 +1436,21 @@ pass-rates and per-event medians equal across engines; Hyperion converged 64~204
 *Fix (parameter-driven, no hacks):* make Theia's fallback mirror Hyperion's - apply
 `fromEv100` ONLY when `sceneConfig.cameraEv100` is present, else keep the shared
 `PhysicalCamera{}` struct default (identical knob semantics in both apps; scenes with an
-explicit ev100 or resolvable preset are unaffected). *Acceptance:* (1) C4 strict-AND
+explicit ev100 or resolvable preset are unaffected). *Acceptance:* (1) COMPLEX_CASE strict-AND
 gate (mean<=120, rel<=250, SSIM>=0.6, hist>=0.8) on the qualify correctness config
-re-render vs the stored `ref_C4_final_4096` (Hyperion, ev12.64); (2) exposure-parity
-probe: equal unit-banner EXR values across engines on the staged C4 scene; (3) C1-C3
+re-render vs the stored `ref_COMPLEX_CASE_final_4096` (Hyperion, ev12.64); (2) exposure-parity
+probe: equal unit-banner EXR values across engines on the staged COMPLEX_CASE scene; (3) C1-C3
 re-cert chain exit 0 (inline-ev scenes, must stay green); (4) 14/14 manifest gate;
 (5) Theia module suite 64/64. Note (found along the way, separate follow-up): the
 forward analytic RectLight direct path measures ~0 (ownership bit1 skips it whenever
 ReSTIR DI/PT is on, so the qualification configs are unaffected).
 
-**2e interim receipt (2026-11-18) - battery green, C4 residual root-caused by
+**2e interim receipt (2026-11-18) - battery green, COMPLEX_CASE residual root-caused by
 elimination:** *Battery (post rect-fix):* C1-C3 re-certification chain exit 0 (references
 re-accepted at 4096 spp, uncertainty 0.0043/0.0039/0.00047; bias gates at 8192f: C1
 1.0040/1.0036, C2 0.9911/0.9910, C3 1.0015 - all within 2%); 14-scene manifest gate
 **14/14 PASS, 0 VUID** (`render_and_validate.py`, incl. the emissive `shaderball_emission`);
-Theia module suite **64/64**; clang-format 22.1.3 clean. *C4 gate still FAIL* (mean
+Theia module suite **64/64**; clang-format 22.1.3 clean. *COMPLEX_CASE gate still FAIL* (mean
 119.45/120, rel-MSE 471.3/250, SSIM 0.573/0.6, hist 0.994/0.8) - investigation trail,
 each step a single-variable ablation (owner law: no hacks, parameter-driven): (1) SMS off
 moves rel-MSE 471->296 (SMS is a minority contributor); (2) DI off changes nothing
@@ -1463,13 +1462,13 @@ set via ReSTIR-PT, so the forward skips its analytic proxies in ALL configuratio
 prediction 5.5x - physically correct), Theia scales 11.12x (ratio 1.163 -> 2.173 - the
 over-light grows with emitter extent, physics-defying); (5) forward-rect contribution
 measured ≈ 0 (DI/PT-off run 13.37 vs DI/PT-on 13.83 - forward adds nothing measurable).
-*Conclusion:* the ~2.1x over-light (and C4's 8-45x on specular content) lives **inside the
+*Conclusion:* the ~2.1x over-light (and COMPLEX_CASE's 8-45x on specular content) lives **inside the
 GI stack's own emissive candidate/MIS mirror** (`gi.comp sampleEmissiveCandidate`/
 `estimateGiSample` and their `evalEmissiveTriangleNEE`/`evalEmissiveSphereNEE` mirrors)
 against the shared path_integrator Hyperion uses - not the reservoirs, not the synthesis,
 not SMS alone. *Next roadmap unit:* audit the gi.comp emissive-candidate/MIS mirrors
 against the shared integrator (parameter-driven fix through the existing ownership/MIS
-parameters); the C4 strict-AND gate stays the acceptance. DN3-M4 and the hybrid-shift
+parameters); the COMPLEX_CASE strict-AND gate stays the acceptance. DN3-M4 and the hybrid-shift
 gaps follow in order.
 
 **2d.2 executed receipt (2026-11-18, Theia from `a8c07b9`):** (a) identity/no-reuse controls
@@ -1542,7 +1541,7 @@ and the others are dropped — no parallel candidates, no opt-in alternates, no 
 A "slot" is an operating regime, not a component.
 Current slot assignments: caustics → **GI-SMS** (not GI-BDPT); denoiser
 convergence → **DN3** (not DN2 / DN4);
-multi-bounce Smith → **C4** (dropped 2026-11-16; C10 dropped earlier); guiding → unassigned after **GI-PG**'s removal
+multi-bounce Smith → **COMPLEX_CASE** (dropped 2026-11-16; C10 dropped earlier); guiding → unassigned after **GI-PG**'s removal
 2026-11-15 (it was adjudicated over LS4, then removed – engagement flat/negative);
 LDS → Owen-Sobol' (QMC1/SZ closed 2026-11-16 - no measured Sobol' deficiency; one sequence ships).
 

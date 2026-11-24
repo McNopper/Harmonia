@@ -34,7 +34,7 @@ v0.9.0** (each repo carries its own RELEASE_NOTES.md).
 - The ANI6 sequence gate mirrors the still-gate defaults (now PASS: worst-frame SSIM 0.886).
 
 ### Roadmap hygiene (required-or-drop triage)
-- Dropped as not-required (tombstones carry the evidence): C11, C4, C13, DN8, SAM1, QMC1,
+- Dropped as not-required (tombstones carry the evidence): C11, C13, DN8, SAM1, QMC1,
   VK17. C12 status corrected (shipped v0.7.9). GI-ENH closed (recorded paper-deltas are notes).
 - Kept: C15 (external OpenPBR 1.2 spec obligation) + trigger-gated watchlists.
 

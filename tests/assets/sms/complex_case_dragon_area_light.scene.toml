@@ -1,4 +1,4 @@
-# C4 - complex-scene SMS integration (2e): the dragon_teapot content with a
+# COMPLEX_CASE - complex-scene SMS integration (2e): the dragon_teapot content with a
 # finite area emitter overhead. usesSms requires emitterCount != 0, so the
 # IBL-only Aether asset can never engage SMS (it runs plain PT - recorded in
 # the 2e receipts); this fixture gives the manifold a finite target while
