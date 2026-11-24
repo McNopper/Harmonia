@@ -20,12 +20,12 @@ Coordinates with **Aether v0.12.0, slang-math v0.12.0, Theia v0.12.0, Hyperion v
 
 ## Gallery
 - Hyperion: **30/30 byte-identical** to the tracked README gallery.
-- Theia: **23/30 byte-identical**; seven images contain speckle-level changes only and are
-  staged in the working tree for owner visual review.
+- Theia: **23/30 byte-identical**; seven images contain speckle-level changes only and were
+  approved after owner visual review.
 
 ## Release mechanics
-- Local release-preparation commits only. Push and `v0.12.0` tags wait for the owner's
-  screenshot approval.
+- Local release-preparation commits. Owner screenshot review complete; push and `v0.12.0`
+  tags proceed together.
 
 ---
 
