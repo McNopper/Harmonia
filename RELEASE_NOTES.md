@@ -1,3 +1,34 @@
+# Harmonia v0.12.0 (2026-11-24) - minor release
+
+Shared Vulkan pipeline library release for CAM-1 scene-camera assembly deduplication.
+Coordinates with **Aether v0.12.0, slang-math v0.12.0, Theia v0.12.0, Hyperion v0.12.0**.
+
+## Shipped
+- `harmonia::renderer::CameraAssembly` owns static `SceneLoader::SceneConfig` interpretation
+  and evaluated ANI8 camera placement. Pose, up, vfov, EV100 and scene-scale near/far
+  semantics now have one definition consumed by both renderers.
+- Theia and Hyperion retain their renderer-specific controllers, jitter, accumulation/view
+  gates and presentation behavior.
+- Documentation and roadmap are aligned with the shipped camera and release state.
+
+## Receipts
+- Shared camera assembly: **7/7** tests.
+- Harmonia: **191/191**; Theia: **67/67**; Hyperion: **79/79**.
+- Architecture and format gates clean in all three consuming repositories.
+- Direct capture identity: `mean_diff=0`, `rel_mse=0`, `SSIM=1.0`, `PSNR=inf`.
+- Parity: **14/14 PASS**. Full-gallery Vulkan validation: **60/60 clean**.
+
+## Gallery
+- Hyperion: **30/30 byte-identical** to the tracked README gallery.
+- Theia: **23/30 byte-identical**; seven images contain speckle-level changes only and are
+  staged in the working tree for owner visual review.
+
+## Release mechanics
+- Local release-preparation commits only. Push and `v0.12.0` tags wait for the owner's
+  screenshot approval.
+
+---
+
 # Harmonia v0.9.0 (2026-11-16) - minor release
 
 The shared Vulkan pipeline library release for the *animation + deformation* wave and the
