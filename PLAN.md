@@ -1627,9 +1627,9 @@ indict the estimator. (Akin to the low-spp reference trap, Aether/AGENTS.md.)
 ### 5.8 Vulkan capability adoption — newly available on the dev GPU
 
 **Grounding:** verified via `vulkaninfo` on the dev target — **NVIDIA RTX 5070, driver
-621.24 (current; installed 2026-11-07), apiVersion 1.4.357, conformance 1.4.3.3
-(SDK 1.4.363.1, slang 2026.17)** (earlier groundings: driver 621.14, 621.01, 617.42 / 616.92,
-and RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Driver 621.24 re-audit (2026-11-17,
+621.40 (current; installed 2026-11-24), apiVersion 1.4.357, conformance 1.4.3.3
+(SDK 1.4.363.1, slang 2026.17)** (earlier groundings: driver 621.24, 621.14, 621.01,
+617.42 / 616.92, and RTX 4050 Laptop, driver 610.88 / 1.4.341; superseded). Driver 621.24 re-audit (2026-11-17,
 receipt `tools/check_vk_extensions.py`): **295 device extensions — identical to 621.14/621.01,
 zero arrivals/departures** (230 of them KHR/EXT); every doc-named KHR/EXT extension present
 (the one non-device name, `VK_EXT_debug_utils`, is instance-level — false alarm); every row
@@ -1646,6 +1646,15 @@ present — when absent the renderer simply does not use the capability. This is
 fallback: the alternative branch must be image-identical and effectively free, otherwise the
 capability becomes a hard requirement and device selection fails fast (§8). Adoption never
 biases the image (perf / enabling only) → passes the convergence-to-Hyperion litmus.
+
+**Driver 621.40 re-audit (2026-11-24, driver upgrade from 621.24):** `tools/check_vk_extensions.py`
+exit 0; **295 device extensions / 230 KHR/EXT and 158 unadjudicated device names — identical
+to the 621.24 audit**; every doc-named KHR/EXT extension remains present. NVIDIA's 621.40
+release notes list bug fixes only and advertise no Vulkan extension additions. The recorded
+watchlist feature bits remain enabled (`descriptorHeap` family, `unifiedImageLayouts`,
+`shaderUntypedPointers`, `shaderReplicatedComposites`, `shader64BitIndexing`, `longVector`,
+`presentTiming`), so no capability-watchlist trigger changed. **Conclusion: no extension was
+added or removed.**
 
 **Full-avenue re-audit (2026-11-17, driver 621.24 — every KHR/EXT name, §8 guardrail):**
 the review covered the driver's whole KHR/EXT surface, not just this table: **295 device
@@ -1708,7 +1717,7 @@ per-present fences + `vkReleaseSwapchainImagesEXT` let resize retire the old swa
 without a device idle; the present-scaling half stays out (probe found 0 scaling modes on
 the reference GPU).
 
-**Capability audit (SDK 1.4.363.0 / driver 621.01 — 295 device extensions, slang 2026.17; rows re-verified present on 621.14 (2026-11-06) and 621.24 (2026-11-17, unchanged surface); renames vs the previous audit: `host_image_copy` is Vulkan 1.4 core (string retired, feature required by MOD3 anyway), `unified_image_layouts` and `pipeline_binary` are KHR core-track now, `present_timing` moved back to EXT; arrivals: maintenance9/10/11, cooperative matrix/vector family, subgroup partitioned).**
+**Capability audit (SDK 1.4.363.0 / driver 621.01 — 295 device extensions, slang 2026.17; rows re-verified present on 621.14 (2026-11-06), 621.24 (2026-11-17) and 621.40 (2026-11-24, unchanged surface); renames vs the previous audit: `host_image_copy` is Vulkan 1.4 core (string retired, feature required by MOD3 anyway), `unified_image_layouts` and `pipeline_binary` are KHR core-track now, `present_timing` moved back to EXT; arrivals: maintenance9/10/11, cooperative matrix/vector family, subgroup partitioned).**
 The .363 spec revision itself adds only `VK_INTEL_device_info` (vendor → excluded); the rows
 below capture the cross-vendor arrivals now verified present on this GPU. Verified present
 but excluded by the cross-vendor guardrail (§8): `VK_NV_cluster_acceleration_structure`,
