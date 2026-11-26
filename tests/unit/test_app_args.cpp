@@ -1,6 +1,36 @@
+#include <fstream>
 #include <gtest/gtest.h>
 
 #include "harmonia/app/App.hpp"
+
+TEST(AppArgs, SceneArgumentNamesASceneInTheAssetsDirectory) {
+    namespace fs = std::filesystem;
+    const fs::path assets = fs::temp_directory_path() / "harmonia_scene_arg_assets";
+    fs::create_directories(assets / "export");
+    {
+        std::ofstream(assets / "cornell_classic.scene.toml");
+    }
+    {
+        std::ofstream(assets / "export" / "city.scene.toml");
+    }
+    harmonia::app::App::Config config;
+    config.assetsDir = assets;
+
+    // The bare name of a scene in the assets root ...
+    EXPECT_EQ(harmonia::app::CliParser::resolveScenePath(config, "cornell_classic"),
+              assets / "cornell_classic.scene.toml");
+    // ... a path into a subdirectory of it (a Blender export is one folder) ...
+    EXPECT_EQ(harmonia::app::CliParser::resolveScenePath(config, "export/city"), assets / "export" / "city.scene.toml");
+    EXPECT_EQ(harmonia::app::CliParser::resolveScenePath(config, "export/city.scene.toml"),
+              assets / "export" / "city.scene.toml");
+    // ... and an existing path (absolute, or relative to the working directory) as-is.
+    const fs::path existing = assets / "export" / "city.scene.toml";
+    EXPECT_EQ(harmonia::app::CliParser::resolveScenePath(config, existing), existing);
+    // Not found anywhere: against the assets root, where the loader diagnoses it.
+    EXPECT_EQ(harmonia::app::CliParser::resolveScenePath(config, "no_such_scene"), assets / "no_such_scene.scene.toml");
+
+    fs::remove_all(assets);
+}
 
 TEST(AppArgs, EnablesDisplayOverlayFlag) {
     harmonia::app::App::Config config;

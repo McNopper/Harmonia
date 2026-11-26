@@ -15,6 +15,28 @@
 
 namespace harmonia::app {
 
+std::filesystem::path CliParser::resolveScenePath(const AppConfig& config, const std::filesystem::path& sceneFile) {
+    std::filesystem::path resolved =
+        sceneFile.empty() ? std::filesystem::path("cornell_classic.scene.toml") : sceneFile;
+    std::error_code ec;
+    if (std::filesystem::exists(resolved, ec)) {
+        return resolved;
+    }
+    const auto withExtension = [](std::filesystem::path candidate) {
+        if (!candidate.string().ends_with(".scene.toml")) {
+            candidate += ".scene.toml";
+        }
+        return candidate;
+    };
+    if (resolved.has_parent_path()) {
+        const std::filesystem::path inside = withExtension(config.assetsDir / resolved);
+        if (std::filesystem::exists(inside, ec)) {
+            return inside;
+        }
+    }
+    return withExtension(config.assetsDir / resolved.filename());
+}
+
 namespace {
 
 // Parse a base-10 integer from a CLI argument, clamped to >= 1. Reports parse

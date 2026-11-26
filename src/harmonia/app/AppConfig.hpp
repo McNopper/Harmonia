@@ -47,7 +47,7 @@ struct AppConfig {
     /// recreate their targets yet should keep this off.
     bool resizable = true;
     std::filesystem::path assetsDir;  ///< canonical Aether asset collection
-    std::filesystem::path sceneFile;  ///< bare names are resolved against assetsDir (+ ".scene.toml")
+    std::filesystem::path sceneFile;  ///< a path, or a name / subdirectory path inside assetsDir
     std::filesystem::path outputFile; ///< non-empty: offscreen render (EXR + PNG), then exit
     /// Force off all post-processing stages (the shared denoiser/A-SVGF stage and
     /// renderer-side TAA) so the displayed image is the raw estimator result — the

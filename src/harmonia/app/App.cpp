@@ -532,20 +532,7 @@ std::uint64_t App::denoiserResetToken() const noexcept {
 }
 
 std::filesystem::path App::resolveScenePath(const std::filesystem::path& sceneFile) const {
-    // Absolute/existing path is used as-is; otherwise the bare name (with an
-    // optional ".scene.toml" extension) is looked up in the assets directory —
-    // the canonical Aether asset collection.
-    std::filesystem::path resolved =
-        sceneFile.empty() ? std::filesystem::path("cornell_classic.scene.toml") : sceneFile;
-    std::error_code ec;
-    if (!std::filesystem::exists(resolved, ec)) {
-        std::filesystem::path candidate = m_config.assetsDir / resolved.filename();
-        if (!candidate.string().ends_with(".scene.toml")) {
-            candidate += ".scene.toml";
-        }
-        resolved = candidate;
-    }
-    return resolved;
+    return CliParser::resolveScenePath(m_config, sceneFile);
 }
 
 bool App::loadScene(const std::filesystem::path& sceneFile) {
@@ -599,7 +586,8 @@ bool App::loadScene(const std::filesystem::path& sceneFile) {
     // IBL environment map (shared descriptor wiring lives here; renderers
     // consume the probe via iblProbe()).
     if (sceneConfig->envMapFile) {
-        const auto envPath = m_config.assetsDir / *sceneConfig->envMapFile;
+        // Resolved by the loader: the scene's directory, then the assets directory.
+        const std::filesystem::path envPath = *sceneConfig->envMapFile;
         auto probe =
             scene::IblProbe::loadFromEXR(m_context.deviceContext(), m_commandPool, envPath, m_workingColorSpace);
         if (!probe) {
