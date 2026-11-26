@@ -196,6 +196,53 @@ std::expected<std::uint64_t, VkResult> App::renderSceneReferred() {
     return signalValue;
 }
 
+namespace {
+
+// SplitMix64 finalizer over the seed, the output frame and the stratum: a
+// uniform in [0, 1) that is reproducible from --rng-seed.
+[[nodiscard]] double stratumJitter(std::uint32_t seed, std::uint32_t frame, std::uint32_t stratum) noexcept {
+    std::uint64_t z = (static_cast<std::uint64_t>(seed) * 0x9E3779B97F4A7C15ULL) ^
+                      (static_cast<std::uint64_t>(frame) + 1ULL) * 0xBF58476D1CE4E5B9ULL ^
+                      (static_cast<std::uint64_t>(stratum) + 1ULL) * 0x94D049BB133111EBULL;
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    z ^= z >> 31;
+    return static_cast<double>(z >> 11) * (1.0 / 9007199254740992.0);
+}
+
+} // namespace
+
+App::AnimationClock App::sequenceSampleClock(const AppConfig& config,
+                                             double fps,
+                                             std::uint32_t outputFrame,
+                                             std::uint32_t sample) noexcept {
+    const double safeFps = fps > 0.0 ? fps : 30.0;
+    const std::uint32_t tick = config.animationStartFrame + outputFrame;
+    AnimationClock clock;
+    double frameInterval;
+    if (config.captureIntervalMs > 0.0) {
+        frameInterval = config.captureIntervalMs / 1000.0;
+        const double start = config.captureStartSeconds >= 0.0
+                                 ? config.captureStartSeconds
+                                 : static_cast<double>(config.animationStartFrame) / safeFps;
+        clock.seconds = start + static_cast<double>(outputFrame) * frameInterval;
+        clock.key = static_cast<std::uint64_t>(std::llround(clock.seconds * 1'000'000.0));
+    } else {
+        frameInterval = 1.0 / safeFps;
+        clock.seconds = static_cast<double>(tick) / safeFps;
+        clock.key = tick;
+    }
+
+    if (config.shutter > 0.0f && config.timeSamples > 1U) {
+        const std::uint32_t stratum = sample % config.timeSamples;
+        const double open = static_cast<double>(config.shutter) * frameInterval;
+        clock.seconds += open * (static_cast<double>(stratum) + stratumJitter(config.rngSeed, outputFrame, stratum)) /
+                         static_cast<double>(config.timeSamples);
+        clock.key = static_cast<std::uint64_t>(std::llround(clock.seconds * 1'000'000.0));
+    }
+    return clock;
+}
+
 int App::renderOffscreen() {
     if (m_config.captureIntervalMs > 0.0 && m_config.sequenceFrames == 0U) {
         // Time-based capture only makes sense as a SEQUENCE of samples (the
@@ -206,6 +253,31 @@ int App::renderOffscreen() {
         return 1;
     }
     const std::uint32_t frameCount = offscreenFrameCount();
+
+    // A shutter integrates motion over the exposure: it needs a sequence (a
+    // still has no motion to integrate), more than one time sample (one sample
+    // is an instant) and an accumulation sample for each time sample.
+    if (m_config.shutter > 0.0f) {
+        if (m_config.sequenceFrames == 0U) {
+            core::Logger::error("--shutter requires --sequence-frames: a still has no motion to integrate");
+            return 1;
+        }
+        if (m_config.timeSamples < 2U) {
+            core::Logger::error("--shutter requires --time-samples >= 2: one time sample is an instant");
+            return 1;
+        }
+        if (frameCount < m_config.timeSamples) {
+            core::Logger::error("--time-samples ({}) exceeds the accumulation samples per output frame ({}) - each "
+                                "time sample needs at least one; raise --offscreen-frames or lower --time-samples",
+                                m_config.timeSamples,
+                                frameCount);
+            return 1;
+        }
+    } else if (m_config.timeSamples > 1U) {
+        core::Logger::error(
+            "--time-samples requires --shutter > 0: without a shutter every time sample renders the same instant");
+        return 1;
+    }
     core::Logger::info("Offscreen render: {} frame(s) -> {}", frameCount, m_config.outputFile.string());
 
     // VK21 guard: warn when a device-local heap is near its budget before a large
@@ -251,6 +323,7 @@ int App::renderOffscreen() {
     // (already logged + device quiesced).
     const auto renderBatch = [&](std::uint32_t count) -> int {
         for (std::uint32_t i = 0; i < count; ++i) {
+            m_sequenceSample = i; // with a shutter, this places the sample inside the exposure
             const auto frameStarted = std::chrono::steady_clock::now();
             const auto rendered = renderSceneReferred();
             if (!rendered) {
@@ -293,16 +366,22 @@ int App::renderOffscreen() {
     // ANI7 sequence render: one INDEPENDENT accumulation per animation frame. The
     // animation tick is pinned to the OUTPUT frame (animationFrameIndex()), not the
     // accumulation sample index, so all `frameCount` samples of output frame k render
-    // the same scene state at t = k / animationFps (box shutter at the frame start -
-    // the renderer's setAnimationTime consumes the pinned index). Each output frame
-    // restarts accumulation via resetAccumulation() - static scenes included, the
-    // frames are independent captures.
+    // the same scene state at t = k / animationFps - unless a shutter is set, in
+    // which case the samples are spread over the exposure at their own times
+    // (sequenceSampleClock) and still accumulate into the one frame. Each output
+    // frame restarts accumulation via resetAccumulation() - static scenes included,
+    // the frames are independent captures.
     if (m_config.sequenceFrames > 0U) {
         core::Logger::info("ANI7 sequence: {} animation frame(s) x {} accumulation frame(s) -> '{}_0000{}'",
                            m_config.sequenceFrames,
                            frameCount,
                            m_config.outputFile.stem().string(),
                            m_config.outputFile.extension().string());
+        if (m_config.shutter > 0.0f) {
+            core::Logger::info("Shutter: {:.2f} of the frame interval, {} time sample(s) per output frame",
+                               m_config.shutter,
+                               m_config.timeSamples);
+        }
         m_sequenceActive = true;
         bool ok = true;
         for (std::uint32_t k = 0U; k < m_config.sequenceFrames; ++k) {

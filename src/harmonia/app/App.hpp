@@ -181,40 +181,60 @@ class App {
         return m_config.animationStartFrame + (m_sequenceActive ? m_sequenceFrame : m_frameIndex);
     }
 
-    /// THE animation clock (ANI7/ANI8) - the ONE source of animation time for
-    /// EVERY consumer: scene stamping, deformation, TLAS refit and the
-    /// scripted camera. One call derives the time AND its change key together,
-    /// so a key/seconds pair can never disagree - the bug class of parallel
-    /// per-consumer time logic. Two capture modes, one formula each:
-    ///   * interval capture (--capture-every-ms, sequence mode only -
-    ///     renderOffscreen rejects the flag without --sequence-frames):
-    ///     start + outputFrame * interval, start = --start-seconds else
-    ///     --frame / fps - sub-frame and multi-frame sampling alike;
-    ///   * otherwise the tick grid: animationFrameIndex() / fps (ANI2/ANI7/
-    ///     ANI8 semantics unchanged).
-    /// `key` changes iff the sampled time changes (microsecond-quantized in
-    /// interval mode, the tick index otherwise).
+  public:
+    /// THE animation clock - the ONE source of animation time for EVERY
+    /// consumer: scene stamping, deformation, TLAS refit and the scripted
+    /// camera. One call derives the time AND its change key together, so a
+    /// key/seconds pair can never disagree.
     struct AnimationClock {
         double seconds = 0.0;  ///< animation time this output frame renders at
         std::uint64_t key = 0; ///< monotonic change key for the guards
     };
 
+    /// The animation time one accumulation sample of one output frame renders
+    /// at in a sequence capture. Pure: the same arguments give the same result,
+    /// so a capture is reproducible from --rng-seed.
+    ///
+    /// The output frame's own time comes from the capture mode:
+    ///   * interval capture (--capture-every-ms, sequence mode only):
+    ///     start + outputFrame * interval, start = --start-seconds else
+    ///     --frame / fps - sub-frame and multi-frame sampling alike;
+    ///   * otherwise the tick grid: (--frame + outputFrame) / fps.
+    ///
+    /// With a shutter (--shutter > 0 and at least two --time-samples) the
+    /// frame's samples are spread over the open shutter: sample i falls in the
+    /// i-th of timeSamples equal strata of [frame time, frame time + shutter x
+    /// frame interval), at a jittered position inside its stratum. Stratified
+    /// and jittered, so the exposure integral is unbiased for any motion and
+    /// better distributed than white noise. The frame interval is the capture
+    /// interval, or 1 / fps on the tick grid. The jitter depends on the RNG
+    /// seed, the output frame index and the stratum: two captures with the
+    /// same seed, in either renderer, integrate the same instants.
+    ///
+    /// `key` changes iff the sampled time changes (microsecond-quantized in
+    /// interval and shutter mode, the tick index otherwise).
+    [[nodiscard]] static AnimationClock
+    sequenceSampleClock(const AppConfig& config, double fps, std::uint32_t outputFrame, std::uint32_t sample) noexcept;
+
+    /// The clock for the sample being rendered. Outside a sequence capture it
+    /// is the raw per-render-frame tick (deterministic; interactive use).
     [[nodiscard]] AnimationClock animationClock(double fps) const noexcept {
-        const double safeFps = fps > 0.0 ? fps : 30.0;
-        AnimationClock clock;
-        if (m_config.captureIntervalMs > 0.0 && m_sequenceActive) {
-            const double start = m_config.captureStartSeconds >= 0.0
-                                     ? m_config.captureStartSeconds
-                                     : static_cast<double>(m_config.animationStartFrame) / safeFps;
-            clock.seconds = start + static_cast<double>(m_sequenceFrame) * (m_config.captureIntervalMs / 1000.0);
-            clock.key = static_cast<std::uint64_t>(std::llround(clock.seconds * 1'000'000.0));
-        } else {
-            clock.seconds = static_cast<double>(animationFrameIndex()) / safeFps;
-            clock.key = animationFrameIndex();
+        if (m_sequenceActive) {
+            return sequenceSampleClock(m_config, fps, m_sequenceFrame, m_sequenceSample);
         }
-        return clock;
+        const double safeFps = fps > 0.0 ? fps : 30.0;
+        return AnimationClock{.seconds = static_cast<double>(animationFrameIndex()) / safeFps,
+                              .key = animationFrameIndex()};
     }
 
+    /// True while a sequence capture renders. The capture restarts
+    /// accumulation once per output frame and owns that restart, so a renderer
+    /// must not restart it again inside one: with a shutter the animation tick
+    /// and the camera change from sample to sample within a frame, and all of
+    /// those samples accumulate into the one exposure.
+    [[nodiscard]] bool sequenceCaptureActive() const noexcept { return m_sequenceActive; }
+
+  protected:
     /// Resolve + load a scene file (full path or bare name). Reusable at
     /// runtime for scene switching.
     [[nodiscard]] bool loadScene(const std::filesystem::path& sceneFile);
@@ -326,6 +346,9 @@ class App {
     /// ANI7 sequence render state (set by renderOffscreen, read by
     /// animationFrameIndex): the current OUTPUT frame + active flag.
     std::uint32_t m_sequenceFrame = 0;
+    /// Accumulation sample of the output frame being rendered (0..count-1);
+    /// with a shutter it selects the sample's time inside the frame.
+    std::uint32_t m_sequenceSample = 0;
     /// Interactive flip cadence counter for --frames-per-flip (I6).
     std::uint32_t m_framesSinceFlip = 0;
     bool m_presentTimingLog = false;

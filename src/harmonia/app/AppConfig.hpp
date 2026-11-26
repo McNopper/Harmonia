@@ -59,9 +59,9 @@ struct AppConfig {
     std::uint32_t offscreenFrames = 4;
     /// ANI7 sequence render: >0 renders that many ANIMATION frames to disk instead of
     /// one accumulated capture - per output frame k the animation tick is pinned to k
-    /// (t = k / animationFps, box shutter at the frame start; constant across the
-    /// output frame's accumulation samples), accumulation restarts, and EXR+PNG are
-    /// written as `<output-stem>_0000<ext>` ... `<output-stem>_<k><ext>`.
+    /// (t = k / animationFps; constant across the output frame's accumulation samples
+    /// unless --shutter spreads them over the frame interval), accumulation restarts,
+    /// and EXR+PNG are written as `<output-stem>_0000<ext>` ... `<output-stem>_<k><ext>`.
     /// 0 (default) = the classic single capture. Requires --output.
     std::uint32_t sequenceFrames = 0;
     /// ANI8 `--frame N`: animation START frame - animationFrameIndex() adds this
@@ -80,6 +80,18 @@ struct AppConfig {
     /// Explicit capture start in SECONDS (>= 0); negative (default) = derive
     /// it from --frame / fps as before.
     double captureStartSeconds = -1.0;
+    /// `--shutter`: how long the shutter is open for one output frame of a
+    /// sequence capture, as a fraction of the frame interval (0.5 = a 180
+    /// degree shutter). The frame's accumulation samples are spread over the
+    /// open shutter and each renders at its own jittered time, so motion is
+    /// integrated over the exposure instead of sampled at one instant. 0
+    /// (default) = every sample renders the frame-start instant, as before.
+    /// Requires --sequence-frames and --time-samples >= 2.
+    float shutter = 0.0f;
+    /// `--time-samples`: times per output frame the accumulation samples are
+    /// distributed over when --shutter is set; each needs at least one
+    /// accumulation sample (--offscreen-frames). 1 (default) = off.
+    std::uint32_t timeSamples = 1;
     /// Interactive window: accumulation frames per swapchain flip (1 = one render per
     /// present, the classic cadence). N > 1 converges the DISPLAYED image faster per
     /// flip on a static/slow camera at the cost of flip rate and input latency;

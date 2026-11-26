@@ -294,6 +294,35 @@ bool CliParser::parseRenderQualityArgs(AppConfig& config, int& i, int argc, char
         }
         return true;
     }
+    if (arg == "--shutter") {
+        // Motion blur for a sequence capture: the fraction of one frame interval
+        // the shutter is open (0.5 = a 180 degree shutter). Each accumulation
+        // sample of an output frame then renders at its own time inside it.
+        if (const char* v = next("--shutter")) {
+            try {
+                const float shutter = std::stof(v);
+                if (shutter < 0.0f || shutter > 1.0f) {
+                    core::Logger::error("Invalid value for --shutter (must be within 0..1): {}", v);
+                } else {
+                    config.shutter = shutter;
+                }
+            } catch (...) {
+                core::Logger::error("Invalid value for --shutter: {}", v);
+            }
+        }
+        return true;
+    }
+    if (arg == "--time-samples") {
+        if (const char* v = next("--time-samples")) {
+            std::uint32_t samples = 0U;
+            if (!CliParser::parseUint32(v, samples) || samples == 0U) {
+                core::Logger::error("Invalid value for --time-samples (must be >= 1): {}", v);
+            } else {
+                config.timeSamples = samples;
+            }
+        }
+        return true;
+    }
     if (arg == "--frames-per-flip") {
         if (const char* v = next("--frames-per-flip")) {
             std::uint32_t frames = 0U;

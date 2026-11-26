@@ -105,6 +105,7 @@ add_executable(harmonia_integration_tests
     integration/test_ibl_probe_encoding.cpp
     integration/test_frame_completion_capture.cpp
     integration/test_capture_failures.cpp
+    integration/test_capture_shutter.cpp
 )
 
 target_link_libraries(harmonia_integration_tests
