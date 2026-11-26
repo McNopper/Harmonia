@@ -1,5 +1,6 @@
 #include "harmonia/scene/SceneLoader.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <limits>
@@ -117,11 +118,12 @@ void parseRenderStageToggles(const std::filesystem::path& sceneFile, SceneLoader
     return Aabb{.min = b->min, .max = b->max};
 }
 
-/// One sub-mesh of a declared mesh: its registered mesh index + the OBJ group
-/// name used to resolve per-instance material overrides.
+/// One sub-mesh of a declared mesh: its registered mesh index and the two OBJ
+/// labels a per-sub-mesh material key may address it by.
 struct LoadedSubmesh {
     std::uint32_t meshIndex{};
-    std::string groupName;
+    std::string groupName;    // the `o` / `g` name (empty: procedural meshes)
+    std::string materialName; // the `usemtl` name in effect (empty: none)
     /// ANI4: vertices contributed to the mesh name's TOTAL (summed by the
     /// skin-coverage validation - one declared mesh can split into sub-meshes,
     /// and a [[skin]]'s per-vertex weights span the concatenation in import
@@ -139,10 +141,32 @@ namespace {
 
 using SceneConfig = SceneLoader::SceneConfig;
 
+/// Where a relative path written in a scene file resolves to.
+///
+/// The scene file's directory comes first: a scene and the files it names
+/// usually live together (a Blender export is one folder holding the scene,
+/// its meshes and its material library). The assets directory comes second:
+/// it holds the assets scenes share. An absolute path is used as-is. A file
+/// found in neither is returned against the assets directory, the canonical
+/// location, so the caller's diagnostic names that one.
+[[nodiscard]] std::filesystem::path resolveAsset(const std::filesystem::path& sceneDir,
+                                                 const std::filesystem::path& assetsDir,
+                                                 const std::filesystem::path& rel) {
+    if (rel.is_absolute()) {
+        return rel;
+    }
+    std::error_code ec;
+    if (const std::filesystem::path local = sceneDir / rel; std::filesystem::exists(local, ec)) {
+        return local;
+    }
+    return assetsDir / rel;
+}
+
 /// Everything the scene-load phases share (Extract Class): the resource handles,
 /// the material library, and the cross-phase caches.
 struct SceneLoadContext {
     const std::filesystem::path& assetsDir = std::filesystem::path{};
+    std::filesystem::path sceneDir{};
     const DeviceContext& ctx;
     const core::CommandPool& pool;
     ISceneBuilder& scene;
@@ -151,11 +175,17 @@ struct SceneLoadContext {
     std::unordered_map<std::string, std::uint32_t> texCache{}; // relPath → texture index
     std::unordered_map<std::string, bool> meshAlphaTested{};   // whole-mesh material
     std::unordered_set<std::string> groupAlphaTested{};        // "<mesh>\0<group>"
+    std::unordered_set<std::string> unmatchedGroupKeys{};      // "<mesh>\0<key>", diagnosed once
     std::unordered_map<std::string, std::vector<LoadedSubmesh>> meshSubmeshes{};
     /// sceneInstance → descInstance index, recorded by placeInstances (one desc
     /// instance may expand into several scene instances — one per submesh).
     std::vector<std::uint32_t> instanceMapping{};
 };
+
+/// resolveAsset against this load's scene file and assets directory.
+[[nodiscard]] std::filesystem::path resolveAsset(const SceneLoadContext& c, const std::filesystem::path& rel) {
+    return resolveAsset(c.sceneDir, c.assetsDir, rel);
+}
 
 [[nodiscard]] bool materialIsAlphaTested(const MaterialLibrary& lib, const std::string& name) {
     if (name.empty()) {
@@ -192,12 +222,13 @@ applyWorkingColorSpace(const aether::SceneDesc& desc, const std::filesystem::pat
 }
 
 void loadMaterialLibraries(const aether::SceneDesc& desc,
+                           const std::filesystem::path& sceneDir,
                            const std::filesystem::path& assetsDir,
                            SceneConfig& cfg,
                            MaterialLibrary& lib) {
     // ── Material libraries ────────────────────────────────────────────────────
     for (const std::string& mtllib : desc.mtllibs) {
-        if (!lib.load(assetsDir / mtllib, cfg.workingColorSpace))
+        if (!lib.load(resolveAsset(sceneDir, assetsDir, mtllib), cfg.workingColorSpace))
             core::Logger::warn("SceneLoader: cannot open material library '{}'", mtllib);
     }
 }
@@ -276,7 +307,7 @@ void loadMaterialTextures(SceneLoadContext& c, const std::string& matName) {
         }
 
         auto result = Texture::loadFromFile(
-            c.ctx, c.pool, c.assetsDir / relPath, ref->colorSpace, c.cfg.workingColorSpace, matName);
+            c.ctx, c.pool, resolveAsset(c, relPath), ref->colorSpace, c.cfg.workingColorSpace, matName);
         if (!result) {
             core::Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
             continue;
@@ -309,8 +340,20 @@ void computeAlphaTested(SceneLoadContext& c, const aether::SceneDesc& desc) {
     }
 }
 
-[[nodiscard]] bool isAlphaTested(const SceneLoadContext& c, const std::string& meshName, const std::string& groupName) {
-    return c.meshAlphaTested.contains(meshName) || c.groupAlphaTested.contains(meshName + '\0' + groupName);
+/// A sub-mesh is cutout when its whole-mesh material - or any per-sub-mesh key
+/// that can address it (its `usemtl` label or its `o`/`g` name) - names an
+/// alpha-tested material. Keys are resolved per instance later; erring towards
+/// "alpha-tested" only costs traversal speed, never correctness.
+[[nodiscard]] bool isAlphaTested(const SceneLoadContext& c,
+                                 const std::string& meshName,
+                                 const std::string& groupName,
+                                 const std::string& materialName) {
+    if (c.meshAlphaTested.contains(meshName)) {
+        return true;
+    }
+    const std::string prefix = meshName + '\0';
+    return (!groupName.empty() && c.groupAlphaTested.contains(prefix + groupName)) ||
+           (!materialName.empty() && c.groupAlphaTested.contains(prefix + materialName));
 }
 
 // Resolve the opacity-micromap references of one mesh: fail fast without
@@ -332,7 +375,7 @@ resolveMicromaps(SceneLoadContext& c, const aether::MeshDesc& m) {
     std::unordered_map<std::string, const aether::OpacityMicromapGroup*> ommForGroup;
     std::unordered_map<std::string, const aether::OpacityMicromapData*> parsedOmmFiles;
     for (const auto& [groupName, relPath] : m.opacityMicromaps) {
-        const std::filesystem::path ommPath = c.assetsDir / relPath;
+        const std::filesystem::path ommPath = resolveAsset(c, relPath);
         const std::string key = ommPath.string();
         const aether::OpacityMicromapData* asset = parsedOmmFiles[key];
         if (asset == nullptr) {
@@ -369,7 +412,7 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
         core::Logger::warn("SceneLoader: mesh '{}' has empty path — skipping", m.name);
         return std::nullopt;
     }
-    auto groups = aether::ObjImporter::parse(c.assetsDir / m.objPath);
+    auto groups = aether::ObjImporter::parse(resolveAsset(c, m.objPath));
     if (!groups) {
         core::Logger::error("SceneLoader: cannot open mesh '{}'", m.objPath);
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
@@ -382,7 +425,8 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
         MeshData hmesh = toHarmoniaMesh(g.mesh);
         hmesh.bounds = toHarmoniaBounds(m.bounds);
         const MeshOpacity opacity{
-            .alphaTested = isAlphaTested(c, m.name, g.name),
+            .alphaTested = isAlphaTested(c, m.name, g.name, g.materialName),
+            // Opacity micromaps are addressed by the `o` / `g` name only.
             .micromap = ommForGroup[g.name],
         };
         const std::uint32_t idx = c.scene.addMesh(c.ctx, c.pool, std::move(hmesh), opacity, debugName);
@@ -390,7 +434,7 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
             core::Logger::error("SceneLoader: failed to upload mesh '{}'", debugName);
             return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
         }
-        subs.push_back({idx, g.name, g.mesh.vertices.size()});
+        subs.push_back({idx, g.name, g.materialName, g.mesh.vertices.size()});
     }
     return subs;
 }
@@ -404,12 +448,12 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
     MeshData mesh = harmonia::scene::ProceduralGeometry::makeBox(m.boxHalf); // object space, no bake
     const std::size_t vertexCount = mesh.vertices.size();
     const std::uint32_t idx = c.scene.addMesh(
-        c.ctx, c.pool, std::move(mesh), MeshOpacity{.alphaTested = isAlphaTested(c, m.name, "")}, m.name);
+        c.ctx, c.pool, std::move(mesh), MeshOpacity{.alphaTested = isAlphaTested(c, m.name, "", "")}, m.name);
     if (idx == std::numeric_limits<std::uint32_t>::max()) {
         core::Logger::error("SceneLoader: failed to upload box '{}'", m.name);
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
-    subs.push_back({idx, "", vertexCount});
+    subs.push_back({idx, "", "", vertexCount});
     return subs;
 }
 
@@ -428,7 +472,7 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
     // Procedural tessellation counts are renderer-side (Hyperion: analytic AABB
     // BLAS, Theia: tessellated) - they carry NO coverage entry, so a [[skin]]
     // over a sphere kind is rejected below with an explicit message.
-    subs.push_back({idx, "", 0});
+    subs.push_back({idx, "", "", 0});
     return subs;
 }
 
@@ -468,6 +512,46 @@ importObjectMesh(SceneLoadContext& c, const aether::MeshDesc& m, MicromapGroups&
 }
 
 // ── Instances: place a mesh with a transform + material ──────────
+
+/// Resolve the material of one sub-mesh of one instance. The most specific
+/// binding wins: the sub-mesh's `usemtl` label, then its `o`/`g` name, then the
+/// whole-mesh material. (A Blender multi-material export names every sub-mesh
+/// after its object - only the `usemtl` label tells them apart.)
+[[nodiscard]] std::string resolveSubmeshMaterial(const aether::InstanceDesc& inst, const LoadedSubmesh& sub) {
+    if (!sub.materialName.empty()) {
+        if (const auto it = inst.groupMaterials.find(sub.materialName); it != inst.groupMaterials.end()) {
+            return it->second;
+        }
+    }
+    if (!sub.groupName.empty()) {
+        if (const auto it = inst.groupMaterials.find(sub.groupName); it != inst.groupMaterials.end()) {
+            return it->second;
+        }
+    }
+    return inst.materialName;
+}
+
+/// A per-sub-mesh material key that names no sub-mesh label is silently ignored
+/// - the sub-mesh falls back to the whole-mesh material, which is exactly how a
+/// broken material split stays invisible. Diagnose it, once per mesh + key.
+void warnUnmatchedGroupMaterials(SceneLoadContext& c,
+                                 const aether::InstanceDesc& inst,
+                                 const std::vector<LoadedSubmesh>& submeshes) {
+    for (const auto& [key, matName] : inst.groupMaterials) {
+        if (!c.unmatchedGroupKeys.insert(inst.meshName + '\0' + key).second) {
+            continue;
+        }
+        const bool matches = std::any_of(submeshes.begin(), submeshes.end(), [&key](const LoadedSubmesh& sub) {
+            return sub.groupName == key || sub.materialName == key;
+        });
+        if (!matches) {
+            core::Logger::warn("SceneLoader: material key '{}' of mesh '{}' names no OBJ group or usemtl - ignored",
+                               key,
+                               inst.meshName);
+        }
+    }
+}
+
 std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::SceneDesc& desc) {
     // ── Instances: place a mesh with a transform + material ───────────────────
     // The sceneInstance → descInstance mapping is recorded here (one desc
@@ -482,18 +566,10 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
             continue;
         }
         const Transform transform = toTransform(inst);
+        warnUnmatchedGroupMaterials(c, inst, it->second);
 
         for (const LoadedSubmesh& sub : it->second) {
-            // Material priority: per-group override > whole-instance override > default.
-            std::string matName;
-            if (!sub.groupName.empty()) {
-                if (const auto git = inst.groupMaterials.find(sub.groupName); git != inst.groupMaterials.end())
-                    matName = git->second;
-                else if (!inst.materialName.empty())
-                    matName = inst.materialName;
-            } else {
-                matName = inst.materialName;
-            }
+            const std::string matName = resolveSubmeshMaterial(inst, sub);
 
             loadMaterialTextures(c, matName);
             const std::uint32_t matIdx = c.scene.addMaterial(c.lib.getOrDefault(matName));
@@ -528,12 +604,12 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
 
     SceneConfig cfg{};
     parseRenderStageToggles(sceneFile, cfg);
-    SceneLoadContext c{assetsDir, ctx, pool, scene, cfg};
+    SceneLoadContext c{assetsDir, sceneFile.parent_path(), ctx, pool, scene, cfg};
 
     if (auto workingSpace = applyWorkingColorSpace(*desc, sceneFile, cfg); !workingSpace) {
         return std::unexpected(workingSpace.error());
     }
-    loadMaterialLibraries(*desc, assetsDir, cfg, c.lib);
+    loadMaterialLibraries(*desc, sceneFile.parent_path(), assetsDir, cfg, c.lib);
     applyRenderSettings(*desc, cfg);
     applyCamera(desc->camera, cfg);
     // Camera-presence contract (owner ruling 2026-11-20, Theia/PLAN "CAMERA
@@ -680,6 +756,10 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
     // even without [[animation]] tracks. Animation/skin/morph-free: nothing held.
     if (!desc->animations.empty() || !desc->skins.empty() || !desc->morphs.empty()) {
         scene.attachAnimation(std::move(*desc), c.instanceMapping);
+    }
+
+    if (cfg.envMapFile) {
+        cfg.envMapFile = resolveAsset(sceneFile.parent_path(), assetsDir, *cfg.envMapFile);
     }
 
     core::Logger::info("SceneLoader: loaded '{}'", sceneFile.filename().string());

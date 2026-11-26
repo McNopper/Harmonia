@@ -46,6 +46,10 @@ namespace harmonia::scene {
 ///                                          → SceneConfig::workingColorSpace
 ///   - meshes (OBJ / box / sphere) + instances with TRS (glTF T × R × S);
 ///     whether spheres are analytic or tessellated is the renderer's choice.
+///   - material per sub-mesh, the most specific binding first: the per-sub-mesh
+///     key matching the sub-mesh's `usemtl` name, the per-sub-mesh key matching
+///     its `o`/`g` group name, the whole-mesh material, the default. A
+///     per-sub-mesh key naming no sub-mesh of its mesh is warned about.
 class SceneLoader {
   public:
     struct SceneConfig {
@@ -62,13 +66,14 @@ class SceneLoader {
         std::optional<std::string> cameraNodeId;
         std::optional<std::uint32_t> spp;
         std::optional<std::uint32_t> maxDepth;
-        std::optional<float> envUnitNits;                ///< cd/m² per unit EXR value (physical unit multiplier)
-        std::optional<std::filesystem::path> envMapFile; ///< equirect EXR IBL path (relative to assetsDir)
-        std::optional<std::uint32_t> tonemapper;         ///< Tonemapper enum value; std::nullopt → eACES default
-        std::optional<std::string> postTonemapRenderer;  ///< display-referred renderer token
-        std::optional<bool> accumulationStageEnabled;    ///< std::nullopt → app::App default
-        std::optional<bool> denoiserStageEnabled;        ///< std::nullopt → app::App default
-        std::optional<bool> tonemapperStageEnabled;      ///< std::nullopt → app::App default
+        std::optional<float> envUnitNits; ///< cd/m² per unit EXR value (physical unit multiplier)
+        std::optional<std::filesystem::path>
+            envMapFile; ///< equirect EXR IBL path, resolved (scene directory, then assets directory)
+        std::optional<std::uint32_t> tonemapper;        ///< Tonemapper enum value; std::nullopt → eACES default
+        std::optional<std::string> postTonemapRenderer; ///< display-referred renderer token
+        std::optional<bool> accumulationStageEnabled;   ///< std::nullopt → app::App default
+        std::optional<bool> denoiserStageEnabled;       ///< std::nullopt → app::App default
+        std::optional<bool> tonemapperStageEnabled;     ///< std::nullopt → app::App default
         /// Scene-referred working color space all assets were converted into
         /// ([render] working_color_space; default linear Rec.2020). Unknown or
         /// display-referred tokens abort the scene load (H-05 seam guard).
@@ -77,7 +82,9 @@ class SceneLoader {
     };
 
     /// Populate @p scene from @p sceneFile.
-    /// Asset paths are resolved relative to @p assetsDir.
+    /// Relative asset paths (meshes, material libraries, textures, the
+    /// environment map) resolve against the scene file's directory first, then
+    /// against @p assetsDir.
     /// Returns a SceneConfig with camera / render overrides on success,
     /// or VK_ERROR_INITIALIZATION_FAILED if the file cannot be opened, a
     /// referenced asset fails to load, or [render] working_color_space is not a
