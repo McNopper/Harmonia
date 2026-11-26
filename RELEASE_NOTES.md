@@ -1,3 +1,36 @@
+# Harmonia v1.0.0 (2026-11-26) - major stable release
+
+Stable public baseline for the shared Vulkan pipeline library. Coordinates with
+**Aether v1.0.0, slang-math v1.0.0, Theia v1.0.0, Hyperion v1.0.0**.
+
+## Stability review
+- Rubber-ducked code and documentation across the family.
+- Removed deterministic signed/unsigned, loop, lambda, container and `min` analyzer debt.
+- Declared Aether as an explicit external include boundary where consumed.
+- Adopted strict documentation-reference checks with historical provenance records
+  explicitly scoped out of clean-checkout path assertions.
+- Architecture contracts and dead-code gates remain clean.
+
+## Verification
+- slang-math: **95/95**
+- Aether: **168/168**
+- Harmonia: **193/193**
+- Theia: **67/67**
+- Hyperion: **79/79**
+- `verify-full`: all five repositories pass
+- `check_arch`: all five repositories clean
+- `check_dead`: all five repositories clean in family mode
+- `check_docs_refs --strict`: all five repositories clean
+
+## Compatibility
+- Public header/source behavior is unchanged by this stability pass.
+- Dependency pins resolve to the coordinated v1.0.0 family tags.
+
+## Release mechanics
+- Local release-preparation commits only. Push and v1.0.0 tags require explicit authorization.
+
+---
+
 # Harmonia v0.12.0 (2026-11-24) - minor release
 
 Shared Vulkan pipeline library release for CAM-1 scene-camera assembly deduplication.

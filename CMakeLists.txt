@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(harmonia VERSION 0.12.0 LANGUAGES C CXX)
+project(harmonia VERSION 1.0.0 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -244,14 +244,14 @@ endif()
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.12.0
+    GIT_TAG v1.0.0
 )
 FetchContent_MakeAvailable(aether)
 
 FetchContent_Declare(
     slang_math
     GIT_REPOSITORY https://github.com/McNopper/slang-math.git
-    GIT_TAG v0.12.0
+    GIT_TAG v1.0.0
 )
 FetchContent_MakeAvailable(slang_math)
 
