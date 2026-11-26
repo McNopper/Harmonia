@@ -1,142 +1,154 @@
-# Harmonia v1.0.0 (2026-11-26) - major stable release
+# Release notes
 
-Stable public baseline for the shared Vulkan pipeline library. Coordinates with
-**Aether v1.0.0, slang-math v1.0.0, Theia v1.0.0, Hyperion v1.0.0**.
+Notes exist for v1.0.0, v0.12.0 and v0.9.0. The complete list of releases is in
+[PLAN.md](PLAN.md), section 9.
 
-## Stability review
-- Rubber-ducked code and documentation across the family.
-- Removed deterministic signed/unsigned, loop, lambda, container and `min` analyzer debt.
-- Declared Aether as an explicit external include boundary where consumed.
-- Adopted strict documentation-reference checks with historical provenance records
-  explicitly scoped out of clean-checkout path assertions.
-- Architecture contracts and dead-code gates remain clean.
+## Harmonia v1.0.0 (2026-11-26): major stable release
 
-## Verification
-- slang-math: **95/95**
-- Aether: **168/168**
-- Harmonia: **193/193**
-- Theia: **67/67**
-- Hyperion: **79/79**
-- `verify-full`: all five repositories pass
-- `check_arch`: all five repositories clean
-- `check_dead`: all five repositories clean in family mode
-- `check_docs_refs --strict`: all five repositories clean
+Stable public baseline of the shared Vulkan library. It is released together with Aether
+v1.0.0, slang-math v1.0.0, Theia v1.0.0 and Hyperion v1.0.0.
 
-## Compatibility
-- Public header/source behavior is unchanged by this stability pass.
-- Dependency pins resolve to the coordinated v1.0.0 family tags.
+### Review
 
-## Release mechanics
-- Local release-preparation commits only. Push and v1.0.0 tags require explicit authorization.
+- Code and documentation were reviewed across the family.
+- Deterministic analyzer findings were removed (signed and unsigned mixing, loops,
+  lambdas, containers and `min`).
+- Aether is declared as an external include boundary where it is consumed.
+- Strict documentation-reference checks were adopted. Historical records are excluded
+  from the path assertions of a clean checkout.
+- The architecture contracts and the dead-code checks are clean.
 
----
+### Verification
 
-# Harmonia v0.12.0 (2026-11-24) - minor release
+| Check | Result |
+|-------|--------|
+| Test suites | slang-math 95/95, Aether 168/168, Harmonia 193/193, Theia 67/67, Hyperion 79/79 |
+| `verify-full` | passes in all five repositories |
+| `check_arch` | clean in all five repositories |
+| `check_dead` | clean in all five repositories (family mode) |
+| Documentation reference check, strict mode | clean in all five repositories |
 
-Shared Vulkan pipeline library release for CAM-1 scene-camera assembly deduplication.
-Coordinates with **Aether v0.12.0, slang-math v0.12.0, Theia v0.12.0, Hyperion v0.12.0**.
+### Compatibility
 
-## Shipped
-- `harmonia::renderer::CameraAssembly` owns static `SceneLoader::SceneConfig` interpretation
-  and evaluated ANI8 camera placement. Pose, up, vfov, EV100 and scene-scale near/far
-  semantics now have one definition consumed by both renderers.
-- Theia and Hyperion retain their renderer-specific controllers, jitter, accumulation/view
-  gates and presentation behavior.
-- Documentation and roadmap are aligned with the shipped camera and release state.
+- The behavior of the public headers and sources is unchanged.
+- The dependency pins resolve to the coordinated v1.0.0 family tags.
 
-## Receipts
-- Shared camera assembly: **7/7** tests.
-- Harmonia: **191/191**; Theia: **67/67**; Hyperion: **79/79**.
-- Architecture and format gates clean in all three consuming repositories.
-- Direct capture identity: `mean_diff=0`, `rel_mse=0`, `SSIM=1.0`, `PSNR=inf`.
-- Parity: **14/14 PASS**. Full-gallery Vulkan validation: **60/60 clean**.
+### Release state
 
-## Gallery
-- Hyperion: **30/30 byte-identical** to the tracked README gallery.
-- Theia: **23/30 byte-identical**; seven images contain speckle-level changes only and were
-  approved after owner visual review.
+- Release-preparation commits are local. Push and the v1.0.0 tag wait for explicit
+  authorization.
 
-## Release mechanics
-- Local release-preparation commits. Owner screenshot review complete; push and `v0.12.0`
-  tags proceed together.
+## Harmonia v0.12.0 (2026-11-24): minor release
 
----
+Release of the shared scene-camera assembly. It is released together with Aether v0.12.0,
+slang-math v0.12.0, Theia v0.12.0 and Hyperion v0.12.0.
 
-# Harmonia v0.9.0 (2026-11-16) - minor release
+### Changes
 
-The shared Vulkan pipeline library release for the *animation + deformation* wave and the
-section-7 parity-gate resolution. Coordinates with **Aether v0.9.0, Theia v0.9.0, Hyperion
-v0.9.0** (each repo carries its own RELEASE_NOTES.md).
+- `harmonia::renderer::CameraAssembly` owns the interpretation of the scene camera read
+  by the loader and the placement of a camera bound to an animated node. Position,
+  target, up, vertical field of view, EV100 and the scene-scale near and far planes now
+  have one definition that both renderers use.
+- Theia and Hyperion keep their own camera controllers, jitter, the rules that reset
+  accumulation, and presentation.
+- Documentation and roadmap are aligned with the camera as released and the release
+  state.
 
-## Shipped
+### Verification
 
-### Deformation (ANI4 + ANI5, end-to-end)
-- **ANI4 skinning**: `[[skin]]` schema + evaluation in Aether, `SceneBase` pose/refit API,
-  BLAS `ALLOW_UPDATE` refit machinery, and the renderer halves - one shared `DeformPass`
-  (`deform.comp.slang`) doing **rest -> morph -> skin** per sub-mesh dispatch per tick, in BOTH
-  Theia and Hyperion. CPU references are the spec: `deformSkinLbs` and (new)
-  `deformSkinDqs` - GPU output matches within 1e-4.
-- **ANI4-DQS**: `blend = "lbs" | "dqs"` on `[[skin]]` (default LBS). DQS = dual-quaternion
-  blending (Kavan 2008) via the SHARED `skinDualQuaternions` extraction (CPU staging = CPU
-  reference = one code path). Contract: rigid - **scale/shear is dropped** (column-normalized
-  projection). Sign alignment rescues >180 degree joint blends; candy-wrapper collapse proven
-  fixed by test (+-80 degree blend preserves length where LBS collapses to cos80).
-- **ANI5 morph targets**: `[[morph]]` schema, `morphs/<mesh>/<name>` weight tracks,
-  `evaluateMorphWeights`, `deformMorphs` CPU reference (POSITION-only; normals untouched).
+- Shared camera assembly: 7/7 tests.
+- Harmonia 191/191, Theia 67/67, Hyperion 79/79.
+- Architecture and format checks are clean in all three consuming repositories.
+- Direct capture identity on `cornell_classic`: `mean_diff` 0, `rel_mse` 0, SSIM 1.0,
+  PSNR infinite.
+- Parity: 14/14 pass. Vulkan validation over the complete galleries: 60/60 clean.
 
-### Section 7 parity gate - RESOLVED (owner decision)
-- Thresholds were clamp-era and unreachable under estimator-pure capture (the gate sat at
-  0/14 on fresh renders). Recalibrated BETWEEN the measured clean envelope (14 scenes @256/256:
-  mean<=98.8, rel<=174.9, SSIM>=0.706, hist>=0.869) and the measured *completely different*
-  anchors (cross-scene >=240 mean / <=0.195 SSIM; inverted; 2x-exposure 133.9):
-  **mean_diff<=120, rel_mse<=250, SSIM>=0.6, hist>=0.8** - strict-AND unchanged, numbers moved.
-- **Budget-specific**: re-measure and recalibrate if spp/frames/resolution change (method is in
-  `tools/validation_manifest.toml` + PLAN section 7).
-- Known limitation: metrics are luminance-based - a luma-preserving channel swap is invisible.
-- Scale-aware routing retired from the manifest (HDR fixtures pass the plain gate); the
-  `--gate scale-aware` tool option remains for ad-hoc use.
-- The ANI6 sequence gate mirrors the still-gate defaults (now PASS: worst-frame SSIM 0.886).
+### Gallery
 
-### Roadmap hygiene (required-or-drop triage)
-- Dropped as not-required (tombstones carry the evidence): C11, C13, DN8, SAM1, QMC1,
-  VK17. C12 status corrected (shipped v0.7.9). GI-ENH closed (recorded paper-deltas are notes).
-- Kept: C15 (external OpenPBR 1.2 spec obligation) + trigger-gated watchlists.
+- Hyperion: 30/30 images byte-identical to the tracked README gallery.
+- Theia: 23/30 byte-identical; seven images differ at speckle level and were approved
+  after a visual review.
 
-### Removed earlier in the wave (tombstones in PLAN)
-GI-PG (engagement flat/negative after the bias fix), PERF4/PERF5/PERF6/BV4, GI-CV, GI-RGIR,
-PERF3-extension, PAR2/PAR3 (non-AI directive), DN1/LS1 (non-AI), VK1/VK9.
+## Harmonia v0.9.0 (2026-11-16): minor release
 
-## Receipts
-- `ctest`: **180/180**; `tools` suites ALL PASS; ruff clean; check_dead clean.
-- Fresh full manifest gate: **14 passed / 0 failed, exit 0, 0 VUID**; negative controls
-  (identical PASS / inverted FAIL / 2x-exposure FAIL).
-- Deformation: GPU==CPU at two times (skin, morph, DQS, composition), idempotent re-runs,
-  0-VUID e2e sequence renders in both renderers.
+Release of the animation and deformation work and of the recalibrated parity limits. It
+is released together with Aether v0.9.0, Theia v0.9.0 and Hyperion v0.9.0.
 
-## Upgrade notes (for consumers)
-- **Pins**: Aether **v0.9.0**, slang-math v0.8.0 (unchanged).
-- Downstream gates: adopt the new threshold set (manifest is authoritative; compare_renders
-  defaults mirror it; compare_sequences mirrors compare_renders).
-- `SkinDeformPass` (formerly SkinDeformPass's scope) now also stages morph weights + DQs;
-  scenes with `[[skin]]`/`[[morph]]` attach their source and deform per tick.
+### Deformation
 
-## Release mechanics
-- Local commits only so far: **tag `v0.9.0` and push the commits + tag together** (the
-  consumer pins reference the new tags; local builds are unaffected via
-  `FETCHCONTENT_SOURCE_DIR_*` overrides).
+- **Skinning.** The `[[skin]]` schema and its evaluation are in Aether. Harmonia adds
+  the pose and refit API of `SceneBase`, the BLAS refit machinery and the shared
+  `DeformPass` (`deform.comp.slang`), which applies rest pose, morph targets and
+  skinning in one dispatch per sub-mesh and per animation tick, in both renderers. The
+  CPU references `deformSkinLbs` and `deformSkinDqs` are the specification; the GPU
+  output matches them within 1e-4.
+- **Dual quaternion skinning.** `blend = "lbs"` or `"dqs"` on `[[skin]]` (default LBS).
+  DQS blends dual quaternions (Kavan 2008) through the shared `skinDualQuaternions`
+  extraction, which the CPU staging and the CPU reference share. The contract is rigid:
+  scale and shear are dropped. Sign alignment rescues blends of more than 180 degrees; a
+  test covers the candy-wrapper collapse (a blend of ±80 degrees keeps the length where
+  LBS collapses to cos 80°).
+- **Morph targets.** The `[[morph]]` schema, `morphs/<mesh>/<name>` weight tracks,
+  `evaluateMorphWeights` and the `deformMorphs` CPU reference (position only; normals
+  are not re-derived).
 
-## Also in this release (added after the notes assembly)
+### Parity limits recalibrated
 
-- **ANI8 animated camera + frame seek** (commit c07a78b): `SceneConfig::
-  cameraNodeId`, shared `--frame N` (`AppConfig::animationStartFrame` ->
-  `App::animationFrameIndex()` offset: sequence output frame k renders tick
-  N + k, interactive starts at N), `Camera::setUp`/`setNearFar`. ANI8 PLAN
-  row carries the full receipts (render parity PASS, 0 VUID everywhere).
-- **Time-based capture + video tooling (2026-11-16):** `--capture-every-ms` /
-  `--start-seconds` (ANI7 timing extension; ONE `App::animationClock` derives
-  seconds + change key for every consumer - scene, deform, TLAS, camera) and
-  `tools/frames_to_video.py` (sequence -> playable H.264 mp4, numeric frame
-  ordering, `--interval-ms` pairs with the capture). Receipts: AppArgs 15/15,
-  suite 184/184, tick-grid renders bit-identical pre/post unification,
-  interval == tick-grid equivalence 0.000/1.000, 10x100 ms -> 1.000 s video.
+- The old limits were measured with firefly clamps and could not be reached by pure
+  captures (the comparison failed 0/14 on fresh renders). The new limits lie between the clean
+  envelope of the 14 scenes at 256 samples against 256 frames (mean ≤ 98.8,
+  Rel-MSE ≤ 174.9, SSIM ≥ 0.706, histogram ≥ 0.869) and the completely different anchors
+  (different scenes: mean ≥ 240, SSIM ≤ 0.195; inverted; twice the exposure: 133.9):
+  `mean_diff` ≤ 120, `rel_mse` ≤ 250, SSIM ≥ 0.6, histogram ≥ 0.8. All limits must still
+  hold together.
+- The limits belong to this budget; the method is in `tools/validation_manifest.toml` and
+  in `PLAN.md`, section 7.
+- Known limitation: the metrics are based on luminance.
+- The manifest no longer routes scenes through the relaxed scale-aware mode (the HDR
+  scenes pass the plain comparison); `--gate scale-aware` remains for ad-hoc use.
+- The sequence comparison uses the same limits as the still comparison (worst frame
+  SSIM 0.886).
 
+### Roadmap
+
+- Dropped as not required, with the reasons in `PLAN.md`: a reservoir-based subsurface
+  layer, a glint estimator, NRD, MIS sample-allocation optimization, an alternative
+  low-discrepancy sequence, shader module identifier caching.
+- The anisotropic micrograin model was already released (v0.7.9).
+- Removed earlier in the same work, with the reasons in `PLAN.md`: path guiding, software
+  ray reordering, the wavefront split, multi-node ray forwarding, control variates,
+  world-space light grids, the importance-driven acceleration-structure extension,
+  learned metrics and neural denoising.
+- Kept: the OpenPBR 1.2 switch-over and the watchlists with revisit triggers.
+
+### Verification
+
+- `ctest` 180/180; the tool suites pass; ruff and the dead-code check are clean.
+- Fresh comparison over the manifest: 14 passed, 0 failed, no validation message. Negative controls:
+  an identical image passes; an inverted image and an image with twice the exposure
+  fail.
+- Deformation: GPU equals CPU at two times (skin, morph, DQS, composition); repeated
+  runs are idempotent; sequence renders in both renderers produce no validation
+  message.
+
+### Upgrade notes
+
+- Pins: Aether v0.9.0, slang-math v0.8.0.
+- Downstream comparisons use the new limits. The manifest is authoritative;
+  `compare_renders.py` mirrors it in its defaults and `compare_sequences.py` mirrors
+  `compare_renders.py`.
+- `DeformPass` (then named `SkinDeformPass`) also stages morph weights and dual
+  quaternions. Scenes with `[[skin]]` or `[[morph]]` attach their source and deform per
+  tick.
+
+### Added in the same release
+
+- **Camera bound to a node and frame seek** (commit c07a78b). `SceneConfig::cameraNodeId`;
+  the shared `--frame N` (`AppConfig::animationStartFrame`, added as an offset by
+  `App::animationFrameIndex()`); `Camera::setUp` and `Camera::setNearFar`.
+- **Time-based capture and video tooling.** `--capture-every-ms` and `--start-seconds`;
+  one animation clock (`App::animationClock`) derives the seconds and the change key
+  for every consumer (scene, deformation, TLAS, camera); `tools/frames_to_video.py`.
+  Checks: argument parsing 15/15, suite 184/184, tick-grid renders identical before and
+  after the clock was unified, interval capture equal to the tick grid (0.000 / 1.000),
+  10 frames every 100 ms give a 1.000 s video.
