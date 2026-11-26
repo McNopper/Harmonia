@@ -49,10 +49,10 @@ from validate_renders import DEFAULT_MANIFEST, load_manifest
 #   UNASSIGNED   unassigned validation messages
 #   Vulkan warning|error   the DebugUtils callback format
 #                        ("Vulkan warning validation: ...", "Vulkan error performance: ...")
-#   ][WARN|ERROR]         app-level Logger level ([THEIA][WARN], [HYPERION][ERROR])
+#   ][WARNING|ERROR]    app-level Logger level ([THEIA][WARNING], [HYPERION][ERROR])
 # INFO lines never match.
 FAILURE_RE = re.compile(
-    r"VUID-|UNASSIGNED|Vulkan\s+(?:warning|error)|\]\[(?:WARN|ERROR)\]",
+    r"VUID-|UNASSIGNED|Vulkan\s+(?:warning|error)|\]\[(?:WARN(?:ING)?|ERROR)\]",
     re.IGNORECASE,
 )
 
