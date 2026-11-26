@@ -303,8 +303,7 @@ VkResult SceneBase::stageSkinMatrices(const std::vector<aether::SkinPose>& poses
     std::size_t offset = 0;
     std::size_t dqOffset = 0;
     const bool stageDq = !m_skinDqScratch.empty();
-    for (std::size_t i = 0; i < skins.size(); ++i) {
-        const aether::SkinDesc& skin = skins[i];
+    for (const aether::SkinDesc& skin : skins) {
         const std::size_t bytes = skin.joints.size() * sizeof(aether::Mat4);
         const auto poseIt = std::find_if(
             poses.begin(), poses.end(), [&](const aether::SkinPose& pose) { return pose.nodeId == skin.nodeId; });

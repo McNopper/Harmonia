@@ -277,7 +277,7 @@ Image I/O uses OpenImageIO (PNG/JPEG/EXR load+save, EXR chromaticities); OpenEXR
 transitive dependencies. The first configure builds OpenImageIO from source (one-time,
 several minutes; later configures reuse the vcpkg binary cache).
 
-⚠ï¸ If `cmake --build` fails inside `GoogleTestAddTests.cmake` with a 5 s discovery timeout
+⚠ï¸ If `cmake --build` fails inside CMake's GoogleTest test-discovery script with a 5 s discovery timeout
 on a freshly-linked test exe (cold DLL load / AV scan on its first run), just re-run
 `cmake --build build` — gtest discovery passes on retry.
 

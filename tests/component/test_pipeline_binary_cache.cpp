@@ -154,7 +154,7 @@ TEST_F(VulkanFixture, PipelineBinaryCache_CapturePersistConsume) {
 
     const std::filesystem::path spv = std::filesystem::path(HARMONIA_SHADER_DIR) / "pipeline_binary_probe.comp.spv";
 
-    auto entryCount = [&](void) {
+    auto entryCount = [&]() {
         std::size_t entries = 0;
         std::error_code itError;
         for (const auto& item : std::filesystem::directory_iterator(cacheDir, itError)) {

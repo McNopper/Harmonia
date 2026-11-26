@@ -722,6 +722,7 @@ TEST_F(SmsFixture, SmsRootIdentityRejectsDistinctDirectionsTopologyAndSides) {
 TEST_F(SmsFixture, SmsMeasureDeltaEventsDoNotExposeContinuousNeeDensity) {
     using Words = std::array<std::uint32_t, 4>;
     std::vector<Words> inputs;
+    inputs.reserve(12);
     for (std::uint32_t mode = 0; mode < 12; ++mode)
         inputs.push_back(Words{mode, 0, 0, 0});
     std::vector<sm::float4> outputs;
@@ -1010,6 +1011,7 @@ TEST_F(SmsFixture, SmsPathOwnershipMatchesActualSupportedEventPaths) {
     constexpr std::array<bool, 16> expectedCapture{
         true, true, true, true, false, false, false, true, true, true, true, true, false, true, true, true};
     std::vector<Words> inputs;
+    inputs.reserve(expectedKinds.size());
     for (std::uint32_t mode = 0; mode < expectedKinds.size(); ++mode)
         inputs.push_back({mode, 0, 0, 0});
     std::vector<sm::float4> outputs;
