@@ -114,7 +114,9 @@ class PipelineBinaryCache {
     /// pipeline key. Any parse/recreation failure removes the entry (self-heal)
     /// and reports the error — the caller falls back to capture.
     [[nodiscard]] std::expected<std::vector<VkPipelineBinaryKHR>, std::string>
-    createBinaryHandlesFromEntry(const DeviceContext& ctx, const VkPipelineBinaryKeyKHR& pipelineKey) const;
+    createBinaryHandlesFromEntry(const DeviceContext& ctx,
+                                 const VkPipelineBinaryKeyKHR& pipelineKey,
+                                 const char* debugName) const;
 
     /// Captures the driver binaries of a CAPTURE_DATA-created pipeline into the
     /// entry file. Best-effort: failures are logged and leave the pipeline valid.

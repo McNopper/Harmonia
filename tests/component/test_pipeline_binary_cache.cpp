@@ -218,13 +218,24 @@ TEST_F(VulkanFixture, PipelineBinaryCache_CapturePersistConsume) {
         auto cache = harmonia::core::PipelineBinaryCache::create(ctx, cacheDir);
         ASSERT_TRUE(cache.has_value()) << cache.error();
         ctx.pipelineBinaryCache = &*cache;
-        auto pipeline = makePipeline("cache.test.phase1");
+        auto pipeline = makePipeline("cache.test.pipeline");
         ASSERT_TRUE(pipeline.has_value()) << pipeline.error();
         EXPECT_EQ(cache->receipts().misses, 1U);
         EXPECT_EQ(cache->receipts().hits, 0U);
         EXPECT_EQ(entryCount(), 1U);
         dispatchAndVerify(*pipeline);
         vkDestroyPipeline(ctx.device, *pipeline, nullptr);
+
+        // Two distinct creation sites may receive the same driver comparison
+        // key. The stable debug name must namespace the persisted entry so the
+        // second pipeline cannot overwrite the first one's binary.
+        auto alias = makePipeline("cache.test.pipeline.alias");
+        ASSERT_TRUE(alias.has_value()) << alias.error();
+        EXPECT_EQ(cache->receipts().misses, 2U);
+        EXPECT_EQ(cache->receipts().hits, 0U);
+        EXPECT_EQ(entryCount(), 2U);
+        dispatchAndVerify(*alias);
+        vkDestroyPipeline(ctx.device, *alias, nullptr);
         ctx.pipelineBinaryCache = nullptr;
     }
 
@@ -236,12 +247,20 @@ TEST_F(VulkanFixture, PipelineBinaryCache_CapturePersistConsume) {
         ASSERT_TRUE(cache.has_value()) << cache.error();
         EXPECT_EQ(cache->receipts().pruned, 0U);
         ctx.pipelineBinaryCache = &*cache;
-        auto pipeline = makePipeline("cache.test.phase2");
+        auto pipeline = makePipeline("cache.test.pipeline");
         ASSERT_TRUE(pipeline.has_value()) << pipeline.error();
         EXPECT_EQ(cache->receipts().hits, 1U);
         EXPECT_EQ(cache->receipts().misses, 0U);
+        EXPECT_EQ(entryCount(), 2U);
         dispatchAndVerify(*pipeline);
         vkDestroyPipeline(ctx.device, *pipeline, nullptr);
+
+        auto alias = makePipeline("cache.test.pipeline.alias");
+        ASSERT_TRUE(alias.has_value()) << alias.error();
+        EXPECT_EQ(cache->receipts().hits, 2U);
+        EXPECT_EQ(cache->receipts().misses, 0U);
+        dispatchAndVerify(*alias);
+        vkDestroyPipeline(ctx.device, *alias, nullptr);
         ctx.pipelineBinaryCache = nullptr;
     }
 
@@ -256,7 +275,7 @@ TEST_F(VulkanFixture, PipelineBinaryCache_CapturePersistConsume) {
         ASSERT_TRUE(cache.has_value()) << cache.error();
         EXPECT_GE(cache->receipts().pruned, 1U);
         ctx.pipelineBinaryCache = &*cache;
-        auto pipeline = makePipeline("cache.test.phase3");
+        auto pipeline = makePipeline("cache.test.pipeline");
         ASSERT_TRUE(pipeline.has_value()) << pipeline.error();
         EXPECT_EQ(cache->receipts().misses, 1U);
         EXPECT_EQ(entryCount(), 1U);

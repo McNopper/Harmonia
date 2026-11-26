@@ -133,9 +133,32 @@ void detachNode(const void*& headSlot, void* node, const void* prevTail) {
     }
 }
 
-[[nodiscard]] std::filesystem::path entryPath(const std::filesystem::path& directory,
-                                              const VkPipelineBinaryKeyKHR& pipelineKey) {
-    return directory / (keyHex(pipelineKey) + kEntryExtension);
+[[nodiscard]] std::uint64_t debugNameHash(const char* debugName) {
+    // FNV-1a 64-bit: stable across processes and independent of std::hash.
+    constexpr std::uint64_t kOffset = 1469598103934665603ULL;
+    constexpr std::uint64_t kPrime = 1099511628211ULL;
+    std::uint64_t hash = kOffset;
+    if (debugName != nullptr) {
+        for (const unsigned char* byte = reinterpret_cast<const unsigned char*>(debugName); *byte != 0U; ++byte) {
+            hash ^= *byte;
+            hash *= kPrime;
+        }
+    }
+    return hash;
+}
+
+[[nodiscard]] std::filesystem::path
+entryPath(const std::filesystem::path& directory, const VkPipelineBinaryKeyKHR& pipelineKey, const char* debugName) {
+    // The driver pipeline key is the primary identity, but it is a comparison
+    // key: an implementation may return the same key for pipelines whose
+    // differing state does not contribute to the binary. Some drivers still
+    // reject the other pipeline's binary (VK_PIPELINE_COMPILE_REQUIRED), so the
+    // stable debug name namespaces the entry and prevents cross-pipeline
+    // overwrite. This only loses deduplication between distinct creation sites.
+    std::string name = keyHex(pipelineKey);
+    name += '-';
+    name += std::to_string(debugNameHash(debugName));
+    return directory / (name + kEntryExtension);
 }
 
 } // namespace
@@ -246,8 +269,9 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipeline(cons
 
 std::expected<std::vector<VkPipelineBinaryKHR>, std::string>
 PipelineBinaryCache::createBinaryHandlesFromEntry(const DeviceContext& ctx,
-                                                  const VkPipelineBinaryKeyKHR& pipelineKey) const {
-    std::ifstream file(entryPath(m_directory, pipelineKey), std::ios::binary);
+                                                  const VkPipelineBinaryKeyKHR& pipelineKey,
+                                                  const char* debugName) const {
+    std::ifstream file(entryPath(m_directory, pipelineKey, debugName), std::ios::binary);
     if (!file) {
         return std::unexpected("no cached entry");
     }
@@ -383,7 +407,7 @@ void PipelineBinaryCache::storeFromPipeline(const DeviceContext& ctx,
         Logger::error("PipelineBinaryCache: '{}' capture incomplete (cache stays cold)", debugName);
         return;
     }
-    writeFile(entryPath(m_directory, pipelineKey), fileBytes);
+    writeFile(entryPath(m_directory, pipelineKey, debugName), fileBytes);
     Logger::info("PipelineBinaryCache: '{}' captured {} blob(s), {} bytes (key {})",
                  debugName,
                  blobs.size(),
@@ -416,7 +440,7 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::computePipelineImpl(con
     }
 
     // HIT arm: binary handles from the cached entry, creation from them.
-    auto binaries = createBinaryHandlesFromEntry(ctx, pipelineKey);
+    auto binaries = createBinaryHandlesFromEntry(ctx, pipelineKey, debugName);
     if (binaries.has_value()) {
         VkPipelineBinaryInfoKHR binaryInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR,
                                            .pNext = nullptr,
@@ -434,15 +458,19 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::computePipelineImpl(con
             Logger::info("PipelineBinaryCache: '{}' created from {} cached blob(s)", debugName, binaries->size());
             return pipeline;
         }
-        Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing",
-                      debugName,
-                      static_cast<int>(result));
+        if (result == VK_PIPELINE_COMPILE_REQUIRED) {
+            Logger::info("PipelineBinaryCache: '{}' cached binary requires a fresh compile — re-capturing", debugName);
+        } else {
+            Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing",
+                          debugName,
+                          static_cast<int>(result));
+        }
         std::error_code removeError;
-        std::filesystem::remove(entryPath(m_directory, pipelineKey), removeError);
+        std::filesystem::remove(entryPath(m_directory, pipelineKey, debugName), removeError);
     } else {
         // Entry missing or corrupt — a corrupt entry is removed (self-heal).
         std::error_code removeError;
-        std::filesystem::remove(entryPath(m_directory, pipelineKey), removeError);
+        std::filesystem::remove(entryPath(m_directory, pipelineKey, debugName), removeError);
         if (binaries.error() != "no cached entry") {
             Logger::error(
                 "PipelineBinaryCache: entry for '{}' unreadable ({}) — re-capturing", debugName, binaries.error());
@@ -493,7 +521,7 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::graphicsPipelineImpl(co
         return pipeline;
     }
 
-    auto binaries = createBinaryHandlesFromEntry(ctx, pipelineKey);
+    auto binaries = createBinaryHandlesFromEntry(ctx, pipelineKey, debugName);
     if (binaries.has_value()) {
         VkPipelineBinaryInfoKHR binaryInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR,
                                            .pNext = nullptr,
@@ -511,11 +539,15 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::graphicsPipelineImpl(co
             Logger::info("PipelineBinaryCache: '{}' created from {} cached blob(s)", debugName, binaries->size());
             return pipeline;
         }
-        Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing",
-                      debugName,
-                      static_cast<int>(result));
+        if (result == VK_PIPELINE_COMPILE_REQUIRED) {
+            Logger::info("PipelineBinaryCache: '{}' cached binary requires a fresh compile — re-capturing", debugName);
+        } else {
+            Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing",
+                          debugName,
+                          static_cast<int>(result));
+        }
         std::error_code removeError;
-        std::filesystem::remove(entryPath(m_directory, pipelineKey), removeError);
+        std::filesystem::remove(entryPath(m_directory, pipelineKey, debugName), removeError);
     }
 
     VkPipelineCreateFlags2CreateInfoKHR flags2{.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO_KHR,
@@ -560,7 +592,7 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipelineImpl(
         return pipeline;
     }
 
-    auto binaries = createBinaryHandlesFromEntry(ctx, pipelineKey);
+    auto binaries = createBinaryHandlesFromEntry(ctx, pipelineKey, debugName);
     if (binaries.has_value()) {
         VkPipelineBinaryInfoKHR binaryInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR,
                                            .pNext = nullptr,
@@ -579,11 +611,15 @@ std::expected<VkPipeline, VkResult> PipelineBinaryCache::rayTracingPipelineImpl(
             Logger::info("PipelineBinaryCache: '{}' created from {} cached blob(s)", debugName, binaries->size());
             return pipeline;
         }
-        Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing",
-                      debugName,
-                      static_cast<int>(result));
+        if (result == VK_PIPELINE_COMPILE_REQUIRED) {
+            Logger::info("PipelineBinaryCache: '{}' cached binary requires a fresh compile — re-capturing", debugName);
+        } else {
+            Logger::error("PipelineBinaryCache: '{}' failed from cached binary (VkResult {}) — re-capturing",
+                          debugName,
+                          static_cast<int>(result));
+        }
         std::error_code removeError;
-        std::filesystem::remove(entryPath(m_directory, pipelineKey), removeError);
+        std::filesystem::remove(entryPath(m_directory, pipelineKey, debugName), removeError);
     }
 
     VkPipelineCreateFlags2CreateInfoKHR flags2{.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO_KHR,
