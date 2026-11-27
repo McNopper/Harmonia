@@ -282,7 +282,7 @@ reported as an error and the default stays unchanged. `--no-postfx` turns the gl
 
 | Variable | Effect |
 |----------|--------|
-| `HARMONIA_FRAME_TIMING=1` | With `--output`: wait for each accumulation frame and log its render time as `frame_timing_ms:<i>:<ms>`. Process start-up and image encoding are not included. Theia logs under the same switch what each animation tick cost the host, `tick_timing_ms: stamp <ms> \| tlas <ms>` |
+| `HARMONIA_FRAME_TIMING=1` | With `--output`: wait for each accumulation frame and log its render time as `frame_timing_ms:<i>:<ms>`. Process start-up and image encoding are not included. Theia also logs a node-bound camera's evaluation (`camera_timing_ms:<ms>`) and each animation tick (`tick_timing_ms: stamp <ms> \| tlas <ms>`, the second interval including transform/bounds synchronization) |
 | `HARMONIA_PRESENT_TIMING=1` | Log present-interval statistics every 120 presentation records: `[present-timing] n=<count> mean_interval=<ms> max_interval=<ms> incomplete=<count>`. Needs `VK_EXT_present_timing`; nothing is scheduled from these numbers |
 | `HARMONIA_PIPELINE_BINARY_CACHE` | Directory of the pipeline binary cache, or `off` / `0` to disable it. See [Pipeline binary cache](#pipeline-binary-cache) |
 | `HARMONIA_DN3M4_DIR` | Tests only: directory of the denoiser convergence test; see [tools/README.md](tools/README.md) |

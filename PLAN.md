@@ -53,8 +53,9 @@ The plans of the sibling repositories are `slang-math/PLAN.md`, `Aether/PLAN.md`
 
 - **Current release:** v1.0.0 (2026-11-26), the stable baseline. The dependencies are
   pinned to the v1.0.0 tags of Aether and slang-math.
-- **Implementation work:** no approved item is open. Work arrives as defects, as parity
-  failures or from the external waits below.
+- **Implementation work:** two animation-scaling investigations from the dense-scene stress
+  test are approved (section 5.1). Other work arrives as defects, as parity failures or from the
+  external waits below.
 - **Waiting on external releases:** the OpenPBR 1.2 specification (section 4) and a Slang
   compiler that can emit the next-generation shader-model extensions (section 5.8).
 
@@ -194,7 +195,26 @@ benefit.
 
 ### 5.1 Performance track
 
-No item is open. The table keeps the measurements that closed the removed ones.
+Two follow-ups from the 2026-11-27 dense-scene stress test are approved for investigation:
+
+1. **One evaluated scene per animation instant.** Theia and Hyperion currently call
+   `SceneAnimator::evaluateCamera()` and `SceneBase::setAnimationTime()` separately, so both
+   evaluate the whole Aether scene. On the local 29,775-object scene the two intervals cost
+   72–98 ms and 72–82 ms respectively. Consume one evaluated scene for camera and instances;
+   the reusable/sparse evaluator itself is tracked in `Aether/PLAN.md`.
+2. **Incremental instance synchronization and TLAS input.** `setAnimationTime()` stamps every
+   renderer instance; Theia then rebuilds and uploads all transforms and world bounds, and the
+   shared TLAS path recreates its instance upload and scratch buffers before a synchronous
+   refit. Track changed instances and retain the buffers, after logging the synchronization and
+   actual refit costs separately. The measured 13–23 ms interval currently combines both, so it
+   is not yet evidence for a BLAS/TLAS algorithm change.
+
+For scale, Harmonia `d44d55a` already removed repeated ticks inside an output frame: 256
+accumulation frames over eight time samples now stamp eight times, not 256, and one output frame
+takes 23 s including the 12 s scene load instead of 71 s. Every time sample keeps its instants
+and accumulation weight.
+
+The table keeps the measurements that closed the removed techniques.
 
 | Technique | Measurement | Revisit when |
 |-----------|-------------|--------------|
