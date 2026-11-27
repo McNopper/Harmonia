@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <set>
 #include <span>
 #include <string>
 #include <vector>
@@ -129,14 +130,21 @@ TEST(CaptureShutter, SamplesAreSpreadOverTheOpenShutterOfTheirOutputFrame) {
     for (std::uint32_t frame = 0U; frame < 3U; ++frame) {
         for (std::uint32_t sample = 0U; sample < 8U; ++sample) {
             const double t = seconds[frame * 8U + sample];
-            const std::uint32_t stratum = sample % 4U;
+            // The accumulation frames of one time sample run consecutively: two per
+            // instant here, the instants in their order.
+            const std::uint32_t timeSample = harmonia::app::App::timeSampleOfFrame(sample, 8U, 4U);
+            EXPECT_EQ(timeSample, sample / 2U) << "sample " << sample;
             // The sample's time is the clock's for exactly this output frame and
-            // sample, inside its own quarter of the frame's open shutter.
-            EXPECT_EQ(t, harmonia::app::App::sequenceSampleClock(reference, kFps, frame, sample).seconds)
+            // time sample, inside that sample's quarter of the frame's open shutter.
+            EXPECT_EQ(t, harmonia::app::App::sequenceSampleClock(reference, kFps, frame, timeSample).seconds)
                 << "frame " << frame << ", sample " << sample;
-            EXPECT_GE(t, frame * frameInterval + open * static_cast<double>(stratum) / 4.0);
-            EXPECT_LT(t, frame * frameInterval + open * static_cast<double>(stratum + 1U) / 4.0);
+            EXPECT_GE(t, frame * frameInterval + open * static_cast<double>(timeSample) / 4.0);
+            EXPECT_LT(t, frame * frameInterval + open * static_cast<double>(timeSample + 1U) / 4.0);
         }
+        // The scene is asked for a new time once per instant, not once per accumulation frame.
+        const std::set<double> instants(seconds.begin() + static_cast<std::ptrdiff_t>(frame) * 8,
+                                        seconds.begin() + static_cast<std::ptrdiff_t>(frame + 1U) * 8);
+        EXPECT_EQ(instants.size(), 4U) << "output frame " << frame;
         EXPECT_TRUE(files.outputExists(frame)) << "output frame " << frame;
     }
 }

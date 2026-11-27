@@ -1,5 +1,7 @@
+#include <cstdint>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <vector>
 
 #include "harmonia/app/App.hpp"
 
@@ -403,4 +405,39 @@ TEST(AppArgs, StartSecondsNegativeKeepsDefault) {
     EXPECT_TRUE(harmonia::app::CliParser::applyCommonArg(config, i, 3, argv));
     EXPECT_LT(config.captureStartSeconds, 0.0) << "negative start keeps the derive-from-frame default";
     EXPECT_EQ(i, 2);
+}
+
+TEST(SequenceClock, AccumulationFramesRunGroupedByTimeSample) {
+    // 256 accumulation frames over 8 instants: 32 consecutive frames per instant.
+    for (std::uint32_t frame = 0U; frame < 256U; ++frame) {
+        EXPECT_EQ(harmonia::app::App::timeSampleOfFrame(frame, 256U, 8U), frame / 32U) << "frame " << frame;
+    }
+}
+
+TEST(SequenceClock, GroupingKeepsEveryInstantItsShareOfFramesAndStampsOncePerInstant) {
+    for (std::uint32_t timeSamples = 2U; timeSamples <= 16U; ++timeSamples) {
+        for (std::uint32_t count = timeSamples; count <= 70U; ++count) {
+            std::vector<std::uint32_t> alternating(timeSamples, 0U);
+            std::vector<std::uint32_t> grouped(timeSamples, 0U);
+            std::uint32_t instantsVisited = 0U;
+            std::uint32_t last = timeSamples; // no stratum
+            for (std::uint32_t frame = 0U; frame < count; ++frame) {
+                ++alternating[frame % timeSamples];
+                const std::uint32_t sample = harmonia::app::App::timeSampleOfFrame(frame, count, timeSamples);
+                ASSERT_LT(sample, timeSamples) << "count " << count << ", instants " << timeSamples;
+                ++grouped[sample];
+                if (sample != last) {
+                    ++instantsVisited;
+                }
+                last = sample;
+            }
+            // The exposure is integrated with the weights the alternating order had ...
+            EXPECT_EQ(alternating, grouped) << "count " << count << ", instants " << timeSamples;
+            // ... and the scene is stamped with a new time once per instant, not once per frame.
+            EXPECT_EQ(instantsVisited, timeSamples) << "count " << count << ", instants " << timeSamples;
+        }
+    }
+    // Without a shutter the index is the frame; with fewer frames than instants the strata alternate.
+    EXPECT_EQ(harmonia::app::App::timeSampleOfFrame(7U, 16U, 1U), 7U);
+    EXPECT_EQ(harmonia::app::App::timeSampleOfFrame(5U, 3U, 8U), 5U);
 }

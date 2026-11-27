@@ -204,7 +204,7 @@ For output frame k, all accumulation frames render the same animation state:
 |------|----------------------------------|
 | Tick grid (`--capture-every-ms` not given) | (N + k) / animation frame rate, where N is `--frame` |
 | Time based (`--capture-every-ms <ms>`) | start + k × ms / 1000 seconds, with start from `--start-seconds` or N / frame rate |
-| With `--shutter <f>` | Accumulation frame i renders at a jittered time inside the i-th of `--time-samples` equal parts of the open shutter |
+| With `--shutter <f>` | The accumulation frames of output frame k are shared among `--time-samples` equal parts of the open shutter, the frames of one part running consecutively, each at a jittered time inside its part |
 
 The animation frame rate is the scene's `[animation_clock] fps`. One clock in the host
 (`App::animationClock`) supplies this time and a key that changes whenever the time
@@ -216,6 +216,16 @@ on the sample's part of the shutter. Two captures with the same seed, in either
 renderer, integrate the same instants; with different seeds they are two different
 estimates of the same blur. A shuttered frame is therefore compared between the
 renderers with the same flags and the same seed.
+
+The accumulation frames of one time sample run consecutively: all frames of the first part of
+the shutter, then those of the second, and so on (`App::timeSampleOfFrame`). Every part keeps
+the share of accumulation frames it had while the parts alternated (the remainder goes to the
+first parts), so the exposure is integrated with the same weights; what changes is how often
+the scene is given a new time: once per time sample instead of once per accumulation frame.
+On a scene of 110,000 draw instances an animation tick costs the host about 100 ms (stamping
+the instances, updating the acceleration structure) and a frame with a moving scene takes four
+times a frame of a standing one. An output frame of 256 accumulation frames over 8 time samples
+took 57 s while the parts alternated and takes 10 s grouped.
 
 Files are written as `<stem>_0000.exr` and `<stem>_0000.png`, `<stem>_0001.exr`, and so
 on, with a four-digit frame index.
@@ -272,7 +282,7 @@ reported as an error and the default stays unchanged. `--no-postfx` turns the gl
 
 | Variable | Effect |
 |----------|--------|
-| `HARMONIA_FRAME_TIMING=1` | With `--output`: wait for each accumulation frame and log its render time as `frame_timing_ms:<i>:<ms>`. Process start-up and image encoding are not included |
+| `HARMONIA_FRAME_TIMING=1` | With `--output`: wait for each accumulation frame and log its render time as `frame_timing_ms:<i>:<ms>`. Process start-up and image encoding are not included. Theia logs under the same switch what each animation tick cost the host, `tick_timing_ms: stamp <ms> \| tlas <ms>` |
 | `HARMONIA_PRESENT_TIMING=1` | Log present-interval statistics every 120 presentation records: `[present-timing] n=<count> mean_interval=<ms> max_interval=<ms> incomplete=<count>`. Needs `VK_EXT_present_timing`; nothing is scheduled from these numbers |
 | `HARMONIA_PIPELINE_BINARY_CACHE` | Directory of the pipeline binary cache, or `off` / `0` to disable it. See [Pipeline binary cache](#pipeline-binary-cache) |
 | `HARMONIA_DN3M4_DIR` | Tests only: directory of the denoiser convergence test; see [tools/README.md](tools/README.md) |

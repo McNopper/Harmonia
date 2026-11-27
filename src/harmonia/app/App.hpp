@@ -217,6 +217,18 @@ class App {
     [[nodiscard]] static AnimationClock
     sequenceSampleClock(const AppConfig& config, double fps, std::uint32_t outputFrame, std::uint32_t sample) noexcept;
 
+    /// The time sample that accumulation frame `frame` renders when `count` accumulation
+    /// frames integrate `timeSamples` instants of an output frame. The frames of one instant
+    /// run consecutively, so the scene is stamped with a new time once per instant and not
+    /// once per accumulation frame: on a scene of 110,000 draw instances a tick costs the
+    /// host about 100 ms (the stamp and the acceleration-structure update) and a frame with
+    /// a moving scene four times a frame of a standing one, on every accumulation frame.
+    /// Every instant keeps the number of accumulation frames it had while the strata
+    /// alternated (`frame % timeSamples`): the remainder goes to the first strata. Without a
+    /// shutter (`timeSamples` below 2) the index is the frame.
+    [[nodiscard]] static std::uint32_t
+    timeSampleOfFrame(std::uint32_t frame, std::uint32_t count, std::uint32_t timeSamples) noexcept;
+
     /// The clock for the sample being rendered. Outside a sequence capture it
     /// is the raw per-render-frame tick (deterministic; interactive use).
     [[nodiscard]] AnimationClock animationClock(double fps) const noexcept {

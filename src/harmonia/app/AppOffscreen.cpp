@@ -212,6 +212,22 @@ namespace {
 
 } // namespace
 
+std::uint32_t App::timeSampleOfFrame(std::uint32_t frame, std::uint32_t count, std::uint32_t timeSamples) noexcept {
+    if (timeSamples <= 1U) {
+        return frame;
+    }
+    if (count <= timeSamples) {
+        return frame % timeSamples; // fewer accumulation frames than instants: alternate, as before
+    }
+    const std::uint32_t base = count / timeSamples;
+    const std::uint32_t extra = count % timeSamples;
+    const std::uint32_t longStrata = extra * (base + 1U); // the first `extra` strata take one frame more
+    if (frame < longStrata) {
+        return frame / (base + 1U);
+    }
+    return extra + (frame - longStrata) / base;
+}
+
 App::AnimationClock App::sequenceSampleClock(const AppConfig& config,
                                              double fps,
                                              std::uint32_t outputFrame,
@@ -323,7 +339,10 @@ int App::renderOffscreen() {
     // (already logged + device quiesced).
     const auto renderBatch = [&](std::uint32_t count) -> int {
         for (std::uint32_t i = 0; i < count; ++i) {
-            m_sequenceSample = i; // with a shutter, this places the sample inside the exposure
+            // With a shutter this places the accumulation frame inside the exposure: the frames
+            // of one time sample run consecutively (timeSampleOfFrame), so the scene is stamped
+            // with a new time once per time sample and not once per accumulation frame.
+            m_sequenceSample = timeSampleOfFrame(i, count, m_config.timeSamples);
             const auto frameStarted = std::chrono::steady_clock::now();
             const auto rendered = renderSceneReferred();
             if (!rendered) {
