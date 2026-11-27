@@ -629,7 +629,8 @@ of the GPU is within 1.1 percent of the bound derived from float32 rounding.
 compares the PNG with the reference of the whole display path for the ACES and the
 Reinhard curve: the PNG is within one step of 255, the EXR is the frame, a frame below the
 threshold gives the same PNG with and without glare, and `--no-postfx` gives the PNG
-without glare. On the scene `pier_city` at 1280 by 720 the PNGs of both renderers are
+without glare. On a local stress-test scene (not part of the repository) at 1280 by 720 the PNGs of both
+renderers are
 within one step of 255 of the prediction from their own EXR, with and without glare, and
 Theia agrees with Hyperion on the glare around the sun within 2 percent.
 
