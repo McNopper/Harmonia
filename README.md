@@ -385,6 +385,18 @@ compensation on both the reflection **and** the rough-transmission lobes (so rou
 does not lose energy). The F82 conductor Fresnel carries the
 `F90 = saturate(50·F0)` vanishing-interface fade (Lagarde/Frostbite — no lobe-weight gates).
 
+**The tangent frame of the anisotropy** is the tangent of the texture coordinates. OpenPBR's
+reference implementation binds `geometry_tangent` and `geometry_coat_tangent` to the tangent of
+the geometry (`Tworld` in `open_pbr_surface.mtlx`), so without a tangent map an anisotropic
+highlight stretches along the direction of increasing u, projected into the plane of the normal;
+the microscale grooves run along the bitangent. `map_tangent` and `map_coat_tangent` store a
+direction `(x, y)` in the plane of the texture coordinates and turn the base and the coat each
+on their own. Without a usable tangent (zero, or parallel to the normal) the frame is built from
+the normal alone, which the spec allows. Both renderers build the frame in
+`shaders/surface.slang` (`buildAnisotropyFrame`). `tests/component/test_surface_frame.cpp` pins
+the frame, and `tests/component/test_bsdf_measure.cpp` measures the direction of the stretch in
+the BSDF.
+
 **Layer stacking** follows OpenPBR's directional-albedo coupling rather than a linear
 blend: each lower layer is attenuated by the directional albedo of the layer above it
 (`R_out = R_top + (1 − E_top)·R_base`). The coat darkens the substrate by

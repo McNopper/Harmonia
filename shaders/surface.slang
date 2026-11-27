@@ -74,7 +74,7 @@ TriangleGeometry reconstructTriangleGeometry(float3 p0, float3 p1, float3 p2,
 struct SurfaceFrame {
     float3 normal;     ///< shading normal flipped to face wo (+ normal-mapped)
     float3 geoNormal;  ///< geometric normal flipped to face wo
-    float3 T, B;       ///< base tangent frame (anisotropy-reoriented via [5] when bound)
+    float3 T, B;       ///< anisotropy frame: the texture tangent in the plane of the normal, turned by [5] when bound
     float3 coatN;
     float3 coatT, coatB;
     bool   backface;   ///< C7: ray hit the back side (inside the dielectric) -> BSDF exit branch
@@ -97,6 +97,19 @@ float evalGeometryOpacity(GpuMaterial mat, ISurfaceTextureSampler tex, float2 uv
         alpha *= saturate(tex.sampleTex(mat.textureIndices2.w, uv).a);
     }
     return alpha;
+}
+
+/// The frame of the anisotropy of a shading normal. OpenPBR's reference implementation binds
+/// `geometry_tangent` to the tangent of the geometry (Tworld in open_pbr_surface.mtlx): the
+/// direction of increasing u, projected into the plane of the normal (Gram-Schmidt, spec
+/// "Normal maps and tangents"). A tangent that is zero or parallel to the normal is degenerate;
+/// the spec then allows any unit vector orthogonal to the normal, and the frame is built from
+/// the normal alone.
+void buildAnisotropyFrame(float3 N, float3 uvTangent, out float3 T, out float3 B)
+{
+    float3 Tt = uvTangent - N * dot(N, uvTangent);
+    T = dot(Tt, Tt) > 1.0e-12 ? normalize(Tt) : buildTBN(N)[0];
+    B = cross(N, T);
 }
 
 /// Apply the OpenPBR texture maps to @p mat and the raw hit normals/tangent, returning the
@@ -143,9 +156,11 @@ SurfaceFrame applyOpenPbrTextureMaps(inout GpuMaterial mat,
         }
     }
 
-    float3x3 tbn = buildTBN(N);
-    float3 T = tbn[0];
-    float3 B = tbn[1];
+    // Anisotropy frame: the tangent of the texture coordinates in the plane of the shading
+    // normal, the default of the reference implementation for `geometry_tangent`.
+    float3 T;
+    float3 B;
+    buildAnisotropyFrame(N, tangent, T, B);
 
     // [5] geometry_tangent — reorient the anisotropy frame. The map stores a tangent
     // direction (xy) in the UV-aligned tangent plane; rotate T/B accordingly.
@@ -160,18 +175,14 @@ SurfaceFrame applyOpenPbrTextureMaps(inout GpuMaterial mat,
             if (dot(T, T) > 1.0e-12) {
                 T = normalize(T);
                 B = cross(N, T);
-            } else {
-                T = tbn[0];
-                B = tbn[1];
             }
         }
     }
 
-    // ── Coat frame ([4] coat_normal, [6] coat_tangent). Defaults to the base frame
-    //    (incl. any [5] rotation) so unbound slots reproduce the shared-frame result. ──
+    // ── Coat frame ([4] coat_normal, [6] coat_tangent). `geometry_coat_tangent` is bound to
+    //    the tangent of the geometry as well: the coat keeps the texture tangent in the plane
+    //    of its normal until a coat tangent map turns it. A bound [5] turns the base only. ──
     float3 coatN = N;
-    float3 coatT = T;
-    float3 coatB = B;
     if (mat.textureIndices2.x != kNoTexture) {
         float3 nTex = tex.sampleTex(mat.textureIndices2.x, uv).xyz * 2.0 - 1.0;
         float3 Tt = tangent - N * dot(N, tangent);
@@ -180,11 +191,11 @@ SurfaceFrame applyOpenPbrTextureMaps(inout GpuMaterial mat,
             float3 Bt = cross(N, Tt);
             float3 Np = normalize(Tt * nTex.x + Bt * nTex.y + N * nTex.z);
             coatN = dot(wo, Np) >= 0.0 ? Np : N;
-            float3x3 coatTbn = buildTBN(coatN);
-            coatT = coatTbn[0];
-            coatB = coatTbn[1];
         }
     }
+    float3 coatT;
+    float3 coatB;
+    buildAnisotropyFrame(coatN, tangent, coatT, coatB);
     if (mat.textureIndices2.z != kNoTexture) {
         float2 tDir = tex.sampleTex(mat.textureIndices2.z, uv).xy * 2.0 - 1.0;
         float3 Tuv = tangent - coatN * dot(coatN, tangent);

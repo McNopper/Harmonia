@@ -49,6 +49,7 @@ add_executable(harmonia_component_tests
     component/test_sms_queue.cpp
     component/test_frame_completion.cpp
     component/test_bsdf_measure.cpp
+    component/test_surface_frame.cpp
     component/test_glare_pass.cpp
 )
 
@@ -89,10 +90,27 @@ target_compile_definitions(harmonia_component_tests PRIVATE
 gtest_discover_tests(harmonia_component_tests PROPERTIES RUN_SERIAL TRUE)
 
 set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/shaders")
+# The measure test imports the shipped BSDF: a change to one of these modules recompiles the
+# test, so it never measures stale SPIR-V.
+set(COMPILE_SLANG_EXTRA_DEPENDS "${PROJECT_SOURCE_DIR}/shaders/bsdf.slang"
+    "${PROJECT_SOURCE_DIR}/shaders/bsdf_shared.slang" "${PROJECT_SOURCE_DIR}/shaders/math.slang"
+    "${PROJECT_SOURCE_DIR}/shaders/common.slang" "${PROJECT_SOURCE_DIR}/shaders/gpu_types.slang"
+    "${PROJECT_SOURCE_DIR}/shaders/rng.slang")
 compile_slang_shaders(harmonia_bsdf_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders"
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bsdf_measure_test.slang")
+unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 add_dependencies(harmonia_component_tests harmonia_bsdf_test_shaders)
+
+set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/shaders")
+set(COMPILE_SLANG_EXTRA_DEPENDS "${PROJECT_SOURCE_DIR}/shaders/surface.slang"
+    "${PROJECT_SOURCE_DIR}/shaders/math.slang" "${PROJECT_SOURCE_DIR}/shaders/common.slang"
+    "${PROJECT_SOURCE_DIR}/shaders/gpu_types.slang" "${PROJECT_SOURCE_DIR}/shaders/rng.slang")
+compile_slang_shaders(harmonia_surface_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/surface_frame_test.slang")
+unset(COMPILE_SLANG_EXTRA_DEPENDS)
+unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
+add_dependencies(harmonia_component_tests harmonia_surface_test_shaders)
 target_compile_definitions(harmonia_component_tests PRIVATE
     HARMONIA_TEST_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
