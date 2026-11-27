@@ -214,6 +214,13 @@ accumulation frames over eight time samples now stamp eight times, not 256, and 
 takes 23 s including the 12 s scene load instead of 71 s. Every time sample keeps its instants
 and accumulation weight.
 
+**Reusability acceptance.** These changes are scene-independent: no production-scene names, mesh
+names, hard-coded object counts or camera paths in the implementation, and no branch keyed to a
+particular scene. Correctness means exactly the same evaluated instances and camera pose at each
+instant and the same exposure weights. Prove that with deterministic regression tests and
+scene-referred Theia/Hyperion EXR comparisons on an existing manifest scene and an independent
+animated scene; the local pier scene is a consumer test, never an input to the renderer's design.
+
 The table keeps the measurements that closed the removed techniques.
 
 | Technique | Measurement | Revisit when |
