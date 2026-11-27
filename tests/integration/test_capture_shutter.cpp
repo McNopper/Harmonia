@@ -15,36 +15,13 @@
 #include <string>
 #include <vector>
 
+#include "fixtures/EmptySceneBuilder.hpp"
 #include "harmonia/app/App.hpp"
 #include "harmonia/core/Barrier.hpp"
 
 namespace {
 
 constexpr double kFps = 24.0;
-
-class EmptyScene final : public harmonia::scene::ISceneBuilder {
-  public:
-    std::uint32_t addMaterial(harmonia::scene::Material&&) override { return 0; }
-    std::uint32_t addTexture(harmonia::scene::Texture&&) override { return 0; }
-    std::uint32_t addMesh(const harmonia::DeviceContext&,
-                          const harmonia::core::CommandPool&,
-                          harmonia::scene::MeshData&&,
-                          const harmonia::scene::MeshOpacity&,
-                          std::string_view) override {
-        return 0;
-    }
-    std::uint32_t addSphereMesh(const harmonia::DeviceContext&,
-                                const harmonia::core::CommandPool&,
-                                float,
-                                std::string_view) override {
-        return 0;
-    }
-    std::uint32_t addInstance(std::uint32_t, const harmonia::scene::Transform&, std::uint32_t) override { return 0; }
-    const aether::OpacityMicromapData& addOpacityMicromap(aether::OpacityMicromapData&&) override { return m_omm; }
-
-  private:
-    aether::OpacityMicromapData m_omm;
-};
 
 class ShutterApp;
 
@@ -75,19 +52,19 @@ class ShutterApp final : public harmonia::app::App {
 
   private:
     RecordingRenderer m_recording;
-    EmptyScene m_scene;
+    EmptySceneBuilder m_scene;
 };
 
 void RecordingRenderer::record(VkCommandBuffer cmd, const harmonia::app::RenderTarget& target) noexcept {
     sampleSeconds.push_back(app->sampleTime());
-    const auto barrier = harmonia::core::imageBarrier(target.image,
-                                                      sampleSeconds.size() == 1 ? VK_IMAGE_LAYOUT_UNDEFINED
-                                                                               : VK_IMAGE_LAYOUT_GENERAL,
-                                                      VK_IMAGE_LAYOUT_GENERAL,
-                                                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                                      VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-                                                      VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                                      VK_ACCESS_2_TRANSFER_WRITE_BIT);
+    const auto barrier =
+        harmonia::core::imageBarrier(target.image,
+                                     sampleSeconds.size() == 1 ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+                                     VK_IMAGE_LAYOUT_GENERAL,
+                                     VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                                     VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                                     VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                     VK_ACCESS_2_TRANSFER_WRITE_BIT);
     harmonia::core::pipelineBarrier(cmd, std::span{&barrier, 1});
     const VkClearColorValue color{.float32 = {.25F, .25F, .25F, 1}};
     const VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};

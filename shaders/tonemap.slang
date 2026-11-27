@@ -3,8 +3,15 @@
 // (only valid in ray-tracing stages) and other ray-tracing-specific resources.
 
 [[vk::binding(1, 0)]] RWTexture2D<float4> hdrTarget;
+/// The glare of the frame (the GlarePass's result, at half resolution): the
+/// light a lens scatters from the bright parts of the frame. A null descriptor
+/// (no glare) reads as zero. A 32-bit float image, for which linear filtering
+/// is not a guaranteed format feature: the draw interpolates it (glareAt).
+[[vk::binding(2, 0)]] Texture2D<float4> glareImage;
 
-/// Matches GpuTypes.hpp::PushConstants (byte-for-byte layout).
+/// The block the host pushes (GpuTypes.hpp::PushConstants), member by member:
+/// the host pushes outputColorSpace, tonemapper, workingColorSpace and
+/// glareStrength each at the offset of its C++ member.
 struct PushConstants {
     uint  frameIndex;
     uint  maxDepth;
@@ -19,6 +26,13 @@ struct PushConstants {
     uint  envImportanceHeight;
     uint  tonemapper;            ///< Tonemapper enum: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable
     uint  workingColorSpace;     ///< 0 = linear Rec.2020 (default), 1 = linear Rec.709
+    // Not read by the tone mapper; declared so that glareStrength has the
+    // offset of its C++ member. smsWork is a VkDeviceAddress: 8 bytes.
+    uint  smsPartitionResolution;
+    uint2 smsWork;
+    float hazeDensity;
+    float hazeHeight;
+    float glareStrength;         ///< share of the glare texture added to the frame (0 = none)
 };
 [[vk::push_constant]] PushConstants pushConst;
 
@@ -330,15 +344,50 @@ float3 softenFirefly(RWTexture2D<float4> hdr, int2 coord, float3 center) {
 }
 
 // ---------------------------------------------------------------------------
+// Lens glare
+// ---------------------------------------------------------------------------
+
+/// The glare under bilinear filtering at the frame position uv: the half
+/// resolution texels around it, weighted as a linear filter does.
+float3 glareAt(float2 uv) {
+    uint width = 0u;
+    uint height = 0u;
+    glareImage.GetDimensions(width, height);
+    const float2 size = float2(width, height);
+    const float2 position = uv * size - 0.5;
+    const int2 base = int2(floor(position));
+    const float2 offset = position - float2(base);
+    const int2 last = int2(size) - int2(1, 1);
+    float4 sum = 0.0.xxxx;
+    [unroll]
+    for (uint dy = 0u; dy < 2u; ++dy) {
+        const float wy = (dy == 0u) ? (1.0f - offset.y) : offset.y;
+        [unroll]
+        for (uint dx = 0u; dx < 2u; ++dx) {
+            const float wx = (dx == 0u) ? (1.0f - offset.x) : offset.x;
+            sum += wx * wy * glareImage.Load(int3(clamp(base + int2(dx, dy), int2(0, 0), last), 0));
+        }
+    }
+    return sum.xyz;
+}
+
+// ---------------------------------------------------------------------------
 // Fragment entry point
 // ---------------------------------------------------------------------------
 
 [shader("fragment")]
-float4 tonemapFrag(float4 svPos : SV_Position) : SV_Target0
+float4 tonemapFrag(float4 svPos : SV_Position, float2 uv : TEXCOORD0) : SV_Target0
 {
     int2 coord = int2(svPos.xy);
     float3 hdr = max(hdrTarget[coord].xyz, 0.0f.xxx);
     hdr = softenFirefly(hdrTarget, coord, hdr); // suppress isolated HDR outliers (fireflies)
+
+    // Lens glare: the light the lens scatters from the bright parts of the frame
+    // is added before the tone curve. A presentation stage, in the frame's
+    // working space like the frame itself.
+    if (pushConst.glareStrength > 0.0f) {
+        hdr += pushConst.glareStrength * max(glareAt(uv), 0.0f.xxx);
+    }
 
     // The ToneMapper is the glue between the scene-referred working space and
     // the display-referred output space. The paths below assume linear

@@ -49,6 +49,7 @@ add_executable(harmonia_component_tests
     component/test_sms_queue.cpp
     component/test_frame_completion.cpp
     component/test_bsdf_measure.cpp
+    component/test_glare_pass.cpp
 )
 
 target_link_libraries(harmonia_component_tests
@@ -106,6 +107,7 @@ add_executable(harmonia_integration_tests
     integration/test_frame_completion_capture.cpp
     integration/test_capture_failures.cpp
     integration/test_capture_shutter.cpp
+    integration/test_capture_glare.cpp
 )
 
 target_link_libraries(harmonia_integration_tests

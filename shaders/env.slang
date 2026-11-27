@@ -8,6 +8,13 @@ float3 sampleEnvMap(float3 dir)
     return max(envMap.SampleLevel(envSampler, dirToLatlong(dir), 0).xyz, 0.0.xxx);
 }
 
+/// The same lookup at an explicit mip level: the haze reads its in-scattered
+/// sky from a strongly blurred level.
+float3 sampleEnvMapAtLevel(float3 dir, float lod)
+{
+    return max(envMap.SampleLevel(envSampler, dirToLatlong(dir), lod).xyz, 0.0.xxx);
+}
+
 /// Evaluate environment radiance for a given direction (Rec.2020 linear, cd/m²).
 /// Returns envLuminanceScale * IBL sample when an env map is loaded,
 /// or black (0,0,0) for scenes without an env map.

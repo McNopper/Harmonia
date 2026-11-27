@@ -49,10 +49,10 @@ struct AppConfig {
     std::filesystem::path assetsDir;  ///< canonical Aether asset collection
     std::filesystem::path sceneFile;  ///< a path, or a name / subdirectory path inside assetsDir
     std::filesystem::path outputFile; ///< non-empty: offscreen render (EXR + PNG), then exit
-    /// Force off all post-processing stages (the shared denoiser/A-SVGF stage and
-    /// renderer-side TAA) so the displayed image is the raw estimator result — the
-    /// same identity --output enforces for offscreen capture, available in the
-    /// interactive window.
+    /// Force off all post-processing stages (the shared denoiser/A-SVGF stage,
+    /// the lens glare and renderer-side TAA) so the displayed image is the raw
+    /// estimator result — the same identity --output enforces for offscreen
+    /// capture, available in the interactive window.
     bool noPostfx = false;
     /// Number of scene-referred frames to render before saving in offscreen mode.
     /// For stochastic pipelines, increase this to improve convergence.
@@ -111,6 +111,15 @@ struct AppConfig {
     StagePipeline stages{};
     /// Shared denoiser controls for the scene-output stage.
     DenoiserOptions denoiser{};
+    /// Lens glare (`--glare`): the share of the scattered light that the tone
+    /// mapper adds to the frame before its curve. 0 = none. A presentation
+    /// stage like the denoiser: `--no-postfx` turns it off, and the scene-referred
+    /// EXR of a capture never contains it. A capture asked for it gets it in
+    /// its PNG.
+    float glare = 0.0F;
+    /// `--glare-threshold`: the scene-linear luminance above which the frame's
+    /// light is scattered. 1.0 is the frame's reference white.
+    float glareThreshold = 1.0F;
     /// Enables replayable frame/sample RNG sequencing for stochastic stages.
     bool deterministicReplay = false;
     /// Base seed used by renderer RNG composition (pixel + frame/sample + bounce).

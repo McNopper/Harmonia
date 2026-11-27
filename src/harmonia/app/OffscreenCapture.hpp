@@ -8,6 +8,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/pipeline/GlarePass.hpp"
 #include "harmonia/presentation/ToneMapper.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
@@ -31,7 +32,9 @@ class OffscreenCapture {
                                              VkPipelineStageFlags2 srcStage,
                                              VkAccessFlags2 srcAccess,
                                              std::uint32_t tonemapper,
-                                             utils::ColorSpace::WorkingColorSpace workingSpace);
+                                             utils::ColorSpace::WorkingColorSpace workingSpace,
+                                             pipeline::GlarePass* glare = nullptr,
+                                             float glareStrength = 0.0F);
     [[nodiscard]] const core::Image& captureImage() const noexcept { return m_displayCaptureImage; }
 
   private:

@@ -27,6 +27,7 @@
 #include "harmonia/core/Image.hpp"
 #include "harmonia/core/PipelineBinaryCache.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
+#include "harmonia/pipeline/GlarePass.hpp"
 #include "harmonia/pipeline/IRenderPass.hpp"
 #include "harmonia/pipeline/SceneOutputCopyPass.hpp"
 #include "harmonia/presentation/Swapchain.hpp"
@@ -330,6 +331,10 @@ class App {
     // Kept immediately after m_context for the lifetime contract above.
     std::optional<core::PipelineBinaryCache> m_pipelineBinaryCache;
     presentation::ToneMapper m_toneMapper{};
+    /// The lens glare of the display stages, recorded right before the tone
+    /// mapper: owned by m_displayStages, null unless `--glare` is above 0. A
+    /// capture records it for its PNG too; the EXR is written before it.
+    pipeline::GlarePass* m_glarePass = nullptr;
     core::Image m_hdrImage{};
     core::Image m_denoisedImage{};
     OffscreenCapture m_offscreen; // offscreen-only: SDR capture (presentation::ToneMapper + 8-bit image)

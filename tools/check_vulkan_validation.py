@@ -30,6 +30,11 @@ Examples:
 
     # also exercise the interactive window path (swapchain/present/TAA/resize)
     python tools/check_vulkan_validation.py --window-seconds 6
+
+By default the scenes of GLARE_SCENES are captured a second time with the lens
+glare on (--glare 0.1), once per renderer: the glare stage and the tone mapper's
+glare input are shared code, so one capture covers them. --glare 0 skips these
+runs; with --window-seconds the window of these scenes is run with glare as well.
 """
 
 from __future__ import annotations
@@ -60,6 +65,12 @@ FAILURE_RE = re.compile(
 # descriptor pools, layout transitions, queue ownership) are independent of
 # sample count, so tiny sampling keeps the gate fast enough to run often.
 DEFAULT_FRAMES = 4
+# The lens glare (--glare) is a stage of the host, shared by both renderers and
+# scene independent: it is captured once per renderer, on a scene with a light
+# source far above the glare threshold. GLARE_SCENES names these scenes; the
+# gate captures them plain and with glare.
+DEFAULT_GLARE = 0.1
+GLARE_SCENES = ("cornell_classic",)
 OFFSCREEN_TIMEOUT_S = 120
 
 
@@ -79,12 +90,16 @@ def _exe_defaults() -> tuple[Path, Path]:
     return root / "Theia" / "build" / "theia.exe", root / "Hyperion" / "build" / "hyperion.exe"
 
 
-def _base_args(exe: Path, scene: str, width: int, height: int) -> list[str]:
-    return [str(exe), "--scene", scene, "--width", str(width), "--height", str(height), "--validation"]
+def _base_args(exe: Path, scene: str, width: int, height: int, glare: float = 0.0) -> list[str]:
+    args = [str(exe), "--scene", scene, "--width", str(width), "--height", str(height), "--validation"]
+    if glare > 0.0:
+        args += ["--glare", str(glare)]
+    return args
 
 
-def _offscreen_args(exe: Path, renderer: str, scene: str, width: int, height: int, frames: int) -> list[str]:
-    args = _base_args(exe, scene, width, height)
+def _offscreen_args(exe: Path, renderer: str, scene: str, width: int, height: int, frames: int,
+                    glare: float = 0.0) -> list[str]:
+    args = _base_args(exe, scene, width, height, glare)
     out = Path(sys.argv[0]).resolve().parent / "_vk_logs" / f"{renderer}_{scene}_offscreen.exr"
     out.parent.mkdir(parents=True, exist_ok=True)
     if renderer == "theia":
@@ -164,6 +179,8 @@ def main() -> int:
     p.add_argument("--width", type=int, help="Render width (default: manifest)")
     p.add_argument("--height", type=int, help="Render height (default: manifest)")
     p.add_argument("--frames", type=int, default=DEFAULT_FRAMES, help=f"offscreen-frames / spp (default: {DEFAULT_FRAMES})")
+    p.add_argument("--glare", type=float, default=DEFAULT_GLARE,
+                   help=f"Lens glare strength of the glare runs (default: {DEFAULT_GLARE}; 0 skips them)")
     p.add_argument("--window-seconds", type=int, default=0, help="Also run a timed window capture (0=offscreen only)")
     p.add_argument("--renderers", default="theia,hyperion", help="Comma list: theia,hyperion (default: both)")
     args = p.parse_args()
@@ -186,17 +203,29 @@ def main() -> int:
             return 2
 
     print(f"Vulkan validation gate: {len(scenes)} scene(s) x {list(renderers)} "
-          f"@ {width}x{height}, frames/spp={args.frames}, window={'off' if not args.window_seconds else str(args.window_seconds)+'s'}")
+          f"@ {width}x{height}, frames/spp={args.frames}, window={'off' if not args.window_seconds else str(args.window_seconds)+'s'}, "
+          f"glare runs={'on' if args.glare > 0 else 'off'}")
 
     results: list[RunResult] = []
     for scene in scenes:
+        glare_here = args.glare > 0 and scene in GLARE_SCENES
         for name, exe in renderers.items():
             results.append(_run_offscreen((name, scene, "offscreen"),
                                           _offscreen_args(exe, name, scene, width, height, args.frames)))
+            if glare_here:
+                # The glare stage is shared code and scene independent: one capture per
+                # renderer with a light source far above the threshold covers it.
+                results.append(_run_offscreen((name, scene, "glare"),
+                                              _offscreen_args(exe, name, scene, width, height, args.frames,
+                                                              glare=args.glare)))
             if args.window_seconds:
                 # window: same base args (validation on), no --output
                 results.append(_run_window((name, scene, "window"),
                                            _base_args(exe, scene, width, height), args.window_seconds))
+                if glare_here:
+                    results.append(_run_window((name, scene, "win+glare"),
+                                               _base_args(exe, scene, width, height, glare=args.glare),
+                                               args.window_seconds))
 
     _print_table(results)
     n_fail = sum(1 for r in results if not r.passed)

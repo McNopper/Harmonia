@@ -36,7 +36,8 @@ renderers. The renderers never depend on each other.
 - [Scene loading](#scene-loading)
 - [Material model — OpenPBR Surface v1.1.2](#material-model--openpbr-surface-v112)
 - [Shared shaders](#shared-shaders)
-- [Denoiser stage and the two-tier output contract](#denoiser-stage-and-the-two-tier-output-contract)
+- [Presentation stages and the two-tier output contract](#presentation-stages-and-the-two-tier-output-contract)
+- [Lens glare](#lens-glare)
 - [Device layer](#device-layer)
 - [Parity methodology](#parity-methodology)
 - [Testing](#testing)
@@ -56,10 +57,10 @@ renderers. The renderers never depend on each other.
 | Shared GPU types | `GpuVertex`, `GpuMaterial`, `GpuLight`, `GpuEmissiveTriangle`, `CameraData`, `PushConstants` and the `Tonemapper` / `LightType` enumerations |
 | Scene | Loader, material library, textures, procedural geometry, IBL probe, lights, per-frame vertex deformation |
 | Ray-tracing scene state | Acceleration structures, opacity micromaps, TLAS build and refit, emissive-triangle collection |
-| Render passes | Accumulation, denoiser, specular manifold sampling (SMS), tone mapping |
+| Render passes | Accumulation, denoiser, lens glare, specular manifold sampling (SMS), tone mapping |
 | Color management and tone mapping | Linear Rec.2020 (default) or Rec.709 working color space; ACES, AgX, Reinhard, Hable |
 | Presentation | Swapchain with SDR, Display P3, scRGB, HDR10 and HLG output |
-| Shared Slang modules | The OpenPBR BSDF, the path integrator, the medium walk, environment-map sampling, RNG and math helpers |
+| Shared Slang modules | The OpenPBR BSDF, the path integrator, the medium walk, the distance haze, environment-map sampling, RNG and math helpers |
 | Image I/O | PNG and JPEG loading, EXR loading and saving with chromaticities (OpenImageIO) |
 | Tools | The comparison, validation and analysis scripts in `tools/` |
 
@@ -81,7 +82,7 @@ renderers use identically lives here.
 | `src/harmonia/scene/` | Scene loader, material library, textures, meshes, geometry, lights, IBL probe, procedural geometry, deformation pass |
 | `src/harmonia/scene_rt/` | The ray-tracing side of a scene: triangle meshes, analytic spheres, TLAS build, refit and update policy, emissive triangles |
 | `src/harmonia/renderer/` | Camera, camera assembly, shared descriptors, ray-tracing pipeline helper |
-| `src/harmonia/pipeline/` | Render-pass interface, accumulation pass, denoiser pass, SMS pass |
+| `src/harmonia/pipeline/` | Render-pass interface, accumulation pass, denoiser pass, glare pass, SMS pass |
 | `src/harmonia/presentation/` | Swapchain, tone mapper, image capture |
 | `src/harmonia/app/` | Application host, CLI parser and configuration, offscreen capture, frame synchronization, frame completion |
 | `shaders/` | Shared Slang modules and the entry shaders Harmonia compiles |
@@ -101,9 +102,10 @@ flowchart LR
     subgraph HOST["Harmonia host"]
         C["Frame completion<br/>optional continuations"] --> A["Accumulation pass"]
         A --> D["Denoiser pass<br/>interactive window only"]
+        D --> G["Glare pass<br/>with --glare"]
     end
-    D --> T["Tone mapper"] --> S["Swapchain image"]
-    HOST -->|"offscreen capture"| F["EXR and PNG files"]
+    G --> T["Tone mapper"] --> S["Swapchain image"]
+    HOST -->|"offscreen capture"| F["EXR, and PNG with the glare"]
 ```
 
 1. **Start-up** (`App::run`). The host creates an SDL window (hidden when `--output`
@@ -118,13 +120,16 @@ flowchart LR
    than one GPU submission for a frame, it provides a frame-completion adapter: the
    host submits the first part, waits for it and records the continuations until the
    adapter reports that the frame is ready. Only completion and error status are read
-   back; workgroup counts stay on the GPU. Then the scene stages run: accumulation
+   back; workgroup counts stay on the GPU. A scene with a `[haze]` section has its
+    distance haze applied here, by the renderer, to the radiance of every camera ray
+    through the shared module `shaders/haze.slang`. Then the scene stages run: accumulation
    (a running average over the frames) and, in the interactive window, the denoiser.
-4. **Present** (`App::presentFrame`). The tone mapper converts the denoised image, or
-   the HDR image when the denoiser is off, into the swapchain's color space and the
-   image is presented. The shared order inside a frame is: renderer, scene stages,
-   tone map. A resize recreates the swapchain, the images, the passes and the renderer's
-   resources.
+4. **Present** (`App::presentFrame`). With `--glare` above zero the glare pass computes
+    the lens glare of the frame. The tone mapper converts the denoised image, or the
+    HDR image when the denoiser is off, adds the glare to it and writes the swapchain
+    color space; the image is presented. The shared order inside a frame is: renderer,
+    scene stages, glare, tone map. A resize recreates the swapchain, the images, the
+    passes and the renderer's resources.
 5. **Capture** (`App::renderOffscreen`). Described under
    [Offscreen capture](#offscreen-capture).
 
@@ -168,8 +173,8 @@ These flags take effect together with `--output`.
 
 For `--offscreen-frames`, `--sequence-frames`, `--frame`, `--frames-per-flip`,
 `--time-samples`, `--rng-seed`, `--denoiser-iterations`, `--capture-every-ms`,
-`--start-seconds` and `--shutter`, a value that does not parse is reported as an error
-and the default stays unchanged.
+`--start-seconds`, `--shutter`, `--glare` and `--glare-threshold`, a value that does
+not parse is reported as an error and the default stays unchanged.
 
 **Offscreen capture.** With `--output`, the host renders the requested number of
 frames into the HDR image and saves it:
@@ -180,6 +185,8 @@ frames into the HDR image and saves it:
   is 8-bit sRGB and is produced by the same GPU tone mapper the interactive window
   uses; a CPU tone map is used only when the tone-mapper stage is unavailable.
 - The denoiser is off for every capture, whatever the `--denoiser-*` flags say.
+- The lens glare is in the PNG of a capture that asks for it with `--glare`, and in
+  no EXR: the glare is computed after the EXR was written.
 - The capture runs at below-normal CPU priority so the desktop stays usable. A warning
   is logged when a device-local memory heap is above 90 percent of its budget.
 - If a frame fails, the capture stops with exit code 1; frames of a sequence that were
@@ -218,7 +225,7 @@ on, with a four-digit frame index.
 | Flag | Default | Effect |
 |------|---------|--------|
 | `--frames-per-flip <n>` | 1 | Accumulation frames rendered per swapchain flip. With 1 every rendered frame is presented. A higher value lets the displayed image converge faster on a still camera, at the cost of flip rate and input latency. Values below 1 become 1. Every 300 rendered frames a `pacing:` log line reports rendered frames and flips |
-| `--no-postfx` | off | Turn off every post-processing stage: the shared denoiser here and TAA in Theia. The window then shows the raw estimator result, the same image a capture produces |
+| `--no-postfx` | off | Turn off every post-processing stage: the shared denoiser and the lens glare here and TAA in Theia. The window then shows the raw estimator result, the same image a capture produces |
 | `--display-overlay` | off | Draw the post-tone-mapping display renderer into the window after the tone-mapped image. The only one provided clears the window to flat green, so the flag tests the presentation path without a renderer. A scene can request it with `post_tonemap.renderer = "green_screen"` |
 | `--indirect-ambient <f>` | 0.0 | Strength of an indirect ambient term that Theia adds to the displayed image (scene-referred linear units). It changes the image, so it stays at 0 for parity captures. Hyperion does not read it |
 | `--ibl-diffuse-resolution <n>` | 256 | Stored in the configuration; no code reads it, the flag has no effect |
@@ -240,13 +247,26 @@ A value outside its range is clamped to the range. Theia replaces the default st
 with 0.55 while its ReSTIR PT mode is on, unless another strength was given on the
 command line.
 
+### Glare
+
+These flags control the lens glare of the presentation, in the interactive window and
+in a capture. The stage is described under [Lens glare](#lens-glare).
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `--glare <f>` | 0 | The share of the light a lens scatters from the bright parts of the frame that the tone mapper adds to the frame before its curve. 0 is no glare |
+| `--glare-threshold <f>` | 1.0 | Scene-linear luminance above which the light of a texel is scattered; 1.0 is reference white. A scene whose exposed sky lies above the threshold gets a veil from its sky, so the threshold is raised there to its light sources |
+
+A value that does not parse, or is negative (for the threshold: not above 0), is
+reported as an error and the default stays unchanged. `--no-postfx` turns the glare off.
+
 ### Random numbers
 
 | Flag | Default | Effect |
 |------|---------|--------|
 | `--rng-seed <n>` | 305419896 (`0x12345678`) | Base seed of the random-number composition (pixel, sample and bounce index) |
-| `--deterministic-replay` | off | Sequence the random numbers per frame and sample so that a run repeats exactly with the same seed. Read by Theia |
-| `--rng-debug` | off | Switch for Theia's renderer-side random-number visualization and tests |
+| `--deterministic-replay` | off | Accepted, and passed to the forward shaders of Theia as a flag bit; no shader reads it. It does not make a run repeatable: Hyperion repeats a run exactly without it, Theia does on most scenes (see the known limitations of its `PLAN.md`) |
+| `--rng-debug` | off | Accepted and passed on like `--deterministic-replay`; no shader reads it |
 
 ### Environment variables
 
@@ -314,6 +334,9 @@ is missing or malformed, a warning is logged and the inline keys are used.
   procedural sky is used.
 - Reads the camera. A scene needs a `[camera]` placement: without both `translate` and
   a rotation the scene load stops. Neither renderer keeps a private default view.
+- Reads the distance haze of a scene with a `[haze]` section: the extinction per metre
+  at height zero and the height at which it has fallen to 1/e. Both are handed to the
+  renderer, which applies the haze to the radiance of every camera ray.
 - Applies the stage switches and the tone mapper of the scene.
 
 ### Material of a sub-mesh
@@ -459,6 +482,8 @@ names follow OpenPBR, and formulas are cross-checked against MaterialX.
 | `env_sample.slang`, `env.slang` | Environment-map lookup and importance sampling through a separable CDF |
 | `accumulation.slang` | Running average of the HDR image |
 | `denoiser.slang` | The A-SVGF denoiser |
+| `glare.slang` | The lens glare: the prefilter into level 0, the downsample of a level, the upsample of a level |
+| `haze.slang` | Distance haze between the camera and the scene: optical depth, composite, transmittance. Pure math, called by both renderers on the radiance of a camera ray |
 | `tonemap.slang`, `tonemap_vert.slang` | The tone-mapping fullscreen pass |
 | `deform.comp.slang` | Morph targets followed by skinning, one dispatch per deformed sub-mesh |
 | `sms_*.slang` | Specular manifold sampling: manifold geometry and solver, trust regions, priors, the resumable work queue, path ownership |
@@ -502,7 +527,7 @@ Rules that the implementation follows and that a change must keep:
 Scattering media, dispersion and chains longer than two specular events are not
 handled by SMS; they stay with ordinary path tracing.
 
-## Denoiser stage and the two-tier output contract
+## Presentation stages and the two-tier output contract
 
 The scene pipeline includes a shared **A-SVGF** denoiser stage before tone mapping (when
 `stages.denoiser` is enabled): an à-trous wavelet edge-stopping filter with temporal
@@ -531,6 +556,59 @@ The runtime flags are listed under [Denoiser](#denoiser).
 The pass also contains a converging blend (Denisova et al., I3D 2024) that approaches the
 unfiltered image as the sample count grows. It is reached only through the pass setting
 `convergingMode`; no command-line flag enables it and neither application turns it on.
+
+The lens glare is the other presentation stage of the host. Unlike the denoiser it does
+not filter the frame, so it is allowed in a capture: in the PNG, never in the EXR. It is
+described next.
+
+## Lens glare
+
+The lens glare is the light a lens scatters from the bright parts of the frame. It is a
+stage of the host (`pipeline::GlarePass`, `shaders/glare.slang`) that runs after the
+accumulation and the denoiser, on the image the tone mapper reads. The tone mapper adds
+the glare to the frame before its tone curve, so the glare is tone-mapped like the light
+of the scene. It is on with `--glare` above zero, in the interactive window and in a
+capture ([Glare flags](#glare)).
+
+**Algorithm.** The frame is downsampled into a chain of levels, each half the size of
+the one before, with the 13-tap filter of Jimenez (SIGGRAPH 2014). Level 0, at half the
+resolution of the frame, takes only what lies above the threshold: of a texel with the
+luminance L, the part above the threshold contributes, through a soft knee of half the
+width of the threshold below it. The chain is then upsampled from the coarsest level: each
+level is the downsampled level of its size plus 0.8 times the level below it under a tent
+filter two texels wide. So the glare of a small bright object spreads over widths that
+double from level to level, with a weight that falls by 0.8 each time, and the glare of a
+frame that lies below the threshold everywhere is exactly zero.
+
+Three compute entries of `glare.slang` form the stage: the prefilter into level 0, the
+downsample of a level, the upsample of a level. There are at most six levels; a level
+exists while both of its dimensions are at least 2, and a frame too small for one has no
+glare. The levels and the result are 32-bit float, the format of the frame, so that they
+carry the whole range of the frame. The result lies at half the resolution of the frame
+and the tone mapper reads it under bilinear filtering; a 32-bit float image is not
+guaranteed to support linear filtering, so the draw interpolates it itself.
+
+**What the threshold means.** It is a luminance of the exposed frame, in scene-linear
+units: 1.0 is reference white. A sky at 2 to 8 units lies above 1.0 almost everywhere,
+and the glare of the sky is then a veil over everything in front of it. The threshold is
+raised to the light sources of the scene: with the sky at 0.3 units and the sun at 30 to
+130 units, 6 scatters the sun and the brightest glints and nothing else.
+
+**Tests.** `tests/component/test_glare_pass.cpp` compares the GPU with the reference in
+`tests/fixtures/GlareReference.hpp`, which is written in double precision from this
+description: mixed frames of two sizes, a constant, a frame below the threshold, the
+levels for several extents and the configurations the pass refuses. The measured error
+of the GPU is within 1.1 percent of the bound derived from float32 rounding.
+`tests/integration/test_capture_glare.cpp` writes known frames through a capture and
+compares the PNG with the reference of the whole display path for the ACES and the
+Reinhard curve: the PNG is within one step of 255, the EXR is the frame, a frame below the
+threshold gives the same PNG with and without glare, and `--no-postfx` gives the PNG
+without glare. On the scene `pier_city` at 1280 by 720 the PNGs of both renderers are
+within one step of 255 of the prediction from their own EXR, with and without glare, and
+Theia agrees with Hyperion on the glare around the sun within 2 percent.
+
+The stage writes its result through the tone mapper with the selected output color space,
+so the HDR10, HLG, scRGB and Display P3 outputs carry the glare as well.
 
 ## Device layer
 

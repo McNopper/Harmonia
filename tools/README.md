@@ -218,13 +218,20 @@ message in its output and on any warning or error line logged by the application
 
 ```text
 python tools/check_vulkan_validation.py [--theia PATH] [--hyperion PATH] [--manifest PATH]
-    [--scene NAME] [--width N] [--height N] [--frames N] [--window-seconds N] [--renderers theia,hyperion]
+    [--scene NAME] [--width N] [--height N] [--frames N] [--glare F] [--window-seconds N] [--renderers theia,hyperion]
 ```
 
 Defaults: the executables are expected next to this repository in `Theia/build` and
 `Hyperion/build`; the scene set is the manifest; the resolution is the manifest's;
 `--frames` is 4 (accumulation frames for Theia, samples per pixel for Hyperion);
-`--window-seconds` is 0.
+`--glare` is 0.1; `--window-seconds` is 0.
+
+The lens glare is a stage of the host that both renderers share, and it does not depend
+on the scene. So the scenes named by `GLARE_SCENES` in the script (`cornell_classic`,
+whose ceiling light lies far above the glare threshold) are captured a second time with
+`--glare F`, once per renderer, with the mode `glare`. `--glare 0` skips these runs. With
+`--window-seconds N` the window of these scenes is opened with the glare as well (mode
+`win+glare`).
 
 A line in a renderer's output fails the run when it contains one of these patterns:
 `VUID-`, `UNASSIGNED`, `Vulkan warning`, `Vulkan error`, `][WARNING]` or `][ERROR]` (the

@@ -31,11 +31,22 @@ class ToneMapper {
     ToneMapper& operator=(ToneMapper&&) noexcept = default;
     ~ToneMapper() noexcept = default;
 
+    /// The lens glare a draw adds to the frame before its tone curve.
+    struct GlareInput {
+        /// The result of pipeline::GlarePass: in SHADER_READ_ONLY_OPTIMAL, and
+        /// at half the extent of the frame. A null view adds no glare.
+        VkImageView view = VK_NULL_HANDLE;
+        /// The share of the glare that is added. 0 adds no glare.
+        float strength = 0.0F;
+    };
+
     /// Record the tone-mapping draw into cmd.
     /// The swapchain image must already be in VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL.
     /// colorSpace must match the swapchain's active utils::OutputColorSpace.
     /// workingSpace is the scene-referred space of hdrView's contents — the
     /// tone mapper is the glue converting it to the display-referred output.
+    /// The frame's image is only read: the glare is in the output, not in the
+    /// image, so a capture of that image is the frame without glare.
     void record(VkCommandBuffer cmd,
                 VkImageView hdrView,
                 VkImageView swapchainView,
@@ -43,6 +54,15 @@ class ToneMapper {
                 utils::OutputColorSpace colorSpace,
                 harmonia::utils::ColorSpace::WorkingColorSpace workingSpace =
                     harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
+
+    /// As above, with the lens glare added to the frame before the tone curve.
+    void record(VkCommandBuffer cmd,
+                VkImageView hdrView,
+                VkImageView swapchainView,
+                VkExtent2D extent,
+                utils::OutputColorSpace colorSpace,
+                harmonia::utils::ColorSpace::WorkingColorSpace workingSpace,
+                const GlareInput& glare) const noexcept;
 
     /// Overload that also selects the SDR/Display-P3 tone-mapping operator
     /// (matches tonemap.slang: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable). Used by
@@ -57,6 +77,16 @@ class ToneMapper {
                 std::uint32_t tonemapper,
                 harmonia::utils::ColorSpace::WorkingColorSpace workingSpace =
                     harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020) const noexcept;
+
+    /// As above, with the lens glare added to the frame before the tone curve.
+    void record(VkCommandBuffer cmd,
+                VkImageView hdrView,
+                VkImageView swapchainView,
+                VkExtent2D extent,
+                utils::OutputColorSpace colorSpace,
+                std::uint32_t tonemapper,
+                harmonia::utils::ColorSpace::WorkingColorSpace workingSpace,
+                const GlareInput& glare) const noexcept;
 
     [[nodiscard]] bool isValid() const noexcept { return m_pipeline != VK_NULL_HANDLE; }
 

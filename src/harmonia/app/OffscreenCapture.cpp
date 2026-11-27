@@ -22,7 +22,9 @@ bool OffscreenCapture::tonemapToCaptureImage(const DeviceContext& ctx,
                                              VkPipelineStageFlags2 srcStage,
                                              VkAccessFlags2 srcAccess,
                                              std::uint32_t tonemapper,
-                                             utils::ColorSpace::WorkingColorSpace workingSpace) {
+                                             utils::ColorSpace::WorkingColorSpace workingSpace,
+                                             pipeline::GlarePass* glare,
+                                             float glareStrength) {
     // A PNG is inherently SDR, so we cannot bit-match an HDR10 / scRGB swapchain. Instead we
     // run the SAME tone mapper the window uses, but into a fixed 8-bit sRGB target
     // (utils::OutputColorSpace::eSDR). The tone curve matches the window; only the container differs.
@@ -58,6 +60,14 @@ bool OffscreenCapture::tonemapToCaptureImage(const DeviceContext& ctx,
         return false;
     }
 
+    // The glare comes first: the tone mapper below adds it. It reads the frame
+    // in GENERAL and waits for the stage and access given by the caller.
+    VkImageView glareView = VK_NULL_HANDLE;
+    if (glare != nullptr && glare->isValid()) {
+        glare->record(*cmd, sceneOutput, srcStage, srcAccess);
+        glareView = glare->glareView();
+    }
+
     const std::array preBarriers{
         core::imageBarrier(sceneOutput.handle(),
                            VK_IMAGE_LAYOUT_GENERAL,
@@ -82,7 +92,8 @@ bool OffscreenCapture::tonemapToCaptureImage(const DeviceContext& ctx,
                                extent,
                                utils::OutputColorSpace::eSDR,
                                tonemapper,
-                               workingSpace);
+                               workingSpace,
+                               presentation::ToneMapper::GlareInput{.view = glareView, .strength = glareStrength});
 
     const std::array postBarriers{
         core::imageBarrier(m_displayCaptureImage.handle(),

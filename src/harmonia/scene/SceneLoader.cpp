@@ -240,6 +240,8 @@ void applyRenderSettings(const aether::SceneDesc& desc, SceneConfig& cfg) {
     cfg.envUnitNits = desc.envUnitNits;
     if (desc.envMapFile)
         cfg.envMapFile = std::filesystem::path(*desc.envMapFile);
+    cfg.hazeDensity = desc.hazeDensity;
+    cfg.hazeHeight = desc.hazeHeight;
 
     if (desc.tonemapper) {
         const std::string& name = *desc.tonemapper;

@@ -38,32 +38,41 @@ void hashCombineU64(std::uint64_t& hash, std::uint64_t value) noexcept {
 
 class ToneMapStagePass final : public pipeline::IRenderPass {
   public:
-    explicit ToneMapStagePass(const presentation::ToneMapper* toneMapper) : m_toneMapper(toneMapper) {}
+    /// glare is the stage recorded before this one, or null for no glare.
+    ToneMapStagePass(const presentation::ToneMapper* toneMapper, const pipeline::GlarePass* glare, float glareStrength)
+        : m_toneMapper(toneMapper), m_glare(glare), m_glareStrength(glareStrength) {}
 
-    void record(const pipeline::PassContext& ctx) noexcept override {
-        if (m_toneMapper == nullptr || !m_toneMapper->isValid() || ctx.swapchainView == VK_NULL_HANDLE) {
-            return;
-        }
-        const core::Image* input = ctx.denoised != nullptr ? ctx.denoised : ctx.hdrBuffer;
-        if (input == nullptr) {
-            return;
-        }
-        m_toneMapper->record(ctx.cmd,
-                             input->view(),
-                             ctx.swapchainView,
-                             ctx.extent,
-                             ctx.colorSpace,
-                             ctx.tonemapper,
-                             ctx.workingColorSpace);
-    }
-
-    void onResize(VkExtent2D extent) noexcept override { m_extent = extent; }
+    void record(const pipeline::PassContext& ctx) noexcept override;
+    void onResize(VkExtent2D /*extent*/) noexcept override {}
     [[nodiscard]] const char* name() const noexcept override { return "ToneMapStagePass"; }
 
   private:
     const presentation::ToneMapper* m_toneMapper = nullptr;
-    VkExtent2D m_extent{};
+    const pipeline::GlarePass* m_glare = nullptr;
+    float m_glareStrength = 0.0F;
 };
+
+void ToneMapStagePass::record(const pipeline::PassContext& ctx) noexcept {
+    if (m_toneMapper == nullptr || !m_toneMapper->isValid() || ctx.swapchainView == VK_NULL_HANDLE) {
+        return;
+    }
+    const core::Image* input = ctx.denoised != nullptr ? ctx.denoised : ctx.hdrBuffer;
+    if (input == nullptr) {
+        return;
+    }
+    presentation::ToneMapper::GlareInput glare;
+    if (m_glare != nullptr && m_glare->isValid()) {
+        glare = {.view = m_glare->glareView(), .strength = m_glareStrength};
+    }
+    m_toneMapper->record(ctx.cmd,
+                         input->view(),
+                         ctx.swapchainView,
+                         ctx.extent,
+                         ctx.colorSpace,
+                         ctx.tonemapper,
+                         ctx.workingColorSpace,
+                         glare);
+}
 
 [[nodiscard]] std::string stageList(const std::vector<std::unique_ptr<pipeline::IRenderPass>>& stages) {
     if (stages.empty()) {
@@ -349,6 +358,7 @@ bool App::rebuildStagePipeline() {
     m_sceneStages.clear();
     m_displayStages.clear();
     m_sceneOutputUsesDenoised = false;
+    m_glarePass = nullptr;
     ++m_stageEpoch;
 
     if (m_config.stages.accumulation) {
@@ -390,9 +400,33 @@ bool App::rebuildStagePipeline() {
     }
 
     if (m_config.stages.tonemapper && m_toneMapper.isValid()) {
-        m_displayStages.push_back(std::make_unique<ToneMapStagePass>(&m_toneMapper));
+        // The glare is recorded right before the tone mapper, which adds it.
+        if (m_config.glare > 0.0F) {
+            auto glarePass =
+                pipeline::GlarePass::create(m_context.deviceContext(),
+                                            m_swapchain.extent(),
+                                            HARMONIA_SHADER_DIR,
+                                            pipeline::GlarePass::Config{.threshold = m_config.glareThreshold});
+            if (!glarePass) {
+                core::Logger::error(
+                    "Requested glare (--glare) unavailable: VkResult {} — refusing to present without it",
+                    static_cast<int>(glarePass.error()));
+                m_stagePipelineFailed = true;
+                return false;
+            }
+            auto owned = std::make_unique<pipeline::GlarePass>(std::move(*glarePass));
+            m_glarePass = owned.get();
+            m_displayStages.push_back(std::move(owned));
+            core::Logger::info("Glare: {} of the scattered light is added before the tone curve; scattered is the "
+                               "frame's light above luminance {}",
+                               m_config.glare,
+                               m_config.glareThreshold);
+        }
+        m_displayStages.push_back(std::make_unique<ToneMapStagePass>(&m_toneMapper, m_glarePass, m_config.glare));
     } else if (m_config.stages.tonemapper) {
         core::Logger::warn("Tonemapper stage enabled but unavailable; display tonemapping disabled");
+    } else if (m_config.glare > 0.0F) {
+        core::Logger::warn("--glare has no effect without the tonemapper stage: the glare is added by the tone mapper");
     }
 
     for (const auto& pass : m_sceneStages) {
@@ -430,6 +464,11 @@ bool App::applySceneStageConfig(const scene::SceneLoader::SceneConfig& sceneConf
     // Explicit scene/render-preset config below still wins.
     if (!m_config.outputFile.empty() || m_config.noPostfx) {
         m_config.stages.denoiser = false;
+    }
+    // --no-postfx forces off every post-processing stage: the window shows the
+    // raw estimator result. The glare is one, so it is turned off as well.
+    if (m_config.noPostfx) {
+        m_config.glare = 0.0F;
     }
     if (sceneConfig.accumulationStageEnabled.has_value()) {
         m_config.stages.accumulation = *sceneConfig.accumulationStageEnabled;
@@ -651,6 +690,7 @@ void App::shutdown() noexcept {
     m_iblProbe.reset();
     m_sceneStages.clear();
     m_displayStages.clear();
+    m_glarePass = nullptr;
     m_sceneOutputUsesDenoised = false;
     m_hdrImage = {};
     m_denoisedImage = {};

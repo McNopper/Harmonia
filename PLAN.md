@@ -174,6 +174,15 @@ percent confidence interval over 28 roughness and view configurations). The anis
 micrograin distribution (Lucas, Ribardière and Pacanowski 2024) is implemented in
 `math.slang`.
 
+### Known limitations
+
+| Limitation | Measured state |
+|-----------|----------------|
+| `--deterministic-replay` and `--rng-debug` do nothing | Both are accepted and passed to the forward shaders of Theia as flag bits; no shader reads them. Hyperion repeats a run exactly without the flag; Theia does on most scenes, but not on every scene (see the known limitations of Theia's `PLAN.md`) |
+| The 8-bit capture store is not exact round-to-nearest | On the reference GPU a display value flips to the next byte about 1/32 to 2/32 of a step above the rounding boundary (measured with a sweep across the boundaries). Below a tenth of a step, so invisible; `tests/integration/test_capture_glare.cpp` allows one step of 255 |
+| The haze takes its in-scattered light from the environment map | The light is the map blurred to six degrees, the sun disc included. A sun disc with a physical radiance (about 1e5 times the sky) would make everything in its direction white where haze is present. The maps in use have their sun disc clipped to a few hundred times the sky, so the model is right for them and is not ready for a calibrated sun |
+| The lens glare is not a lens model | A fixed 13-tap and tent chain with a level weight of 0.8: no ghosts, no anamorphic streak, no dependence on the aperture. Its strength and threshold are set per scene |
+
 ## 5. Performance pillar
 
 Frame time in the interactive renderer and convergence speed in the offline renderer.
@@ -202,7 +211,7 @@ only).
 
 The shared denoiser is an à-trous filter with a fixed pixel radius. It does not converge
 with the sample count, so it is kept off the capture path
-([README: Denoiser stage](README.md#denoiser-stage-and-the-two-tier-output-contract)).
+([README: Presentation stages](README.md#presentation-stages-and-the-two-tier-output-contract)).
 `tools/test_denoiser_contract.py` checks the rule: it renders with and without the
 denoiser and requires identical captures.
 
@@ -587,7 +596,7 @@ Newest first. The verification numbers of the latest releases are in
 
 | Version | Date | What it contains |
 |---------|------|------------------|
-| Unreleased | — | Motion blur in sequence captures (`--shutter`, `--time-samples`). Scene assets resolve against the scene's directory first, `--scene` accepts a path inside the assets directory, and a sub-mesh is bound by its `usemtl` name (a Blender export with several materials per object). Each pipeline has its own entry in the pipeline binary cache. The validation gate also fails on application warnings, which its pattern did not match |
+| Unreleased | — | Motion blur in sequence captures (`--shutter`, `--time-samples`). Scene assets resolve against the scene's directory first, `--scene` accepts a path inside the assets directory, and a sub-mesh is bound by its `usemtl` name (a Blender export with several materials per object). Each pipeline has its own entry in the pipeline binary cache. The validation gate also fails on application warnings, which its pattern did not match. Distance haze of a scene (`[haze]` in Aether; the shared module `haze.slang` applies it in both renderers). Lens glare as a presentation stage (`--glare`, `--glare-threshold`; in the PNG of a capture, never in its EXR), with component and capture tests against a double-precision reference. The validation gate also captures with the glare |
 | v1.0.0 | 2026-11-26 | Stable baseline. Family-wide review; removal of deterministic analyzer findings; Aether declared as an external include boundary; strict documentation-reference checks. Pins: Aether and slang-math v1.0.0 |
 | v0.12.0 | 2026-11-24 | Shared scene-camera assembly (`renderer::CameraAssembly`) for both renderers. Pins: Aether and slang-math v0.12.0 |
 | v0.11.0 | 2026-11-23 | Documentation and roadmap aligned with the code; static-analysis repairs in the host and the animation mapping. Pins: Aether and slang-math v0.11.0 |

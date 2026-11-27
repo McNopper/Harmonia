@@ -263,6 +263,9 @@ set(HARMONIA_ENTRY_SHADERS
     denoiser.slang
     tonemap_vert.slang
     tonemap.slang
+    glare.slang:prefilterMain
+    glare.slang:downsampleMain
+    glare.slang:upsampleMain
     subgroup_bench_atomic.comp.slang
     subgroup_bench_scan.comp.slang
     pipeline_binary_probe.comp.slang
@@ -332,6 +335,7 @@ set(HARMONIA_passes_SOURCES
     src/harmonia/renderer/Descriptors.cpp
     src/harmonia/renderer/Pipeline.cpp
     src/harmonia/pipeline/AccumulationPass.cpp
+    src/harmonia/pipeline/GlarePass.cpp
     src/harmonia/pipeline/SmsPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPass.cpp
     src/harmonia/pipeline/SceneOutputCopyPassDenoise.cpp

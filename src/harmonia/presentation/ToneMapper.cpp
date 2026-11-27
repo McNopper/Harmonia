@@ -24,20 +24,30 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
     ToneMapper mapper;
     mapper.m_attachmentFormat = swapchainFormat;
 
-    // Push descriptor set: binding 1 = HDR storage image (fragment stage only).
-    const VkDescriptorSetLayoutBinding hdrBinding{
-        .binding = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .pImmutableSamplers = nullptr,
+    // Push descriptor set: binding 1 = HDR storage image, binding 2 = the glare
+    // texture (both fragment stage only).
+    const std::array bindings{
+        VkDescriptorSetLayoutBinding{
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = nullptr,
+        },
+        VkDescriptorSetLayoutBinding{
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = nullptr,
+        },
     };
     const VkDescriptorSetLayoutCreateInfo setLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
-        .bindingCount = 1,
-        .pBindings = &hdrBinding,
+        .bindingCount = static_cast<std::uint32_t>(bindings.size()),
+        .pBindings = bindings.data(),
     };
     VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
     if (const VkResult r = vkCreateDescriptorSetLayout(ctx.device, &setLayoutInfo, nullptr, &setLayout);
@@ -47,7 +57,8 @@ std::expected<ToneMapper, VkResult> ToneMapper::create(const DeviceContext& ctx,
     mapper.m_setLayout = harmonia::core::UniqueDescriptorSetLayout{ctx.device, setLayout};
 
     // Push constant range covers the full PushConstants block at fragment stage.
-    // Offsets used: outputColorSpace (20), tonemapper (44), workingColorSpace (48).
+    // Offsets used: outputColorSpace (20), tonemapper (44), workingColorSpace (48),
+    // glareStrength (72).
     const VkPushConstantRange pushRange{
         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         .offset = 0,
@@ -253,30 +264,73 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         VkExtent2D extent,
                         utils::OutputColorSpace colorSpace,
                         harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
+    record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace, GlareInput{});
+}
+
+void ToneMapper::record(VkCommandBuffer cmd,
+                        VkImageView hdrView,
+                        VkImageView swapchainView,
+                        VkExtent2D extent,
+                        utils::OutputColorSpace colorSpace,
+                        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace,
+                        const GlareInput& glare) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;
     }
 
-    // Push hdrTarget (binding 1) as storage image in GENERAL layout.
+    // Push hdrTarget (binding 1) as storage image in GENERAL layout, and the
+    // glare texture (binding 2); with no glare the descriptor is null, which
+    // reads as zero.
     const VkDescriptorImageInfo hdrInfo{
         .sampler = VK_NULL_HANDLE,
         .imageView = hdrView,
         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    const VkWriteDescriptorSet hdrWrite{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = nullptr,
-        .dstSet = VK_NULL_HANDLE,
-        .dstBinding = 1,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = &hdrInfo,
-        .pBufferInfo = nullptr,
-        .pTexelBufferView = nullptr,
+    const VkDescriptorImageInfo glareInfo{
+        .sampler = VK_NULL_HANDLE,
+        .imageView = glare.view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-    vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &hdrWrite);
+    const std::array writes{
+        VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = VK_NULL_HANDLE,
+            .dstBinding = 1,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .pImageInfo = &hdrInfo,
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr,
+        },
+        VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = VK_NULL_HANDLE,
+            .dstBinding = 2,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .pImageInfo = &glareInfo,
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr,
+        },
+    };
+    vkCmdPushDescriptorSet(cmd,
+                           VK_PIPELINE_BIND_POINT_GRAPHICS,
+                           m_pipelineLayout,
+                           0,
+                           static_cast<std::uint32_t>(writes.size()),
+                           writes.data());
+
+    vkCmdPushConstants(cmd,
+                       m_pipelineLayout,
+                       VK_SHADER_STAGE_FRAGMENT_BIT,
+                       offsetof(PushConstants, glareStrength),
+                       sizeof(float),
+                       &glare.strength);
 
     const std::uint32_t cs = static_cast<std::uint32_t>(colorSpace);
     vkCmdPushConstants(cmd,
@@ -348,13 +402,24 @@ void ToneMapper::record(VkCommandBuffer cmd,
                         utils::OutputColorSpace colorSpace,
                         std::uint32_t tonemapper,
                         harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) const noexcept {
+    record(cmd, hdrView, swapchainView, extent, colorSpace, tonemapper, workingSpace, GlareInput{});
+}
+
+void ToneMapper::record(VkCommandBuffer cmd,
+                        VkImageView hdrView,
+                        VkImageView swapchainView,
+                        VkExtent2D extent,
+                        utils::OutputColorSpace colorSpace,
+                        std::uint32_t tonemapper,
+                        harmonia::utils::ColorSpace::WorkingColorSpace workingSpace,
+                        const GlareInput& glare) const noexcept {
     if (cmd == VK_NULL_HANDLE || m_pipeline == VK_NULL_HANDLE || hdrView == VK_NULL_HANDLE ||
         swapchainView == VK_NULL_HANDLE) {
         return;
     }
 
     // Select the SDR/P3 tone-mapping operator; persists through the draw issued
-    // by the overload below (which only touches outputColorSpace/workingColorSpace).
+    // by the overload above (which does not touch this field).
     vkCmdPushConstants(cmd,
                        m_pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -362,7 +427,7 @@ void ToneMapper::record(VkCommandBuffer cmd,
                        sizeof(std::uint32_t),
                        &tonemapper);
 
-    record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace);
+    record(cmd, hdrView, swapchainView, extent, colorSpace, workingSpace, glare);
 }
 
 } // namespace harmonia::presentation

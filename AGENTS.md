@@ -25,7 +25,8 @@ flowchart LR
 | What the library contains, repository layout, how a frame is rendered | [README: Scope](README.md#scope), [Repository layout](README.md#repository-layout), [How a frame is rendered](README.md#how-a-frame-is-rendered) |
 | Command-line flags, environment variables, offscreen capture | [README: Command-line flags](README.md#command-line-flags) |
 | Scene loading and path resolution | [README: Scene loading](README.md#scene-loading) |
-| OpenPBR material model, shared shaders, denoiser contract | [README: Material model](README.md#material-model--openpbr-surface-v112), [Shared shaders](README.md#shared-shaders), [Denoiser stage](README.md#denoiser-stage-and-the-two-tier-output-contract) |
+| OpenPBR material model, shared shaders, denoiser contract | [README: Material model](README.md#material-model--openpbr-surface-v112), [Shared shaders](README.md#shared-shaders), [Denoiser stage](README.md#presentation-stages-and-the-two-tier-output-contract) |
+| Distance haze and lens glare | [README: Lens glare](README.md#lens-glare); the haze is `shaders/haze.slang` and the `[haze]` section of Aether |
 | Vulkan features and extensions, pipeline binary cache | [README: Device layer](README.md#device-layer) |
 | How Theia is compared with Hyperion | [README: Parity methodology](README.md#parity-methodology), [tools/README.md](tools/README.md) |
 | Build, test, lint, coverage | [README: Testing](README.md#testing), [README: Building](README.md#building) |
@@ -54,9 +55,14 @@ renderers are described in
 - **Validation stays on.** Context creation enables `VK_LAYER_KHRONOS_validation` by
   default and fails when the layer is missing. The test fixtures and every tool keep
   it on. A validation message is a defect to fix, not noise.
-- **The denoiser is a presentation stage.** It is never applied to a capture (`--output`)
-  or with `--no-postfx`, and it does not converge with the sample count. Do not put it
-  on the capture path and do not describe it as converging.
+- **Post-processing stages are presentation.** The denoiser is never applied to a
+  capture (`--output`) or with `--no-postfx`, and it does not converge with the sample
+  count. Do not put it on the capture path and do not describe it as converging. The
+  lens glare (`--glare`) does not converge either, because it estimates nothing: it is
+  added by the tone mapper, so it is in the PNG of a capture and in the window and never
+  in the EXR; `--no-postfx` turns it off. Distance haze is not a post-process: it is part
+  of the estimator, declared by the scene (`[haze]`) and applied by both renderers
+  through `shaders/haze.slang`.
 - **GPU-driven.** Dispatch and draw counts are GPU-resident. The host reads back only
   the completion and error status of a frame, through `IFrameCompletion`. Work that
   needs several submissions is published only when it is complete.
@@ -125,7 +131,9 @@ defaults is in [README: Command-line flags](README.md#command-line-flags).
   against the scene file's directory first and then against the assets directory.
 - `--sequence-frames`, `--frame`, `--capture-every-ms`, `--start-seconds`, `--shutter`
   and `--time-samples` control animated captures; the denoiser flags affect the
-  interactive window only.
+  interactive window only; `--glare` and `--glare-threshold` control the lens glare
+  ([README: Lens glare](README.md#lens-glare)), which is in the PNG of a capture and in
+  the window, never in the EXR.
 - Environment variables: `HARMONIA_PIPELINE_BINARY_CACHE`, `HARMONIA_FRAME_TIMING`,
   `HARMONIA_PRESENT_TIMING`.
 
@@ -255,8 +263,11 @@ points at one.
 - **Shader entries.** A new entry shader must be listed in `HARMONIA_ENTRY_SHADERS`
   in `CMakeLists.txt`, or its `.spv` file is never compiled and fails to load at run
   time. A shared module that entries import belongs in the dependency list of
-  `compile_slang_shaders` so that a change recompiles every entry. Shaders are loaded
-  from `HARMONIA_SHADER_DIR`, never from the working directory.
+  `compile_slang_shaders` so that a change recompiles every entry. `file.slang:entry`
+  compiles a second entry point of a module into `file.entry.spv`; Slang exports the
+  selected entry under the name `main`, so the pipeline asks for `main`
+  (`GlarePass::createPipelines`). Shaders are loaded from `HARMONIA_SHADER_DIR`, never
+  from the working directory.
 - **First configure** builds OpenImageIO from source (several minutes).
 - **GoogleTest discovery.** When `cmake --build` fails in the test-discovery step with
   a 5 second timeout on a fresh test executable, run the build again.

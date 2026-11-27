@@ -239,6 +239,13 @@ float3 sampleEnvMapLatLong(Texture2D<float4> envMap, SamplerState envSampler, fl
     return max(envMap.SampleLevel(envSampler, dirToLatlong(dir), 0).xyz, 0.0.xxx);
 }
 
+/// The same lookup at an explicit mip level: the haze reads its in-scattered sky
+/// from a strongly blurred level.
+float3 sampleEnvMapLatLongLevel(Texture2D<float4> envMap, SamplerState envSampler, float3 dir, float lod)
+{
+    return max(envMap.SampleLevel(envSampler, dirToLatlong(dir), lod).xyz, 0.0.xxx);
+}
+
 /// Detailed environment NEE sample payload so callers can reuse the exact shared
 /// measure/PDF/MIS conventions while also accessing the sampled direction/pdf.
 struct EnvNeeSample {

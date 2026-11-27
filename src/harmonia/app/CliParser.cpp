@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -109,6 +110,35 @@ bool CliParser::applyCommonArg(AppConfig& config, int& i, int argc, char* const 
     }
     if (arg == "--no-postfx") {
         config.noPostfx = true;
+        return true;
+    }
+    if (arg == "--glare") {
+        // Lens glare of the presentation: the share of the light the lens
+        // scatters from the bright parts of the frame that the tone mapper
+        // adds before its curve (0 = none). --no-postfx turns it off.
+        if (const char* v = next("--glare")) {
+            float glare = 0.0F;
+            if (!parseFloat(v, glare) || !std::isfinite(glare) || glare < 0.0F) {
+                core::Logger::error("Invalid value for --glare (must be 0 or more): {}", v);
+            } else {
+                config.glare = glare;
+            }
+        }
+        return true;
+    }
+    if (arg == "--glare-threshold") {
+        // The scene-linear luminance above which the frame's light is
+        // scattered: 1.0 is the frame's reference white. A scene whose exposed
+        // sky lies above its threshold gets a veil from the sky, so raise it
+        // there to its light sources.
+        if (const char* v = next("--glare-threshold")) {
+            float threshold = 0.0F;
+            if (!parseFloat(v, threshold) || !std::isfinite(threshold) || threshold <= 0.0F) {
+                core::Logger::error("Invalid value for --glare-threshold (must be above 0): {}", v);
+            } else {
+                config.glareThreshold = threshold;
+            }
+        }
         return true;
     }
 

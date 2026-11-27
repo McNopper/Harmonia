@@ -69,6 +69,10 @@ class SceneLoader {
         std::optional<float> envUnitNits; ///< cd/m² per unit EXR value (physical unit multiplier)
         std::optional<std::filesystem::path>
             envMapFile; ///< equirect EXR IBL path, resolved (scene directory, then assets directory)
+        /// Distance haze of the scene (`[haze]`): the extinction per metre at height
+        /// zero and the height in metres at which it has fallen to 1/e. Absent = no haze.
+        std::optional<float> hazeDensity;
+        std::optional<float> hazeHeight;
         std::optional<std::uint32_t> tonemapper;        ///< Tonemapper enum value; std::nullopt → eACES default
         std::optional<std::string> postTonemapRenderer; ///< display-referred renderer token
         std::optional<bool> accumulationStageEnabled;   ///< std::nullopt → app::App default

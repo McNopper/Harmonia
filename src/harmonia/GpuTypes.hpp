@@ -3,6 +3,7 @@
 
 #include <volk/volk.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <slang-math/slang-math.hpp>
 #include <type_traits>
@@ -136,6 +137,14 @@ struct PushConstants {
         0; ///< harmonia::utils::ColorSpace::WorkingColorSpace (0 = lin Rec.2020, 1 = lin Rec.709)
     std::uint32_t smsPartitionResolution = 0; ///< nonzero enables SMS; N=1 is its unpartitioned limit
     VkDeviceAddress smsWork = 0;              ///< optional per-sample frozen SMS work, same ABI in both renderers
+    /// Distance haze of the scene ([haze] in the scene file, `shaders/haze.slang`):
+    /// the extinction per metre at height zero, and the height in metres at which
+    /// it has fallen to 1/e. 0 = no haze.
+    float hazeDensity = 0.0f;
+    float hazeHeight = 0.0f;
+    /// Lens glare (the tone mapper): the share of the glare texture that is
+    /// added to the frame before the tone curve. 0 = no glare.
+    float glareStrength = 0.0f;
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.
@@ -158,7 +167,13 @@ static_assert(sizeof(GpuMaterial) == 288);
 static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 80);
 static_assert(sizeof(CameraData) == 176);
-static_assert(sizeof(PushConstants) == 64);
+/// The PushConstants block ends with a float after an 8-byte member, so its
+/// size is rounded up to the alignment of that member.
+static_assert(sizeof(PushConstants) == 80);
+static_assert(offsetof(PushConstants, outputColorSpace) == 20);
+static_assert(offsetof(PushConstants, tonemapper) == 44);
+static_assert(offsetof(PushConstants, workingColorSpace) == 48);
+static_assert(offsetof(PushConstants, glareStrength) == 72);
 
 } // namespace harmonia
 

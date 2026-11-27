@@ -435,7 +435,9 @@ bool App::saveOffscreenOutputs(const std::filesystem::path& outputFile) {
                                                                     sceneOutputStageMask(),
                                                                     sceneOutputAccessMask(),
                                                                     m_tonemapper,
-                                                                    m_workingColorSpace)) {
+                                                                    m_workingColorSpace,
+                                                                    m_glarePass,
+                                                                    m_config.glare)) {
         // Capture image is VK_FORMAT_R8G8B8A8_UNORM (RGBA) - no channel swap needed.
         ok = harmonia::presentation::ImageCapture::saveSdrPng(
                  m_context.deviceContext(), m_commandPool, m_offscreen.captureImage(), pngPath, /*swapRB=*/false) &&
