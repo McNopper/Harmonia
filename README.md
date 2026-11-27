@@ -397,6 +397,20 @@ the normal alone, which the spec allows. Both renderers build the frame in
 the frame, and `tests/component/test_bsdf_measure.cpp` measures the direction of the stretch in
 the BSDF.
 
+**Texture maps** are applied by the same `shaders/surface.slang`: `map_base_color` replaces the
+base colour, the G and B of `map_orm` replace roughness and metalness (its R channel is not
+read), `map_emission_color` multiplies the emission colour. Every map is sampled at mip level 0:
+Hyperion always; Theia on a camera ray and everywhere in a capture, because its material-LOD
+tier, which picks a level from the ray footprint, is on in the interactive window only. `v = 0`
+is the first row of an image file and nothing flips the image; the bitangent of the normal-map
+frame is N × T, so the +Y of a normal map points toward the last row of the file. A vertex
+without texture coordinates samples at (0, 0).
+
+Two rules of the shared material code are not those of OpenPBR and stand with their measured
+state among the known limitations of `PLAN.md`: a `transmission_weight` of 0.5 or more is full
+transmission without opaque lobes, and an emitter that is not a light source is seen by camera
+rays and after a perfect mirror bounce only.
+
 **Layer stacking** follows OpenPBR's directional-albedo coupling rather than a linear
 blend: each lower layer is attenuated by the directional albedo of the layer above it
 (`R_out = R_top + (1 − E_top)·R_base`). The coat darkens the substrate by
