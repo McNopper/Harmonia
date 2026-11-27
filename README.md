@@ -490,7 +490,7 @@ names follow OpenPBR, and formulas are cross-checked against MaterialX.
 | `bsdf.slang` | Layer assembly: `evalBSDF`, `pdfBSDF`, `sampleBSDF` |
 | `surface.slang` | Builds the OpenPBR surface frame at a hit (texture maps, tangent frame, back-face logic) |
 | `medium_walk.slang` | Per-event math of the volumetric random walk; each renderer drives its own walk loop |
-| `path_integrator.slang` | The shared surface estimator: emission guard, next-event estimation for emissive triangles and the environment, MIS, BSDF continuation, Russian roulette |
+| `path_integrator.slang` | The shared surface estimator: emission guard, next-event estimation for emissive triangles and the environment, MIS, BSDF continuation, Russian roulette. The guard adds the emission of a hit emitter unless next-event estimation covers it: on a camera ray, after a perfect mirror bounce and in a scene without sampled emitters it is always added; an emitter outside the emissive list (Aether's `emission_as_light_source = false`, visible only) is therefore seen by those paths and by nothing else |
 | `env_sample.slang`, `env.slang` | Environment-map lookup and importance sampling through a separable CDF |
 | `accumulation.slang` | Running average of the HDR image |
 | `denoiser.slang` | The A-SVGF denoiser |
