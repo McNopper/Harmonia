@@ -172,7 +172,7 @@ struct SceneLoadContext {
     ISceneBuilder& scene;
     SceneConfig& cfg;
     MaterialLibrary lib{};
-    std::unordered_map<std::string, std::uint32_t> texCache{}; // relPath → texture index
+    std::unordered_map<std::string, std::uint32_t> texCache{}; // resolved path + color space → texture index
     std::unordered_map<std::string, bool> meshAlphaTested{};   // whole-mesh material
     std::unordered_set<std::string> groupAlphaTested{};        // "<mesh>\0<group>"
     std::unordered_set<std::string> unmatchedGroupKeys{};      // "<mesh>\0<key>", diagnosed once
@@ -221,16 +221,23 @@ applyWorkingColorSpace(const aether::SceneDesc& desc, const std::filesystem::pat
     return {};
 }
 
-void loadMaterialLibraries(const aether::SceneDesc& desc,
-                           const std::filesystem::path& sceneDir,
-                           const std::filesystem::path& assetsDir,
-                           SceneConfig& cfg,
-                           MaterialLibrary& lib) {
-    // ── Material libraries ────────────────────────────────────────────────────
+[[nodiscard]] std::expected<void, VkResult> loadMaterialLibraries(const aether::SceneDesc& desc,
+                                                                  const std::filesystem::path& sceneDir,
+                                                                  const std::filesystem::path& assetsDir,
+                                                                  SceneConfig& cfg,
+                                                                  MaterialLibrary& lib) {
+    // Every declared library is part of the scene contract. Continuing with a default material
+    // would produce a plausible but incomplete image, so a missing or malformed library aborts
+    // before any mesh, instance or capture work is published.
     for (const std::string& mtllib : desc.mtllibs) {
-        if (!lib.load(resolveAsset(sceneDir, assetsDir, mtllib), cfg.workingColorSpace))
-            core::Logger::warn("SceneLoader: cannot open material library '{}'", mtllib);
+        const std::filesystem::path resolved = resolveAsset(sceneDir, assetsDir, mtllib);
+        if (!lib.load(resolved, cfg.workingColorSpace)) {
+            core::Logger::error(
+                "SceneLoader: cannot open declared material library '{}' (resolved '{}')", mtllib, resolved.string());
+            return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+        }
     }
+    return {};
 }
 
 void applyRenderSettings(const aether::SceneDesc& desc, SceneConfig& cfg) {
@@ -275,19 +282,25 @@ void applyCamera(const aether::CameraDesc& cam, SceneConfig& cfg) {
         cfg.cameraVfov = *cam.vfov;
     if (cam.ev100)
         cfg.cameraEv100 = *cam.ev100;
+    if (cam.lensRadius)
+        cfg.cameraLensRadius = *cam.lensRadius;
+    if (cam.focusDistance)
+        cfg.cameraFocusDistance = *cam.focusDistance;
 }
 
 // ── Texture loading (idempotent; cached by relative path) ────────
 // Must run before the matching addMaterial() so patched bindless indices are
 // visible when lib.getOrDefault() is called.
-void loadMaterialTextures(SceneLoadContext& c, const std::string& matName) {
-    if (matName.empty())
-        return;
+[[nodiscard]] std::expected<void, VkResult> loadMaterialTextures(SceneLoadContext& c, const std::string& matName) {
+    if (matName.empty()) {
+        return {};
+    }
     const auto refs = c.lib.textureRefs(matName);
-    if (!refs)
-        return;
+    if (!refs) {
+        return {};
+    }
 
-    const std::array<std::pair<std::uint32_t, const MaterialLibrary::MaterialTextureRef*>, 8> slots{{
+    const std::array<std::pair<std::uint32_t, const MaterialLibrary::MaterialTextureRef*>, 16> slots{{
         {0u, &refs->base_color},
         {1u, &refs->normal},
         {2u, &refs->orm},
@@ -296,30 +309,47 @@ void loadMaterialTextures(SceneLoadContext& c, const std::string& matName) {
         {5u, &refs->tangent},
         {6u, &refs->coat_tangent},
         {7u, &refs->opacity},
+        {8u, &refs->coat_weight},
+        {9u, &refs->transmission_weight},
+        {10u, &refs->subsurface_color},
+        {11u, &refs->subsurface_weight},
+        {12u, &refs->transmission_color},
+        {13u, &refs->transmission_scatter},
+        {14u, &refs->emission_luminance},
+        {15u, &refs->fuzz_weight},
     }};
 
     for (const auto& [slot, ref] : slots) {
-        if (ref->empty())
+        if (ref->empty()) {
             continue;
+        }
 
         const std::string& relPath = ref->path;
-        if (const auto it = c.texCache.find(relPath); it != c.texCache.end()) {
+        const std::filesystem::path resolved = resolveAsset(c, relPath).lexically_normal();
+        // The same resolved image can be declared as color and data. Those are different GPU
+        // textures; equal relative names in different libraries are different textures as well.
+        const std::string cacheKey =
+            resolved.generic_string() + "#colorspace=" + std::to_string(static_cast<unsigned>(ref->colorSpace));
+        if (const auto it = c.texCache.find(cacheKey); it != c.texCache.end()) {
             c.lib.patchTextureIndex(matName, slot, it->second);
             continue;
         }
 
-        auto result = Texture::loadFromFile(
-            c.ctx, c.pool, resolveAsset(c, relPath), ref->colorSpace, c.cfg.workingColorSpace, matName);
+        auto result = Texture::loadFromFile(c.ctx, c.pool, resolved, ref->colorSpace, c.cfg.workingColorSpace, matName);
         if (!result) {
-            core::Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
-            continue;
+            core::Logger::error("SceneLoader: failed to load declared texture '{}' (resolved '{}') for material '{}'",
+                                relPath,
+                                resolved.string(),
+                                matName);
+            return std::unexpected(result.error());
         }
 
         const std::uint32_t idx = c.scene.addTexture(std::move(*result));
-        c.texCache.emplace(relPath, idx);
+        c.texCache.emplace(cacheKey, idx);
         c.lib.patchTextureIndex(matName, slot, idx);
         core::Logger::info("SceneLoader: loaded texture '{}' (slot {}) → index {}", relPath, slot, idx);
     }
+    return {};
 }
 
 // ── Cutout participation (must be known BEFORE the BLAS is built) ──────
@@ -573,7 +603,9 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
         for (const LoadedSubmesh& sub : it->second) {
             const std::string matName = resolveSubmeshMaterial(inst, sub);
 
-            loadMaterialTextures(c, matName);
+            if (auto textures = loadMaterialTextures(c, matName); !textures) {
+                return std::unexpected(textures.error());
+            }
             const std::uint32_t matIdx = c.scene.addMaterial(c.lib.getOrDefault(matName));
             if (c.scene.addInstance(sub.meshIndex, transform, matIdx) == std::numeric_limits<std::uint32_t>::max()) {
                 core::Logger::error("SceneLoader: failed to place instance of mesh '{}'", inst.meshName);
@@ -590,6 +622,79 @@ std::expected<void, VkResult> placeInstances(SceneLoadContext& c, const aether::
 
 Transform toTransform(const aether::InstanceDesc& inst) {
     return Transform{.translation = inst.translation, .rotation = inst.rotation, .scale = inst.scale};
+}
+
+std::vector<std::unique_ptr<Light>> makeLights(const aether::SceneDesc& desc,
+                                               utils::ColorSpace::WorkingColorSpace workingSpace) {
+    // The declared linear space of the light color (the parser validated the
+    // token) against the working space, on the material colors' path.
+    const auto toWorking = [workingSpace](const aether::LightDesc& light) {
+        const auto source = utils::ColorSpace::parseWorkingColorSpace(light.colorSpace);
+        const bool srcRec709 = source == utils::ColorSpace::WorkingColorSpace::LinRec709;
+        const bool dstRec2020 = workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec2020;
+        if (srcRec709 && dstRec2020) {
+            return utils::ColorSpace::rec709ToRec2020(light.color);
+        }
+        if (!srcRec709 && !dstRec2020) {
+            return utils::ColorSpace::rec2020ToRec709(light.color);
+        }
+        return light.color; // declared space == working space
+    };
+    const auto unitOf = [](aether::LightDesc::Unit unit) {
+        return unit == aether::LightDesc::Unit::Lumen ? IntensityUnit::Lumen : IntensityUnit::Candela;
+    };
+
+    std::vector<std::unique_ptr<Light>> lights;
+    lights.reserve(desc.lights.size());
+    for (const aether::LightDesc& descLight : desc.lights) {
+        std::unique_ptr<Light> light;
+        switch (descLight.type) {
+        case aether::LightDesc::Type::Point: {
+            auto point = std::make_unique<PointLight>();
+            point->position = descLight.translation;
+            point->intensity = descLight.intensity;
+            point->unit = unitOf(descLight.unit);
+            point->range = descLight.range;
+            light = std::move(point);
+            break;
+        }
+        case aether::LightDesc::Type::Spot: {
+            auto spot = std::make_unique<SpotLight>();
+            spot->position = descLight.translation;
+            spot->direction = descLight.rotation * sm::float3{0.0f, 0.0f, -1.0f};
+            spot->intensity = descLight.intensity;
+            spot->unit = unitOf(descLight.unit);
+            spot->innerAngleDeg = descLight.innerAngle;
+            spot->outerAngleDeg = descLight.outerAngle;
+            spot->range = descLight.range;
+            light = std::move(spot);
+            break;
+        }
+        case aether::LightDesc::Type::Rect: {
+            auto rect = std::make_unique<RectLight>();
+            rect->position = descLight.translation;
+            rect->direction = descLight.rotation * sm::float3{0.0f, 0.0f, -1.0f};
+            // In-plane orientation: the light's local X axis is the half-width axis.
+            rect->tangent = descLight.rotation * sm::float3{1.0f, 0.0f, 0.0f};
+            rect->luminance = descLight.intensity;
+            rect->halfWidth = descLight.halfWidth;
+            rect->halfHeight = descLight.halfHeight;
+            light = std::move(rect);
+            break;
+        }
+        case aether::LightDesc::Type::Directional: {
+            auto sun = std::make_unique<DirectionalLight>();
+            sun->direction = descLight.rotation * sm::float3{0.0f, 0.0f, -1.0f};
+            sun->illuminance = descLight.intensity;
+            light = std::move(sun);
+            break;
+        }
+        }
+        light->name = descLight.name;
+        light->color = toWorking(descLight);
+        lights.push_back(std::move(light));
+    }
+    return lights;
 }
 
 std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::filesystem::path& sceneFile,
@@ -611,7 +716,9 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
     if (auto workingSpace = applyWorkingColorSpace(*desc, sceneFile, cfg); !workingSpace) {
         return std::unexpected(workingSpace.error());
     }
-    loadMaterialLibraries(*desc, sceneFile.parent_path(), assetsDir, cfg, c.lib);
+    if (auto materials = loadMaterialLibraries(*desc, sceneFile.parent_path(), assetsDir, cfg, c.lib); !materials) {
+        return std::unexpected(materials.error());
+    }
     applyRenderSettings(*desc, cfg);
     applyCamera(desc->camera, cfg);
     // Camera-presence contract (owner ruling 2026-11-20, Theia/PLAN "CAMERA
@@ -747,6 +854,17 @@ std::expected<SceneLoader::SceneConfig, VkResult> SceneLoader::load(const std::f
 
     if (auto placed = placeInstances(c, *desc); !placed) {
         return std::unexpected(placed.error());
+    }
+
+    // Analytic lights (`[[light]]`): world-space, no assets to resolve. A
+    // builder without light storage is an error, never a silently dropped
+    // light. Light-free scenes make no call here.
+    for (std::unique_ptr<Light>& light : makeLights(*desc, cfg.workingColorSpace)) {
+        if (scene.addLight(std::move(light)) == std::numeric_limits<std::uint32_t>::max()) {
+            core::Logger::error("SceneLoader: scene '{}' declares lights but the scene builder has no light storage",
+                                sceneFile.string());
+            return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+        }
     }
 
     // ANI2 seam: animated, skinned OR morphed scenes keep their parsed source

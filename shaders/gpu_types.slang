@@ -17,7 +17,7 @@ struct GpuVertex {
 
 struct GpuMaterial {
     float4 baseColorWeight;
-    float4 baseMetalnessDiffRough;
+    float4 baseMetalnessDiffRough; // x=metalness, y=diffuse roughness, z=textured-emission hit-only ownership
     float4 specularColorWeight;
     float4 specularRoughAnisoIor;
     float4 transmissionColorWeight;
@@ -34,6 +34,8 @@ struct GpuMaterial {
     float4 emissionColorLum;
     float4 opacityFlagsPad;  ///< x = opacity, y = flags, z = subsurface_scatter_anisotropy, w = thin_walled
     uint4  textureIndices2;  ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
+    uint4  textureIndices3;  ///< [coat_weight, transmission_weight, subsurface_color, subsurface_weight]
+    uint4  textureIndices4;  ///< [transmission_color, transmission_scatter, emission_luminance, fuzz_weight]
 };
 
 /// Tagged-union emissive descriptor for NEE direct sampling (std430, 80 bytes = 5×float4).
@@ -53,15 +55,17 @@ struct GpuEmissiveTriangle {
 static const uint kEmissiveTriangle = 0u;
 static const uint kEmissiveSphere   = 1u;
 
-/// GPU light descriptor.  intensity is in radiometric units (see Light.cpp toGpu()).
+/// GPU light descriptor.  intensity is the light's photometric value, unchanged from
+/// Light::toGpu(): rect / sky luminance [cd/m²], point / spot luminous intensity [cd],
+/// directional illuminance [lux] - the same scale as emissive materials and the environment.
 struct GpuLight {
     float3 position;  float  typeF;     ///< asuint(typeF) == LightType constant
     float3 direction; float  range;     ///< attenuation cutoff; 0 = infinite
-    float3 color;     float  intensity; ///< radiometric (W/sr, W/sr/m², or W/m²)
-    float  halfWidth;
-    float  halfHeight;
-    float  cosInner;
-    float  cosOuter;
+    float3 color;     float  intensity; ///< photometric (cd/m², cd, or lux)
+    float  halfWidth;                   ///< rect: half extent along the rolled in-plane axis
+    float  halfHeight;                  ///< rect: half extent along the perpendicular in-plane axis
+    float  cosInner;                    ///< spot: cos(inner half angle); rect: roll about the normal [rad]
+    float  cosOuter;                    ///< spot: cos(outer half angle)
 };
 
 /// Light type constants — match the LightType C++ enum in GpuTypes.hpp.

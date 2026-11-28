@@ -15,10 +15,19 @@ add_executable(harmonia_unit_tests
     unit/test_emissive.cpp
     unit/test_device_fault.cpp
     unit/test_camera_assembly.cpp
+    unit/test_scene_lights.cpp
+    unit/test_scene_evaluation.cpp
+    unit/test_dds_image.cpp
+    unit/test_host_image_upload.cpp
 )
 
 target_link_libraries(harmonia_unit_tests
     PRIVATE harmonia::harmonia harmonia::low_level harmonia_project_options GTest::gtest GTest::gtest_main
+)
+
+# The CPU-only DDS parser is pinned to the DirectXTex fixtures of tests/assets/dds.
+target_compile_definitions(harmonia_unit_tests
+    PRIVATE HARMONIA_TEST_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
 )
 
 gtest_discover_tests(harmonia_unit_tests PROPERTIES RUN_SERIAL TRUE)
@@ -50,7 +59,9 @@ add_executable(harmonia_component_tests
     component/test_frame_completion.cpp
     component/test_bsdf_measure.cpp
     component/test_surface_frame.cpp
+    component/test_extra_maps.cpp
     component/test_glare_pass.cpp
+    component/test_host_image_upload_dds.cpp
 )
 
 target_link_libraries(harmonia_component_tests
@@ -75,7 +86,8 @@ compile_slang_shaders(harmonia_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders
     sms_path_test.slang
     sms_queue_prior_test.slang
     "${PROJECT_SOURCE_DIR}/shaders/sms_queue_control.slang"
-    "${PROJECT_SOURCE_DIR}/shaders/sms_queue_validate.slang")
+    "${PROJECT_SOURCE_DIR}/shaders/sms_queue_validate.slang"
+    texture_level_readback_test.slang)
 unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_SHADER_ROOT)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
@@ -85,6 +97,7 @@ add_dependencies(harmonia_component_tests harmonia_test_shaders)
 add_dependencies(harmonia_component_tests harmonia_shaders)
 target_compile_definitions(harmonia_component_tests PRIVATE
     HARMONIA_TEST_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    HARMONIA_TEST_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
 )
 
 gtest_discover_tests(harmonia_component_tests PROPERTIES RUN_SERIAL TRUE)
@@ -107,7 +120,8 @@ set(COMPILE_SLANG_EXTRA_DEPENDS "${PROJECT_SOURCE_DIR}/shaders/surface.slang"
     "${PROJECT_SOURCE_DIR}/shaders/math.slang" "${PROJECT_SOURCE_DIR}/shaders/common.slang"
     "${PROJECT_SOURCE_DIR}/shaders/gpu_types.slang" "${PROJECT_SOURCE_DIR}/shaders/rng.slang")
 compile_slang_shaders(harmonia_surface_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/surface_frame_test.slang")
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/surface_frame_test.slang"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/extra_maps_test.slang")
 unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 add_dependencies(harmonia_component_tests harmonia_surface_test_shaders)

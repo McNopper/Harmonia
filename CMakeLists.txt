@@ -289,6 +289,7 @@ set(HARMONIA_core_SOURCES
     src/harmonia/core/Buffer.cpp
     src/harmonia/core/CommandPool.cpp
     src/harmonia/core/DescriptorBufferWriter.cpp
+    src/harmonia/core/DdsImage.cpp
     src/harmonia/core/HostImageUpload.cpp
     src/harmonia/core/Image.cpp
     src/harmonia/core/Logger.cpp

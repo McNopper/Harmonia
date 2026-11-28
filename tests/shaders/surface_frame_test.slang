@@ -30,6 +30,8 @@ void main(uint3 id : SV_DispatchThreadID) {
     GpuMaterial mat={};
     mat.textureIndices=uint4(kNoTexture,kNoTexture,kNoTexture,kNoTexture);
     mat.textureIndices2=uint4(kNoTexture,kNoTexture,kNoTexture,kNoTexture);
+    mat.textureIndices3=uint4(kNoTexture,kNoTexture,kNoTexture,kNoTexture);
+    mat.textureIndices4=uint4(kNoTexture,kNoTexture,kNoTexture,kNoTexture);
     ConstantTextures tex={};
     float3 n=float3(0,0,1);
     float3 tangent=float3(1,0,0);

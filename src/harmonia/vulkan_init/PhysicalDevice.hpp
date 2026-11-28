@@ -30,6 +30,17 @@ struct PhysicalDeviceInfo {
     bool presentTimingSupported = false; ///< VK_EXT_present_timing is available (VK18; feature gated in Context).
 };
 
+/// The push-constant range the renderers push in their main pass: the GI stage of
+/// Theia and the ray generation of Hyperion each carry a 256-byte block, twice the
+/// minimum Vulkan guarantees (128). A device whose limit is below it is not selected:
+/// its pipeline layouts could not be created, after the window and the device were.
+constexpr std::uint32_t kRequiredPushConstantsSize = 256;
+
+/// Whether the limits of a device cover the push constants of the renderers.
+[[nodiscard]] constexpr bool supportsPushConstants(const VkPhysicalDeviceLimits& limits) noexcept {
+    return limits.maxPushConstantsSize >= kRequiredPushConstantsSize;
+}
+
 class PhysicalDevice {
   public:
     [[nodiscard]] static std::expected<PhysicalDeviceInfo, VkResult> select(VkInstance instance, VkSurfaceKHR surface);

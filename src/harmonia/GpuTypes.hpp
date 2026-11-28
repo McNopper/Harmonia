@@ -41,7 +41,8 @@ struct GpuVertex {
 
 struct GpuMaterial {
     sm::float4 baseColorWeight;
-    sm::float4 baseMetalnessDiffRough;
+    sm::float4
+        baseMetalnessDiffRough; ///< x = metalness, y = diffuse roughness, z = textured-emission hit-only ownership
     sm::float4 specularColorWeight;
     sm::float4 specularRoughAnisoIor;
     sm::float4 transmissionColorWeight;
@@ -62,6 +63,14 @@ struct GpuMaterial {
     sm::float4 opacityFlagsPad; ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w =
                                 ///< geometry_thin_walled
     sm::uint4 textureIndices2;  ///< bindless indices: [coat_normal, tangent, coat_tangent, opacity]; ~0u = none
+    sm::uint4 textureIndices3{~0u,
+                              ~0u,
+                              ~0u,
+                              ~0u}; ///< [coat_weight, transmission_weight, subsurface_color, subsurface_weight]
+    sm::uint4 textureIndices4{~0u,
+                              ~0u,
+                              ~0u,
+                              ~0u}; ///< [transmission_color, transmission_scatter, emission_luminance, fuzz_weight]
 };
 
 // GpuInstance is renderer-specific (path-tracer index layout vs rasterizer meshlet
@@ -90,21 +99,30 @@ struct GpuEmissiveTriangle {
 
 /// GPU-side light descriptor (std430, 64 bytes).
 ///
-/// `intensity` is stored in radiometric units after photometric → radiometric
-/// conversion in Light::toGpu() (divides by the luminous efficacy constant 683 lm/W):
-///   Rect / Sky   : radiant exitance  [W/sr/m²]  = luminance [cd/m²]    / 683
-///   Point / Spot : radiant intensity [W/sr]      = luminous intensity [cd] / 683
-///   Directional  : irradiance        [W/m²]      = illuminance [lux]     / 683
+/// `intensity` is the light's photometric value, passed through unchanged by
+/// Light::toGpu(). Scene-linear radiance is photometric everywhere (the
+/// environment and emissive materials reach the shaders in cd/m² too), so:
+///   Rect / Sky   : luminance         [cd/m²]
+///   Point / Spot : luminous intensity [cd]     (cd/m² = lux at distance d)
+///   Directional  : illuminance       [lux]
+///
+/// The last four slots depend on `type`:
+///   halfWidth, halfHeight  rect: half extents along the rolled axis and the
+///                          perpendicular in-plane axis; 0 for the others
+///   cosInner, cosOuter     spot: cos(inner half angle), cos(outer half angle)
+///   cosInner               rect: roll about the normal in radians, measured
+///                          from the canonical in-plane frame the sampling
+///                          shaders build from the normal (0 = that frame)
 struct GpuLight {
     sm::float3 position;
     float type = 0.0f; ///< reinterpret_cast<std::uint32_t> → LightType
     sm::float3 direction;
     float range = 0.0f; ///< attenuation cutoff; 0 = infinite
     sm::float3 color;
-    float intensity = 0.0f;  ///< radiometric (see above)
-    float halfWidth = 0.0f;  ///< rect half-width  / spot unused
-    float halfHeight = 0.0f; ///< rect half-height / spot unused
-    float cosInner = 0.0f;   ///< spot inner cone cos(angle)
+    float intensity = 0.0f;  ///< photometric (see above)
+    float halfWidth = 0.0f;  ///< rect half-width  / others 0
+    float halfHeight = 0.0f; ///< rect half-height / others 0
+    float cosInner = 0.0f;   ///< spot inner cone cos(angle) / rect roll (radians)
     float cosOuter = 0.0f;   ///< spot outer cone cos(angle)
 };
 
@@ -126,6 +144,7 @@ struct PushConstants {
     std::uint32_t rngSeed = 0;
     float envLuminanceScale = 0.0f;
     std::uint32_t lightCount = 0;            ///< number of active GpuLights in the light buffer
+    std::uint32_t analyticLightCount = 0;    ///< analytic prefix, before synthesized emissive lights
     std::uint32_t outputColorSpace = 0;      ///< OutputColorSpace enum value (used by tonemap pass)
     std::uint32_t samplesPerPixel = 0;       ///< samples per pixel this dispatch
     std::uint32_t hasEnvMap = 0;             ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
@@ -163,17 +182,17 @@ static_assert(std::is_trivially_copyable_v<CameraData>);
 static_assert(std::is_trivially_copyable_v<PushConstants>);
 
 static_assert(sizeof(GpuVertex) == 48);
-static_assert(sizeof(GpuMaterial) == 288);
+static_assert(sizeof(GpuMaterial) == 320);
 static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 80);
 static_assert(sizeof(CameraData) == 176);
 /// The PushConstants block ends with a float after an 8-byte member, so its
 /// size is rounded up to the alignment of that member.
-static_assert(sizeof(PushConstants) == 80);
-static_assert(offsetof(PushConstants, outputColorSpace) == 20);
-static_assert(offsetof(PushConstants, tonemapper) == 44);
-static_assert(offsetof(PushConstants, workingColorSpace) == 48);
-static_assert(offsetof(PushConstants, glareStrength) == 72);
+static_assert(sizeof(PushConstants) == 88);
+static_assert(offsetof(PushConstants, outputColorSpace) == 24);
+static_assert(offsetof(PushConstants, tonemapper) == 48);
+static_assert(offsetof(PushConstants, workingColorSpace) == 52);
+static_assert(offsetof(PushConstants, glareStrength) == 80);
 
 } // namespace harmonia
 

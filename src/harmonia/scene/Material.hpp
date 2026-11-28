@@ -108,14 +108,18 @@ class Material {
 
     /// Set a bindless texture index for a given map slot.
     /// Slots 0-3 → textureIndices [base_color, normal, ORM, emission];
-    /// slots 4-6 → textureIndices2 [coat_normal, tangent, coat_tangent];
-    /// slot 7 → textureIndices2.w [opacity] (rasterizer alpha-test map).
+    /// slots 4-7 → textureIndices2 [coat_normal, tangent, coat_tangent, opacity];
+    /// slots 8-11 → textureIndices3 [coat_weight, transmission_weight, subsurface_color, subsurface_weight];
+    /// slots 12-15 → textureIndices4 [transmission_color, transmission_scatter, emission_luminance, fuzz_weight].
     /// Out-of-range slots are ignored (no write).
     void setTextureIndex(std::uint32_t slot, std::uint32_t idx) noexcept {
-        if (slot > 7U) {
+        if (slot > 15U) {
             return;
         }
-        sm::uint4& slots = (slot < 4U) ? m_gpu.textureIndices : m_gpu.textureIndices2;
+        sm::uint4& slots = slot < 4U    ? m_gpu.textureIndices
+                           : slot < 8U  ? m_gpu.textureIndices2
+                           : slot < 12U ? m_gpu.textureIndices3
+                                        : m_gpu.textureIndices4;
         slots[static_cast<std::int32_t>(slot & 3U)] = idx;
     }
 

@@ -4,12 +4,15 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <slang-math/slang-math.hpp>
+#include <vector>
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/scene/ISceneBuilder.hpp"
+#include "harmonia/scene/Light.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 
 namespace harmonia::scene {
@@ -57,7 +60,9 @@ class SceneLoader {
         std::optional<sm::float3> cameraAt;
         std::optional<sm::float3> cameraUp;
         std::optional<float> cameraVfov;
-        std::optional<float> cameraEv100; ///< physical camera EV100 override
+        std::optional<float> cameraEv100;         ///< physical camera EV100 override
+        std::optional<float> cameraLensRadius;    ///< thin-lens aperture radius in metres
+        std::optional<float> cameraFocusDistance; ///< thin-lens focus distance in metres
         /// ANI8 camera-from-node: `[camera] node = "<id>"` - the camera is
         /// re-placed from this node's evaluated world every animation tick
         /// (the static pos/at/up above are the REQUIRED load-time preview every
@@ -106,6 +111,29 @@ class SceneLoader {
 /// (`placeInstances`) and the animation stamping (`SceneBase::setAnimationTime`)
 /// so the desc→scene translation cannot drift between the two.
 [[nodiscard]] Transform toTransform(const aether::InstanceDesc& inst);
+
+/// The analytic lights of a parsed scene (`[[light]]`), in declaration order,
+/// as the Harmonia light classes the renderers consume through
+/// `SceneBase::addLight`. Pure CPU work (no device): the unit tests call it
+/// directly.
+///
+///   type         class            placement
+///   point        PointLight       position; `range`; candela or lumen
+///   spot         SpotLight        position, direction, `inner_angle` /
+///                                 `outer_angle` (degrees, half angles from the
+///                                 axis), `range`; candela or lumen
+///   rect         RectLight        position, emission normal, `half_extents`
+///                                 as the local X / Y half extents; nit
+///   directional  DirectionalLight travel direction; lux
+///
+/// The light's local -Z axis is its emission axis (the camera's forward
+/// convention): `direction = rotation * (0, 0, -1)`.
+///
+/// `color` is converted from its declared linear space (the light's
+/// `color_space`) into @p workingSpace on the material colors' path: Rec.709 →
+/// Rec.2020 or Rec.2020 → Rec.709 when the two differ, unchanged otherwise.
+[[nodiscard]] std::vector<std::unique_ptr<Light>> makeLights(const aether::SceneDesc& desc,
+                                                             utils::ColorSpace::WorkingColorSpace workingSpace);
 
 } // namespace harmonia::scene
 

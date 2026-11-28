@@ -24,8 +24,8 @@ std::optional<Camera::Params> CameraAssembly::fromSceneConfig(const harmonia::sc
     params.aspectRatio = std::max(aspectRatio, 0.001f);
     params.nearPlane = nearPlane;
     params.farPlane = farPlane;
-    params.lensRadius = 0.0f;
-    params.focusDist = targetDistance;
+    params.lensRadius = config.cameraLensRadius.value_or(0.0f);
+    params.focusDist = config.cameraFocusDistance.value_or(targetDistance);
     if (config.cameraEv100) {
         params.physical = Camera::PhysicalCamera::fromEv100(*config.cameraEv100);
     }

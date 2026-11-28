@@ -113,3 +113,12 @@ name = "shaderball_emission"
 
 [[scene]]
 name = "bunny_shaderball"
+
+# ── Distance haze ([haze] section of the scene, shaders/haze.slang) ───────────
+# A static probe scene: red cubes at known distances over white ground, each with a
+# black cube beside it, in a medium whose extinction falls off with height. Both
+# renderers composite the camera rays through the same module; a Theia rendered
+# without the section against the hazed reference fails like every other scene.
+
+[[scene]]
+name = "haze"

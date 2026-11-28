@@ -147,6 +147,9 @@ std::expected<PhysicalDeviceInfo, VkResult> PhysicalDevice::select(VkInstance in
         info.properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
         info.properties.pNext = &info.rtProps;
         vkGetPhysicalDeviceProperties2(device, &info.properties);
+        if (!supportsPushConstants(info.properties.properties.limits)) {
+            continue; // the renderers' push-constant block would not fit
+        }
         vkGetPhysicalDeviceMemoryProperties(device, &info.memProperties);
         info.serSupported = hasSerSupport(device);
         info.dgcSupported = hasDgcSupport(device);

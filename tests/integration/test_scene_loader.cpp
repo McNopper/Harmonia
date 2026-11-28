@@ -13,6 +13,7 @@
 
 #include "aether/format/ObjImporter.hpp"
 #include "aether/types/OpacityMicromap.hpp"
+#include "harmonia/scene/MaterialLibrary.hpp"
 #include "harmonia/scene/SceneLoader.hpp"
 
 namespace {
@@ -104,6 +105,40 @@ TEST(SceneLoader, LoadsRealSceneAndProducesExpectedConfig) {
     // registered mesh is placed exactly once, so instances == meshes.
     EXPECT_EQ(scene.instanceCount, scene.meshCount);
     EXPECT_GE(scene.instanceCount, 3U);
+}
+
+TEST(SceneLoader, MissingDeclaredMaterialLibraryFailsBeforeAnySceneContent) {
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path() / "harmonia_scene_loader_missing_material_library";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    const std::filesystem::path scenePath = dir / "missing_library.scene.toml";
+    {
+        std::ofstream out(scenePath);
+        out << "material_libraries = [\"missing.materials.toml\"]\n"
+               "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\n";
+    }
+
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    RecordingSceneBuilder rejectedScene;
+    const auto rejected = harmonia::scene::SceneLoader::load(scenePath, dir, rejectedScene, dummyCtx, dummyPool);
+    EXPECT_FALSE(rejected.has_value()) << "a declared but unreadable material library invalidates the scene";
+    EXPECT_EQ(rejectedScene.materialCount, 0U);
+    EXPECT_EQ(rejectedScene.meshCount, 0U);
+    EXPECT_EQ(rejectedScene.instanceCount, 0U);
+
+    // Positive control: the identical scene loads as soon as its declared library exists.
+    {
+        std::ofstream library(dir / "missing.materials.toml");
+        library << "model = \"openpbr\"\n"
+                   "colorspace = \"lin_rec709_scene\"\n"
+                   "[Red]\nbase_color = [1.0, 0.0, 0.0]\n";
+    }
+    RecordingSceneBuilder acceptedScene;
+    const auto accepted = harmonia::scene::SceneLoader::load(scenePath, dir, acceptedScene, dummyCtx, dummyPool);
+    EXPECT_TRUE(accepted.has_value());
+    std::filesystem::remove_all(dir);
 }
 
 TEST(SceneLoader, UnknownTonemapperStillFallsBackToDefault) {
@@ -373,6 +408,60 @@ std::size_t quadVertexCount(const std::filesystem::path& path) {
         total += g.mesh.vertices.size();
     }
     return total;
+}
+
+TEST(SceneLoader, MaterialTexturePathsPreferTheDeclaringLibraryDirectory) {
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "harmonia_material_library_texture_origin";
+    fs::remove_all(root);
+    fs::create_directories(root / "materials");
+    fs::create_directories(root / "textures");
+    std::ofstream(root / "textures" / "present.png") << "existence is sufficient for path ownership";
+    {
+        std::ofstream lib(root / "materials" / "m.materials.toml");
+        lib << "model = \"openpbr\"\n"
+               "colorspace = \"lin_rec709_scene\"\n"
+               "[Mapped]\n"
+               "map_base_color = \"../textures/present.png\"\n"
+               "map_normal = \"../textures/missing.png\"\n";
+    }
+    harmonia::scene::MaterialLibrary library;
+    ASSERT_TRUE(library.load(root / "materials" / "m.materials.toml"));
+    const auto refs = library.textureRefs("Mapped");
+    ASSERT_TRUE(refs.has_value());
+    EXPECT_EQ(refs->base_color.path, (root / "textures" / "present.png").lexically_normal().string());
+    EXPECT_EQ(refs->normal.path, "../textures/missing.png") << "the scene/assets fallback remains available";
+    fs::remove_all(root);
+}
+
+TEST(SceneLoader, MissingDeclaredTextureFailsInsteadOfPublishingDefaultMaterial) {
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "harmonia_scene_loader_missing_texture";
+    fs::remove_all(root);
+    fs::create_directories(root / "materials");
+    writeQuadObj(root / "q.obj");
+    {
+        std::ofstream lib(root / "materials" / "m.materials.toml");
+        lib << "model = \"openpbr\"\n"
+               "colorspace = \"lin_rec709_scene\"\n"
+               "[Mapped]\n"
+               "map_base_color = \"../textures/missing.png\"\n";
+    }
+    {
+        std::ofstream scene(root / "s.scene.toml");
+        scene << "material_libraries = [\"materials/m.materials.toml\"]\n"
+                 "[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\n"
+                 "[[mesh]]\nname = \"q\"\npath = \"q.obj\"\n"
+                 "[[instance]]\nmesh = \"q\"\nmaterial = \"Mapped\"\n";
+    }
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    const auto cfg = harmonia::scene::SceneLoader::load(root / "s.scene.toml", root, scene, dummyCtx, dummyPool);
+    EXPECT_FALSE(cfg.has_value());
+    EXPECT_EQ(scene.meshCount, 1U) << "the mesh phase precedes texture binding";
+    EXPECT_EQ(scene.instanceCount, 0U) << "no instance with a default substitute material is published";
+    fs::remove_all(root);
 }
 
 /// Skin scene over the quad; @p rows extra bone rows override the exact count

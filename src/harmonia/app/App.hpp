@@ -214,8 +214,11 @@ class App {
     ///
     /// `key` changes iff the sampled time changes (microsecond-quantized in
     /// interval and shutter mode, the tick index otherwise).
-    [[nodiscard]] static AnimationClock
-    sequenceSampleClock(const AppConfig& config, double fps, std::uint32_t outputFrame, std::uint32_t sample) noexcept;
+    [[nodiscard]] static AnimationClock sequenceSampleClock(const AppConfig& config,
+                                                            double fps,
+                                                            std::uint32_t outputFrame,
+                                                            std::uint32_t sample,
+                                                            std::uint32_t accumulationCount = 0U) noexcept;
 
     /// The time sample that accumulation frame `frame` renders when `count` accumulation
     /// frames integrate `timeSamples` instants of an output frame. The frames of one instant
@@ -224,8 +227,9 @@ class App {
     /// host about 100 ms (the stamp and the acceleration-structure update) and a frame with
     /// a moving scene four times a frame of a standing one, on every accumulation frame.
     /// Every instant keeps the number of accumulation frames it had while the strata
-    /// alternated (`frame % timeSamples`): the remainder goes to the first strata. Without a
-    /// shutter (`timeSamples` below 2) the index is the frame.
+    /// alternated (`frame % timeSamples`): the remainder goes to the first strata, whose
+    /// width in the exposure is proportionally larger. Without a shutter (`timeSamples`
+    /// below 2) the index is the frame.
     [[nodiscard]] static std::uint32_t
     timeSampleOfFrame(std::uint32_t frame, std::uint32_t count, std::uint32_t timeSamples) noexcept;
 
@@ -233,7 +237,7 @@ class App {
     /// is the raw per-render-frame tick (deterministic; interactive use).
     [[nodiscard]] AnimationClock animationClock(double fps) const noexcept {
         if (m_sequenceActive) {
-            return sequenceSampleClock(m_config, fps, m_sequenceFrame, m_sequenceSample);
+            return sequenceSampleClock(m_config, fps, m_sequenceFrame, m_sequenceSample, offscreenFrameCount());
         }
         const double safeFps = fps > 0.0 ? fps : 30.0;
         return AnimationClock{.seconds = static_cast<double>(animationFrameIndex()) / safeFps,

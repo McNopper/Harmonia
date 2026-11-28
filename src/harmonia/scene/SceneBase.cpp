@@ -37,6 +37,7 @@ std::uint32_t SceneBase::addInstance(std::uint32_t meshIndex, const Transform& t
 
 void SceneBase::attachAnimation(aether::SceneDesc&& desc, const std::vector<std::uint32_t>& instanceToDesc) {
     m_animation = std::move(desc);
+    m_evaluatedAnimation.reset(); // a new source must not expose the previous source's evaluation
     m_instanceToDesc = instanceToDesc;
 }
 
@@ -340,7 +341,10 @@ std::vector<float> SceneBase::evaluateMorphWeights(float seconds) const {
     if (!m_animation.has_value() || m_animation->morphs.empty()) {
         return {};
     }
-    return aether::SceneAnimator::evaluateMorphWeights(m_animation.value(), seconds);
+    if (!m_evaluatedAnimation) {
+        m_evaluatedAnimation.emplace();
+    }
+    return aether::SceneAnimator::evaluateMorphWeights(m_animation.value(), seconds, *m_evaluatedAnimation);
 }
 
 VkResult SceneBase::stageMorphWeights(const std::vector<float>& weights) {
@@ -386,7 +390,10 @@ std::vector<aether::SkinPose> SceneBase::evaluateSkins(float seconds) const {
     if (!hasSkins()) {
         return {};
     }
-    return aether::SceneAnimator::evaluateSkins(*m_animation, seconds);
+    if (!m_evaluatedAnimation) {
+        m_evaluatedAnimation.emplace();
+    }
+    return aether::SceneAnimator::evaluateSkins(*m_animation, seconds, *m_evaluatedAnimation);
 }
 
 void SceneBase::setAnimationTime(float seconds) {
@@ -395,10 +402,13 @@ void SceneBase::setAnimationTime(float seconds) {
     }
     // Aether owns the evaluation (ANI1): tracks are sampled and the node
     // compounding re-run; the renderers only stamp the resolved TRS through the
-    // load-time mapping. Stamping is dirty regardless of whether any track
-    // actually changed a value at @p seconds — the TLAS update path decides
-    // whether GPU work is worth it.
-    const aether::SceneDesc evaluated = aether::SceneAnimator::evaluate(*m_animation, seconds);
+    // load-time mapping. The output storage is reused between ticks; a bound
+    // camera and the deformation pass can read this same evaluated scene.
+    if (!m_evaluatedAnimation) {
+        m_evaluatedAnimation.emplace();
+    }
+    aether::SceneAnimator::evaluate(*m_animation, seconds, *m_evaluatedAnimation);
+    const auto& evaluated = *m_evaluatedAnimation;
     for (std::size_t i = 0; i < m_instances.size(); ++i) {
         const std::uint32_t descIndex = m_instanceToDesc[i];
         if (descIndex >= evaluated.instances.size()) {

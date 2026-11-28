@@ -2,12 +2,48 @@
 // The probe/feature wiring is device-creation-bound (needs a real Vulkan device)
 // and is covered by the integration suite instead; only the dump-artifact name
 // contract is testable without a device, so only that is tested here.
+//
+// Also the device limit the selection requires for the renderers' push-constant
+// block, with simulated limits: the selection itself needs a device.
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <regex>
 #include <string>
 
 #include "harmonia/vulkan_init/DeviceFault.hpp"
+#include "harmonia/vulkan_init/PhysicalDevice.hpp"
+
+namespace {
+
+/// The limits of a device whose push-constant limit is @p bytes.
+[[nodiscard]] VkPhysicalDeviceLimits withPushConstants(std::uint32_t bytes) noexcept {
+    VkPhysicalDeviceLimits limits{};
+    limits.maxPushConstantsSize = bytes;
+    return limits;
+}
+
+} // namespace
+
+// The renderers' main pass pushes a 256-byte block; Vulkan guarantees only 128.
+TEST(DevicePushConstants, RequirementIsTheRenderersBlock) {
+    constexpr auto requirement = harmonia::vulkan_init::kRequiredPushConstantsSize;
+    EXPECT_EQ(requirement, 256U);
+    EXPECT_GT(requirement, 128U) << "twice the minimum Vulkan guarantees";
+}
+
+TEST(DevicePushConstants, ALimitBelowTheBlockIsRejected) {
+    EXPECT_FALSE(harmonia::vulkan_init::supportsPushConstants(withPushConstants(0U)));
+    EXPECT_FALSE(harmonia::vulkan_init::supportsPushConstants(withPushConstants(128U)))
+        << "the minimum Vulkan guarantees is not enough";
+    EXPECT_FALSE(harmonia::vulkan_init::supportsPushConstants(withPushConstants(255U)));
+    EXPECT_FALSE(harmonia::vulkan_init::supportsPushConstants(VkPhysicalDeviceLimits{}))
+        << "a device that reports nothing";
+}
+
+TEST(DevicePushConstants, TheBlockAndMoreAreAccepted) {
+    EXPECT_TRUE(harmonia::vulkan_init::supportsPushConstants(withPushConstants(256U)));
+    EXPECT_TRUE(harmonia::vulkan_init::supportsPushConstants(withPushConstants(256U + 128U)));
+}
 
 TEST(DeviceFaultFileName, MatchesTheDocumentedArtifactContract) {
     // VK16 contract: `device_fault_<timestamp>.bin` — the file vendor fault-analysis

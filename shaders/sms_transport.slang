@@ -8,7 +8,8 @@ __exported import sms_solver;
 
 bool smsUntexturedOpaqueCaster(GpuMaterial mat) {
     return mat.opacityFlagsPad.x == 1.0 && all(mat.textureIndices == kNoTexture.xxxx) &&
-        all(mat.textureIndices2 == kNoTexture.xxxx);
+        all(mat.textureIndices2 == kNoTexture.xxxx) && all(mat.textureIndices3 == kNoTexture.xxxx) &&
+        all(mat.textureIndices4 == kNoTexture.xxxx);
 }
 
 bool smsNonEmissive(GpuMaterial mat) {

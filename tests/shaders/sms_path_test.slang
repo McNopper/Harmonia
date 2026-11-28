@@ -9,7 +9,7 @@ GpuMaterial material(uint kind) {
     GpuMaterial value={};
     value.baseColorWeight=1.0.xxxx;
     value.opacityFlagsPad=float4(1,float(kind),0,0);
-    value.textureIndices=value.textureIndices2=kNoTexture.xxxx;
+    value.textureIndices=value.textureIndices2=value.textureIndices3=value.textureIndices4=kNoTexture.xxxx;
     value.specularRoughAnisoIor=float4(0,0,1.5,0);
     value.specularColorWeight=float4(0,0,0,1);
     if (kind==2u) value.transmissionColorWeight=1.0.xxxx;

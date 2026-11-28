@@ -16,7 +16,7 @@ void main(uint3 id : SV_DispatchThreadID) {
     mat.specularColorWeight = float4(1,1,1,1);
     mat.specularRoughAnisoIor = float4(0,0,1.5,0);
     mat.transmissionColorWeight = float4(1,1,1,1);
-    mat.textureIndices = mat.textureIndices2 = kNoTexture.xxxx;
+    mat.textureIndices = mat.textureIndices2 = mat.textureIndices3 = mat.textureIndices4 = kNoTexture.xxxx;
     mat.opacityFlagsPad = float4(1,input.modes.x == 1u ? 3.0 : 2.0,0,0);
     if (input.modes.z != 0u) {
         mat.transmissionParams.x = input.settings.z;

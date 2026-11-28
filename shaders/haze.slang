@@ -45,7 +45,7 @@ float hazeOpticalDepth(Haze haze, float3 a, float3 b) {
     // The last factor tends to 1 for a horizontal segment and to 1 / x for a long
     // descent, so the expression stays accurate for every elevation.
     const float x = (b.y - a.y) / haze.height;
-    const float factor = (abs(x) > 1.0e-4) ? ((1.0 - exp(-x)) / x) : (1.0 - 0.5 * x);
+    const float factor = (abs(x) > 1.0e-2) ? ((1.0 - exp(-x)) / x) : (1.0 - 0.5 * x + x * x / 6.0);
     return haze.density * length_ * exp(-a.y / haze.height) * factor;
 }
 
@@ -63,7 +63,18 @@ float hazeTransmittance(float opticalDepth) {
     return exp(-max(opticalDepth, 0.0));
 }
 
-/// Level of the environment map's mip chain at which one texel spans about
-/// six degrees: the blur of the in-scattered sky. A map without a mip chain
-/// clamps to its only level, and the haze then follows the sky's detail.
-static const float kHazeSkyLod = 6.0;
+/// The angular width of the blur of the in-scattered sky. The environment map is read
+/// at the level of its mip chain at which one texel spans about this many degrees: a
+/// map `width` texels wide covers 360 degrees, and level `lod` still has
+/// `width / 2^lod` of them.
+static const float kHazeSkyBlurDegrees = 6.0;
+
+/// The mip level of an environment map `envWidth` texels wide at which one texel spans
+/// about `kHazeSkyBlurDegrees`: 360 / (envWidth / 2^lod) degrees. The level follows the
+/// map, so the blur is the same angle on every map. It used to be one fixed level, 6,
+/// which is six degrees only on a map 3840 texels wide and a multiple of that on any
+/// other. A map without a mip chain clamps to its only level, and the haze then follows
+/// the sky's detail.
+float hazeSkyLod(float envWidth) {
+    return log2(max(envWidth * kHazeSkyBlurDegrees / 360.0, 1.0));
+}

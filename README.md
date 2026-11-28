@@ -218,10 +218,11 @@ estimates of the same blur. A shuttered frame is therefore compared between the
 renderers with the same flags and the same seed.
 
 The accumulation frames of one time sample run consecutively: all frames of the first part of
-the shutter, then those of the second, and so on (`App::timeSampleOfFrame`). Every part keeps
-the share of accumulation frames it had while the parts alternated (the remainder goes to the
-first parts), so the exposure is integrated with the same weights; what changes is how often
-the scene is given a new time: once per time sample instead of once per accumulation frame.
+the shutter, then those of the second, and so on (`App::timeSampleOfFrame`). A part's width in
+the exposure is proportional to its accumulation frames; the remainder goes to the first parts.
+An exact division keeps the former equal-width strata and their jittered instants. This weighting
+keeps the estimate unbiased when the counts do not divide; grouping changes only how often the
+scene is given a new time: once per time sample instead of once per accumulation frame.
 On a scene of 110,000 draw instances an animation tick costs the host about 100 ms (stamping
 the instances, updating the acceleration structure) and a frame with a moving scene takes four
 times a frame of a standing one. An output frame of 256 accumulation frames over 8 time samples
@@ -282,7 +283,7 @@ reported as an error and the default stays unchanged. `--no-postfx` turns the gl
 
 | Variable | Effect |
 |----------|--------|
-| `HARMONIA_FRAME_TIMING=1` | With `--output`: wait for each accumulation frame and log its render time as `frame_timing_ms:<i>:<ms>`. Process start-up and image encoding are not included. Theia also logs a node-bound camera's evaluation (`camera_timing_ms:<ms>`) and each animation tick (`tick_timing_ms: stamp <ms> \| tlas <ms>`, the second interval including transform/bounds synchronization) |
+| `HARMONIA_FRAME_TIMING=1` | With `--output`: wait for each accumulation frame and log its render time as `frame_timing_ms:<i>:<ms>`. Process start-up and image encoding are not included. Theia also logs extracting a node-bound camera's pose from the evaluated scene (`camera_timing_ms:<ms>`) and each animation tick (`tick_timing_ms: stamp <ms> \| tlas <ms>`, the second interval including transform/bounds synchronization) |
 | `HARMONIA_PRESENT_TIMING=1` | Log present-interval statistics every 120 presentation records: `[present-timing] n=<count> mean_interval=<ms> max_interval=<ms> incomplete=<count>`. Needs `VK_EXT_present_timing`; nothing is scheduled from these numbers |
 | `HARMONIA_PIPELINE_BINARY_CACHE` | Directory of the pipeline binary cache, or `off` / `0` to disable it. See [Pipeline binary cache](#pipeline-binary-cache) |
 | `HARMONIA_DN3M4_DIR` | Tests only: directory of the denoiser convergence test; see [tools/README.md](tools/README.md) |
@@ -315,11 +316,94 @@ configuration).
 
 ### Finding the files a scene refers to
 
-Every relative path written in a scene (a mesh, a material library, a texture, an
-opacity micromap, the environment map) is searched in the scene file's directory
-first, then in the assets directory. An absolute path is used as is. A render preset
-named by `[render] reference` is read relative to the scene file's directory; when it
-is missing or malformed, a warning is logged and the inline keys are used.
+Every relative mesh, material-library, opacity-micromap and environment path written in a scene
+is searched in the scene file's directory first, then in the assets directory. An absolute path is
+used as is. A texture path belongs to the material library that declares it: when the file exists
+relative to that library's directory, that path is used; otherwise the same scene-directory then
+assets-directory fallback applies. This keeps libraries in `materials/` with `../textures/` valid,
+and two libraries that use the same relative name for different files do not share a cache entry.
+The texture cache also distinguishes source color spaces. A declared library or texture that cannot
+be opened aborts the scene load; no partial scene or image is published. A render preset named by
+`[render] reference` is read relative to the scene file's directory; when it is missing or malformed,
+a warning is logged and the inline keys are used.
+
+### Textures: decoded sources and block-compressed DDS
+
+`Texture::loadFromFile` (`src/harmonia/scene/Texture.cpp`) takes one of two paths,
+selected by the file extension.
+
+**Every format but DDS** is decoded with OpenImageIO, with the source precision selecting the GPU
+representation. An 8-bit source keeps the original RGBA8 path. An unconverted 16-bit integer source
+is uploaded as `R16G16B16A16_UNORM`, retaining every source code value. A half/float source, or a
+16-bit source that needs a transfer-function or primaries conversion, is read as float and uploaded
+as `R16G16B16A16_SFLOAT`; values outside finite half range are rejected, never clamped. The levels
+below the first are generated on the GPU when the format supports the blit chain. Synthetic GPU
+readback tests distinguish adjacent 16-bit values that collapse to one 8-bit value, check linear half
+sRGB decoding, and pin the unchanged RGBA8 path.
+
+**A `.dds` file is never decoded.** Its blocks are uploaded as they are, and the image has
+the format of the file. Three pieces make the path:
+
+- `core::DdsImage` (`src/harmonia/core/DdsImage.hpp`) parses the file and owns its bytes:
+  magic and header sizes, dimensions, the mip count against the chain the dimensions allow,
+  the format, and the byte range of every level. It returns the Vulkan format, the extent,
+  the precomputed level count and, per level, the offset and size of its blocks. A file
+  that is truncated, inconsistent or of an unsupported format is rejected with a reason;
+  nothing is guessed.
+- `HostImageUploadDesc::mips` (`src/harmonia/core/HostImageUpload.hpp`) hands
+  `uploadHostImage` a caller-supplied chain: one `HostImageMipLevel` per level with the
+  host pointer, its byte length and its texel extent. The image is created with exactly
+  that many levels, and one `vkCopyMemoryToImage` region per level writes it, each at the
+  level's texel extent from the first block of the level. No level is generated: the path
+  needs neither a blit nor `TRANSFER` usage. The chain is validated before the first Vulkan
+  call (level extents, a host range that covers the level's blocks, a format whose texel
+  footprint is known), and the format must support sampling, linear filtering for the
+  descriptor's sampler, and — `VUID-VkImageCreateInfo-imageCreateFormatFeatures-09048` —
+  host transfer. A missing feature is `VK_ERROR_FORMAT_NOT_SUPPORTED`; there is no
+  fallback that would decode to RGBA8. Without `mips` the single-level upload behaves
+  exactly as before.
+- `Texture::loadFromFile` applies the color-space rules below and builds the levels from
+  the parsed file.
+
+**Supported DDS content.** A single-layer 2D texture in a block-compressed format: BC1,
+BC2, BC3, BC4, BC5, BC6H and BC7, from the DX10 header (`DXGI_FORMAT_BC*`, the TYPELESS
+variants of the 8-bit families included) or from the legacy FourCC header (`DXT1`…
+`DXT5`, `BC4U`/`BC4S`, `BC5U`/`BC5S`, `ATI1`, `ATI2`, `A2XY`, `BC6H`, `BC7L`). BC7 is the
+format the assets use. Not accepted: arrays, cubemaps, volumes, 1D textures, uncompressed
+formats, `BC6H_TYPELESS` (the file does not say whether its blocks are UF16 or SF16) and
+the channel-swizzled DXT5 variants. Whether the device can sample a given BC format is
+queried, not assumed.
+
+**Color spaces.** A block-compressed texture cannot be converted after the fact, so a
+conversion is either represented by the format or refused — never applied to the result.
+The only conversion a BC format can represent is the sRGB decode, done by the hardware
+through the `*_SRGB` variant of the format.
+
+| Scene color space | Working space | DDS result |
+|-------------------|---------------|------------|
+| `data` | any | Blocks read linearly (`BC7_UNORM_BLOCK`, …). The file must not declare sRGB. |
+| `lin_rec709_scene` | `lin_rec709_scene` | Linear, as above. |
+| `lin_rec2020_scene` | `lin_rec2020_scene` | Linear, as above. |
+| `srgb_rec709_scene` | `lin_rec709_scene` | Hardware sRGB decode (`BC7_SRGB_BLOCK`, …). The format family must have an sRGB variant. |
+| any color space whose primaries differ from the working space, sRGB included in `lin_rec2020_scene` | — | `VK_ERROR_FORMAT_NOT_SUPPORTED`: the primaries conversion cannot be represented. |
+
+A file stored as sRGB that the scene declares `data` or linear contradicts itself and is
+refused as well. **Consequence:** in the default `lin_rec2020_scene` working space, a DDS
+is accepted for `data` and for `lin_rec2020_scene` textures, and refused for `srgb_rec709_scene`
+and `lin_rec709_scene` ones; those keep the decoded path. A refused texture is logged and
+the material slot keeps its default, as for any texture that fails to load. Not read: the
+alpha mode of the DX10 header (premultiplied alpha is neither detected nor undone) and the
+legacy NVTT sRGB flag.
+
+**Making DDS files.** Any encoder that writes standard DDS with a complete mip chain
+works; the assets use Microsoft DirectXTex `texconv` in CPU mode:
+
+```text
+texconv -nogpu -m 0 -f BC7_UNORM input.png
+texconv -nogpu -m 0 -f BC7_UNORM_SRGB -srgbino input.png
+```
+
+The tests and their fixtures are described in `tests/assets/dds/README.md`.
 
 ### What the loader does
 
@@ -335,6 +419,8 @@ is missing or malformed, a warning is logged and the inline keys are used.
   on a device without `VK_KHR_opacity_micromap`.
 - Places the instances with their translation, rotation and scale and resolves the
   material of every sub-mesh.
+- Builds the analytic lights of the scene (`[[light]]`) and hands them to the scene
+  through `addLight`, in declaration order. See [Analytic lights](#analytic-lights).
 - Binds skins and morph targets to the imported vertices and keeps the parsed scene
   for scenes that have animation tracks, skins or morph targets, so the animation can
   be evaluated every frame.
@@ -348,6 +434,61 @@ is missing or malformed, a warning is logged and the inline keys are used.
   at height zero and the height at which it has fallen to 1/e. Both are handed to the
   renderer, which applies the haze to the radiance of every camera ray.
 - Applies the stage switches and the tone mapper of the scene.
+
+### Analytic lights
+
+A `[[light]]` entry of the scene becomes exactly one of the light classes the renderers already
+consume from `SceneBase::addLight`; no second light system exists. The construction is pure CPU
+work in `makeLights`, so the unit tests cover it without a device.
+
+| Aether `type` | Class | Placement and parameters |
+|---------------|-------|--------------------------|
+| `point` | `PointLight` | `translate` is the position; `range`; `unit` candela or lumen |
+| `spot` | `SpotLight` | Position and direction; `inner_angle` and `outer_angle` in degrees as the two cone half angles; `range`; candela or lumen |
+| `rect` | `RectLight` | Position and emission normal; `half_extents` as the half extents along the light's local X and Y axes; nit |
+| `directional` | `DirectionalLight` | Travel direction; lux |
+
+The light's local −Z axis is its emission axis, the camera's forward convention:
+`direction = rotation * (0, 0, -1)`. The local X axis is `rotation * (1, 0, 0)`.
+
+`color` is converted on the path of the material colors: from the light's declared
+`color_space` into the working color space, Rec.709 → Rec.2020 or Rec.2020 → Rec.709 when the two
+differ and unchanged otherwise.
+
+A scene without lights makes no `addLight` call and loads exactly as before. A scene builder
+without light storage that is handed a light is an error that stops the scene load; a light is
+never dropped silently.
+
+The classes pass the photometric value through unchanged in `toGpu()`: scene-linear radiance is
+photometric everywhere in Harmonia, since the environment (`environment_unit_nits`) and emissive
+materials (`emission_luminance`) reach the shaders in cd/m² as well. With `map_emission_luminance`,
+the scalar is an authored scale and the sampled value is its normalized multiplier; their product is
+the OpenPBR [0,∞) luminance. Legacy mapped materials with scalar zero use a scale of one. A shader reading
+`GpuLight::intensity` gets the luminance in cd/m² of a rectangular light, the luminous intensity in
+cd of a point or spot light (cd/m² is the illuminance in lux at distance d) and the illuminance in
+lux of a distant light. Textured emissive materials are excluded from constant-radiance triangle NEE;
+their BSDF hits carry the textured EDF at every depth, while untextured emitters retain power-sampled NEE.
+This preserves the spatially varying emission without a fabricated constant power distribution.
+A rect light, an emissive surface and an environment of the same photometric
+value therefore shade alike; the unit test `AnalyticEmittersShareThePhotometricScaleWithEmissiveAndEnvironment`
+pins the three against each other. The only conversion is the unit change of a lumen value to
+candela for an isotropic source, `cd = lm / 4π`.
+
+A rect light carries its orientation in its plane: `RectLight::tangent` is its local X axis, the
+one `halfWidth` spans, and the loader sets it from the light's transform. `toGpu()` writes it as a
+roll about the normal into the descriptor's `cosInner` slot, which a rect light does not use,
+measured from the canonical in-plane frame that the rect sampling shader builds from the normal
+alone. A light without an orientation (zero tangent, the default) has roll 0 and shades as before.
+The normal, the half extents and the area do not change under a roll; a 90 degree roll turns the
+sampled rectangle's axes.
+
+Both renderers sample analytic lights with `evalAnalyticLightNEE` in the shared path
+integrator: point, spot and directional lights use their analytic attenuation and cone rules, and
+a rectangular light is sampled uniformly over its rolled area. The contribution passes the same
+BSDF, visibility tracer and shadow-terminator handling as the other NEE terms. Only the analytic
+prefix of the light buffer is sampled; synthesized emissive lights remain owned by emissive-triangle
+NEE. Theia's forward pass owns primary analytic direct lighting and the shared NEE starts on the
+secondary bounces there, so a light is never counted twice.
 
 ### Material of a sub-mesh
 

@@ -18,6 +18,7 @@ struct PushConstants {
     uint  rngSeed;
     float envLuminanceScale;
     uint  lightCount;
+    uint  analyticLightCount;    ///< analytic prefix, before synthesized emissive lights
     uint  outputColorSpace;      ///< OutputColorSpace enum (used by tonemap pass)
     uint  samplesPerPixel;
     uint  hasEnvMap;

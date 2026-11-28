@@ -263,12 +263,15 @@ struct EnvNeeSample {
 /// primary camera ray (depth==0), or right after a specular/delta bounce (NEE cannot sample
 /// through a perfect mirror). All other direct emitter hits are handled by NEE below.
 float3 evalEmissionGuarded(float3 emission, uint depth, bool specularBounce,
-    float3 wo, float3 geoNormal, uint emissiveTriangleCount)
+    float3 wo, float3 geoNormal, uint emissiveTriangleCount, bool hitOnlyTexturedEmission)
 {
     if (max(emission.x, max(emission.y, emission.z)) <= 0.0 || dot(wo, geoNormal) <= 0.0) {
         return 0.0.xxx;
     }
-    if (emissiveTriangleCount == 0u || depth == 0u || specularBounce) {
+    // Textured emitters are excluded from constant-radiance NEE. Their textured EDF is carried
+    // by BSDF hits at every depth; suppressing those hits would lose energy, while registering
+    // their maximum as a constant light would emit from black texels and bias every receiver.
+    if (hitOnlyTexturedEmission || emissiveTriangleCount == 0u || depth == 0u || specularBounce) {
         return emission;
     }
     return 0.0.xxx;
@@ -498,6 +501,96 @@ float3 evalEmissiveTriangleNEE<T : ITracer>(
 /// combined with the BSDF sampling strategy through the MIS balance heuristic.
 /// Returns the (throughput-free) radiance contribution; the caller scales by throughput.
 /// Ref: PBR Book 4e §13.4.3; Veach §9.2.
+/// Direct illumination from the scene's analytic lights. Point, spot and directional lights
+/// are evaluated once; a rectangular light is sampled uniformly over its area. These lights
+/// have no geometry for BSDF rays to hit, so no MIS term is needed.
+float3 evalAnalyticLightNEE<T : ITracer>(
+    T tracer, SurfaceHit surf, StructuredBuffer<GpuLight> lights, uint lightCount, inout RngState seed)
+{
+    float3 result = 0.0.xxx;
+    for (uint i = 0u; i < lightCount; ++i) {
+        GpuLight light = lights[i];
+        const uint lt = asuint(light.typeF);
+        float3 wi = 0.0.xxx;
+        float3 Li = 0.0.xxx;
+        float tMax = 1.0e16;
+        float NdotL = 0.0;
+        float cosL = 1.0;
+        float areaWeight = 1.0;
+        if (lt == kLightRect) {
+            const float3 Ln = normalize(light.direction);
+            const float3 up = abs(Ln.y) < 0.99 ? float3(0.0, 1.0, 0.0) : float3(1.0, 0.0, 0.0);
+            const float3 Lt0 = normalize(cross(up, Ln));
+            const float3 Lb0 = cross(Ln, Lt0);
+            const float roll = light.cosInner;
+            const float3 Lt = cos(roll) * Lt0 + sin(roll) * Lb0;
+            const float3 Lb = cross(Ln, Lt);
+            const float2 xi = randFloat2(seed) * 2.0 - 1.0;
+            const float3 sp = light.position + Lt * (xi.x * light.halfWidth) + Lb * (xi.y * light.halfHeight);
+            const float3 toLight = sp - surf.position;
+            const float distSq = max(dot(toLight, toLight), 1.0e-12);
+            const float dist = sqrt(distSq);
+            wi = toLight / dist;
+            NdotL = max(dot(surf.normal, wi), 0.0);
+            cosL = max(dot(-wi, Ln), 0.0);
+            if (NdotL <= 0.0 || cosL <= 0.0) {
+                continue;
+            }
+            Li = light.color * light.intensity;
+            areaWeight = 4.0 * light.halfWidth * light.halfHeight / distSq;
+            tMax = dist;
+        } else if (lt == kLightPoint || lt == kLightSpot) {
+            const float3 toLight = light.position - surf.position;
+            const float distSq = max(dot(toLight, toLight), 1.0e-12);
+            const float dist = sqrt(distSq);
+            if (light.range > 0.0 && dist > light.range) {
+                continue;
+            }
+            wi = toLight / dist;
+            float attenuation = 1.0;
+            if (lt == kLightSpot) {
+                const float cosA = dot(-wi, normalize(light.direction));
+                const float spot = saturate((cosA - light.cosOuter) / max(light.cosInner - light.cosOuter, 1.0e-4));
+                if (spot <= 0.0) {
+                    continue;
+                }
+                attenuation = spot;
+            }
+            NdotL = max(dot(surf.normal, wi), 0.0);
+            if (NdotL <= 0.0) {
+                continue;
+            }
+            Li = light.color * (light.intensity * attenuation / distSq);
+            tMax = dist;
+        } else if (lt == kLightDirectional) {
+            wi = -normalize(light.direction);
+            NdotL = max(dot(surf.normal, wi), 0.0);
+            if (NdotL <= 0.0) {
+                continue;
+            }
+            Li = light.color * light.intensity;
+        } else {
+            continue;
+        }
+        float g;
+        const float fTerm = shadowTerminatorFactor(surf.normal, surf.geoNormal, wi, g);
+        if (fTerm <= 0.0) {
+            continue;
+        }
+        const float3 shadowOrigin = surf.shadowPos + surf.geoNormal * kRayEpsilon;
+        const float cosNgL = dot(surf.geoNormal, wi);
+        const float shadowTMax = max(tMax - kRayEpsilon * (1.0 + cosNgL), 0.0);
+        const float visibility = tracer.traceTransmittance(shadowOrigin, wi, shadowTMax);
+        if (visibility <= 0.0) {
+            continue;
+        }
+        const float3 bsdfValue = evalBSDF(surf.mat, surf.wo, wi, surf.normal, surf.T, surf.B,
+                                          surf.coatN, surf.coatT, surf.coatB, surf.backface);
+        result += bsdfValue * Li * NdotL * cosL * areaWeight * visibility * fTerm;
+    }
+    return result;
+}
+
 EnvNeeSample evalEnvNEESample<T : ITracer>(
     T tracer, SurfaceHit surf,
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
@@ -581,6 +674,7 @@ void integrateSurface<T : ITracer>(
     StructuredBuffer<float> marginalCdf, StructuredBuffer<float> conditionalCdf,
     uint envW, uint envH, bool hasEnvMap, float envLuminanceScale,
     Texture2D<float4> envMap, SamplerState envSampler,
+    StructuredBuffer<GpuLight> lights, uint lightCount, bool analyticLightNee,
     inout PathState state)
 {
     // 1) Emission. A front-face emitter hit terminates the path; the emission itself is
@@ -602,7 +696,8 @@ void integrateSurface<T : ITracer>(
     }
     if (max(emission.x, max(emission.y, emission.z)) > 0.0 && dot(surf.wo, surf.geoNormal) > 0.0) {
         state.radiance += state.throughput * evalEmissionGuarded(
-            emission, state.depth, state.specularBounce, surf.wo, surf.geoNormal, emissiveTriangleCount);
+            emission, state.depth, state.specularBounce, surf.wo, surf.geoNormal, emissiveTriangleCount,
+            surf.mat.baseMetalnessDiffRough.z > 0.5);
         state.terminated = true;
         return;
     }
@@ -633,6 +728,12 @@ void integrateSurface<T : ITracer>(
     NeeEventCapture capTri;
     state.radiance += state.throughput * evalEmissiveTriangleNEE(
         tracer, surf, emissiveTriangles, emissiveTriangleCount, emissiveCdf, state.seed, capTri);
+
+    // 3b) NEE: analytic point, spot, directional and rectangular lights.
+    if (analyticLightNee) {
+        state.radiance += state.throughput * evalAnalyticLightNEE(
+            tracer, surf, lights, lightCount, state.seed);
+    }
 
     // 4) NEE: environment importance sampling with MIS.
     NeeEventCapture capEnv;

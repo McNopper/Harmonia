@@ -104,7 +104,7 @@ class SceneBase : public ISceneBuilder {
     [[nodiscard]] const aether::OpacityMicromapData& addOpacityMicromap(aether::OpacityMicromapData&& data) override;
 
     /// Appends @p light and returns its index.  Must be called before build().
-    std::uint32_t addLight(std::unique_ptr<Light> light);
+    [[nodiscard]] std::uint32_t addLight(std::unique_ptr<Light> light) override;
 
     // ── Build (shared orchestration) ────────────────────────────────────────
 
@@ -207,12 +207,24 @@ class SceneBase : public ISceneBuilder {
         return m_animation ? &*m_animation : nullptr;
     }
 
+    /// Number of analytic lights, before any synthesized emissive lights are appended.
+    [[nodiscard]] std::uint32_t analyticLightCount() const noexcept {
+        return static_cast<std::uint32_t>(m_lights.size());
+    }
+
     /// Direct instance-transform mutation for non-desc-driven updates
     /// (renderers/tests stamping world transforms themselves). Marks the
     /// instances dirty.
     [[nodiscard]] Transform& instanceTransform(std::size_t instanceIndex) noexcept {
         m_instancesDirty = true;
         return m_instances[instanceIndex].transform;
+    }
+
+    /// The most recent evaluation of the attached animation, or the attached source before the
+    /// first evaluation. setAnimationTime, evaluateSkins and evaluateMorphWeights keep this
+    /// storage alive between ticks; a camera reads its pose from it without evaluating again.
+    [[nodiscard]] const aether::SceneDesc* evaluatedScene() const noexcept {
+        return m_evaluatedAnimation ? &*m_evaluatedAnimation : attachedScene();
     }
 
     /// Manual dirty flag for bulk edits through other seams.
@@ -296,6 +308,8 @@ class SceneBase : public ISceneBuilder {
     /// ANI2: the attached animated-scene source + sceneInstance → descInstance
     /// mapping (set by the loader for [[animation]] scenes; both optional).
     std::optional<aether::SceneDesc> m_animation;
+    /// Reused evaluation storage: one scene copy per renderer scene, not one per animation tick.
+    mutable std::optional<aether::SceneDesc> m_evaluatedAnimation;
     std::vector<std::uint32_t> m_instanceToDesc;
     /// Set by any instance-transform mutation; the TLAS update path consumes it.
     bool m_instancesDirty = false;

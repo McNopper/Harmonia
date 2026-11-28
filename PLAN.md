@@ -197,11 +197,12 @@ benefit.
 
 Two follow-ups from the 2026-11-27 dense-scene stress test are approved for investigation:
 
-1. **One evaluated scene per animation instant.** Theia and Hyperion currently call
+1. **One evaluated scene per animation instant.** Theia and Hyperion called
    `SceneAnimator::evaluateCamera()` and `SceneBase::setAnimationTime()` separately, so both
-   evaluate the whole Aether scene. On the local 29,775-object scene the two intervals cost
-   72–98 ms and 72–82 ms respectively. Consume one evaluated scene for camera and instances;
-   the reusable/sparse evaluator itself is tracked in `Aether/PLAN.md`.
+   evaluated the whole Aether scene. On the local 29,775-object scene the two intervals cost
+   72–98 ms and 72–82 ms respectively. Implementation is in progress: Aether reusable evaluation
+   is committed (`daf4a8f`, `a452305`), and both renderers now read camera and instances from
+   one scratch evaluation. Full renderer gates and before/after GPU timing are still pending.
 2. **Incremental instance synchronization and TLAS input.** `setAnimationTime()` stamps every
    renderer instance; Theia then rebuilds and uploads all transforms and world bounds, and the
    shared TLAS path recreates its instance upload and scratch buffers before a synchronous
@@ -220,6 +221,26 @@ particular scene. Correctness means exactly the same evaluated instances and cam
 instant and the same exposure weights. Prove that with deterministic regression tests and
 scene-referred Theia/Hyperion EXR comparisons on an existing manifest scene and an independent
 animated scene; the local pier scene is a consumer test, never an input to the renderer's design.
+
+### Confirmed stress-test audit gaps (2026-11-27)
+
+These are recorded work items, not completed fixes. Renderer-specific rows live in
+`Theia/PLAN.md`; shared items are collected here so no finding is lost between sessions.
+
+| Item | State | Evidence and next action |
+|------|-------|--------------------------|
+| Shutter weighting when frames do not divide by time samples | Fixed in working tree, verification pending | Grouping gives the first `count % timeSamples` strata one extra frame. Stratum widths are now proportional to frame counts; the 250/8 CPU regression test passes and exact divisions such as 256/8 remain unchanged. Full gate and shuttered Theia/Hyperion comparison are pending |
+| Haze sky blur coupled to panorama resolution | Not started | Absolute mip level 6 gives about six degrees only near 3840 pixels width. Derive the level from map width or expose angular blur in `[haze]`; test 1K, 4K and 8K maps |
+| Glare validation covers only Cornell | Not started | Add `--glare-scenes` to `check_vulkan_validation.py`, defaulting to the validation manifest, and run the expanded gate |
+| GI push-constant budget is unchecked and full | Not started | `GiPushConstants` reaches 256 bytes after haze. Query and enforce `maxPushConstantsSize` at device selection; move further scene parameters to a uniform buffer with an independent test |
+| Thin-lens depth of field | Implemented, GPU verification pending | Hyperion's existing sampler is retained. SceneLoader now accepts lens radius/focus distance, and Theia's raster visibility and GI reconstruction use the same per-pixel lens origin/direction through a shared lens buffer. Pinhole output is unchanged by construction; the `dof` scene is ready for cross-renderer comparison |
+| DDS block-compressed textures | Implemented and verified | DDS/DX10 BC parsing and direct per-mip hostImageCopy upload are complete, including BC7 sRGB and every mip. The final serial suite passes 306/306; the full-resolution OpenPBR title package uses the smaller PNG path by owner choice, without changing the DDS feature |
+| Declared material/texture failures still published a scene | Fixed and verified | Missing libraries/textures now abort instead of publishing defaults. The final v8 package resolves all 155 references and 148 unique textures; strict library and scene validation pass |
+| Tone-map push-constant ABI omitted analytic light count | Fixed and verified | The display ABI is aligned; full-resolution v8 AgX PNGs independently match their EXRs within one 8-bit level, and the final Harmonia suite passes 306/306 |
+| Coat/fuzz substrate attenuation omitted transmission | Fixed and verified | Continuous/delta transmission and bulk-subsurface entry are attenuated. Full family gates pass; the final 1920×1080 OpenPBR v8 Theia/Hyperion comparison has SSIM 0.826779, Rel-MSE 0.080253 and zero diagnostics |
+| Textured HDR emission and stale shader dependencies | Fixed and verified | Mapped emission luminance preserves OpenPBR's [0,∞) range as texture × authored scale. Textured emitters use unbiased BSDF-hit ownership instead of constant-radiance NEE. All Slang source roots are build dependencies, so shared module edits rebuild importing entry shaders |
+| High-precision PNG/TIFF sources | Implemented in Harmonia, focused GPU verification complete | Unconverted 16-bit sources upload as RGBA16_UNORM; half/float and converted 16-bit sources upload as RGBA16_SFLOAT. Exact adjacent-code-value readback, half sRGB and unchanged RGBA8 tests pass. MaterialX scalar/ORM precision is implemented in Aether; the v4 packager preserves six high-precision inputs instead of converting them to BC7 |
+| Haze automated regression coverage | Not started | Add numerical shader tests, loader propagation tests and both renderers' composite-site tests; add `haze` and `motion_blur` to the manifest. The Theia-specific composite-site work is also listed in `Theia/PLAN.md` |
 
 The table keeps the measurements that closed the removed techniques.
 

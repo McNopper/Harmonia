@@ -3,13 +3,11 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 
 namespace harmonia::scene {
 
 namespace {
-
-/// Luminous efficacy of radiation (lm/W).
-inline constexpr float kLumEfficacy = 683.0f;
 
 /// Pack a LightType enum value into the float slot of GpuLight.
 /// (Matches the asuint() read in the shader.)
@@ -23,23 +21,52 @@ inline float lumenToCandela(float lm) noexcept {
     return lm / (4.0f * sm::pi<float>());
 }
 
+/// The in-plane frame of a rect light that its roll is measured from. It is
+/// the frame the rect sampling shaders build from the normal alone, so a roll
+/// of 0 is exactly that frame and lights that carry no orientation (zero
+/// tangent) shade as before. The definition is shared with those shaders and
+/// must not drift: `shadeRectLight` in Theia's forward shader mirrors it.
+void canonicalRectFrame(const sm::float3& normal, sm::float3& tangent, sm::float3& bitangent) noexcept {
+    const sm::float3 up = std::abs(normal.y) < 0.99f ? sm::float3{0.0f, 1.0f, 0.0f} : sm::float3{1.0f, 0.0f, 0.0f};
+    tangent = sm::normalize(sm::cross(up, normal));
+    bitangent = sm::cross(normal, tangent);
+}
+
+/// Roll of @p tangent about @p normal, in radians, from the canonical frame.
+/// A tangent with no length carries no orientation and gives 0.
+float rectRoll(const sm::float3& normal, const sm::float3& tangent) noexcept {
+    const float length = sm::length(tangent);
+    if (!(length > 0.0f)) {
+        return 0.0f;
+    }
+    sm::float3 canonicalTangent{};
+    sm::float3 canonicalBitangent{};
+    canonicalRectFrame(normal, canonicalTangent, canonicalBitangent);
+    const sm::float3 direction = tangent / length;
+    return std::atan2(sm::dot(direction, canonicalBitangent), sm::dot(direction, canonicalTangent));
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
 // RectLight
 // ---------------------------------------------------------------------------
+// The descriptor carries the photometric luminance as it is. Its in-plane
+// orientation travels as a roll about the normal, in the `cosInner` slot,
+// which a rect light does not use: halfWidth spans the rolled axis and
+// halfHeight the perpendicular one, so the rectangle keeps its normal and its
+// area under any roll.
 GpuLight RectLight::toGpu() const noexcept {
-    // Exitant radiance L [W/sr/m²] = luminance [cd/m²] / 683
     GpuLight g{};
     g.position = position;
     g.type = packType(LightType::Rect);
     g.direction = sm::normalize(direction);
     g.range = 0.0f;
     g.color = color;
-    g.intensity = luminance / kLumEfficacy;
+    g.intensity = luminance;
     g.halfWidth = halfWidth;
     g.halfHeight = halfHeight;
-    g.cosInner = 0.0f;
+    g.cosInner = rectRoll(g.direction, tangent);
     g.cosOuter = 0.0f;
     return g;
 }
@@ -48,7 +75,6 @@ GpuLight RectLight::toGpu() const noexcept {
 // PointLight
 // ---------------------------------------------------------------------------
 GpuLight PointLight::toGpu() const noexcept {
-    // Radiant intensity I [W/sr] = luminous intensity [cd] / 683
     float cd = intensity;
     if (unit == IntensityUnit::Lumen) {
         cd = lumenToCandela(intensity);
@@ -60,7 +86,7 @@ GpuLight PointLight::toGpu() const noexcept {
     g.direction = sm::float3{0.0f, -1.0f, 0.0f}; // unused for point
     g.range = range;
     g.color = color;
-    g.intensity = cd / kLumEfficacy;
+    g.intensity = cd;
     g.halfWidth = 0.0f;
     g.halfHeight = 0.0f;
     g.cosInner = 0.0f;
@@ -83,7 +109,7 @@ GpuLight SpotLight::toGpu() const noexcept {
     g.direction = sm::normalize(direction);
     g.range = range;
     g.color = color;
-    g.intensity = cd / kLumEfficacy;
+    g.intensity = cd;
     g.halfWidth = 0.0f;
     g.halfHeight = 0.0f;
     g.cosInner = std::cos(sm::radians(innerAngleDeg));
@@ -94,17 +120,16 @@ GpuLight SpotLight::toGpu() const noexcept {
 // ---------------------------------------------------------------------------
 // DirectionalLight
 // ---------------------------------------------------------------------------
+// The shader contribution is color * intensity * BSDF * visibility, with the
+// cosine term in the BSDF evaluation: the photometric illuminance in lux.
 GpuLight DirectionalLight::toGpu() const noexcept {
-    // Store irradiance E [W/m²] = illuminance [lux] / 683.
-    // In the shader: contribution = color * intensity * BSDF * visibility
-    // (the cosine term is already in the BSDF evaluation).
     GpuLight g{};
     g.position = sm::float3{0.0f, 0.0f, 0.0f}; // unused
     g.type = packType(LightType::Directional);
     g.direction = sm::normalize(direction);
     g.range = 0.0f;
     g.color = color;
-    g.intensity = illuminance / kLumEfficacy;
+    g.intensity = illuminance;
     g.halfWidth = 0.0f;
     g.halfHeight = 0.0f;
     g.cosInner = 0.0f;
@@ -115,15 +140,15 @@ GpuLight DirectionalLight::toGpu() const noexcept {
 // ---------------------------------------------------------------------------
 // SkyLight
 // ---------------------------------------------------------------------------
+// The sky's photometric luminance scale, in cd/m².
 GpuLight SkyLight::toGpu() const noexcept {
-    // Sky radiance scale [W/sr/m²] = luminance [cd/m²] / 683.
     GpuLight g{};
     g.position = sm::float3{0.0f, 0.0f, 0.0f};
     g.type = packType(LightType::Sky);
     g.direction = sm::float3{0.0f, 1.0f, 0.0f};
     g.range = 0.0f;
     g.color = color;
-    g.intensity = luminance / kLumEfficacy;
+    g.intensity = luminance;
     g.halfWidth = 0.0f;
     g.halfHeight = 0.0f;
     g.cosInner = 0.0f;

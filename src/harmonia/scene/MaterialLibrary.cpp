@@ -50,7 +50,10 @@ namespace {
 
     // Base layer
     g.baseColorWeight = sm::float4(cc(p.base_color), p.base_weight);
-    g.baseMetalnessDiffRough = sm::float4{p.base_metalness, p.base_diffuse_roughness, 0.0f, 0.0f};
+    const bool texturedEmission = !p.map_emission_color.empty() || !p.map_emission_luminance.empty();
+    const bool hitOnlyTexturedEmission = texturedEmission && p.emission_as_light_source;
+    g.baseMetalnessDiffRough =
+        sm::float4{p.base_metalness, p.base_diffuse_roughness, hitOnlyTexturedEmission ? 1.0f : 0.0f, 0.0f};
 
     // Specular
     g.specularColorWeight = sm::float4(cc(p.specular_color), p.specular_weight);
@@ -72,6 +75,8 @@ namespace {
     // Texture indices (filled by SceneLoader later; sentinel = kNoTexture)
     g.textureIndices = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
     g.textureIndices2 = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
+    g.textureIndices3 = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
+    g.textureIndices4 = sm::uint4{kNoTexture, kNoTexture, kNoTexture, kNoTexture};
 
     // Thin film
     g.thinFilmParams = sm::float4{p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f), p.thin_film_weight, 0.0f};
@@ -86,18 +91,37 @@ namespace {
     g.fuzzRoughPad = sm::float4{sm::saturate(p.fuzz_roughness), 0.0f, 0.0f, 0.0f};
 
     // Emission
-    g.emissionColorLum = sm::float4(cc(p.emission_color), std::max(p.emission_luminance, 0.0f));
+    // A mapped emission luminance is a normalized texture times an authored scale. Legacy
+    // converted libraries omitted the scale and the shader replaced the zero default, so retain
+    // that behavior with an implicit scale of one. Unmapped materials use their scalar directly.
+    const float emissionLuminance =
+        !p.map_emission_luminance.empty() && p.emission_luminance == 0.0F ? 1.0F : p.emission_luminance;
+    g.emissionColorLum = sm::float4(cc(p.emission_color), std::max(emissionLuminance, 0.0f));
 
     // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
     const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
     g.opacityFlagsPad = sm::float4{
         sm::saturate(p.geometry_opacity), flags, p.subsurface_scatter_anisotropy, p.geometry_thin_walled ? 1.0f : 0.0f};
 
-    return Material::fromGpu(g, p.emission_as_light_source);
+    // Textured emission has no untextured power CDF. Keep it out of constant-radiance NEE and
+    // mark it for unbiased BSDF-hit emission at every depth instead (evalEmissionGuarded).
+    return Material::fromGpu(g, p.emission_as_light_source && !texturedEmission);
 }
 
-[[nodiscard]] MaterialLibrary::MaterialTextureRef toRef(const aether::TextureRef& r) {
-    return MaterialLibrary::MaterialTextureRef{r.path, toHarmonia(r.colorSpace)};
+[[nodiscard]] MaterialLibrary::MaterialTextureRef toRef(const aether::TextureRef& r,
+                                                        const std::filesystem::path& libraryDir) {
+    std::filesystem::path texturePath(r.path);
+    if (!texturePath.empty() && texturePath.is_relative()) {
+        // A library in a subdirectory naturally refers to ../textures. Prefer that declaring
+        // library's directory when the file exists there; otherwise leave the path relative so
+        // SceneLoader's established scene-directory then assets-directory fallback still applies.
+        const std::filesystem::path local = (libraryDir / texturePath).lexically_normal();
+        std::error_code ec;
+        if (std::filesystem::exists(local, ec)) {
+            texturePath = local;
+        }
+    }
+    return MaterialLibrary::MaterialTextureRef{texturePath.string(), toHarmonia(r.colorSpace)};
 }
 
 } // namespace
@@ -112,18 +136,27 @@ bool MaterialLibrary::load(const std::filesystem::path& path,
         return false;
     }
 
+    const std::filesystem::path libraryDir = std::filesystem::absolute(path).lexically_normal().parent_path();
     for (const auto& [name, desc] : parsed.materials()) {
         m_materials.insert_or_assign(name, buildMaterial(desc, workingSpace));
 
         MaterialTextureRefs refs;
-        refs.base_color = toRef(desc.map_base_color);
-        refs.normal = toRef(desc.map_normal);
-        refs.orm = toRef(desc.map_orm);
-        refs.emission = toRef(desc.map_emission_color);
-        refs.coat_normal = toRef(desc.map_coat_normal);
-        refs.tangent = toRef(desc.map_tangent);
-        refs.coat_tangent = toRef(desc.map_coat_tangent);
-        refs.opacity = toRef(desc.map_opacity);
+        refs.base_color = toRef(desc.map_base_color, libraryDir);
+        refs.normal = toRef(desc.map_normal, libraryDir);
+        refs.orm = toRef(desc.map_orm, libraryDir);
+        refs.emission = toRef(desc.map_emission_color, libraryDir);
+        refs.coat_normal = toRef(desc.map_coat_normal, libraryDir);
+        refs.tangent = toRef(desc.map_tangent, libraryDir);
+        refs.coat_tangent = toRef(desc.map_coat_tangent, libraryDir);
+        refs.opacity = toRef(desc.map_opacity, libraryDir);
+        refs.coat_weight = toRef(desc.map_coat_weight, libraryDir);
+        refs.transmission_weight = toRef(desc.map_transmission_weight, libraryDir);
+        refs.subsurface_color = toRef(desc.map_subsurface_color, libraryDir);
+        refs.subsurface_weight = toRef(desc.map_subsurface_weight, libraryDir);
+        refs.transmission_color = toRef(desc.map_transmission_color, libraryDir);
+        refs.transmission_scatter = toRef(desc.map_transmission_scatter, libraryDir);
+        refs.emission_luminance = toRef(desc.map_emission_luminance, libraryDir);
+        refs.fuzz_weight = toRef(desc.map_fuzz_weight, libraryDir);
         m_textureRefs.insert_or_assign(name, std::move(refs));
     }
 

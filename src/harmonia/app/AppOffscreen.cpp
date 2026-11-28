@@ -231,7 +231,8 @@ std::uint32_t App::timeSampleOfFrame(std::uint32_t frame, std::uint32_t count, s
 App::AnimationClock App::sequenceSampleClock(const AppConfig& config,
                                              double fps,
                                              std::uint32_t outputFrame,
-                                             std::uint32_t sample) noexcept {
+                                             std::uint32_t sample,
+                                             std::uint32_t accumulationCount) noexcept {
     const double safeFps = fps > 0.0 ? fps : 30.0;
     const std::uint32_t tick = config.animationStartFrame + outputFrame;
     AnimationClock clock;
@@ -251,9 +252,19 @@ App::AnimationClock App::sequenceSampleClock(const AppConfig& config,
 
     if (config.shutter > 0.0f && config.timeSamples > 1U) {
         const std::uint32_t stratum = sample % config.timeSamples;
+        const std::uint32_t count = accumulationCount > 0U ? accumulationCount : std::max(config.offscreenFrames, 1U);
         const double open = static_cast<double>(config.shutter) * frameInterval;
-        clock.seconds += open * (static_cast<double>(stratum) + stratumJitter(config.rngSeed, outputFrame, stratum)) /
-                         static_cast<double>(config.timeSamples);
+        // A stratum's exposure weight equals its share of accumulation frames. With an exact
+        // division this is exactly the former equal-width stratum; the remainder goes to the
+        // first strata, which therefore become wider instead of receiving extra weight for free.
+        const std::uint32_t base = count / config.timeSamples;
+        const std::uint32_t extra = count % config.timeSamples;
+        const std::uint32_t frames = base + (stratum < extra ? 1U : 0U);
+        const std::uint32_t before =
+            stratum < extra ? stratum * (base + 1U) : extra * (base + 1U) + (stratum - extra) * base;
+        const double stratumStart = static_cast<double>(before) / static_cast<double>(count);
+        const double stratumWidth = static_cast<double>(frames) / static_cast<double>(count);
+        clock.seconds += open * (stratumStart + stratumJitter(config.rngSeed, outputFrame, stratum) * stratumWidth);
         clock.key = static_cast<std::uint64_t>(std::llround(clock.seconds * 1'000'000.0));
     }
     return clock;

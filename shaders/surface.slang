@@ -136,6 +136,32 @@ SurfaceFrame applyOpenPbrTextureMaps(inout GpuMaterial mat,
     if (mat.textureIndices.w != kNoTexture) {
         mat.emissionColorLum.xyz *= tex.sampleTex(mat.textureIndices.w, uv).rgb;
     }
+    // Connected MaterialX images replace the corresponding scalar/color inputs.
+    // These slots were previously dropped by the converter and renderer.
+    if (mat.textureIndices3.x != kNoTexture) {
+        mat.coatColorWeight.w = saturate(tex.sampleTex(mat.textureIndices3.x, uv).r);
+    }
+    if (mat.textureIndices3.y != kNoTexture) {
+        mat.transmissionColorWeight.w = saturate(tex.sampleTex(mat.textureIndices3.y, uv).r);
+    }
+    if (mat.textureIndices3.z != kNoTexture) {
+        mat.subsurfaceColorWeight.xyz = tex.sampleTex(mat.textureIndices3.z, uv).rgb;
+    }
+    if (mat.textureIndices3.w != kNoTexture) {
+        mat.subsurfaceColorWeight.w = saturate(tex.sampleTex(mat.textureIndices3.w, uv).r);
+    }
+    if (mat.textureIndices4.x != kNoTexture) {
+        mat.transmissionColorWeight.xyz = tex.sampleTex(mat.textureIndices4.x, uv).rgb;
+    }
+    if (mat.textureIndices4.y != kNoTexture) {
+        mat.transmissionScatter.xyz = tex.sampleTex(mat.textureIndices4.y, uv).rgb;
+    }
+    if (mat.textureIndices4.z != kNoTexture) {
+        mat.emissionColorLum.w *= max(tex.sampleTex(mat.textureIndices4.z, uv).r, 0.0);
+    }
+    if (mat.textureIndices4.w != kNoTexture) {
+        mat.fuzzColorWeight.w = saturate(tex.sampleTex(mat.textureIndices4.w, uv).r);
+    }
     // [7] map_opacity — fold the textured mask into the material's presence
     // weight so every downstream reader of opacityFlagsPad.x (the estimator's
     // pass-through gate) sees the resolved α.

@@ -2,6 +2,8 @@
 #define HARMONIA_SCENE_ISCENEBUILDER_HPP
 
 #include <cstdint>
+#include <limits>
+#include <memory>
 #include <slang-math/slang-math.hpp>
 #include <string_view>
 #include <vector>
@@ -11,6 +13,7 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/scene/Geometry.hpp"
+#include "harmonia/scene/Light.hpp"
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/Mesh.hpp"
 #include "harmonia/scene/Texture.hpp"
@@ -67,6 +70,14 @@ class ISceneBuilder {
     /// Returns the instance index, or uint32_max on failure.
     [[nodiscard]] virtual std::uint32_t
     addInstance(std::uint32_t meshIndex, const Transform& transform, std::uint32_t materialIdx) = 0;
+
+    /// Appends @p light and returns its index, or uint32_max when the builder
+    /// has no light storage (the default: a builder that never declares lights
+    /// is handed none). SceneBase stores it - see SceneBase::addLight.
+    [[nodiscard]] virtual std::uint32_t addLight(std::unique_ptr<Light> light) {
+        static_cast<void>(light);
+        return std::numeric_limits<std::uint32_t>::max();
+    }
 
     /// ANI2 seam: attach the parsed animated-scene source plus the resolved
     /// sceneInstance → descInstance mapping (recorded by the loader's placement

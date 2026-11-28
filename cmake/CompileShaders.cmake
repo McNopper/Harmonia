@@ -45,16 +45,18 @@ function(compile_slang_shaders target output_dir)
         list(APPEND _extra_depends ${COMPILE_SLANG_EXTRA_DEPENDS})
     endif()
 
-    # Non-entry support modules recompile every entry shader when they change.
-    # Scan both the local shader root and any extra include dirs.
+    # Every Slang source in the local and imported roots is a support dependency. A hand-maintained
+    # module list silently omitted surface.slang: Hyperion kept rendering with stale closesthit.spv
+    # after the shared OpenPBR texture-map semantics changed. Rebuilding the entries conservatively
+    # is cheap compared with executing a shader that no longer matches the validated host/materials.
     set(_support_shaders)
     foreach(_dir "${_shader_root}" ${COMPILE_SLANG_EXTRA_INCLUDE_DIRS})
-        foreach(_support common.slang gpu_types.slang math.slang rng.slang bsdf.slang bsdf_shared.slang medium_walk.slang env.slang env_sample.slang haze.slang path_integrator.slang sms_types.slang sms_queue.slang sms_work.slang sms_transport.slang sms_partition.slang sms_prior.slang sms_path.slang sms_compute.slang sms.slang sms_geometry.slang sms_solver.slang sms_scene.slang sms_sample.slang)
-            if(EXISTS "${_dir}/${_support}")
-                list(APPEND _support_shaders "${_dir}/${_support}")
-            endif()
-        endforeach()
+        if(EXISTS "${_dir}")
+            file(GLOB _dir_shaders CONFIGURE_DEPENDS "${_dir}/*.slang")
+            list(APPEND _support_shaders ${_dir_shaders})
+        endif()
     endforeach()
+    list(REMOVE_DUPLICATES _support_shaders)
 
     set(_outputs)
 

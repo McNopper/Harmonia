@@ -441,3 +441,30 @@ TEST(SequenceClock, GroupingKeepsEveryInstantItsShareOfFramesAndStampsOncePerIns
     EXPECT_EQ(harmonia::app::App::timeSampleOfFrame(7U, 16U, 1U), 7U);
     EXPECT_EQ(harmonia::app::App::timeSampleOfFrame(5U, 3U, 8U), 5U);
 }
+
+TEST(SequenceClock, RemainderGivesProportionalExposureWidths) {
+    App::Config config = sequenceConfig();
+    config.shutter = 0.5F;
+    config.timeSamples = 8U;
+    constexpr std::uint32_t count = 250U;
+    constexpr double frameInterval = 1.0 / 24.0;
+    constexpr double open = 0.5 * frameInterval;
+    for (const std::uint32_t frame : {0U, 1U, 2U}) {
+        for (std::uint32_t stratum = 0U; stratum < config.timeSamples; ++stratum) {
+            const double t = App::sequenceSampleClock(config, 24.0, frame, stratum, count).seconds;
+            const std::uint32_t base = count / config.timeSamples;
+            const std::uint32_t extra = count % config.timeSamples;
+            const std::uint32_t width = base + (stratum < extra ? 1U : 0U);
+            const std::uint32_t before =
+                stratum < extra ? stratum * (base + 1U) : extra * (base + 1U) + (stratum - extra) * base;
+            const double lower = frame * frameInterval + open * static_cast<double>(before) / count;
+            const double upper = frame * frameInterval + open * static_cast<double>(before + width) / count;
+            // The jitter is known independently from the equal 256/8 case; compare the exact
+            // proportional start/width, not only interval membership (which accepted the old formula).
+            const double equal = App::sequenceSampleClock(config, 24.0, frame, stratum, 256U).seconds;
+            const double jitter = (equal - frame * frameInterval) * config.timeSamples / open - stratum;
+            const double expected = lower + (upper - lower) * jitter;
+            EXPECT_NEAR(t, expected, 1.0e-12) << "frame " << frame << ", stratum " << stratum;
+        }
+    }
+}

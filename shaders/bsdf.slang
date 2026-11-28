@@ -155,14 +155,14 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
         // eta² lives in the PDF Jacobian, not in the eval
         float transAlphaX = alphaX; // Use base layer roughness for transmission
         float transAlphaY = alphaY;
-        result += transmissionWeight * evalTransmissionMicrofacet(transColor, mat.transmissionParams.x, eta, transAlphaX, transAlphaY, woL, wiL);
+        result += baseLayerScale * transmissionWeight * evalTransmissionMicrofacet(transColor, mat.transmissionParams.x, eta, transAlphaX, transAlphaY, woL, wiL);
     }
 
     // Thin-walled diffuse transmission (subsurface sheet): Lambertian-ish lobe into the
     // back hemisphere, tinted by subsurface_color.
     if (diffuseTransWeight > 0.0 && woL.z > 0.0 && wiL.z < 0.0) {
         float3 wiR = float3(wiL.x, wiL.y, -wiL.z);
-        result += diffuseTransWeight * evalDiffuse(subsurfaceColor, diffuseRough, woL, wiR);
+        result += baseLayerScale * diffuseTransWeight * evalDiffuse(subsurfaceColor, diffuseRough, woL, wiR);
     }
 
     return max(result, 0.0.xxx);
@@ -294,6 +294,19 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     bool glassMode;
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
+    // The coat/fuzz attenuate the entire base substrate, including every transmission and
+    // bulk-subsurface event below. Keep this identical to evalBSDF's baseLayerScale.
+    const float3 baseColor = saturate3(mat.baseColorWeight.xyz);
+    const float3 subsurfaceColor = saturate3(mat.subsurfaceColorWeight.xyz);
+    const float3 coatColor = saturate3(mat.coatColorWeight.xyz);
+    const float coatEta = max(mat.coatRoughAnisoIorDark.z, 1.01);
+    const float3 Emetal = baseColor * saturate(mat.specularColorWeight.w);
+    const float3 Edielectric = lerp(baseColor, subsurfaceColor, saturate(mat.subsurfaceColorWeight.w));
+    const float3 Ebase = lerp(Edielectric, Emetal, saturate(mat.baseMetalnessDiffRough.x));
+    const float fuzzAtten = 1.0 - mx_zeltner_sheen_dir_albedo(woL.z, saturate(mat.fuzzRoughPad.x)) * fuzzWeight;
+    const float3 baseLayerScale = openpbrCoatDarkening(Ebase, coatEta, coatWeight, saturate(mat.coatRoughAnisoIorDark.w))
+                                * openpbrCoatColorAttenuation(coatColor, coatWeight) * fuzzAtten;
+
     // C7: etaS is the material's relative IOR (>1, spec convention — used for medium/walk
     // parameters and dispersion); eta is the side-corrected IOR for THIS hit (inverted when
     // the ray is inside the dielectric), driving every Fresnel branch and Snell ratio below.
@@ -380,7 +393,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 // chosen with probability F, so the carried weight cancels to invPLobeSS.
                 float3 wiReflectSS = reflect(-woL, float3(0.0, 0.0, 1.0));
                 sample.direction = toWorld(wiReflectSS, Ts, Bs, Ns);
-                sample.weight = invPLobeSS.xxx;
+                sample.weight = baseLayerScale * invPLobeSS.xxx;
                 sample.pdf = 1.0;
                 sample.isDelta = true;
                 sample.lobeAlpha = 0.0;
@@ -394,14 +407,14 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 // above, kept as a defensive fallback): reflect instead of entering.
                 wiEnter = reflect(-woL, mSS);
                 sample.direction = normalize(toWorld(wiEnter, Ts, Bs, Ns));
-                sample.weight = invPLobeSS.xxx;
+                sample.weight = baseLayerScale * invPLobeSS.xxx;
                 sample.pdf = 1.0;
                 sample.isDelta = true;
                 sample.lobeAlpha = 0.0;
                 return sample;
             }
             sample.direction = normalize(toWorld(wiEnter, Ts, Bs, Ns));
-            sample.weight = invPLobeSS.xxx;
+            sample.weight = baseLayerScale * invPLobeSS.xxx;
             sample.pdf = 1.0;
             sample.isDelta = true;
             sample.lobeAlpha = 0.0;
@@ -451,7 +464,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             // reflectance is F, so the importance weight is F/F = 1 (energy-conserving).
             float3 wiReflect = reflect(-woL, float3(0.0, 0.0, 1.0));
             sample.direction = toWorld(wiReflect, Ts, Bs, Ns);
-            sample.weight = invPLobe.xxx;
+            sample.weight = baseLayerScale * invPLobe.xxx;
             sample.pdf = 1.0;
             sample.isDelta = true;
             sample.lobeAlpha = 0.0;
@@ -466,7 +479,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             // dielectric_bsdf tint), with no Beer-Lambert factor.
             float3 wiThin = -woL;
             sample.direction = normalize(toWorld(wiThin, Ts, Bs, Ns));
-            sample.weight = saturate3(mat.transmissionColorWeight.xyz) * invPLobe;
+            sample.weight = baseLayerScale * saturate3(mat.transmissionColorWeight.xyz) * invPLobe;
             sample.pdf = 1.0;
             sample.isDelta = true;
             sample.lobeAlpha = 0.0;
@@ -502,7 +515,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             // with depth>0 enters the interior VDF medium (untinted interface, color realized
             // by the walk's Beer-Lambert over the actual path); depth==0 tints per crossing.
             if (tir) {
-                sample.weight = channelMask * invPLobe;
+                sample.weight = baseLayerScale * channelMask * invPLobe;
                 return sample;
             }
             if (mat.transmissionParams.x > 1.0e-4) {
@@ -510,7 +523,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 float3 volAlbedo;
                 transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
                                          mat.transmissionParams.x, volSigmaT, volAlbedo);
-                sample.weight = channelMask * invPLobe;
+                sample.weight = baseLayerScale * channelMask * invPLobe;
                 sample.entersMedium = true;
                 sample.mediumSigmaT = volSigmaT;
                 sample.mediumAlbedo = volAlbedo;
@@ -518,7 +531,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.mediumEta = etaC; // material-side IOR (>1) for the walk boundary
                 return sample;
             }
-            sample.weight = saturate3(mat.transmissionColorWeight.xyz) * channelMask * invPLobe;
+            sample.weight = baseLayerScale * saturate3(mat.transmissionColorWeight.xyz) * channelMask * invPLobe;
             return sample;
         }
 
@@ -535,7 +548,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 // C5: a TIR ray never crosses the interface, so no transmission tint applies.
                 wiRefract = reflect(-woL, mD);
                 sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
-                sample.weight = invPLobe.xxx;
+                sample.weight = baseLayerScale * invPLobe.xxx;
                 sample.pdf = 1.0;
                 sample.isDelta = true;
                 sample.lobeAlpha = 0.0;
@@ -559,7 +572,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 float3 volAlbedo;
                 transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
                                          mat.transmissionParams.x, volSigmaT, volAlbedo);
-                sample.weight = invPLobe.xxx;
+                sample.weight = baseLayerScale * invPLobe.xxx;
                 sample.entersMedium = true;
                 sample.mediumSigmaT = volSigmaT;
                 sample.mediumAlbedo = volAlbedo;
@@ -567,7 +580,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.mediumEta = etaS; // walk boundary handler expects the medium's IOR (>1)
                 return sample;
             }
-            sample.weight = saturate3(mat.transmissionColorWeight.xyz) * invPLobe;
+            sample.weight = baseLayerScale * saturate3(mat.transmissionColorWeight.xyz) * invPLobe;
             return sample;
         }
 

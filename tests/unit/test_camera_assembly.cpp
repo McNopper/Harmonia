@@ -109,6 +109,21 @@ TEST(CameraAssembly, MissingCameraPlacementIsRejected) {
     EXPECT_FALSE(CameraAssembly::fromSceneConfig(missingPosition, 1.0f).has_value());
 }
 
+TEST(CameraAssembly, ThinLensFieldsReachCameraData) {
+    SceneConfig config{};
+    config.cameraPos = sm::float3{0.0f, 1.0f, 4.0f};
+    config.cameraAt = sm::float3{0.0f, 1.0f, 0.0f};
+    config.cameraLensRadius = 0.00625f;
+    config.cameraFocusDistance = 1.02f;
+    const auto params = CameraAssembly::fromSceneConfig(config, 16.0f / 9.0f);
+    ASSERT_TRUE(params.has_value());
+    EXPECT_FLOAT_EQ(params->lensRadius, 0.00625f);
+    EXPECT_FLOAT_EQ(params->focusDist, 1.02f);
+    const harmonia::CameraData data = Camera(*params).getCameraData(7U, 8U);
+    EXPECT_FLOAT_EQ(data.lensRadius, 0.00625f);
+    EXPECT_FLOAT_EQ(data.focusDistance, 1.02f);
+}
+
 TEST(CameraAssembly, AnimatedPoseUsesSharedForwardAndUpConvention) {
     Camera::Params base{};
     base.vfovDeg = 47.0f;

@@ -174,7 +174,7 @@ declares for each module.
 |-------|--------|------|------------|
 | `vocabulary` | `harmonia` | The shared device state and GPU types (`DeviceContext.hpp`, `GpuTypes.hpp`) | nothing |
 | `utils` | `harmonia/utils` | Color spaces, tone mapping, math helpers, RNG | vocabulary |
-| `core` | `harmonia/core` | Buffers, images, command pools, barriers, shader modules, descriptor-buffer writer, logger, pipeline binary cache | vocabulary, `utils` |
+| `core` | `harmonia/core` | Buffers, images, command pools, barriers, shader modules, descriptor-buffer writer, logger, pipeline binary cache, DDS block-compressed parser | vocabulary, `utils` |
 | `low_level` | `harmonia/vulkan_init` | Instance, validation layer, device selection and creation, capability probes | vocabulary, `core` |
 | `rt` | `harmonia/rt` | Acceleration structures, TLAS builder, opacity micromaps: the separable ray-tracing capability | vocabulary, `core` |
 | `scene` | `harmonia/scene` | Scene loader, materials, textures, meshes, lights, IBL probe, deformation pass | vocabulary, `utils`, `core` |

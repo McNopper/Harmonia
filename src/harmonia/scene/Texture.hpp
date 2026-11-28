@@ -13,6 +13,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
+#include "harmonia/core/HostImageUpload.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/core/VulkanHandle.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
@@ -62,10 +63,10 @@ class Texture {
                                                                  std::uint32_t height,
                                                                  std::string_view name = "");
 
-    /// Load a texture from a file and convert it to the scene's (linear)
-    /// working color space at load time. colorSpace describes how the source
-    /// data is encoded; the correct decode + primaries conversion is applied
-    /// on the CPU before GPU upload.
+    /// Load a texture from a file and convert it to the scene's (linear) working color space.
+    /// 8-bit sources upload as RGBA8; unconverted 16-bit integer sources retain RGBA16_UNORM;
+    /// half/float sources and converted 16-bit colors upload as RGBA16_SFLOAT. No high-precision
+    /// source passes through an 8-bit intermediate.
     [[nodiscard]] static std::expected<Texture, VkResult>
     loadFromFile(const DeviceContext& ctx,
                  const core::CommandPool& cmdPool,
@@ -82,6 +83,19 @@ class Texture {
     [[nodiscard]] std::uint32_t mipLevels() const noexcept { return m_mipLevels; }
 
   private:
+    /// Adopts an uploaded image as a texture and names the sampler.
+    [[nodiscard]] static Texture
+    adoptUpload(core::HostImageUpload&& uploaded, const DeviceContext& ctx, const std::string& name);
+
+    /// Uploads one uncompressed level-0 format and generates its mip chain when supported.
+    [[nodiscard]] static std::expected<Texture, VkResult> createWithFormat(const DeviceContext& ctx,
+                                                                           const core::CommandPool& cmdPool,
+                                                                           std::span<const std::byte> pixels,
+                                                                           std::uint32_t width,
+                                                                           std::uint32_t height,
+                                                                           VkFormat format,
+                                                                           std::string_view name);
+
     core::Image m_image{};
     harmonia::core::UniqueSampler m_sampler;
     std::uint32_t m_width{};

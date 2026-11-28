@@ -23,8 +23,16 @@ enum class IntensityUnit : std::uint32_t {
 /// Abstract base for all scene lights.
 ///
 /// Colors are in linear Rec.2020.
-/// Subclasses store intensity in the photometric unit natural to their type and
-/// convert to radiometric W via toGpu() (÷ 683 lm/W).
+/// Subclasses store intensity in the photometric unit natural to their type,
+/// and toGpu() passes it through unchanged: scene-linear radiance is
+/// photometric everywhere in Harmonia. The environment's
+/// `environment_unit_nits` and a material's `emission_luminance` reach the
+/// shaders in cd/m² as well, so an analytic light and an emissive or
+/// environment source with the same photometric value shade alike. A shader
+/// reading `GpuLight::intensity` therefore gets:
+///   Rect          luminance         [cd/m²]   (radiance of the emitting face)
+///   Point / Spot  luminous intensity [cd]     (falls off with 1/d²: cd/m² = lux)
+///   Directional   illuminance       [lux]
 class Light {
   public:
     virtual ~Light() = default;
@@ -42,9 +50,15 @@ class RectLight final : public Light {
   public:
     sm::float3 position{0.0f, 0.0f, 0.0f};
     sm::float3 direction{0.0f, -1.0f, 0.0f}; ///< emission normal (downward default)
-    float halfWidth{0.5f};                   ///< half-extent in local X
-    float halfHeight{0.5f};                  ///< half-extent in local Y
-    float luminance{100.0f};                 ///< cd/m²
+    /// Orientation of the rectangle in its plane: its local X axis, the
+    /// direction `halfWidth` spans (`halfHeight` spans the perpendicular
+    /// in-plane axis). Any in-plane vector works; it is normalized against
+    /// `direction`. Zero (the default) keeps the canonical in-plane frame the
+    /// rect sampling shaders build from the normal alone.
+    sm::float3 tangent{0.0f, 0.0f, 0.0f};
+    float halfWidth{0.5f};   ///< half-extent in local X
+    float halfHeight{0.5f};  ///< half-extent in local Y
+    float luminance{100.0f}; ///< cd/m²
 
     LightType lightType() const noexcept override { return LightType::Rect; }
     GpuLight toGpu() const noexcept override;
