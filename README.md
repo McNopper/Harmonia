@@ -469,6 +469,10 @@ cd of a point or spot light (cd/m² is the illuminance in lux at distance d) and
 lux of a distant light. Textured emissive materials are excluded from constant-radiance triangle NEE;
 their BSDF hits carry the textured EDF at every depth, while untextured emitters retain power-sampled NEE.
 This preserves the spatially varying emission without a fabricated constant power distribution.
+OpenPBR's EDF and BSDF coexist: after the stochastic opacity gate selects the surface, emission is
+added through the MIS ownership guard and the same vertex still receives NEE and a BSDF continuation.
+Emission neither replaces reflection/transmission nor terminates the path; an opacity pass-through
+emits nothing because it selected the ambient medium instead of the surface.
 A rect light, an emissive surface and an environment of the same photometric
 value therefore shade alike; the unit test `AnalyticEmittersShareThePhotometricScaleWithEmissiveAndEnvironment`
 pins the three against each other. The only conversion is the unit change of a lumen value to
@@ -557,10 +561,18 @@ is the first row of an image file and nothing flips the image; the bitangent of 
 frame is N × T, so the +Y of a normal map points toward the last row of the file. A vertex
 without texture coordinates samples at (0, 0).
 
-Two rules of the shared material code are not those of OpenPBR and stand with their measured
-state among the known limitations of `PLAN.md`: a `transmission_weight` of 0.5 or more is full
-transmission without opaque lobes, and an emitter that is not a light source is seen by camera
-rays and after a perfect mirror bounce only.
+One rule of the shared material code is not that of OpenPBR and stands with its measured
+state among the known limitations of `PLAN.md`: an emitter that is not a light source is seen by
+camera rays and after a perfect mirror bounce only.
+
+`transmission_weight` mixes the opaque and translucent dielectric substrates at every value in
+`[0,1]`; the primary dielectric reflection sits above their mixture. Only full transmission on a
+smooth nonmetallic dielectric uses the optimized Fresnel-split delta-glass path; rough full glass
+retains its GGX reflection. Fractional smooth/thin delta events carry the full-mixture value divided
+by their selection PMF and retain Fresnel transmission when the separate reflection owns reflection.
+`base_weight` scales the diffuse and metallic responses, not subsurface scattering or the dielectric
+interface. Dielectric and conductor closures are evaluated separately so it cannot leak between them.
+These rules are resolved after texture evaluation and pinned by evaluation/sampling oracles.
 
 **Layer stacking** follows OpenPBR's directional-albedo coupling rather than a linear
 blend: each lower layer is attenuated by the directional albedo of the layer above it

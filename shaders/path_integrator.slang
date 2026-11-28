@@ -677,9 +677,28 @@ void integrateSurface<T : ITracer>(
     StructuredBuffer<GpuLight> lights, uint lightCount, bool analyticLightNee,
     inout PathState state)
 {
-    // 1) Emission. A front-face emitter hit terminates the path; the emission itself is
-    //    added only when it is not already accounted for by NEE (see evalEmissionGuarded).
     state.passedThrough = false;
+
+    // 1) Stochastic opacity gate — the OpenPBR `mix(S_ambient-medium, M_surface, α)` with
+    //    α = geometry_opacity × map_opacity (spec §"Opacity / Transparency"). With
+    //    probability (1-α) the ambient medium is selected: no surface exists here, so the
+    //    ray continues straight through with no interaction: neither its BSDF nor its EDF is
+    //    evaluated. `passedThrough` tells the caller this consumed no bounce (a null interaction).
+    float opacity = saturate(surf.mat.opacityFlagsPad.x);
+    if (randFloat(state.seed) < (1.0 - opacity)) {
+        float3 fwd = -surf.wo; // original forward (WorldRayDirection), already unit-length
+        state.nextOrigin    = surf.position
+            + surf.geoNormal * (dot(fwd, surf.geoNormal) >= 0.0 ? kNullInteractionEpsilon
+                                                                : -kNullInteractionEpsilon);
+        state.nextDirection = fwd;
+        state.passedThrough = true;
+        return;
+    }
+
+    // 2) Emission. OpenPBR's surface constructor carries BOTH fuzz_layer (BSDF) and
+    //    emission_edf (EDF): emission adds to the surface response; it never replaces the
+    //    BSDF or terminates the path. evalEmissionGuarded only prevents double-counting the
+    //    EDF against NEE. The surface still receives NEE and advances through its BSDF below.
     float3 emission = max(surf.mat.emissionColorLum.xyz, 0.0.xxx)
                     * max(surf.mat.emissionColorLum.w, 0.0);
     // G7 (OpenPBR spec): emission escaping through the coat is attenuated by the coat's Schlick
@@ -698,24 +717,6 @@ void integrateSurface<T : ITracer>(
         state.radiance += state.throughput * evalEmissionGuarded(
             emission, state.depth, state.specularBounce, surf.wo, surf.geoNormal, emissiveTriangleCount,
             surf.mat.baseMetalnessDiffRough.z > 0.5);
-        state.terminated = true;
-        return;
-    }
-
-    // 2) Stochastic opacity gate — the OpenPBR `mix(S_ambient-medium, M_surface, α)` with
-    //    α = geometry_opacity × map_opacity (spec §"Opacity / Transparency"). With
-    //    probability (1-α) the ambient medium is selected: no surface exists here, so the
-    //    ray continues straight through with no interaction. `passedThrough` tells the
-    //    caller this consumed no bounce (a null interaction, not a scattering event).
-    float opacity = saturate(surf.mat.opacityFlagsPad.x);
-    if (randFloat(state.seed) < (1.0 - opacity)) {
-        float3 fwd = -surf.wo; // original forward (WorldRayDirection), already unit-length
-        state.nextOrigin    = surf.position
-            + surf.geoNormal * (dot(fwd, surf.geoNormal) >= 0.0 ? kNullInteractionEpsilon
-                                                                : -kNullInteractionEpsilon);
-        state.nextDirection = fwd;
-        state.passedThrough = true;
-        return;
     }
 
     // 3) NEE: direct emissive-triangle area sampling (power-proportional selection).

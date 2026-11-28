@@ -98,8 +98,10 @@ namespace {
         !p.map_emission_luminance.empty() && p.emission_luminance == 0.0F ? 1.0F : p.emission_luminance;
     g.emissionColorLum = sm::float4(cc(p.emission_color), std::max(emissionLuminance, 0.0f));
 
-    // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
-    const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
+    // The glass flag advertises the exact full-dielectric R+T path to SMS. Fractional transmission
+    // remains a layered substrate mixture; computeLobeWeights resolves the same condition again
+    // after texture maps replace the scalar weight/metalness.
+    const float flags = (p.transmission_weight >= 1.0f && p.base_metalness <= 0.0f) ? 2.0f : 0.0f;
     g.opacityFlagsPad = sm::float4{
         sm::saturate(p.geometry_opacity), flags, p.subsurface_scatter_anisotropy, p.geometry_thin_walled ? 1.0f : 0.0f};
 

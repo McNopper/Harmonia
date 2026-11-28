@@ -80,6 +80,15 @@ struct SurfaceFrame {
     bool   backface;   ///< C7: ray hit the back side (inside the dielectric) -> BSDF exit branch
 };
 
+/// True when the resolved OpenPBR surface has positive front-face EDF. Reconnection shifts
+/// conservatively reject these vertices and use full replay unless they explicitly reconstruct
+/// the target-side emission and its MIS ownership.
+bool hasPositiveFrontFaceEmission(GpuMaterial mat, float3 wo, float3 geoNormal)
+{
+    float3 emission = max(mat.emissionColorLum.xyz, 0.0.xxx) * max(mat.emissionColorLum.w, 0.0);
+    return max(emission.x, max(emission.y, emission.z)) > 0.0 && dot(wo, geoNormal) > 0.0;
+}
+
 /// OpenPBR presence weight α at a hit point: `geometry_opacity × map_opacity.a`
 /// (texture slot [7], a Data-space alpha mask).
 ///

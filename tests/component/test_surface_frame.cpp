@@ -12,6 +12,7 @@ namespace {
 /// The six vectors of one frame, in the order surface_frame_test.slang writes them.
 constexpr std::size_t kVectorsPerFrame = 6U;
 constexpr std::size_t kModes = 8U;
+constexpr std::size_t kStorageModes = 11U; // 8/9/10: front/back/zero emission predicate probes
 
 struct Frame {
     sm::float3 normal;
@@ -77,8 +78,8 @@ void expectDirection(const char* what, sm::float3 expected, sm::float3 actual) {
 /// coordinates unless a tangent map was bound, and the coat inherited a base tangent map.
 /// Modes 1, 2, 3, 6 and 7 fail against that shader.
 TEST_F(ShaderDispatchFixture, SurfaceFrame_DefaultTangentIsTheTangentOfTheTextureCoordinates) {
-    const auto values = runShader("surface_frame_test.spv", kModes * kVectorsPerFrame);
-    ASSERT_EQ(values.size(), kModes * kVectorsPerFrame);
+    const auto values = runShader("surface_frame_test.spv", kStorageModes * kVectorsPerFrame);
+    ASSERT_EQ(values.size(), kStorageModes * kVectorsPerFrame);
     const sm::float3 x{1.0F, 0.0F, 0.0F};
     const sm::float3 y{0.0F, 1.0F, 0.0F};
     const sm::float3 z{0.0F, 0.0F, 1.0F};
@@ -123,4 +124,12 @@ TEST_F(ShaderDispatchFixture, SurfaceFrame_DefaultTangentIsTheTangentOfTheTextur
         expectDirection("coat tangent", want.coatTangent, frame.coatTangent);
         expectDirection("coat bitangent", want.coatBitangent, frame.coatBitangent);
     }
+}
+
+TEST_F(ShaderDispatchFixture, SurfaceFrame_EmissionReplayPredicateUsesResolvedFrontFaceEdf) {
+    const auto values = runShader("surface_frame_test.spv", kStorageModes * kVectorsPerFrame);
+    ASSERT_EQ(values.size(), kStorageModes * kVectorsPerFrame);
+    EXPECT_FLOAT_EQ(values[8U * kVectorsPerFrame].x, 1.0F) << "positive front-face EDF needs replay";
+    EXPECT_FLOAT_EQ(values[9U * kVectorsPerFrame].x, 0.0F) << "back-face EDF is not emitted";
+    EXPECT_FLOAT_EQ(values[10U * kVectorsPerFrame].x, 0.0F) << "zero luminance needs no EDF replay";
 }

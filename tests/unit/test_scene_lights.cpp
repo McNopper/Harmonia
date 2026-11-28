@@ -337,6 +337,39 @@ half_extents = [0.5, 0.5]
     EXPECT_NEAR(sphereEquivalent.toGpu().intensity, 490.8739F, 1.0e-3F);
 }
 
+TEST(SceneLights, FractionalTransmissionDoesNotSelectFullGlassMode) {
+    Scratch scratch("fractional_transmission");
+    scratch.write("l.materials.toml", R"(model = "openpbr"
+colorspace = "lin_rec709_scene"
+
+[Quarter]
+transmission_weight = 0.25
+
+[Half]
+transmission_weight = 0.5
+
+[ThreeQuarters]
+transmission_weight = 0.75
+
+[Full]
+transmission_weight = 1.0
+
+[Metallic]
+transmission_weight = 1.0
+base_metalness = 0.25
+)");
+    harmonia::scene::MaterialLibrary library;
+    ASSERT_TRUE(library.load(scratch.dir / "l.materials.toml", Workspace::LinRec709));
+    for (const char* name : {"Quarter", "Half", "ThreeQuarters", "Metallic"}) {
+        const auto material = library.get(name);
+        ASSERT_TRUE(material.has_value()) << name;
+        EXPECT_FLOAT_EQ(material->gpu().opacityFlagsPad.y, 0.0F) << name;
+    }
+    const auto full = library.get("Full");
+    ASSERT_TRUE(full.has_value());
+    EXPECT_FLOAT_EQ(full->gpu().opacityFlagsPad.y, 2.0F);
+}
+
 TEST(SceneLights, TexturedEmissionUsesHitOnlyOwnershipAndKeepsItsScale) {
     Scratch scratch("textured_emission");
     scratch.write("l.materials.toml", R"(model = "openpbr"

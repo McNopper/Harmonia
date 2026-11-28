@@ -816,7 +816,8 @@ TEST_F(SmsFixture, SmsTransportDomainMatchesSamplerBoundariesAndProposalMass) {
         EXPECT_EQ(outputs[i].y, 0.0F);
         EXPECT_GT(outputs[i].z, 0.0F) << "Exclusion must not remove the existing BSDF event";
     }
-    EXPECT_NEAR(outputs[0].z, .01F, 1e-7F); // actual invPLobe floor, not a copied CPU sampler
+    EXPECT_NEAR(outputs[0].z, 1.0F, 1e-7F)
+        << "base_weight scales diffuse/metal, not the full glass dielectric interface";
     EXPECT_EQ(outputs[1].x, 1.0F);
     EXPECT_NEAR(outputs[1].y, .04F, 1e-6F);
     EXPECT_EQ(outputs[1].z, 1.0F);

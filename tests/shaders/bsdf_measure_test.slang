@@ -8,7 +8,75 @@ struct MeasurePush { float4* outputs; };
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID) {
     uint mode=id.x;
-    if (mode>=18u) return;
+    if (mode>=30u) return;
+    if (mode==25u || mode==26u) {
+        // Full evalBSDF, not just weights: base_weight=0 removes the metal closure. At metalness
+        // 0.5 the surviving dielectric closure must be exactly half of the pure-dielectric reference.
+        GpuMaterial metalMix={};
+        metalMix.baseColorWeight=float4(0,0,0,0);
+        metalMix.baseMetalnessDiffRough=float4(mode==25u ? .5 : 0,0,0,0);
+        metalMix.specularColorWeight=float4(1,1,1,1);
+        metalMix.specularRoughAnisoIor=float4(.2,0,1.5,0);
+        metalMix.transmissionColorWeight=float4(1,1,1,0);
+        metalMix.coatColorWeight=float4(1,1,1,0);
+        metalMix.fuzzColorWeight=float4(1,1,1,0);
+        metalMix.opacityFlagsPad=float4(1,0,0,0);
+        float3 n=float3(0,0,1),t=float3(1,0,0),b=float3(0,1,0);
+        float3 value=evalBSDF(metalMix,n,n,n,t,b,n,t,b,false);
+        pc.outputs[mode]=float4(value,1);
+        return;
+    }
+    if (mode>=27u) {
+        // Conditional value of actual delta transmission samples. Fractional smooth (27) and
+        // thin-walled (28) materials have specular=1, transmission=.5, total=1.5. Their selected
+        // sample must carry total*(1-F)=1.44 at normal incidence. Full smooth glass (29) keeps
+        // its Fresnel-split ownership and conditional value one. The count proves real samples.
+        GpuMaterial deltaMat={};
+        deltaMat.baseColorWeight=float4(1,1,1,0);
+        deltaMat.specularColorWeight=float4(1,1,1,1);
+        deltaMat.specularRoughAnisoIor=float4(mode==28u ? .2 : 0,0,1.5,0);
+        deltaMat.transmissionColorWeight=float4(1,1,1,mode==29u ? 1 : .5);
+        deltaMat.transmissionParams=float4(0,0,0,0);
+        deltaMat.coatColorWeight=float4(1,1,1,0);
+        deltaMat.fuzzColorWeight=float4(1,1,1,0);
+        deltaMat.opacityFlagsPad=float4(1,0,0,mode==28u ? 1 : 0);
+        float3 n=float3(0,0,1),t=float3(1,0,0),b=float3(0,1,0);
+        float sum=0;
+        uint count=0u;
+        for(uint attempt=0u;attempt<64u;++attempt){
+            RngState rng=makeRngState(123u,attempt);
+            BSDFSample sampled=sampleBSDF(deltaMat,n,n,t,b,n,t,b,false,rng);
+            if(sampled.direction.z<0 && sampled.weight.y>0){sum+=sampled.weight.y;++count;}
+        }
+        pc.outputs[mode]=float4(count ? sum/count : 0,count,sum,0);
+        return;
+    }
+    if (mode>=18u) {
+        // OpenPBR 1.1.2 reduction to lobes: the dielectric reflection sits above the whole
+        // dielectric substrate; transmission mixes only the opaque and translucent substrates.
+        // Modes 19/20 carry the legacy full-glass flag on purpose: a fractional authored weight
+        // must override that stale host classification. Mode 21 has no flag: full transmission
+        // is recognized from the resolved material, including a textured weight reaching one.
+        // Mode 21 is smooth full glass; mode 24 is rough full glass and must retain its GGX reflection.
+        GpuMaterial layered={};
+        layered.baseColorWeight=float4(1,1,1,mode==23u ? 0 : 1);
+        layered.baseMetalnessDiffRough=float4(mode==22u ? .25 : 0,0,0,0);
+        layered.specularColorWeight=float4(1,1,1,1);
+        layered.specularRoughAnisoIor=float4(mode==21u ? 0 : .2,0,1.5,0);
+        layered.transmissionColorWeight=float4(1,1,1,
+            mode==18u ? .25 : (mode==19u || mode==22u || mode==23u ? .5 : (mode==20u ? .75 : 1)));
+        layered.subsurfaceColorWeight=float4(1,1,1,.5);
+        layered.coatColorWeight=float4(1,1,1,0);
+        layered.fuzzColorWeight=float4(1,1,1,0);
+        layered.opacityFlagsPad=float4(1,mode==19u || mode==20u ? 2 : 0,0,0);
+        float diffuseWeight,subsurfaceWeight,specularWeight,metalWeight,transmissionWeight;
+        float coatWeight,fuzzWeight,diffuseTransWeight;
+        bool mirrorMode,glassMode;
+        computeLobeWeights(layered,diffuseWeight,subsurfaceWeight,specularWeight,metalWeight,
+            transmissionWeight,coatWeight,fuzzWeight,diffuseTransWeight,mirrorMode,glassMode);
+        pc.outputs[mode]=float4(diffuseWeight,subsurfaceWeight,specularWeight,transmissionWeight);
+        return;
+    }
     if (mode>=12u) {
         // 12..17: the direction in which anisotropy stretches the specular highlight. The light
         // leaves the mirror direction (the normal, at normal incidence) by 15 degrees, toward +X

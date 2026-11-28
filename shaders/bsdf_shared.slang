@@ -886,22 +886,27 @@ void computeLobeWeights(
     out bool mirrorMode,
     out bool glassMode)
 {
-    float opacity = saturate(mat.opacityFlagsPad.x);
     uint flags = (uint)mat.opacityFlagsPad.y;
     mirrorMode = (flags == 3u);
-    glassMode = (flags == 2u);
-
     float baseWeight = saturate(mat.baseColorWeight.w);
     float metalness = flags == 1u ? 1.0 : saturate(mat.baseMetalnessDiffRough.x);
-    float transmission = glassMode ? 1.0 : saturate(mat.transmissionColorWeight.w);
-    // Transmission weight is now independent of opacity per OpenPBR: geometry_opacity gates
-    // a pass-through delta BTDF (stochastic in the integrator), while transmission_weight
-    // controls the specular refractive lobe independently.
+    float transmission = saturate(mat.transmissionColorWeight.w);
+    // OpenPBR 1.1.2's reduction to lobes: transmission_weight mixes the opaque and translucent
+    // substrates, while the primary dielectric reflection is layered above their entire mixture.
+    // Only a fully transmitting, nonmetallic SMOOTH dielectric uses the optimized R+T Fresnel-split
+    // delta path. Rough full glass keeps its ordinary GGX reflection lobe above transmission.
+    // Resolve this from the textured material rather than a host-side scalar threshold.
+    glassMode = transmission >= 1.0 && metalness <= 0.0 &&
+                mat.specularRoughAnisoIor.x < kSmoothDielectricRoughness;
+    float dielectricBase = 1.0 - metalness;
+    float opaqueBase = dielectricBase * (1.0 - transmission);
     coatWeight = saturate(mat.coatColorWeight.w);
     fuzzWeight = saturate(mat.fuzzColorWeight.w);
-    subsurfaceWeight = saturate(mat.subsurfaceColorWeight.w) * (1.0 - transmission);
-    float opaqueBase = baseWeight * (1.0 - transmission);
-    diffuseWeight = opaqueBase * (1.0 - metalness) * (1.0 - subsurfaceWeight);
+    float subsurface = saturate(mat.subsurfaceColorWeight.w);
+    subsurfaceWeight = opaqueBase * subsurface;
+    // base_weight scales base_color for the diffuse and metal closures (MaterialX
+    // diffuse_bsdf.weight and metal_reflectivity), not the dielectric interface or SSS.
+    diffuseWeight = baseWeight * opaqueBase * (1.0 - subsurface);
     // G3 (spec): specular_weight modulates the dielectric F0/eta (see openpbrModulatedEta), NOT the
     // dielectric lobe weight — so the dielectric reflection carries the full base allocation and its
     // brightness is governed by the scaled Fresnel. For the METAL base, the spec applies
@@ -911,9 +916,9 @@ void computeLobeWeights(
     // F90 = saturate(50·F0), exact-Fresnel vanishing-interface behavior), so NO lobe-weight
     // gate is needed here (the former SYN7 smoothstep hack is gone — C1).
     float specularParam = saturate(mat.specularColorWeight.w);
-    specularWeight = opaqueBase * (1.0 - metalness);
+    specularWeight = glassMode ? 0.0 : dielectricBase;
     metalWeight = baseWeight * metalness * specularParam;
-    transmissionWeight = baseWeight * transmission;
+    transmissionWeight = dielectricBase * transmission;
 
     // Thin-walled subsurface degenerates into a diffuse reflection + diffuse transmission
     // sheet, split by the scatter anisotropy g per OpenPBR (reflect ½S(1-g), transmit ½S(1+g)).
