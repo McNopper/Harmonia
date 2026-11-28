@@ -38,7 +38,7 @@ namespace {
 // flags: 0 = general layered, 2 = glass/dielectric, 3 = mirror (not set here).
 [[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p,
                                      harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
-    harmonia::utils::ColorSpace::WorkingColorSpace sourceSpace;
+    auto sourceSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec709;
     switch (p.inputColorSpace) {
     case aether::MaterialColorSpace::LinRec709:
         sourceSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec709;
