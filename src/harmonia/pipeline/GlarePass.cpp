@@ -192,8 +192,9 @@ bool GlarePass::createImages(VkExtent2D extent) {
         const std::uint32_t index = m_levelCount;
         for (auto* chain : {&m_downsampled, &m_upsampled}) {
             const bool isResult = index == 0U && chain == &m_upsampled;
-            const VkImageUsageFlags usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                            (isResult ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : 0U);
+            const VkImageUsageFlags usage =
+                VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                (isResult ? static_cast<VkImageUsageFlags>(VK_IMAGE_USAGE_TRANSFER_SRC_BIT) : VkImageUsageFlags{0});
             auto image = core::Image::create(*m_ctx,
                                              level,
                                              kLevelFormat,
