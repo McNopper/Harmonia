@@ -2,6 +2,7 @@
 
 #include <OpenImageIO/imageio.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <string_view>
@@ -15,14 +16,12 @@
 namespace harmonia::scene {
 
 namespace {
-constexpr float kRec2020RedPrimariesThreshold = 0.68f;
-
 /// H-05 seam guard: tokens OpenImageIO may tag a genuinely scene-linear file
 /// with. Everything else (sRGB, Rec709, gamma encodings, ...) is a
 /// display-referred encoding and rejected as IBL input.
 [[nodiscard]] bool isSceneLinearToken(std::string_view oiioColorSpace) noexcept {
     return oiioColorSpace == "linear" || oiioColorSpace == "scene_linear" || oiioColorSpace == "lin_rec709_scene" ||
-           oiioColorSpace == "lin_rec2020_scene";
+           oiioColorSpace == "lin_rec2020_scene" || oiioColorSpace == "lin_ap1_scene";
 }
 } // namespace
 
@@ -35,7 +34,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(const DeviceContext& ctx
         return std::unexpected(exr.error());
     }
 
-    std::vector<float> rgba32f = convertPrimaries(exr->raw, exr->width, exr->height, exr->srcRec2020, workingSpace);
+    std::vector<float> rgba32f = convertPrimaries(exr->raw, exr->width, exr->height, exr->sourceSpace, workingSpace);
 
     IblProbe probe;
     if (const VkResult result = uploadEnvPanorama(probe, ctx, pool, rgba32f, exr->width, exr->height);
@@ -109,14 +108,37 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
                            spec.nchannels,
                            chanDesc);
     }
-    // Absent attribute = Rec.709 primaries (OpenEXR spec default).
-    // OIIO stores EXR chromaticities as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
-    bool srcRec2020 = false;
+    // Absent attribute = Rec.709 primaries (OpenEXR spec default). Recognize all
+    // primaries and white point together; AP1 red x=.713 must not become Rec.2020.
+    utils::ColorSpace::WorkingColorSpace sourceSpace = utils::ColorSpace::WorkingColorSpace::LinRec709;
+    if (oiioColorSpace == "lin_rec2020_scene")
+        sourceSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020;
+    else if (oiioColorSpace == "lin_ap1_scene")
+        sourceSpace = utils::ColorSpace::WorkingColorSpace::LinAcesCg;
     const OIIO::ParamValue* chromaParam = spec.find_attribute("chromaticities");
     if (chromaParam && chromaParam->type() == OIIO::TypeDesc(OIIO::TypeDesc::FLOAT, 8)) {
         const auto* c = static_cast<const float*>(chromaParam->data());
-        // Rec.2020 red primary x ≈ 0.708 vs Rec.709 x = 0.640 — coarse threshold.
-        srcRec2020 = (c[0] > kRec2020RedPrimariesThreshold);
+        const auto matches = [c](const std::array<float, 8>& expected) {
+            for (std::size_t i = 0; i < expected.size(); ++i) {
+                if (std::abs(c[i] - expected[i]) > 2.0e-3F)
+                    return false;
+            }
+            return true;
+        };
+        constexpr std::array<float, 8> rec709{0.640F, 0.330F, 0.300F, 0.600F, 0.150F, 0.060F, 0.3127F, 0.3290F};
+        constexpr std::array<float, 8> rec2020{0.708F, 0.292F, 0.170F, 0.797F, 0.131F, 0.046F, 0.3127F, 0.3290F};
+        constexpr std::array<float, 8> ap1{0.713F, 0.293F, 0.165F, 0.830F, 0.128F, 0.044F, 0.32168F, 0.33767F};
+        if (matches(ap1))
+            sourceSpace = utils::ColorSpace::WorkingColorSpace::LinAcesCg;
+        else if (matches(rec2020))
+            sourceSpace = utils::ColorSpace::WorkingColorSpace::LinRec2020;
+        else if (matches(rec709))
+            sourceSpace = utils::ColorSpace::WorkingColorSpace::LinRec709;
+        else {
+            core::Logger::error("IblProbe: '{}' has unsupported chromaticities; expected Rec.709, Rec.2020 or AP1",
+                                path.string());
+            return std::unexpected(VK_ERROR_FORMAT_NOT_SUPPORTED);
+        }
     }
 
     // ── Read all channels then reorder into RGBA ──────────────────────────────
@@ -140,7 +162,7 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
     ExrData data;
     data.width = width;
     data.height = height;
-    data.srcRec2020 = srcRec2020;
+    data.sourceSpace = sourceSpace;
     data.raw.resize(width * height * 4u);
     for (std::size_t i = 0; i < width * height; ++i) {
         const std::size_t base = i * nchans;
@@ -156,22 +178,8 @@ std::expected<IblProbe::ExrData, VkResult> IblProbe::readEXR(const std::filesyst
 std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
                                               std::size_t width,
                                               std::size_t height,
-                                              bool srcRec2020,
+                                              harmonia::utils::ColorSpace::WorkingColorSpace sourceSpace,
                                               harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
-    // ── Pick the primaries conversion (source → working space) ───────────────
-    // Rec.709 → Rec.2020 (D65, IEC 61966 / BT.2087) and its inverse.
-    // SM6: slang-math row-major float3x3 (constructed from rows, identical values)
-    // replaces the hand-rolled 9-scalar struct; `m * v` keeps the same row·vector math.
-    constexpr sm::float3x3 k709To2020{sm::float3{0.6274040f, 0.3292820f, 0.0433140f},
-                                      sm::float3{0.0690970f, 0.9195400f, 0.0113630f},
-                                      sm::float3{0.0163916f, 0.0880132f, 0.8955950f}};
-    constexpr sm::float3x3 k2020To709{sm::float3{1.6604911f, -0.5876411f, -0.0728499f},
-                                      sm::float3{-0.1245505f, 1.1328999f, -0.0083494f},
-                                      sm::float3{-0.0181508f, -0.1005789f, 1.1187297f}};
-    constexpr sm::float3x3 kIdentity = sm::float3x3::identity();
-    const bool dstRec2020 = (workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
-    const sm::float3x3& m = (srcRec2020 == dstRec2020) ? kIdentity : (dstRec2020 ? k709To2020 : k2020To709);
-
     // Clamp non-finite values (e.g. half-float inf from overexposed sun disc) to
     // half-float max (65504) so the CDF importance sampler keeps the sun visible.
     auto safeVal = [](float v) -> float {
@@ -184,7 +192,7 @@ std::vector<float> IblProbe::convertPrimaries(const std::vector<float>& raw,
         const float r = safeVal(raw[i * 4 + 0]);
         const float g = safeVal(raw[i * 4 + 1]);
         const float b = safeVal(raw[i * 4 + 2]);
-        const sm::float3 converted = m * sm::float3{r, g, b};
+        const sm::float3 converted = utils::ColorSpace::convertLinearRgb({r, g, b}, sourceSpace, workingSpace);
         rgba32f[i * 4 + 0] = converted.x;
         rgba32f[i * 4 + 1] = converted.y;
         rgba32f[i * 4 + 2] = converted.z;

@@ -211,7 +211,8 @@ applyWorkingColorSpace(const aether::SceneDesc& desc, const std::filesystem::pat
         } else {
             core::Logger::error(
                 "SceneLoader: unsupported working_color_space '{}' in '{}' — the working color space must be "
-                "scene-referred linear ('lin_rec2020_scene' or 'lin_rec709_scene'); display-referred and "
+                "scene-referred linear ('lin_rec2020_scene', 'lin_rec709_scene' or 'lin_ap1_scene'); display-referred "
+                "and "
                 "unknown spaces are rejected",
                 *desc.workingColorSpace,
                 sceneFile.string());
@@ -253,7 +254,7 @@ void applyRenderSettings(const aether::SceneDesc& desc, SceneConfig& cfg) {
     if (desc.tonemapper) {
         const std::string& name = *desc.tonemapper;
         static const std::unordered_map<std::string, std::uint32_t> kTonemappers{
-            {"aces", 0u}, {"agx", 1u}, {"reinhard", 2u}, {"hable", 3u}};
+            {"aces", 0u}, {"agx", 1u}, {"reinhard", 2u}, {"hable", 3u}, {"aces_1_0_sdr_video", 4u}};
         if (const auto it = kTonemappers.find(name); it != kTonemappers.end()) {
             cfg.tonemapper = it->second;
         } else {
@@ -282,6 +283,8 @@ void applyCamera(const aether::CameraDesc& cam, SceneConfig& cfg) {
         cfg.cameraVfov = *cam.vfov;
     if (cam.ev100)
         cfg.cameraEv100 = *cam.ev100;
+    if (cam.exposureCompensationEv)
+        cfg.cameraExposureCompensationEv = *cam.exposureCompensationEv;
     if (cam.lensRadius)
         cfg.cameraLensRadius = *cam.lensRadius;
     if (cam.focusDistance)
@@ -630,15 +633,7 @@ std::vector<std::unique_ptr<Light>> makeLights(const aether::SceneDesc& desc,
     // token) against the working space, on the material colors' path.
     const auto toWorking = [workingSpace](const aether::LightDesc& light) {
         const auto source = utils::ColorSpace::parseWorkingColorSpace(light.colorSpace);
-        const bool srcRec709 = source == utils::ColorSpace::WorkingColorSpace::LinRec709;
-        const bool dstRec2020 = workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec2020;
-        if (srcRec709 && dstRec2020) {
-            return utils::ColorSpace::rec709ToRec2020(light.color);
-        }
-        if (!srcRec709 && !dstRec2020) {
-            return utils::ColorSpace::rec2020ToRec709(light.color);
-        }
-        return light.color; // declared space == working space
+        return utils::ColorSpace::convertLinearRgb(light.color, *source, workingSpace);
     };
     const auto unitOf = [](aether::LightDesc::Unit unit) {
         return unit == aether::LightDesc::Unit::Lumen ? IntensityUnit::Lumen : IntensityUnit::Candela;

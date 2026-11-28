@@ -84,6 +84,20 @@ TEST(CameraAssembly, ExplicitSceneFieldsAreAssembledOnce) {
     EXPECT_NEAR(params->farPlane, 5000.0f, 1e-6f);
 }
 
+TEST(CameraAssembly, ExposureCompensationIsOneGlobalPowerOfTwo) {
+    SceneConfig neutral{};
+    neutral.cameraPos = sm::float3{0.0f, 1.0f, 4.0f};
+    neutral.cameraAt = sm::float3{0.0f, 1.0f, 0.0f};
+    neutral.cameraEv100 = 8.0f;
+    SceneConfig compensated = neutral;
+    compensated.cameraExposureCompensationEv = 1.5f;
+    const auto base = CameraAssembly::fromSceneConfig(neutral, 1.0f);
+    const auto adjusted = CameraAssembly::fromSceneConfig(compensated, 1.0f);
+    ASSERT_TRUE(base.has_value() && adjusted.has_value());
+    EXPECT_FLOAT_EQ(adjusted->physical.ev100(), 6.5f);
+    EXPECT_NEAR(adjusted->physical.exposure() / base->physical.exposure(), std::exp2(1.5f), 1.0e-6f);
+}
+
 TEST(CameraAssembly, MissingOptionalFieldsUseSharedDefaults) {
     SceneConfig config{};
     config.cameraPos = sm::float3{0.0f, 1.0f, 4.0f};

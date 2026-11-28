@@ -117,6 +117,10 @@ Modes:
   most 2.5 percent and PSNR is at least 20 dB (defaults). Use it for ad-hoc comparisons
   of very bright, transmissive content; the manifest does not route any scene through it.
 
+The loader reads OpenEXR `chromaticities` for Rec.709, Rec.2020, and ACEScg/AP1 and
+converts both inputs to canonical scene-linear Rec.2020 before every metric. As required by
+OpenEXR, absent chromaticities mean Rec.709. Unknown primaries are rejected rather than guessed.
+
 Metrics:
 
 | Metric | Computed on | Meaning |

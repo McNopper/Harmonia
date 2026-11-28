@@ -309,6 +309,13 @@ float3 fresnelSchlick(float3 F0, float cosTheta)
     return F0 + (1.0 - F0) * x;
 }
 
+float transmissionRadianceScale(float etaTOverEtaI)
+{
+    // Non-symmetric radiance transport through a refractive interface (PBRT-v4
+    // DielectricBxDF, TransportMode::Radiance). Importance transport uses the inverse.
+    return 1.0 / max(etaTOverEtaI * etaTOverEtaI, 1.0e-12);
+}
+
 float fresnelDielectric(float cosI, float eta)
 {
     cosI = clamp(cosI, -1.0, 1.0);

@@ -14,10 +14,11 @@ namespace harmonia {
 /// Applied only for SDR and Display P3 output; HDR paths (HDR10/HLG/scRGB) use their
 /// own transfer functions and ignore this field.
 enum class Tonemapper : std::uint32_t {
-    eACES = 0,     ///< ACES RRT+ODT (Stephen Hill fit)   — filmic, high contrast
-    eAgX = 1,      ///< AgX (Troy Sobotka, 2022)          — wide DR, natural highlight rolloff
-    eReinhard = 2, ///< Luminance-preserving Reinhard      — simple, smooth, no colour shift
-    eHable = 3,    ///< Hable / Uncharted-2 filmic         — moderate contrast, reference
+    eACES = 0,           ///< ACES RRT+ODT (Stephen Hill fit)   — filmic, high contrast
+    eAgX = 1,            ///< AgX (Troy Sobotka, 2022)          — wide DR, natural highlight rolloff
+    eReinhard = 2,       ///< Luminance-preserving Reinhard      — simple, smooth, no colour shift
+    eHable = 3,          ///< Hable / Uncharted-2 filmic         — moderate contrast, reference
+    eACES10SDRVideo = 4, ///< Full Academy RRT 1.0.3 + sRGB ODT 1.0.3, not the Hill fit
 };
 
 /// Scene light types (matches GpuLight::type field and shader constants).

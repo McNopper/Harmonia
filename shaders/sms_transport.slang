@@ -76,5 +76,5 @@ float3 smsDeltaResponse(GpuMaterial mat, float3 wo, float3 normal, uint event, f
     float eta = event == kSmsReflection ? smsGlassEta(mat) : etaTOverI;
     float F = fresnelDielectric(abs(dot(normal,wo)), eta);
     float3 tint = mat.transmissionParams.x > 1.0e-4 ? 1.0.xxx : saturate3(mat.transmissionColorWeight.xyz);
-    return event == kSmsReflection ? F.xxx : (1.0-F)/(eta*eta) * tint;
+    return event == kSmsReflection ? F.xxx : (1.0 - F) * transmissionRadianceScale(eta) * tint;
 }

@@ -124,6 +124,27 @@ TEST(AcesToneMap, SDRFittedOutputInGamutRange) {
     }
 }
 
+TEST(AgXToneMap, CpuMatchesIndependentShaderRecipeKnownAnswers) {
+    struct Case {
+        sm::float3 input;
+        sm::float3 expectedSrgb;
+    };
+    const std::array<Case, 5> cases{{
+        {{0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}},
+        {{0.18F, 0.18F, 0.18F}, {0.51473674F, 0.50236332F, 0.50208895F}},
+        {{4.0F, 2.0F, 0.5F}, {0.93265944F, 0.79499520F, 0.66085545F}},
+        {{0.0F, 0.0F, 8.0F}, {0.60754351F, 0.65422370F, 0.94723486F}},
+        {{1.0F, 1.0F, 1.0F}, {0.75160060F, 0.72385934F, 0.72325821F}},
+    }};
+    for (const auto& c : cases) {
+        const sm::float3 actual =
+            harmonia::utils::ColorSpace::linearRec709ToSrgb(harmonia::utils::ToneMapping::agxFittedSDR(c.input));
+        EXPECT_NEAR(actual.x, c.expectedSrgb.x, 2.0e-4F);
+        EXPECT_NEAR(actual.y, c.expectedSrgb.y, 2.0e-4F);
+        EXPECT_NEAR(actual.z, c.expectedSrgb.z, 2.0e-4F);
+    }
+}
+
 TEST(HableToneMap, WhiteNeutralOnGrey) {
     const sm::float3 grey(1.f, 1.f, 1.f);
     const sm::float3 out = harmonia::utils::ToneMapping::hableFilmic(grey);

@@ -244,14 +244,14 @@ endif()
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v1.0.0
+    GIT_TAG v1.0.0-pre-alpha
 )
 FetchContent_MakeAvailable(aether)
 
 FetchContent_Declare(
     slang_math
     GIT_REPOSITORY https://github.com/McNopper/slang-math.git
-    GIT_TAG v1.0.0
+    GIT_TAG v1.0.0-pre-alpha
 )
 FetchContent_MakeAvailable(slang_math)
 
@@ -283,6 +283,7 @@ set(HARMONIA_vocab_SOURCES
     src/harmonia/vma_impl.cpp
 )
 set(HARMONIA_utils_SOURCES
+    src/harmonia/utils/Aces.cpp
     src/harmonia/utils/ColorSpace.cpp
 )
 set(HARMONIA_core_SOURCES

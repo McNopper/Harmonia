@@ -12,6 +12,7 @@
 //     https://docs.acescentral.com/specifications/acescg/
 //   ACES RRT+ODT analytic fit — Stephen Hill (BakingLab ACES.hlsl)
 //     https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+//   AgX — Troy Sobotka; Blender / OCIO reference configuration
 //   Hable/Uncharted-2 filmic — John Hable, GDC 2010
 //   Reinhard et al. — SIGGRAPH 2002, "Photographic Tone Reproduction for Digital Images"
 
@@ -79,6 +80,39 @@ inline constexpr sm::float3x3 kAP1ToP3 = sm::float3x3(
 /// ACES for Display P3 output.
 [[nodiscard]] inline sm::float3 acesFittedP3(sm::float3 c2020) noexcept {
     return acesFitted(c2020, kAP1ToP3);
+}
+
+// ── AgX (Troy Sobotka, 2022; Blender/OCIO matrices) ──────────────────────────
+// clang-format off
+inline constexpr sm::float3x3 kAgXInputMatrix = sm::float3x3(
+    {0.842479f, 0.042328f, 0.042376f},
+    {0.078434f, 0.878469f, 0.078434f},
+    {0.079224f, 0.079166f, 0.879143f}
+);
+inline constexpr sm::float3x3 kAgXOutputMatrix = sm::float3x3(
+    { 1.196879f, -0.052897f, -0.052972f},
+    {-0.098021f,  1.151903f, -0.098043f},
+    {-0.099030f, -0.098961f,  1.151074f}
+);
+// clang-format on
+
+[[nodiscard]] inline float agxCurve(float x) noexcept {
+    x = std::clamp(x, 0.0F, 1.0F);
+    const float x2 = x * x;
+    const float x3 = x2 * x;
+    const float x4 = x2 * x2;
+    const float x5 = x3 * x2;
+    const float x6 = x3 * x3;
+    return 15.5F * x6 - 40.14F * x5 + 31.96F * x4 - 6.868F * x3 + 0.4298F * x2 + 0.1191F * x - 0.00232F;
+}
+
+/// AgX Rec.2020 scene-linear -> Rec.709 display-linear (apply sRGB OETF separately).
+[[nodiscard]] inline sm::float3 agxFittedSDR(sm::float3 c2020) noexcept {
+    sm::float3 agx = sm::max(ColorSpace::rec2020ToRec709(c2020), sm::float3{0.0F, 0.0F, 0.0F});
+    agx = kAgXInputMatrix * agx;
+    const auto logEncode = [](float v) { return (std::log2(std::max(v, 2.2e-7F)) + 10.0F) / 16.5F; };
+    agx = sm::float3{agxCurve(logEncode(agx.x)), agxCurve(logEncode(agx.y)), agxCurve(logEncode(agx.z))};
+    return kAgXOutputMatrix * agx;
 }
 
 // ── Hable / Uncharted-2 (John Hable, GDC 2010) ───────────────────────────────

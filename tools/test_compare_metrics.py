@@ -52,6 +52,24 @@ def _test_pair() -> tuple[np.ndarray, np.ndarray]:
 def main() -> int:
     ref, cand = _test_pair()
 
+    ap1 = np.array([[[0.5, 0.4, 0.3]]], dtype=np.float64)
+    ap1_chroma = [0.713, 0.293, 0.165, 0.830, 0.128, 0.044, 0.32168, 0.33767]
+    canonical = cr.canonicalize_exr_rgb(ap1, ap1_chroma)
+    rec2020_to_709 = np.array([[1.6604910, -0.5876411, -0.0728499],
+                               [-0.1245505, 1.1328999, -0.0083494],
+                               [-0.0181508, -0.1005789, 1.1187297]])
+    rec709 = canonical @ rec2020_to_709.T
+    check("EXR AP1 canonicalization matches OCIO known answer",
+          bool(np.allclose(rec709[0, 0], [0.578830986466, 0.388029190156, 0.282302431033], atol=3e-5)))
+    white = cr.canonicalize_exr_rgb(np.ones((1, 1, 3)), None)
+    check("EXR absent chromaticities default to Rec.709", bool(np.allclose(white, 1.0, atol=1e-6)))
+    try:
+        cr.canonicalize_exr_rgb(ap1, [1, 2, 3])
+        unknown_rejected = False
+    except ValueError:
+        unknown_rejected = True
+    check("EXR unknown chromaticities are rejected", unknown_rejected)
+
     # ── PAR4 + base metrics on an identical pair ──────────────────────────────
     m = cr.compute_metrics(ref, cand)
     check("identical: mean_diff == 0", m["mean_diff"] == 0.0, f"{m['mean_diff']}")

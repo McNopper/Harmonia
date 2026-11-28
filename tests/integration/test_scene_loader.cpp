@@ -141,6 +141,27 @@ TEST(SceneLoader, MissingDeclaredMaterialLibraryFailsBeforeAnySceneContent) {
     std::filesystem::remove_all(dir);
 }
 
+TEST(SceneLoader, AcesCgWorkingSpaceAndFullAcesViewAreSerializedSettings) {
+    const std::filesystem::path dir = std::filesystem::temp_directory_path() / "harmonia_scene_loader_aces_settings";
+    std::filesystem::create_directories(dir);
+    const std::filesystem::path scenePath = dir / "aces.scene.toml";
+    {
+        std::ofstream out(scenePath);
+        out << "[render]\nworking_color_space = \"lin_ap1_scene\"\n"
+               "\n[tonemap]\ntonemapper = \"aces_1_0_sdr_video\"\n"
+               "\n[camera]\ntranslate = [0.0, 1.0, 4.0]\nrotate_x = -10.0\n";
+    }
+    RecordingSceneBuilder scene;
+    const harmonia::DeviceContext dummyCtx{};
+    const harmonia::core::CommandPool dummyPool{};
+    const auto cfg = harmonia::scene::SceneLoader::load(scenePath, assetsDir(), scene, dummyCtx, dummyPool);
+    ASSERT_TRUE(cfg.has_value());
+    EXPECT_EQ(cfg->workingColorSpace, harmonia::utils::ColorSpace::WorkingColorSpace::LinAcesCg);
+    ASSERT_TRUE(cfg->tonemapper.has_value());
+    EXPECT_EQ(*cfg->tonemapper, 4U);
+    std::filesystem::remove_all(dir);
+}
+
 TEST(SceneLoader, UnknownTonemapperStillFallsBackToDefault) {
     const std::filesystem::path dir = std::filesystem::temp_directory_path() / "harmonia_scene_loader_tonemap_fallback";
     std::filesystem::create_directories(dir);

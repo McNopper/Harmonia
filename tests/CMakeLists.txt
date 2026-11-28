@@ -8,6 +8,7 @@ add_executable(harmonia_unit_tests
     unit/test_colorspace_seams.cpp
     unit/test_app_args.cpp
     unit/test_tonemap.cpp
+    unit/test_aces.cpp
     unit/test_math.cpp
     unit/test_rng.cpp
     unit/test_env_sampling_contract.cpp
@@ -58,6 +59,7 @@ add_executable(harmonia_component_tests
     component/test_sms_queue.cpp
     component/test_frame_completion.cpp
     component/test_bsdf_measure.cpp
+    component/test_aces_gpu.cpp
     component/test_surface_frame.cpp
     component/test_extra_maps.cpp
     component/test_glare_pass.cpp
@@ -108,9 +110,10 @@ set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/shaders")
 set(COMPILE_SLANG_EXTRA_DEPENDS "${PROJECT_SOURCE_DIR}/shaders/bsdf.slang"
     "${PROJECT_SOURCE_DIR}/shaders/bsdf_shared.slang" "${PROJECT_SOURCE_DIR}/shaders/math.slang"
     "${PROJECT_SOURCE_DIR}/shaders/common.slang" "${PROJECT_SOURCE_DIR}/shaders/gpu_types.slang"
-    "${PROJECT_SOURCE_DIR}/shaders/rng.slang")
+    "${PROJECT_SOURCE_DIR}/shaders/rng.slang" "${PROJECT_SOURCE_DIR}/shaders/aces.slang")
 compile_slang_shaders(harmonia_bsdf_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bsdf_measure_test.slang")
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bsdf_measure_test.slang"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/aces_test.slang")
 unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 add_dependencies(harmonia_component_tests harmonia_bsdf_test_shaders)

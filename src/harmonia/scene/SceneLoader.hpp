@@ -60,9 +60,10 @@ class SceneLoader {
         std::optional<sm::float3> cameraAt;
         std::optional<sm::float3> cameraUp;
         std::optional<float> cameraVfov;
-        std::optional<float> cameraEv100;         ///< physical camera EV100 override
-        std::optional<float> cameraLensRadius;    ///< thin-lens aperture radius in metres
-        std::optional<float> cameraFocusDistance; ///< thin-lens focus distance in metres
+        std::optional<float> cameraEv100;                  ///< physical camera EV100 override
+        std::optional<float> cameraExposureCompensationEv; ///< added global stops, multiplier 2^E
+        std::optional<float> cameraLensRadius;             ///< thin-lens aperture radius in metres
+        std::optional<float> cameraFocusDistance;          ///< thin-lens focus distance in metres
         /// ANI8 camera-from-node: `[camera] node = "<id>"` - the camera is
         /// re-placed from this node's evaluated world every animation tick
         /// (the static pos/at/up above are the REQUIRED load-time preview every

@@ -60,3 +60,40 @@ TEST(ColorSpace, Rec2020ConversionPreservesBlack) {
     const sm::float3 black = harmonia::utils::ColorSpace::rec709ToRec2020(sm::float3(0.0F, 0.0F, 0.0F));
     EXPECT_NEAR(sm::length(black), 0.0F, kEpsilon);
 }
+
+TEST(ColorSpace, AcesCgUsesOfficialInteropsAndMatrices) {
+    const auto parsed = harmonia::utils::ColorSpace::parseWorkingColorSpace("lin_ap1_scene");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(*parsed, harmonia::utils::ColorSpace::WorkingColorSpace::LinAcesCg);
+    EXPECT_STREQ(harmonia::utils::ColorSpace::interopId(*parsed), "lin_ap1_scene");
+    const auto red = harmonia::utils::ColorSpace::rec2020ToAcesCg({1.0F, 0.0F, 0.0F});
+    EXPECT_NEAR(red.x, 0.9748949779F, 2.0e-6F);
+    EXPECT_NEAR(red.y, 0.0021795628F, 2.0e-6F);
+    EXPECT_NEAR(red.z, 0.0047972397F, 2.0e-6F);
+}
+
+TEST(ColorSpace, AcesCgToRec709MatchesOcioKnownAnswer) {
+    const auto converted =
+        harmonia::utils::ColorSpace::convertLinearRgb({0.5F, 0.4F, 0.3F},
+                                                      harmonia::utils::ColorSpace::WorkingColorSpace::LinAcesCg,
+                                                      harmonia::utils::ColorSpace::WorkingColorSpace::LinRec709);
+    EXPECT_NEAR(converted.x, 0.578830986466F, 3.0e-5F);
+    EXPECT_NEAR(converted.y, 0.388029190156F, 3.0e-5F);
+    EXPECT_NEAR(converted.z, 0.282302431033F, 3.0e-5F);
+}
+
+TEST(ColorSpace, AllWorkingSpacePairsRoundTrip) {
+    constexpr std::array spaces{harmonia::utils::ColorSpace::WorkingColorSpace::LinRec709,
+                                harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020,
+                                harmonia::utils::ColorSpace::WorkingColorSpace::LinAcesCg};
+    const sm::float3 value{0.2F, 0.4F, 0.6F};
+    for (const auto source : spaces) {
+        for (const auto destination : spaces) {
+            const auto converted = harmonia::utils::ColorSpace::convertLinearRgb(value, source, destination);
+            const auto roundtrip = harmonia::utils::ColorSpace::convertLinearRgb(converted, destination, source);
+            EXPECT_NEAR(roundtrip.x, value.x, 2.0e-5F);
+            EXPECT_NEAR(roundtrip.y, value.y, 2.0e-5F);
+            EXPECT_NEAR(roundtrip.z, value.z, 2.0e-5F);
+        }
+    }
+}

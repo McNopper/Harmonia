@@ -22,6 +22,8 @@ namespace {
         return TextureColorSpace::LinRec709Scene;
     case aether::TextureColorSpace::LinRec2020Scene:
         return TextureColorSpace::LinRec2020Scene;
+    case aether::TextureColorSpace::LinAcesCgScene:
+        return TextureColorSpace::LinAcesCgScene;
     case aether::TextureColorSpace::Data:
         break;
     }
@@ -36,14 +38,20 @@ namespace {
 // flags: 0 = general layered, 2 = glass/dielectric, 3 = mirror (not set here).
 [[nodiscard]] Material buildMaterial(const aether::MaterialDesc& p,
                                      harmonia::utils::ColorSpace::WorkingColorSpace workingSpace) {
-    const bool srcRec709 = (p.inputColorSpace == aether::MaterialColorSpace::LinRec709);
-    const bool dstRec2020 = (workingSpace == harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020);
-    const auto cc = [srcRec709, dstRec2020](sm::float3 c) {
-        if (srcRec709 && dstRec2020)
-            return harmonia::utils::ColorSpace::rec709ToRec2020(c);
-        if (!srcRec709 && !dstRec2020)
-            return harmonia::utils::ColorSpace::rec2020ToRec709(c);
-        return c; // declared space == working space
+    harmonia::utils::ColorSpace::WorkingColorSpace sourceSpace;
+    switch (p.inputColorSpace) {
+    case aether::MaterialColorSpace::LinRec709:
+        sourceSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec709;
+        break;
+    case aether::MaterialColorSpace::LinRec2020:
+        sourceSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
+        break;
+    case aether::MaterialColorSpace::LinAcesCg:
+        sourceSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinAcesCg;
+        break;
+    }
+    const auto cc = [sourceSpace, workingSpace](sm::float3 c) {
+        return harmonia::utils::ColorSpace::convertLinearRgb(c, sourceSpace, workingSpace);
     };
 
     GpuMaterial g{};

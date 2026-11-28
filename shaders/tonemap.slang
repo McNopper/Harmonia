@@ -2,6 +2,8 @@
 // We do NOT import common.slang to avoid pulling in RaytracingAccelerationStructure
 // (only valid in ray-tracing stages) and other ray-tracing-specific resources.
 
+import aces;
+
 [[vk::binding(1, 0)]] RWTexture2D<float4> hdrTarget;
 /// The glare of the frame (the GlarePass's result, at half resolution): the
 /// light a lens scatters from the bright parts of the frame. A null descriptor
@@ -59,6 +61,15 @@ float3 rec709ToRec2020(float3 c) {
         dot(c, float3( 0.0690970f,  0.9195400f,  0.0113630f)),
         dot(c, float3( 0.0163916f,  0.0880132f,  0.8955950f))
     );
+}
+
+/// ACEScg AP1 D60 → Rec.2020 D65 (Bradford adapted).
+float3 ap1ToRec2020(float3 c) {
+    const float3x3 m = float3x3(
+        float3( 1.0258247477f, -0.0200531908f, -0.0057715568f),
+        float3(-0.0022343695f,  1.0045865019f, -0.0023521324f),
+        float3(-0.0050133515f, -0.0252900718f,  1.0303034233f));
+    return mul(m, c);
 }
 
 /// Rec.2020 → Display P3 D65
@@ -380,6 +391,21 @@ float3 glareAt(float2 uv) {
 float4 tonemapFrag(float4 svPos : SV_Position, float2 uv : TEXCOORD0) : SV_Target0
 {
     int2 coord = int2(svPos.xy);
+    if (pushConst.tonemapper == 4u && pushConst.outputColorSpace >= 3u) {
+        // Full ACES SDR Video: no early scene clamp before the RRT sweeteners.
+        float3 fullInput = softenFirefly(hdrTarget, coord, hdrTarget[coord].xyz);
+        if (pushConst.glareStrength > 0.0f) {
+            fullInput += pushConst.glareStrength * max(glareAt(uv), 0.0f.xxx);
+        }
+        if (pushConst.outputColorSpace == 5u) {
+            return float4(aces10SdrVideoToSrgbFromWorking(fullInput, pushConst.workingColorSpace), 1.0f);
+        }
+        float3 fullLinear = aces10SdrVideoToLinearFromWorking(fullInput, pushConst.workingColorSpace);
+        if (pushConst.outputColorSpace == 4u) {
+            return float4(fullLinear, 1.0f);
+        }
+        return float4(p3Oetf3(saturate(mul(kRec709ToP3, fullLinear))), 1.0f);
+    }
     float3 hdr = max(hdrTarget[coord].xyz, 0.0f.xxx);
     hdr = softenFirefly(hdrTarget, coord, hdr); // suppress isolated HDR outliers (fireflies)
 
@@ -396,6 +422,8 @@ float4 tonemapFrag(float4 svPos : SV_Position, float2 uv : TEXCOORD0) : SV_Targe
     // (exact — Rec.709 is a subset of Rec.2020).
     if (pushConst.workingColorSpace == 1u) {
         hdr = rec709ToRec2020(hdr);
+    } else if (pushConst.workingColorSpace == 2u) {
+        hdr = ap1ToRec2020(hdr);
     }
     float3 out3;
 

@@ -56,7 +56,6 @@ float3 toLocal(float3 v, float3 T, float3 B, float3 N)
 
 // ── Step 3: bulk subsurface — shared volumetric random-walk primitives ──────────────────
 // OpenPBR 1.1.2 models subsurface as light entering through the SAME dielectric interface as
-// OpenPBR 1.1.2 models subsurface as light entering through the SAME dielectric interface as
 // specular/transmission, undergoing multiple scattering in a homogeneous medium, then exiting.
 // These are the shared "volume primitives" (per-channel extinction mapping + phase-function
 // sampling) used by the chromatic (hero-wavelength) volumetric random walk (G5/G6). The same
@@ -68,6 +67,21 @@ float3 sssExtinction(float radius, float3 radiusScale)
 {
     float3 mfp = max(radius, 1.0e-4) * max(saturate3(radiusScale), 1.0e-4.xxx);
     return 1.0.xxx / max(mfp, 1.0e-4.xxx);
+}
+
+/// Convert observed multiple-scattering subsurface_color C to the medium's
+/// single-scattering albedo alpha using OpenPBR 1.1.2's van de Hulst inversion:
+///   s = 4.09712 + 4.20863 C - sqrt(9.59217 + 41.6808 C + 17.7126 C²)
+///   alpha = (1 - s²) / (1 - g s²).
+/// This is the same mapping as Adobe Eclair. Thin-walled SSS never calls it: that
+/// mode is a surface diffuse/transmission split and applies subsurface_color once.
+float3 sssSingleScatterAlbedo(float3 color, float anisotropy)
+{
+    float3 C = saturate3(color);
+    float3 s = 4.09712.xxx + 4.20863 * C
+             - sqrt(max(9.59217.xxx + 41.6808 * C + 17.7126 * C * C, 0.0.xxx));
+    float3 s2 = s * s;
+    return saturate3((1.0.xxx - s2) / max(1.0.xxx - anisotropy * s2, 1.0e-4.xxx));
 }
 
 /// G6: per-channel absorption/scattering coefficients for the transmission volume, per the spec
@@ -767,11 +781,11 @@ float fresnelGgxDirAlbedo(float NdotV, float f0, float alpha)
     return saturate(f0 * ab.x + saturate(50.0 * f0) * ab.y);   // F0*A + F90*B
 }
 
-/// Microfacet reflection with the OpenPBR thin-film lobe. The base glossy Fresnel is
-/// lerp(dielectricF0, baseColor, metalness); thin-film replaces it with the metalness-blend
-/// of the Schlick (dielectric) and conductor (metal) Airy reflectances, weighted by tfWeight.
-/// Evaluated at the microfacet half-angle VoH so iridescence tracks the reflection geometry.
-float3 evalReflectionMicrofacetThinFilm(float3 dielectricF0, float3 baseColor, float3 F82, float metalness,
+/// Microfacet reflection with the OpenPBR thin-film lobe. The dielectric base uses exact
+/// unpolarized Fresnel tinted by specular_color; the conductor base uses generalized Schlick
+/// with F82 edge tint. Thin-film Airy reflectance is blended over the standard reflection.
+/// Callers evaluate the dielectric and conductor closures separately, so metalness is 0 or 1.
+float3 evalReflectionMicrofacetThinFilm(float dielectricEta, float3 dielectricColor, float3 baseColor, float3 F82, float metalness,
                                         float3 wo, float3 wi, float alphaX, float alphaY,
                                         float tfThicknessNm, float tfIor, float tfWeight)
 {
@@ -779,10 +793,13 @@ float3 evalReflectionMicrofacetThinFilm(float3 dielectricF0, float3 baseColor, f
         return 0.0.xxx;
     }
     float m = saturate(metalness);
+    float3 dielectricF0 = iorToF0(dielectricEta) * dielectricColor;
     float3 glossyF0 = lerp(dielectricF0, baseColor, m);
     float3 h = normalize(wo + wi);
     float VoH = saturate(dot(wo, h));
-    float3 F = mx_fresnel_F82(glossyF0, F82, VoH);
+    float3 F = m <= 0.0
+             ? fresnelDielectric(VoH, dielectricEta) * dielectricColor
+             : mx_fresnel_F82(baseColor, F82, VoH);
     if (tfWeight > 0.0 && tfThicknessNm > 0.0) {
         float3 Ftf = thinFilmFresnel(m, dielectricF0, baseColor, F82, VoH, tfThicknessNm, max(tfIor, 1.0));
         F = lerp(F, Ftf, saturate(tfWeight));
@@ -827,7 +844,7 @@ float3 evalTransmissionMicrofacet(float3 color, float depth, float eta, float al
     float denom = dot(wi, wm) + dot(wo, wm) / etap;
     denom = denom * denom * abs(cosTheta_i) * abs(cosTheta_o);
     float ft = D * (1.0 - F) * G * abs(dot(wi, wm) * dot(wo, wm)) / max(denom, 1.0e-12);
-    ft /= (etap * etap);   // Radiance transport (camera paths)
+    ft *= transmissionRadianceScale(etap);   // Radiance transport (camera paths)
 
     // Rough-dielectric MS energy compensation (Turquin/Kulla-Conty 1/Ess boost).
     const float msAlpha = sqrt(max(alphaX * alphaY, 1.0e-8));

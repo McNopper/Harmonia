@@ -30,6 +30,7 @@ enum class TextureColorSpace : std::uint8_t {
     SrgbRec709Scene, ///< "srgb_rec709_scene" — sRGB OETF, Rec.709 primaries
     LinRec709Scene,  ///< "lin_rec709_scene"  — linear, Rec.709 primaries
     LinRec2020Scene, ///< "lin_rec2020_scene" — linear, Rec.2020 primaries
+    LinAcesCgScene,  ///< "lin_ap1_scene"     — linear, ACEScg AP1 primaries
 };
 
 /// Parse a ColorInterop interop ID.
@@ -41,6 +42,8 @@ enum class TextureColorSpace : std::uint8_t {
         return TextureColorSpace::LinRec709Scene;
     if (name == "lin_rec2020_scene")
         return TextureColorSpace::LinRec2020Scene;
+    if (name == "lin_ap1_scene")
+        return TextureColorSpace::LinAcesCgScene;
     return TextureColorSpace::Data;
 }
 

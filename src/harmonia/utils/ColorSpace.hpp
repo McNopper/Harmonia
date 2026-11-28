@@ -27,6 +27,7 @@ namespace harmonia::utils::ColorSpace {
 enum class WorkingColorSpace : std::uint32_t {
     LinRec2020 = 0, ///< "lin_rec2020_scene" — default
     LinRec709 = 1,  ///< "lin_rec709_scene"
+    LinAcesCg = 2,  ///< "lin_ap1_scene" — ACEScg AP1, ACES D60 white
 };
 
 /// Parse a ColorInterop interop ID into a working color space.
@@ -36,13 +37,27 @@ enum class WorkingColorSpace : std::uint32_t {
         return WorkingColorSpace::LinRec2020;
     if (token == "lin_rec709_scene")
         return WorkingColorSpace::LinRec709;
+    if (token == "lin_ap1_scene")
+        return WorkingColorSpace::LinAcesCg;
     return std::nullopt;
 }
 
 /// ColorInterop interop ID of a working color space (for logs / metadata).
 [[nodiscard]] inline const char* interopId(WorkingColorSpace ws) noexcept {
-    return ws == WorkingColorSpace::LinRec709 ? "lin_rec709_scene" : "lin_rec2020_scene";
+    switch (ws) {
+    case WorkingColorSpace::LinRec2020:
+        return "lin_rec2020_scene";
+    case WorkingColorSpace::LinRec709:
+        return "lin_rec709_scene";
+    case WorkingColorSpace::LinAcesCg:
+        return "lin_ap1_scene";
+    }
+    return "lin_rec2020_scene";
 }
+
+/// Convert linear RGB between supported working primaries, including D65/D60 adaptation.
+[[nodiscard]] sm::float3
+convertLinearRgb(sm::float3 c, WorkingColorSpace source, WorkingColorSpace destination) noexcept;
 
 // ── Luminance (Rec.2020 relative, scene-linear) ─────────────────────────────
 // Returns relative luminance Y in Rec.2020; input must be linear Rec.2020.

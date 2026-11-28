@@ -1,6 +1,9 @@
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <iomanip>
+#include <iostream>
 #include <slang-math/slang-math.hpp>
 
 #include "fixtures/ShaderDispatchFixture.hpp"
@@ -65,15 +68,119 @@ TEST_F(ShaderDispatchFixture, BsdfMeasure_BaseWeightDoesNotLeakIntoFractionalDie
 TEST_F(ShaderDispatchFixture, BsdfMeasure_FractionalDeltaTransmissionCarriesValueOverSelectionPmf) {
     const auto values = runShader("bsdf_measure_test.spv", 30U);
     ASSERT_EQ(values.size(), 30U);
-    // Normal-incidence Fresnel(1.5) = 0.04. For specular=1, T=.5, total=1.5, the
-    // value/selection-PMF ratio is total*(1-F) = 1.44, not total/T = 3.
+    // Conditional value of actual delta transmission samples. Fractional smooth (27) and
+    // thin-walled (28) materials have specular=1, transmission=.5, total=1.5. At normal
+    // incidence Fresnel(1.5)=.04, so the value/selection-PMF ratio before transport is
+    // total*(1-F)=1.44. Camera-radiance transport through a solid interface divides by
+    // eta^2 (PBRT-v4 DielectricBxDF), making mode 27 exactly .64. A thin wall returns to
+    // the same exterior medium and has no net IOR transport factor, so mode 28 stays 1.44.
+    // Full smooth glass (29) keeps its Fresnel ownership and conditional value 1/eta^2.
     for (uint32_t mode : {27U, 28U}) {
         SCOPED_TRACE(mode);
         ASSERT_GT(values[mode].y, 0.0F) << "no transmitted sample was measured";
-        EXPECT_NEAR(values[mode].x, 1.44F, 1.0e-5F);
+        const float expected = mode == 27U ? 0.64F : 1.44F;
+        EXPECT_NEAR(values[mode].x, expected, 1.0e-5F);
     }
     ASSERT_GT(values[29].y, 0.0F);
-    EXPECT_NEAR(values[29].x, 1.0F, 1.0e-6F) << "full smooth glass Fresnel ownership is unchanged";
+    EXPECT_NEAR(values[29].x, 1.0F / 2.25F, 1.0e-6F)
+        << "full smooth glass radiance transport matches PBRT smooth and rough limits";
+}
+
+TEST_F(ShaderDispatchFixture, BsdfMeasure_BulkSubsurfaceEntryDoesNotDuplicateDielectricReflection) {
+    const auto values = runShader("bsdf_measure_test.spv", 49U);
+    ASSERT_EQ(values.size(), 49U);
+    ASSERT_GT(values[48].y, 0.0F) << "bulk-SSS entry was not exercised";
+    // specular=1 and SSS=1 give total=2. At normal incidence F=.04 and eta=1.5,
+    // so the conditional substrate entry value is total*(1-F)/eta^2=.853333...
+    EXPECT_NEAR(values[48].x, 0.85333333F, 1.0e-6F);
+    EXPECT_EQ(values[48].z, 0.0F) << "the separate dielectric reflection lobe already owns external Fresnel reflection";
+}
+
+TEST_F(ShaderDispatchFixture, BsdfMeasure_BulkSubsurfaceColorMapsToSingleScatterAlbedo) {
+    const auto values = runShader("bsdf_measure_test.spv", 48U);
+    ASSERT_EQ(values.size(), 48U);
+    ASSERT_GT(values[47].w, 0.0F) << "bulk-SSS medium entry was not exercised";
+    // OpenPBR 1.1.2 subsurface van de Hulst inversion; identical to Adobe Eclair.
+    EXPECT_NEAR(values[47].x, 0.99292494F, 2.0e-6F); // binary32 evaluation of the spec polynomial
+    EXPECT_NEAR(values[47].y, 0.93228703F, 2.0e-6F);
+    EXPECT_NEAR(values[47].z, 0.67898877F, 2.0e-6F);
+}
+
+TEST_F(ShaderDispatchFixture, BsdfMeasure_RoughTransmissionTirIsNotADeltaEvent) {
+    const auto values = runShader("bsdf_measure_test.spv", 43U);
+    ASSERT_EQ(values.size(), 43U);
+    EXPECT_GT(values[42].y, 0.0F) << "rough exiting sampler was not exercised";
+    EXPECT_EQ(values[42].z, 0.0F) << "rough TIR sampler produced a non-finite result";
+    EXPECT_EQ(values[42].x, 0.0F)
+        << "Adobe/PBRT reject failed rough refraction; a continuous rough direction is never delta";
+}
+
+TEST_F(ShaderDispatchFixture, BsdfMeasure_MediumExitInvertsEntryRadianceTransportOnlyOnExit) {
+    const auto values = runShader("bsdf_measure_test.spv", 42U);
+    ASSERT_EQ(values.size(), 42U);
+    ASSERT_GT(values[40].y, 0.0F) << "normal-incidence exit branch was not exercised";
+    EXPECT_NEAR(values[40].x, 2.25F, 1.0e-6F) << "air<-glass exit applies eta^2";
+    if (values[40].w > 0.0F) {
+        EXPECT_NEAR(values[40].z, 1.0F, 1.0e-6F) << "ordinary Fresnel reflection has no transport scale";
+    }
+    EXPECT_EQ(values[41].y, 0.0F) << "60 degrees inside IOR 1.5 must be TIR";
+    EXPECT_NEAR(values[41].x, 1.0F, 1.0e-6F) << "TIR has no transmission transport scale";
+    EXPECT_NEAR(values[41].z, -0.5F, 1.0e-6F);
+}
+
+TEST_F(ShaderDispatchFixture, BsdfMeasure_AdobeEclairDifferentialProbe) {
+    const auto values = runShader("bsdf_measure_test.spv", 47U);
+    ASSERT_EQ(values.size(), 47U);
+    // Adobe openpbr-bsdf c91aad1d1ce1693e803f039d7c92c2965c4eb013, OpenPBR 1.1.1.
+    // Full-material values include Adobe's production multiple-scattering lobes and are a
+    // differential diagnostic, not an assertion that two different sampling PMFs must match.
+    constexpr std::array<std::array<float, 3>, 14> adobeCos{{
+        {8.850337982F, 8.850337982F, 8.850337982F},
+        {0.2080281228F, 0.2080281228F, 0.2080281228F},
+        {1718.873169F, 1718.873169F, 1718.873169F},
+        {1.989436746F, 1.989436746F, 1.989436746F},
+        {988.3170166F, 988.3170166F, 988.3170166F},
+        {3.530912638F, 3.530912638F, 3.530912638F},
+        {5.570073605F, 5.629783154F, 5.568669319F},
+        {0.004202701151F, 0.03650648892F, 0.002792584011F},
+        {219.5317841F, 333.3610535F, 219.5317841F},
+        {5.608922005F, 5.69054985F, 5.608922005F},
+        {0.02993844822F, 0.02993844822F, 0.02993844822F},
+        {0.02948963828F, 0.02948963828F, 0.02948963828F},
+        {15.41597557F, 5.915137768F, 2.072684526F},
+        {0.01874166541F, 0.07671923935F, 0.01372060925F},
+    }};
+    constexpr std::array<float, 14> lightCos{0.5F,
+                                             0.5F,
+                                             1.0F,
+                                             1.0F,
+                                             0.88168347F,
+                                             0.70710678F,
+                                             0.70710678F,
+                                             1.0F,
+                                             0.88168347F,
+                                             0.70710678F,
+                                             0.5F,
+                                             1.0F,
+                                             0.5F,
+                                             1.0F};
+    std::cout << std::setprecision(9) << "mode,adobe_cos,harmonia_cos,ratio,harmonia_pdf\n";
+    for (std::size_t i = 0; i < adobeCos.size(); ++i) {
+        const std::size_t mode = i < 10U ? i + 30U : i + 33U;
+        const auto& v = values[mode];
+        const float actual = v.y * lightCos[i];
+        const float expected = adobeCos[i][1];
+        std::cout << i << ',' << expected << ',' << actual << ',' << actual / expected << ',' << v.w << '\n';
+        EXPECT_TRUE(std::isfinite(actual));
+        EXPECT_TRUE(std::isfinite(v.w));
+        if (i < 2U || i == 3U || i == 5U || i == 6U || i >= 10U) {
+            // Comparable dielectric/metal/fuzz/coated-opaque cases allow 5% for documented
+            // multiple-scattering and layer-approximation differences. Transmission transport,
+            // Adobe's view-dependent coat absorption, and its separate refraction-IOR convention
+            // are intentionally diagnostics rather than equality requirements.
+            EXPECT_NEAR(actual, expected, expected * 0.05F) << "Adobe-comparable case " << i;
+        }
+    }
 }
 
 /// The direction of anisotropy in the shipped BSDF. A light leaves the mirror direction of an

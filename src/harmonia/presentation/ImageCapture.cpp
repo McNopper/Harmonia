@@ -13,6 +13,7 @@
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/utils/Aces.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/ToneMapping.hpp"
 
@@ -108,7 +109,8 @@ bool savePng(const DeviceContext& ctx,
              const core::CommandPool& pool,
              const core::Image& hdrImage,
              const std::filesystem::path& path,
-             utils::ColorSpace::WorkingColorSpace workingSpace) {
+             utils::ColorSpace::WorkingColorSpace workingSpace,
+             Tonemapper toneMapper) {
     if (!ctx.isValid() || !hdrImage.isValid()) {
         return false;
     }
@@ -124,10 +126,8 @@ bool savePng(const DeviceContext& ctx,
         return false;
     }
 
-    // Tone-map (ACES SDR: working space linear -> Rec.709 linear -> sRGB 8-bit) and
-    // pack into a contiguous R8G8B8 byte buffer. The ACES path expects linear
-    // Rec.2020 input; a Rec.709 working space is up-converted first (exact).
-    const bool upConvert = (workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec709);
+    // Apply the selected view transform and pack into contiguous R8G8B8. All
+    // non-full-ACES operators take linear Rec.2020 input and produce linear Rec.709.
     const auto* src = static_cast<const float*>(readback->mappedData());
     std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 3U);
 
@@ -135,11 +135,32 @@ bool savePng(const DeviceContext& ctx,
         for (std::uint32_t x = 0; x < width; ++x) {
             const std::size_t srcIdx = (static_cast<std::size_t>(y) * width + x) * 4U;
             sm::float3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
-            if (upConvert) {
-                hdr = utils::ColorSpace::rec709ToRec2020(hdr);
+            sm::float3 sdrGamma;
+            if (toneMapper == Tonemapper::eACES10SDRVideo) {
+                const sm::float3 ap1 = utils::ColorSpace::convertLinearRgb(
+                    hdr, workingSpace, utils::ColorSpace::WorkingColorSpace::LinAcesCg);
+                sdrGamma = utils::Aces::aces10SdrVideoToSrgbFromAcesCg(ap1);
+            } else {
+                hdr = utils::ColorSpace::convertLinearRgb(
+                    hdr, workingSpace, utils::ColorSpace::WorkingColorSpace::LinRec2020);
+                sm::float3 sdrLinear;
+                switch (toneMapper) {
+                case Tonemapper::eAgX:
+                    sdrLinear = utils::ToneMapping::agxFittedSDR(hdr);
+                    break;
+                case Tonemapper::eReinhard:
+                    sdrLinear =
+                        sm::saturate(utils::ToneMapping::reinhardLuminance(utils::ColorSpace::rec2020ToRec709(hdr)));
+                    break;
+                case Tonemapper::eHable:
+                    sdrLinear = sm::saturate(utils::ToneMapping::hableFilmic(utils::ColorSpace::rec2020ToRec709(hdr)));
+                    break;
+                default:
+                    sdrLinear = utils::ToneMapping::acesFittedSDR(hdr);
+                    break;
+                }
+                sdrGamma = utils::ColorSpace::linearRec709ToSrgb(sdrLinear);
             }
-            const sm::float3 sdrLinear = harmonia::utils::ToneMapping::acesFittedSDR(hdr);
-            const sm::float3 sdrGamma = utils::ColorSpace::linearRec709ToSrgb(sdrLinear);
             const sm::float3 clamped = sm::clamp(sdrGamma, sm::float3{0.f, 0.f, 0.f}, sm::float3{1.f, 1.f, 1.f});
             const std::size_t dstIdx = (static_cast<std::size_t>(y) * width + x) * 3U;
             pixels[dstIdx + 0] = static_cast<std::uint8_t>(std::lround(clamped.r * 255.f));
@@ -192,11 +213,15 @@ bool saveExr([[maybe_unused]] const DeviceContext& ctx,
     const int w = static_cast<int>(hdrImage.extent().width);
     const int h = static_cast<int>(hdrImage.extent().height);
 
-    // Rec.2020 or Rec.709 primaries + D65 white point, as float[8]: Rx Ry Gx Gy Bx By Wx Wy.
+    // Rec.2020/Rec.709 D65 or ACEScg AP1 with the ACES D60 white point.
     const float chromaRec2020[8] = {0.708f, 0.292f, 0.170f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.3290f};
     const float chromaRec709[8] = {0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f, 0.3127f, 0.3290f};
-    const float* chroma =
-        (workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec2020) ? chromaRec2020 : chromaRec709;
+    const float chromaAp1[8] = {0.713f, 0.293f, 0.165f, 0.830f, 0.128f, 0.044f, 0.32168f, 0.33767f};
+    const float* chroma = chromaRec2020;
+    if (workingSpace == utils::ColorSpace::WorkingColorSpace::LinRec709)
+        chroma = chromaRec709;
+    else if (workingSpace == utils::ColorSpace::WorkingColorSpace::LinAcesCg)
+        chroma = chromaAp1;
 
     OIIO::ImageSpec spec(w, h, 3, OIIO::TypeDesc::FLOAT);
     spec.attribute("chromaticities", OIIO::TypeDesc(OIIO::TypeDesc::FLOAT, 8), chroma);

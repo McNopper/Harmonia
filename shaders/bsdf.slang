@@ -100,7 +100,6 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     float3 result = 0.0.xxx;
     if (wiL.z > 0.0 && woL.z > 0.0) {
         float3 dielectricF0 = iorToF0(eta);
-        float3 glossyF0 = lerp(dielectricF0 * specColor, baseColor, saturate(mat.baseMetalnessDiffRough.x));
         float3 glossyF82 = specColor;
         // Dielectric base diffuse/subsurface sit UNDER the specular layer: attenuate by the
         // specular layer's directional albedo, symmetric in NoV/NoL so it stays reciprocal.
@@ -131,10 +130,10 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
         // base_weight lives only in metalWeight; using one internally metalness-blended eval
         // multiplied by (specularWeight + metalWeight) would leak base_weight into the dielectric.
         if (specularWeight > 0.0) {
-            result += baseLayerScale * specularWeight * evalReflectionMicrofacetThinFilm(dielectricF0 * specColor, baseColor, glossyF82, 0.0, woL, wiL, alphaX, alphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
+            result += baseLayerScale * specularWeight * evalReflectionMicrofacetThinFilm(eta, specColor, baseColor, glossyF82, 0.0, woL, wiL, alphaX, alphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
         }
         if (metalWeight > 0.0) {
-            result += baseLayerScale * metalWeight * evalReflectionMicrofacetThinFilm(dielectricF0 * specColor, baseColor, glossyF82, 1.0, woL, wiL, alphaX, alphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
+            result += baseLayerScale * metalWeight * evalReflectionMicrofacetThinFilm(eta, specColor, baseColor, glossyF82, 1.0, woL, wiL, alphaX, alphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
         }
         if (fuzzWeight > 0.0) {
             result += fuzzWeight * evalSheen(fuzzColor, saturate(mat.fuzzRoughPad.x), woL, wiL);
@@ -151,8 +150,9 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
         float3 woC = toLocal(wo, cTs, cBs, cNs);
         float3 wiC = toLocal(wi, cTs, cBs, cNs);
         if (woC.z > 0.0 && wiC.z > 0.0) {
-            float3 coatF0 = iorToF0(coatEta) * max(coatColor, 0.04.xxx);
-            result += fuzzAtten * coatWeight * evalReflectionMicrofacetThinFilm(coatF0, coatF0, coatColor, 0.0, woC, wiC, coatAlphaX, coatAlphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
+            // coat_color is absorption through the coat (applied in baseLayerScale), not a
+            // tint of the coat interface's own dielectric Fresnel reflection.
+            result += fuzzAtten * coatWeight * evalReflectionMicrofacetThinFilm(coatEta, 1.0.xxx, 1.0.xxx, 1.0.xxx, 0.0, woC, wiC, coatAlphaX, coatAlphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
         }
     }
 
@@ -394,41 +394,31 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             // transmission convention; a rough-entry variant is a possible future refinement.
             float invPLobeSS = total / max(subsurfaceWeight, 1.0e-6);
             float Fss = fresnelDielectric(abs(woL.z), eta);
-            if (randFloat(seed) < Fss) {
-                // Entry-interface Fresnel reflection (e.g. the specular highlight on skin/wax):
-                // chosen with probability F, so the carried weight cancels to invPLobeSS.
-                float3 wiReflectSS = reflect(-woL, float3(0.0, 0.0, 1.0));
-                sample.direction = toWorld(wiReflectSS, Ts, Bs, Ns);
-                sample.weight = baseLayerScale * invPLobeSS.xxx;
-                sample.pdf = 1.0;
-                sample.isDelta = true;
-                sample.lobeAlpha = 0.0;
-                return sample;
-            }
+            // The separate dielectric reflection lobe above the substrate already owns
+            // external Fresnel reflection. SSS is the transmitted substrate event, so its
+            // conditional value carries (1-F); reflecting here as well would double-count F.
             float etaRatioSS = 1.0 / eta; // frames face wo; side handled by eta (C7)
             float3 mSS = float3(0.0, 0.0, woL.z > 0.0 ? 1.0 : -1.0);
             float3 wiEnter = refract(-woL, mSS, etaRatioSS);
             if (all(abs(wiEnter) < 1.0e-6.xxx)) {
-                // Degenerate/TIR at entry (should not occur once Fss==1 is already routed
-                // above, kept as a defensive fallback): reflect instead of entering.
-                wiEnter = reflect(-woL, mSS);
-                sample.direction = normalize(toWorld(wiEnter, Ts, Bs, Ns));
-                sample.weight = baseLayerScale * invPLobeSS.xxx;
-                sample.pdf = 1.0;
-                sample.isDelta = true;
-                sample.lobeAlpha = 0.0;
+                // Failed refraction is not another SSS reflection event; the continuous
+                // dielectric reflection lobe owns it. Reject as Adobe/PBRT do for rough TIR.
+                sample.weight = 0.0.xxx;
+                sample.pdf = 0.0;
+                sample.isDelta = false;
                 return sample;
             }
             sample.direction = normalize(toWorld(wiEnter, Ts, Bs, Ns));
-            sample.weight = baseLayerScale * invPLobeSS.xxx;
+            sample.weight = baseLayerScale * (invPLobeSS * (1.0 - Fss) * transmissionRadianceScale(eta));
             sample.pdf = 1.0;
             sample.isDelta = true;
             sample.lobeAlpha = 0.0;
             sample.entersMedium = true;
             float radius = max(mat.subsurfaceRadiusScale.w, 1.0e-4);
             sample.mediumSigmaT = sssExtinction(radius, saturate3(mat.subsurfaceRadiusScale.xyz));
-            sample.mediumAlbedo = saturate3(mat.subsurfaceColorWeight.xyz);
-            sample.mediumG = clamp(mat.opacityFlagsPad.z, -0.95, 0.95);
+            float gss = clamp(mat.opacityFlagsPad.z, -0.95, 0.95);
+            sample.mediumAlbedo = sssSingleScatterAlbedo(mat.subsurfaceColorWeight.xyz, gss);
+            sample.mediumG = gss;
             sample.mediumEta = etaS; // walk boundary handler expects the medium's IOR (>1)
             return sample;
         }
@@ -513,28 +503,31 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             float3 wiDisp = refract(-woL, m, etaRatioC);
             bool tir = all(abs(wiDisp) < 1.0e-6.xxx);
             float Fdisp = fresnelDielectric(abs(dot(woL, m)), etaCEff);
-            float dispTransmission = (tir || glassMode) ? 1.0 : (1.0 - Fdisp);
+            float dispTransmission = glassMode ? 1.0 : (1.0 - Fdisp);
+            float dispTransport = transmissionRadianceScale(etaCEff);
             if (tir) {
-                wiDisp = reflect(-woL, m);
+                // A failed rough refraction is not a delta event. The continuous dielectric
+                // reflection lobe owns TIR; reject this transmission sample as in Adobe Eclair
+                // and PBRT instead of reflecting it with mismatched MIS/PDF bookkeeping.
+                sample.weight = 0.0.xxx;
+                sample.pdf = 0.0;
+                sample.isDelta = false;
+                return sample;
             }
             sample.direction = normalize(toWorld(wiDisp, Ts, Bs, Ns));
             float3 channelMask = (ch == 0u) ? float3(3.0, 0.0, 0.0) : ((ch == 1u) ? float3(0.0, 3.0, 0.0) : float3(0.0, 0.0, 3.0));
             sample.pdf = 1.0;
             sample.isDelta = true;
             sample.lobeAlpha = 0.0;
-            // C5: TIR never crosses the interface — no transmission tint at all. A crossing
-            // with depth>0 enters the interior VDF medium (untinted interface, color realized
-            // by the walk's Beer-Lambert over the actual path); depth==0 tints per crossing.
-            if (tir) {
-                sample.weight = baseLayerScale * channelMask * deltaScale;
-                return sample;
-            }
+            // C5: a crossing with depth>0 enters the interior VDF medium (untinted interface,
+            // color realized by the walk's Beer-Lambert over the actual path); depth==0 tints
+            // per crossing. Failed refraction/TIR returned above without a transmission tint.
             if (mat.transmissionParams.x > 1.0e-4) {
                 float3 volSigmaT;
                 float3 volAlbedo;
                 transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
                                          mat.transmissionParams.x, volSigmaT, volAlbedo);
-                sample.weight = baseLayerScale * channelMask * (dispTransmission * deltaScale);
+                sample.weight = baseLayerScale * channelMask * (dispTransmission * dispTransport * deltaScale);
                 sample.entersMedium = true;
                 sample.mediumSigmaT = volSigmaT;
                 sample.mediumAlbedo = volAlbedo;
@@ -542,7 +535,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.mediumEta = etaC; // material-side IOR (>1) for the walk boundary
                 return sample;
             }
-            sample.weight = baseLayerScale * saturate3(mat.transmissionColorWeight.xyz) * channelMask * (dispTransmission * deltaScale);
+            sample.weight = baseLayerScale * saturate3(mat.transmissionColorWeight.xyz) * channelMask * (dispTransmission * dispTransport * deltaScale);
             return sample;
         }
 
@@ -566,6 +559,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 return sample;
             }
             float smoothTransmission = glassMode ? 1.0 : (1.0 - F);
+            float smoothTransport = transmissionRadianceScale(eta);
             sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
             sample.pdf = 1.0;
             sample.isDelta = true;
@@ -584,7 +578,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 float3 volAlbedo;
                 transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
                                          mat.transmissionParams.x, volSigmaT, volAlbedo);
-                sample.weight = baseLayerScale * (smoothTransmission * deltaScale);
+                sample.weight = baseLayerScale * (smoothTransmission * smoothTransport * deltaScale);
                 sample.entersMedium = true;
                 sample.mediumSigmaT = volSigmaT;
                 sample.mediumAlbedo = volAlbedo;
@@ -592,7 +586,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
                 sample.mediumEta = etaS; // walk boundary handler expects the medium's IOR (>1)
                 return sample;
             }
-            sample.weight = baseLayerScale * saturate3(mat.transmissionColorWeight.xyz) * (smoothTransmission * deltaScale);
+            sample.weight = baseLayerScale * saturate3(mat.transmissionColorWeight.xyz) * (smoothTransmission * smoothTransport * deltaScale);
             return sample;
         }
 
@@ -603,10 +597,15 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
         }
         wiLocal = refract(-woL, m, etaRatio);
         if (all(abs(wiLocal) < 1.0e-6.xxx)) {
-            wiLocal = reflect(-woL, m);
-            sample.isDelta = true;
-            sample.lobeAlpha = 0.0;
-        } else if (mat.transmissionParams.x > 1.0e-4) {
+            // Reject failed rough refraction. The ordinary continuous reflection lobe owns
+            // TIR; reflecting here would require its transmission-branch PDF in the MIS
+            // mixture and must never be mislabeled as a delta event (Adobe Eclair/PBRT).
+            sample.weight = 0.0.xxx;
+            sample.pdf = 0.0;
+            sample.isDelta = false;
+            return sample;
+        }
+        if (mat.transmissionParams.x > 1.0e-4) {
             // C5: a rough refraction crossing into a depth>0 interior enters the same
             // `dielectric_volume` VDF medium as the smooth path; the microfacet BTDF used for
             // the generic weight below is untinted there (evalTransmissionMicrofacet, white at

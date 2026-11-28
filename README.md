@@ -409,9 +409,9 @@ The tests and their fixtures are described in `tests/assets/dds/README.md`.
 
 - Loads the material libraries and converts their colors into the scene's working color
   space.
-- Reads the working color space from `[render] working_color_space`. Only
-  `lin_rec2020_scene` (the default) and `lin_rec709_scene` are accepted; any other
-  value stops the scene load.
+- Reads the working color space from `[render] working_color_space`.
+  `lin_rec2020_scene` (the default), `lin_rec709_scene`, and `lin_ap1_scene`
+  (ACEScg) are accepted; any other value stops the scene load.
 - Imports every declared mesh once, in object space: an OBJ file, a box or a sphere.
   Each `o` or `g` group of an OBJ becomes one sub-mesh. Instances of a mesh share its
   geometry and its bottom-level acceleration structure.
@@ -433,7 +433,9 @@ The tests and their fixtures are described in `tests/assets/dds/README.md`.
 - Reads the distance haze of a scene with a `[haze]` section: the extinction per metre
   at height zero and the height at which it has fallen to 1/e. Both are handed to the
   renderer, which applies the haze to the radiance of every camera ray.
-- Applies the stage switches and the tone mapper of the scene.
+- Applies the stage switches and the tone mapper of the scene. Supported tokens are
+  `aces` (the Stephen Hill fit), `agx`, `reinhard`, `hable`, and
+  `aces_1_0_sdr_video` (Academy RRT 1.0.3 plus RGB-monitor ODT 1.0.3).
 
 ### Analytic lights
 

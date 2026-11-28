@@ -48,7 +48,8 @@ constexpr VkAccessFlags2 kSamplingAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 /// Colour data whose primaries equal the working space needs no primaries conversion.
 [[nodiscard]] constexpr bool samePrimaries(TextureColorSpace colorSpace, WorkingColorSpace workingSpace) noexcept {
     return (colorSpace == TextureColorSpace::LinRec2020Scene && workingSpace == WorkingColorSpace::LinRec2020) ||
-           (colorSpace == TextureColorSpace::LinRec709Scene && workingSpace == WorkingColorSpace::LinRec709);
+           (colorSpace == TextureColorSpace::LinRec709Scene && workingSpace == WorkingColorSpace::LinRec709) ||
+           (colorSpace == TextureColorSpace::LinAcesCgScene && workingSpace == WorkingColorSpace::LinAcesCg);
 }
 
 /// A texture needs a colour conversion when it is colour data whose encoding or primaries
@@ -61,26 +62,18 @@ constexpr VkAccessFlags2 kSamplingAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 /// Applies the declared transfer-function decode and primaries conversion to one RGB color.
 [[nodiscard]] sm::float3
 toWorkingColor(sm::float3 color, TextureColorSpace colorSpace, WorkingColorSpace workingSpace) noexcept {
-    const bool toRec2020 = (workingSpace == WorkingColorSpace::LinRec2020);
     switch (colorSpace) {
     case TextureColorSpace::SrgbRec709Scene:
         color = harmonia::utils::ColorSpace::srgbToLinearRec709(color);
-        if (toRec2020) {
-            color = harmonia::utils::ColorSpace::rec709ToRec2020(color);
-        }
-        break;
+        return harmonia::utils::ColorSpace::convertLinearRgb(color, WorkingColorSpace::LinRec709, workingSpace);
     case TextureColorSpace::LinRec709Scene:
-        if (toRec2020) {
-            color = harmonia::utils::ColorSpace::rec709ToRec2020(color);
-        }
-        break;
+        return harmonia::utils::ColorSpace::convertLinearRgb(color, WorkingColorSpace::LinRec709, workingSpace);
     case TextureColorSpace::LinRec2020Scene:
-        if (!toRec2020) {
-            color = harmonia::utils::ColorSpace::rec2020ToRec709(color);
-        }
-        break;
-    default:
-        break;
+        return harmonia::utils::ColorSpace::convertLinearRgb(color, WorkingColorSpace::LinRec2020, workingSpace);
+    case TextureColorSpace::LinAcesCgScene:
+        return harmonia::utils::ColorSpace::convertLinearRgb(color, WorkingColorSpace::LinAcesCg, workingSpace);
+    case TextureColorSpace::Data:
+        return color;
     }
     return color;
 }
@@ -135,9 +128,12 @@ namespace {
 
     const bool srgbDecode = (colorSpace == TextureColorSpace::SrgbRec709Scene);
     const bool needsPrimariesConversion =
-        (colorSpace == TextureColorSpace::SrgbRec709Scene && workingSpace == WorkingColorSpace::LinRec2020) ||
-        (colorSpace == TextureColorSpace::LinRec709Scene && workingSpace == WorkingColorSpace::LinRec2020) ||
-        (colorSpace == TextureColorSpace::LinRec2020Scene && workingSpace == WorkingColorSpace::LinRec709);
+        colorSpace != TextureColorSpace::Data &&
+        !((colorSpace == TextureColorSpace::SrgbRec709Scene || colorSpace == TextureColorSpace::LinRec709Scene
+               ? workingSpace == WorkingColorSpace::LinRec709
+               : false) ||
+          (colorSpace == TextureColorSpace::LinRec2020Scene && workingSpace == WorkingColorSpace::LinRec2020) ||
+          (colorSpace == TextureColorSpace::LinAcesCgScene && workingSpace == WorkingColorSpace::LinAcesCg));
     if (needsPrimariesConversion) {
         core::Logger::error("Texture::loadFromFile: DDS '{}' is colour data that needs a conversion to the working "
                             "colour space; a block-compressed texture cannot represent it",

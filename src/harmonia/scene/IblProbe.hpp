@@ -73,7 +73,8 @@ class IblProbe {
         std::size_t width = 0;
         std::size_t height = 0;
         std::vector<float> raw;
-        bool srcRec2020 = false;
+        harmonia::utils::ColorSpace::WorkingColorSpace sourceSpace =
+            harmonia::utils::ColorSpace::WorkingColorSpace::LinRec709;
     };
 
     [[nodiscard]] static std::expected<ExrData, VkResult> readEXR(const std::filesystem::path& path);
@@ -81,7 +82,7 @@ class IblProbe {
     convertPrimaries(const std::vector<float>& raw,
                      std::size_t width,
                      std::size_t height,
-                     bool srcRec2020,
+                     harmonia::utils::ColorSpace::WorkingColorSpace sourceSpace,
                      harmonia::utils::ColorSpace::WorkingColorSpace workingSpace);
     [[nodiscard]] static VkResult uploadEnvPanorama(IblProbe& probe,
                                                     const DeviceContext& ctx,

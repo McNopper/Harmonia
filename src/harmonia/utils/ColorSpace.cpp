@@ -35,15 +35,15 @@ static constexpr sm::float3x3 kXYZ_to_Rec2020 = sm::float3x3(
 
 // ── Rec.2020 ↔ ACES AP1 (ACEScg) ─────────────────────────────────────────────
 static constexpr sm::float3x3 kRec2020_to_AP1 = sm::float3x3(
-    {0.6131324f, 0.3395255f, 0.0474491f},  // row 0
-    {0.0701243f, 0.9163394f, 0.0135363f},  // row 1
-    {0.0205076f, 0.1096098f, 0.8699926f}   // row 2
+    {0.9748949779f, 0.0195991086f, 0.0055059134f},  // row 0
+    {0.0021795628f, 0.9955354689f, 0.0022849683f},  // row 1
+    {0.0047972397f, 0.0245320166f, 0.9706707437f}   // row 2
 );
 
 static constexpr sm::float3x3 kAP1_to_Rec2020 = sm::float3x3(
-    { 1.7048586f, -0.6217882f, -0.0832704f},  // row 0
-    {-0.1300066f,  1.1407579f, -0.0107513f},  // row 1
-    {-0.0240033f, -0.1289716f,  1.1529749f}   // row 2
+    { 1.0258247477f, -0.0200531908f, -0.0057715568f},  // row 0
+    {-0.0022343695f,  1.0045865019f, -0.0023521324f},  // row 1
+    {-0.0050133515f, -0.0252900718f,  1.0303034233f}   // row 2
 );
 // clang-format on
 
@@ -64,6 +64,31 @@ sm::float3 rec2020ToAcesCg(sm::float3 c) noexcept {
 }
 sm::float3 acesCgToRec2020(sm::float3 c) noexcept {
     return kAP1_to_Rec2020 * c;
+}
+
+sm::float3 convertLinearRgb(sm::float3 c, WorkingColorSpace source, WorkingColorSpace destination) noexcept {
+    if (source == destination) {
+        return c;
+    }
+    switch (source) {
+    case WorkingColorSpace::LinRec709:
+        c = rec709ToRec2020(c);
+        break;
+    case WorkingColorSpace::LinAcesCg:
+        c = acesCgToRec2020(c);
+        break;
+    case WorkingColorSpace::LinRec2020:
+        break;
+    }
+    switch (destination) {
+    case WorkingColorSpace::LinRec709:
+        return rec2020ToRec709(c);
+    case WorkingColorSpace::LinAcesCg:
+        return rec2020ToAcesCg(c);
+    case WorkingColorSpace::LinRec2020:
+        return c;
+    }
+    return c;
 }
 
 // ── sRGB / Rec.709 OETF & EOTF ───────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import common;
 import math;
 import bsdf;
+import medium_walk;
 
 struct MeasurePush { float4* outputs; };
 [[vk::push_constant]] MeasurePush pc;
@@ -8,7 +9,171 @@ struct MeasurePush { float4* outputs; };
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID) {
     uint mode=id.x;
-    if (mode>=30u) return;
+    if (mode>=49u) return;
+    if (mode==48u) {
+        GpuMaterial sss={};
+        sss.baseColorWeight=float4(0,0,0,1);
+        sss.specularColorWeight=float4(1,1,1,1);
+        sss.specularRoughAnisoIor=float4(0,0,1.5,0);
+        sss.transmissionColorWeight=float4(1,1,1,0);
+        sss.subsurfaceColorWeight=float4(.8,.5,.2,1);
+        sss.subsurfaceRadiusScale=float4(1,.5,.25,.01);
+        sss.coatColorWeight=float4(1,1,1,0);
+        sss.fuzzColorWeight=float4(1,1,1,0);
+        sss.opacityFlagsPad=float4(1,0,.25,0);
+        float3 n=float3(0,0,1),t=float3(1,0,0),b=float3(0,1,0);
+        float entrySum=0;
+        uint entryCount=0u,deltaReflectionCount=0u;
+        for(uint attempt=0u;attempt<256u;++attempt) {
+            RngState rng=makeRngState(1771u,attempt);
+            BSDFSample sampled=sampleBSDF(sss,n,n,t,b,n,t,b,false,rng);
+            if(sampled.entersMedium) { entrySum+=sampled.weight.y; ++entryCount; }
+            else if(sampled.isDelta && sampled.direction.z>0) ++deltaReflectionCount;
+        }
+        pc.outputs[mode]=float4(entryCount ? entrySum/entryCount : 0,entryCount,deltaReflectionCount,1);
+        return;
+    }
+    if (mode==47u) {
+        GpuMaterial sss={};
+        sss.baseColorWeight=float4(0,0,0,1);
+        sss.specularColorWeight=float4(1,1,1,1);
+        sss.specularRoughAnisoIor=float4(0,0,1.5,0);
+        sss.transmissionColorWeight=float4(1,1,1,0);
+        sss.subsurfaceColorWeight=float4(.8,.5,.2,1);
+        sss.subsurfaceRadiusScale=float4(1,.5,.25,.01);
+        sss.coatColorWeight=float4(1,1,1,0);
+        sss.fuzzColorWeight=float4(1,1,1,0);
+        sss.opacityFlagsPad=float4(1,0,.25,0);
+        float3 n=float3(0,0,1),t=float3(1,0,0),b=float3(0,1,0);
+        float3 sum=0.0.xxx;
+        uint count=0u;
+        for(uint attempt=0u;attempt<256u;++attempt) {
+            RngState rng=makeRngState(1771u,attempt);
+            BSDFSample sampled=sampleBSDF(sss,n,n,t,b,n,t,b,false,rng);
+            if(sampled.entersMedium) { sum+=sampled.mediumAlbedo; ++count; }
+        }
+        pc.outputs[mode]=float4(count ? sum/count : 0.0.xxx,count);
+        return;
+    }
+    if (mode>=43u) {
+        GpuMaterial probe={};
+        probe.baseColorWeight=float4(0,0,0,1);
+        probe.specularColorWeight=float4(1,1,1,mode<=44u ? 0 : 1);
+        probe.specularRoughAnisoIor=float4(.3,0,1.5,0);
+        probe.transmissionColorWeight=float4(1,1,1,0);
+        probe.coatColorWeight=float4(1,1,1,0);
+        probe.fuzzColorWeight=float4(.45,.45,.45,mode<=44u ? 1 : 0);
+        probe.fuzzRoughPad=float4(.8,0,0,0);
+        probe.opacityFlagsPad=float4(1,0,0,0);
+        float angle=radians(60.0);
+        if(mode==45u) {
+            probe.baseColorWeight.xyz=float3(.8,.3,.1);
+            probe.baseMetalnessDiffRough.x=1;
+            probe.specularColorWeight.xyz=float3(.9,.8,.7);
+            probe.specularRoughAnisoIor=float4(.3,0,1.5,0);
+        }
+        if(mode==46u) {
+            probe.baseColorWeight.xyz=float3(.2,.5,.1);
+            probe.specularColorWeight=float4(.521,.521,.521,.5);
+            probe.specularRoughAnisoIor=float4(.3,0,1.1,0);
+            probe.coatColorWeight=float4(.46778,1,.46778,1);
+            probe.coatRoughAnisoIorDark=float4(.1,0,1.7,1);
+            probe.fuzzColorWeight.w=.4;
+            angle=radians(45.0);
+        }
+        float3 wo=float3(sin(angle),0,cos(angle));
+        float3 wi=(mode==44u || mode==46u) ? float3(0,0,1) : float3(-sin(angle),0,cos(angle));
+        float3 n=float3(0,0,1),t=float3(1,0,0),b=float3(0,1,0);
+        float3 value=evalBSDF(probe,wo,wi,n,t,b,n,t,b,false);
+        float pdf=pdfBSDF(probe,wo,wi,n,t,b,n,t,b,false);
+        pc.outputs[mode]=float4(value,pdf);
+        return;
+    }
+    if (mode==42u) {
+        GpuMaterial rough={};
+        rough.baseColorWeight=float4(0,0,0,1);
+        rough.specularColorWeight=float4(1,1,1,1);
+        rough.specularRoughAnisoIor=float4(.4,0,1.5,0);
+        rough.transmissionColorWeight=float4(1,1,1,1);
+        rough.coatColorWeight=float4(1,1,1,0);
+        rough.fuzzColorWeight=float4(1,1,1,0);
+        rough.opacityFlagsPad=float4(1,0,0,0);
+        float3 n=float3(0,0,1),t=float3(1,0,0),b=float3(0,1,0);
+        float3 wo=float3(sqrt(.75),0,.5);
+        uint validCount=0u,deltaCount=0u,nonFiniteCount=0u;
+        for(uint attempt=0u;attempt<256u;++attempt) {
+            RngState rng=makeRngState(938u,attempt);
+            BSDFSample sampled=sampleBSDF(rough,wo,n,t,b,n,t,b,true,rng);
+            if(sampled.pdf>0 && maxComp(sampled.weight)>0) ++validCount;
+            if(sampled.isDelta) ++deltaCount;
+            if(!all(isfinite(sampled.weight)) || !isfinite(sampled.pdf)) ++nonFiniteCount;
+        }
+        pc.outputs[mode]=float4(deltaCount,validCount,nonFiniteCount,1);
+        return;
+    }
+    if (mode>=40u) {
+        float3 n=float3(0,0,1);
+        float3 rayDir=mode==41u ? float3(sqrt(.75),0,.5) : n;
+        if(mode==41u) {
+            float3 throughput=1.0.xxx,outOrigin,outDir;
+            RngState rng=makeRngState(123u,0u);
+            bool exited=mediumResolveExit(throughput,rng,1.5,rayDir,n,float3(0,0,0),outOrigin,outDir);
+            pc.outputs[mode]=float4(throughput.x,exited ? 1 : 0,outDir.z,1);
+            return;
+        }
+        float exitSum=0,reflectionSum=0;
+        uint exitCount=0u,reflectionCount=0u;
+        for(uint attempt=0u;attempt<64u;++attempt) {
+            float3 throughput=1.0.xxx,outOrigin,outDir;
+            RngState rng=makeRngState(123u,attempt);
+            bool exited=mediumResolveExit(throughput,rng,1.5,rayDir,n,float3(0,0,0),outOrigin,outDir);
+            if(exited) { exitSum+=throughput.x; ++exitCount; }
+            else { reflectionSum+=throughput.x; ++reflectionCount; }
+        }
+        pc.outputs[mode]=float4(exitCount ? exitSum/exitCount : 0,exitCount,
+            reflectionCount ? reflectionSum/reflectionCount : 0,reflectionCount);
+        return;
+    }
+    if (mode>=30u) {
+        // Differential probe against Adobe Eclair openpbr-bsdf c91aad1 (OpenPBR 1.1.1).
+        // Each row matches tools/adobe_openpbr_probe.cpp; evalBSDF is f, while Adobe returns f*cos.
+        GpuMaterial probe={};
+        probe.baseColorWeight=float4(0,0,0,1);
+        probe.specularColorWeight=float4(1,1,1,1);
+        probe.specularRoughAnisoIor=float4(.2,0,1.5,0);
+        probe.transmissionColorWeight=float4(1,1,1,0);
+        probe.coatColorWeight=float4(1,1,1,0);
+        probe.fuzzColorWeight=float4(1,1,1,0);
+        probe.opacityFlagsPad=float4(1,0,0,0);
+        if(mode==31u) probe.specularRoughAnisoIor.x=.5;
+        if(mode>=32u && mode<=35u) probe.transmissionColorWeight.w=1;
+        if(mode>=36u) {
+            probe.baseColorWeight.xyz=float3(.08,.3,.05);
+            probe.specularRoughAnisoIor.x=.25;
+            probe.coatColorWeight=float4(.46778,1,.46778,1);
+            probe.coatRoughAnisoIorDark=float4(.2,0,1.7,1);
+        }
+        if(mode>=40u-2u) {
+            probe.baseColorWeight.xyz=0.0.xxx;
+            probe.transmissionColorWeight.w=1;
+            probe.transmissionParams.x=.0025;
+        }
+        float angle=radians(60.0);
+        if(mode>=34u) angle=radians(45.0);
+        float3 wo=float3(sin(angle),0,cos(angle));
+        float3 wi=float3(-sin(angle),0,cos(angle));
+        if(mode==32u || mode==33u) { wo=float3(0,0,1); wi=float3(0,0,mode==32u ? -1 : 1); }
+        if(mode==34u || mode==38u) {
+            float refracted=radians(-28.125518);
+            wi=float3(sin(refracted),0,-cos(refracted));
+        }
+        if(mode==37u) wi=float3(0,0,1);
+        float3 n=float3(0,0,1),t=float3(1,0,0),b=float3(0,1,0);
+        float3 value=evalBSDF(probe,wo,wi,n,t,b,n,t,b,false);
+        float pdf=pdfBSDF(probe,wo,wi,n,t,b,n,t,b,false);
+        pc.outputs[mode]=float4(value,pdf);
+        return;
+    }
     if (mode==25u || mode==26u) {
         // Full evalBSDF, not just weights: base_weight=0 removes the metal closure. At metalness
         // 0.5 the surviving dielectric closure must be exactly half of the pure-dielectric reference.
@@ -28,9 +193,9 @@ void main(uint3 id : SV_DispatchThreadID) {
     }
     if (mode>=27u) {
         // Conditional value of actual delta transmission samples. Fractional smooth (27) and
-        // thin-walled (28) materials have specular=1, transmission=.5, total=1.5. Their selected
-        // sample must carry total*(1-F)=1.44 at normal incidence. Full smooth glass (29) keeps
-        // its Fresnel-split ownership and conditional value one. The count proves real samples.
+        // thin-walled (28) materials have specular=1, transmission=.5, total=1.5. The solid
+        // interface applies camera-radiance 1/eta^2 transport; the thin wall has no net medium
+        // change. Full smooth glass (29) keeps Fresnel-split ownership. Counts prove real samples.
         GpuMaterial deltaMat={};
         deltaMat.baseColorWeight=float4(1,1,1,0);
         deltaMat.specularColorWeight=float4(1,1,1,1);

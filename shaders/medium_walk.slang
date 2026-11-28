@@ -117,9 +117,10 @@ void mediumBoundaryTransmittance(inout float3 throughput, float3 sigmaT, bool pu
 /// (refract into air, eta=1) or (total) internal reflection (stay in the medium). `outwardNormal`
 /// is the RAW outward-winding geometric normal (never pre-flipped — C7). Returns true on exit
 /// (caller clears `insideMedium`); false on internal reflection (caller continues the walk). The
-/// (1-F) transmittance is carried by the stochastic branch selection — no throughput scaling.
+/// (1-F) transmittance is carried by stochastic branch selection. A successful exit multiplies
+/// throughput by eta², the inverse of camera-radiance entry transport; reflection/TIR is unchanged.
 /// `eta` = interior IOR. Exit/reflect offsets use kMediumEpsilon.
-bool mediumResolveExit(inout RngState seed, float eta, float3 rayDir, float3 outwardNormal,
+bool mediumResolveExit(inout float3 throughput, inout RngState seed, float eta, float3 rayDir, float3 outwardNormal,
                        float3 hitPos, out float3 outOrigin, out float3 outDir)
 {
     // The ray travels inside toward the boundary, so this is a medium→air crossing.
@@ -138,5 +139,6 @@ bool mediumResolveExit(inout RngState seed, float eta, float3 rayDir, float3 out
     }
     outDir    = normalize(refracted);
     outOrigin = hitPos + outwardNormal * kMediumEpsilon;
+    throughput *= transmissionRadianceScale(1.0 / max(eta, 1.0e-4));
     return true;
 }

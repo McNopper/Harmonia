@@ -29,6 +29,10 @@ std::optional<Camera::Params> CameraAssembly::fromSceneConfig(const harmonia::sc
     if (config.cameraEv100) {
         params.physical = Camera::PhysicalCamera::fromEv100(*config.cameraEv100);
     }
+    if (config.cameraExposureCompensationEv) {
+        const float baseEv100 = config.cameraEv100.value_or(params.physical.ev100());
+        params.physical = Camera::PhysicalCamera::fromEv100(baseEv100 - *config.cameraExposureCompensationEv);
+    }
     return params;
 }
 

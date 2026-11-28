@@ -473,8 +473,12 @@ bool App::saveOffscreenOutputs(const std::filesystem::path& outputFile) {
                  m_context.deviceContext(), m_commandPool, m_offscreen.captureImage(), pngPath, /*swapRB=*/false) &&
              ok;
     } else {
-        ok = harmonia::presentation::ImageCapture::savePng(
-                 m_context.deviceContext(), m_commandPool, sceneOutputImage(), pngPath, m_workingColorSpace) &&
+        ok = harmonia::presentation::ImageCapture::savePng(m_context.deviceContext(),
+                                                           m_commandPool,
+                                                           sceneOutputImage(),
+                                                           pngPath,
+                                                           m_workingColorSpace,
+                                                           static_cast<Tonemapper>(m_tonemapper)) &&
              ok;
     }
     return ok;

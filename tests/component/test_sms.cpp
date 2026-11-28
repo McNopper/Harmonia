@@ -816,11 +816,11 @@ TEST_F(SmsFixture, SmsTransportDomainMatchesSamplerBoundariesAndProposalMass) {
         EXPECT_EQ(outputs[i].y, 0.0F);
         EXPECT_GT(outputs[i].z, 0.0F) << "Exclusion must not remove the existing BSDF event";
     }
-    EXPECT_NEAR(outputs[0].z, 1.0F, 1e-7F)
-        << "base_weight scales diffuse/metal, not the full glass dielectric interface";
+    EXPECT_NEAR(outputs[0].z, 1.0F / 2.25F, 1e-7F)
+        << "base_weight scales diffuse/metal, not the full glass dielectric interface or its radiance transport";
     EXPECT_EQ(outputs[1].x, 1.0F);
     EXPECT_NEAR(outputs[1].y, .04F, 1e-6F);
-    EXPECT_EQ(outputs[1].z, 1.0F);
+    EXPECT_NEAR(outputs[1].z, 1.0F / 2.25F, 1e-7F);
     for (auto i : {3U, 4U, 6U, 7U}) {
         EXPECT_EQ(outputs[i].x, 1.0F);
         EXPECT_EQ(outputs[i].y, 0.0F) << "SMS must retain sampleBSDF's exact grazing zero-event boundary";
@@ -843,7 +843,8 @@ TEST_F(SmsFixture, SmsTransportDomainMatchesSamplerBoundariesAndProposalMass) {
     EXPECT_EQ(outputs[10].z, .5F);
     EXPECT_EQ(outputs[16].x, 1.0F) << "Pure absorption is supported";
     EXPECT_NEAR(outputs[16].y, .96F / 2.25F, 1e-6F) << "Positive-depth interfaces are untinted";
-    EXPECT_EQ(outputs[16].z, 1.0F) << "Actual sampler retains its untinted volume-entry weight";
+    EXPECT_NEAR(outputs[16].z, 1.0F / 2.25F, 1e-7F)
+        << "Actual sampler retains its untinted volume-entry weight and radiance transport";
     EXPECT_EQ(outputs[17].x, 0.0F) << "Scattering volumes stay PT-owned";
     EXPECT_EQ(outputs[17].y, 0.0F);
     EXPECT_GT(outputs[17].z, 0.0F);

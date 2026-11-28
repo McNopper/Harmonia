@@ -3,6 +3,17 @@
 Notes exist for v1.0.0, v0.12.0 and v0.9.0. The complete list of releases is in
 [PLAN.md](PLAN.md), section 9.
 
+## Harmonia v1.0.0-pre-alpha (2026-11-28): prerelease
+
+Pre-alpha development snapshot and GitHub backup. Adds ACEScg working spaces, full ACES 1.0 SDR
+Video, chromaticity-aware EXR comparison, selected-view CPU PNG capture, and scene-wide exposure
+compensation. OpenPBR corrections cover exact dielectric/coat Fresnel, consistent smooth/rough/
+medium/SMS radiance transport, rough-TIR sampling, and bulk-SSS albedo/reflection ownership.
+
+Verification: **327 tests passed, one optional data-dependent DN3-M4 receipt skipped, zero failures**;
+Aether, Hyperion, and Theia family gates also pass. The release remains a prerelease: detailed
+reference-camera, emission-unit, and remaining material-validation work continues after the snapshot.
+
 ## Harmonia v1.0.0 (2026-11-26): major stable release
 
 Stable public baseline of the shared Vulkan library. It is released together with Aether

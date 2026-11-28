@@ -124,8 +124,46 @@ import numpy as np
 
 # ── EXR I/O ──────────────────────────────────────────────────────────────────
 
+# Canonical scene-linear space for every metric below.
+_REC709_TO_REC2020 = np.array([
+    [0.6274039, 0.3292830, 0.0433131],
+    [0.0690973, 0.9195404, 0.0113623],
+    [0.0163914, 0.0880133, 0.8955953],
+], dtype=np.float64)
+_AP1_TO_REC2020 = np.array([
+    [ 1.0258247477, -0.0200531908, -0.0057715568],
+    [-0.0022343695,  1.0045865019, -0.0023521324],
+    [-0.0050133515, -0.0252900718,  1.0303034233],
+], dtype=np.float64)
+
+
+def canonicalize_exr_rgb(rgb: np.ndarray, chromaticities) -> np.ndarray:
+    """Convert Rec.709/Rec.2020/AP1 scene-linear RGB to canonical Rec.2020.
+
+    ``chromaticities`` is a flat Rx,Ry,Gx,Gy,Bx,By,Wx,Wy sequence or None.
+    OpenEXR specifies Rec.709 when the attribute is absent.
+    """
+    values = [0.640, 0.330, 0.300, 0.600, 0.150, 0.060, 0.3127, 0.3290] \
+        if chromaticities is None else [float(v) for v in chromaticities]
+    if len(values) != 8 or not np.all(np.isfinite(values)):
+        raise ValueError(f"invalid EXR chromaticities: {values}")
+    expected = {
+        "rec709": [0.640, 0.330, 0.300, 0.600, 0.150, 0.060, 0.3127, 0.3290],
+        "rec2020": [0.708, 0.292, 0.170, 0.797, 0.131, 0.046, 0.3127, 0.3290],
+        "ap1": [0.713, 0.293, 0.165, 0.830, 0.128, 0.044, 0.32168, 0.33767],
+    }
+    for name, reference in expected.items():
+        if np.allclose(values, reference, atol=2.0e-3, rtol=0.0):
+            if name == "rec709":
+                return (rgb @ _REC709_TO_REC2020.T).astype(np.float32)
+            if name == "ap1":
+                return (rgb @ _AP1_TO_REC2020.T).astype(np.float32)
+            return rgb.astype(np.float32, copy=False)
+    raise ValueError(f"unsupported EXR chromaticities (expected Rec.709, Rec.2020 or AP1): {values}")
+
+
 def load_exr(path: Path) -> np.ndarray:
-    """Load an OpenEXR file and return a float32 HxWx3 array (RGB)."""
+    """Load an OpenEXR as float32 HxWx3 canonical linear Rec.2020."""
     try:
         import Imath
         import OpenEXR
@@ -144,7 +182,11 @@ def load_exr(path: Path) -> np.ndarray:
         raw = f.channel(ch, FLOAT)
         channels[ch] = np.frombuffer(raw, dtype=np.float32).reshape(height, width)
 
-    return np.stack([channels["R"], channels["G"], channels["B"]], axis=-1)
+    chroma = header.get("chromaticities")
+    rgb = np.stack([channels["R"], channels["G"], channels["B"]], axis=-1)
+    if chroma is not None and not isinstance(chroma, (list, tuple, np.ndarray)):
+        chroma = [v for name in ("red", "green", "blue", "white") for v in (getattr(chroma, name).x, getattr(chroma, name).y)]
+    return canonicalize_exr_rgb(rgb, chroma)
 
 
 # ── Metrics ───────────────────────────────────────────────────────────────────
